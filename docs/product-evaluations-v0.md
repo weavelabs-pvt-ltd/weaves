@@ -2,7 +2,7 @@
 
 The backend includes a repeatable smoke and regression harness for agent
 definitions. Evaluation suites are validated by the versioned
-`weaves.product.contracts.v1` evaluation contracts. They can be run synchronously
+`contracts.v1` evaluation contracts. They can be run synchronously
 with the CLI or submitted to the durable product worker as an asynchronous run.
 
 ## Product API storage
@@ -61,7 +61,7 @@ checks, but it does not use this durable job lifecycle.
 
 ## Run a suite
 
-Start the API, then from `backend/` run:
+Start the API, then from the repository root run:
 
 ```sh
 WEAVES_API_URL=http://localhost:8001 \

@@ -4,7 +4,7 @@
 
 P1A identity, P1B model/agent, P1C plugin/capability/workflow, and P1D
 execution/governance contracts and generated schemas have been added under
-`backend/weaves/product/contracts/v1` and `schemas/product/v1`. The contract
+`contracts/v1` and `schemas/product/v1`. The contract
 and architecture test set passes. P1A–P1D do not change runtime, persistence,
 API, or database behavior.
 
@@ -112,27 +112,23 @@ platform contract surface is clearly separated from older contract schemas.
 The destination for P1 contracts is:
 
 ```text
-src/weave/product/
-  __init__.py
-  contracts/
-    __init__.py
-    base.py
-    identity.py
-    agents.py
-    plugins.py
-    workflows.py
-    runs.py
+contracts/v1/
+  base.py
+  identity.py
+  agents.py
+  plugins.py
+  workflows.py
+  executions.py
 ```
 
-`weave.product.contracts` may reuse `ContractModel` from
-`weave.contracts.base`. It must not import the API, persistence, worker,
-investigation, integration, or configuration packages.
+`contracts.v1` may reuse shared contract primitives. It must not import the API,
+persistence, worker, integration, or configuration packages.
 
 The package contains data contracts and validation only. Repository protocols,
 database models, service methods, and provider clients belong to later phases.
 
-The root `weave.product` package should not re-export every model. Callers use
-the bounded contract package explicitly, which prevents the root namespace from
+The root `contracts` package should not re-export every model. Callers use the
+versioned contract package explicitly, which prevents the root namespace from
 becoming an accidental public API.
 
 ## Shared Contract Rules
@@ -452,13 +448,12 @@ contracts: add organization and workspace identity models
 Expected files:
 
 ```text
-src/weave/product/__init__.py
-src/weave/product/contracts/__init__.py
-src/weave/product/contracts/base.py
-src/weave/product/contracts/identity.py
+contracts/v1/__init__.py
+contracts/v1/base.py
+contracts/v1/identity.py
 tests/contract/test_product_identity_contracts.py
 tests/architecture/test_product_contract_dependencies.py
-scripts/export_contract_schemas.py
+scripts/export_product_schemas.py
 schemas/product/v1/*.json
 docs/platform-phase-1-contracts.md
 ```

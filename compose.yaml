@@ -1,8 +1,8 @@
 services:
   product-api:
     restart: unless-stopped
-    build: ./backend
-    command: uvicorn weaves.product.api.app:app --host 0.0.0.0 --port 8000
+    build: .
+    command: uvicorn apps.api.app:app --host 0.0.0.0 --port 8000
     environment:
       DATABASE_URL: postgresql://weaves:weaves@postgres:5432/weaves
       WEAVES_API_TOKEN: ${WEAVES_API_TOKEN:-}
@@ -44,8 +44,8 @@ services:
 
   product-worker:
     restart: unless-stopped
-    build: ./backend
-    command: python -m weaves.product.worker
+    build: .
+    command: python -m apps.worker.main
     environment:
       DATABASE_URL: postgresql://weaves:weaves@postgres:5432/weaves
       WEAVES_SECRET_ENCRYPTION_KEY: ${WEAVES_SECRET_ENCRYPTION_KEY:-}

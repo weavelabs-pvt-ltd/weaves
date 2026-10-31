@@ -252,14 +252,13 @@ and production deployment hardening remain outside this local-v0 runtime.
 ## PostgreSQL Integration Checks
 
 The default test suite uses in-memory repositories and SQL recording fakes.
-Cross-process persistence checks live in `backend/tests/integration` and need
+Cross-process persistence checks live in `tests/integration` and need
 an empty or disposable PostgreSQL database whose role can create and drop
 schemas. Each check creates a random isolated schema and drops it afterward:
 
 ```sh
-cd backend
 WEAVES_TEST_DATABASE_URL='postgresql://user:password@localhost:5432/weaves_test' \
-  ../.venv/bin/pytest -q tests/integration
+  .venv/bin/pytest -q tests/integration
 ```
 
 Without `WEAVES_TEST_DATABASE_URL`, these tests skip. They exercise rate-limit

@@ -642,57 +642,25 @@ an external policy language until the product rules become too complex.
 Do not do this all at once. This is the destination structure.
 
 ```text
-src/weave/product/
-  orgs.py
-  users.py
-  authz.py
-  agents.py
-  model_profiles.py
-  plugins.py
-  capabilities.py
-  workflows.py
-  runs.py
-  artifacts.py
-  approvals.py
-  audit.py
-
-src/weave/agent_runtime/
-  runner.py
-  model_router.py
-  prompts.py
-  context.py
-  budget.py
-  usage.py
-  verifier.py
-
-src/weave/plugin_runtime/
-  registry.py
-  gateway.py
-  specs.py
-  context_builders.py
-  mcp.py
-
-src/weave/workflows/
-  core/
-    definition.py
-    runtime.py
-    state.py
-  incident_analysis/
-    contracts.py
-    collector.py
-    agent.py
-    engine.py
-    report.py
-    followup.py
-    delivery.py
-  jira_triage/
-  pr_review/
-
-src/weave/surfaces/
+apps/
   api/
-  slack/
-  dashboard/
-  webhooks/
+  worker/
+clients/
+  integrations/
+  model_providers/
+contracts/v1/
+infrastructure/
+modules/
+  agents/
+  auth/
+  executions/
+  governance/
+  integrations/
+  knowledge/
+  memory/
+  models/
+  workflows/
+shared/
 ```
 
 The existing `api`, `investigation`, `evidence`, `followup`, and `delivery`
@@ -1129,7 +1097,7 @@ contracts: add organization and workspace identity models
 Files likely touched:
 
 ```text
-src/weave/product/contracts/
+contracts/v1/
 tests/contract/test_product_identity_contracts.py
 tests/architecture/test_product_contract_dependencies.py
 scripts/export_contract_schemas.py

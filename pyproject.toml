@@ -1,0 +1,102 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--strict-markers --strict-config"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "D", "C90"]
+# These rules fight the formatter or the Google convention it is configured for.
+ignore = ["D203", "D206", "D300", "COM812"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert behavior; they are not a public API surface.
+"tests/**/*.py" = ["D"]
+# Existing debt. Remove a file once it satisfies the listed rules.
+# Do not add a path to hide a violation from new work.
+"application/platform.py" = ["B904", "B905", "C901", "D101", "D102"]
+"apps/cli/main.py" = ["D103"]
+"apps/worker/main.py" = ["C901", "D103"]
+"clients/integrations/github.py" = ["C901", "D102", "D107"]
+"clients/integrations/github_app_auth.py" = ["D102", "D107"]
+"clients/integrations/jira.py" = ["C901", "D102", "D107"]
+"clients/integrations/mcp.py" = ["C901", "D102", "D103", "D107", "RUF005"]
+"clients/integrations/oauth.py" = ["D102", "D107"]
+"clients/integrations/slack.py" = ["C901", "D102", "D107"]
+"clients/model_providers/gateway.py" = ["C901", "D101", "D102", "D107"]
+"contracts/v1/agents.py" = ["D100", "D101", "D102"]
+"contracts/v1/auth.py" = ["D101", "D102"]
+"contracts/v1/base.py" = ["D100", "D101", "D105", "UP040", "UP042"]
+"contracts/v1/credentials.py" = ["D101", "D102"]
+"contracts/v1/evaluations.py" = ["C901", "D101", "D102"]
+"contracts/v1/executions.py" = ["C901", "D101", "D102", "SIM102"]
+"contracts/v1/identity.py" = ["D100", "D101", "D102"]
+"contracts/v1/invitations.py" = ["D101", "D102"]
+"contracts/v1/knowledge.py" = ["D101"]
+"contracts/v1/memory.py" = ["D101", "D102", "SIM102"]
+"contracts/v1/model_execution.py" = ["D101", "D102"]
+"contracts/v1/models.py" = ["D100", "D101", "D102"]
+"contracts/v1/oauth.py" = ["D102"]
+"contracts/v1/plugins.py" = ["D100", "D101", "D102", "SIM102"]
+"contracts/v1/schedules.py" = ["D101", "D102"]
+"contracts/v1/threads.py" = ["D101"]
+"contracts/v1/triggers.py" = ["D101"]
+"contracts/v1/workflows.py" = ["D100", "D101", "D102"]
+"infra/gcp/bootstrap_owner.py" = ["D103"]
+"infrastructure/auth/throttle.py" = ["D101", "D102", "D103", "D107"]
+"infrastructure/database/store.py" = ["RUF002"]
+"infrastructure/integrations/plugin_gateway.py" = ["C901", "D101", "D102", "D107"]
+"infrastructure/persistence/memory.py" = ["D101", "D102", "D107"]
+"infrastructure/persistence/repositories.py" = ["B009", "D101", "D102", "D105", "D107", "UP046"]
+"infrastructure/persistence/ports.py" = ["UP046"]
+"infrastructure/persistence/memory_repository.py" = ["UP046"]
+"infrastructure/persistence/postgres_repository.py" = ["UP046"]
+"infrastructure/secrets/store.py" = ["D101", "D102", "D107"]
+"modules/agents/http/routes.py" = ["C901", "D101"]
+"modules/agents/templates.py" = ["D101"]
+"modules/auth/http/routes.py" = ["C901", "D101", "D102"]
+"modules/evaluations/http/routes.py" = ["C901", "D101"]
+"modules/evaluations/runtime.py" = ["B904", "C901", "D102"]
+"modules/executions/http/routes.py" = ["C901", "D101"]
+"modules/governance/http/routes.py" = ["C901", "D101"]
+"modules/integrations/http/oauth.py" = ["C901", "SIM105"]
+"modules/integrations/http/routes.py" = ["C901", "D101"]
+"modules/knowledge/http/routes.py" = ["C901", "D101"]
+"modules/memory/context.py" = ["D102"]
+"modules/models/http/routes.py" = ["C901", "D101"]
+"modules/workflows/http/routes.py" = ["C901", "D101"]
+"scripts/e2e_smoke.py" = ["D103"]
+"scripts/export_product_schemas.py" = ["D100", "D103"]
+"scripts/run_evaluations.py" = ["D103"]
+"shared/clock.py" = ["D103"]
+"shared/errors.py" = ["D107"]
+"shared/ids.py" = ["D103"]
+"shared/request_context.py" = ["D101", "D103"]
+"tests/contracts/test_local_platform_runtime.py" = ["RUF043", "RUF059", "SIM117"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+files = [
+  "shared",
+  "contracts",
+  "infrastructure",
+  "clients",
+  "modules",
+  "application",
+  "apps",
+]

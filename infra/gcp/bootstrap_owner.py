@@ -35,7 +35,9 @@ def request(
             raw = response.read()
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode(errors="replace")
-        raise RuntimeError(f"Owner bootstrap returned HTTP {exc.code}: {detail}") from exc
+        raise RuntimeError(
+            f"Owner bootstrap returned HTTP {exc.code}: {detail}"
+        ) from exc
     return json.loads(raw) if raw else {}
 
 
@@ -75,7 +77,11 @@ def main() -> int:
     )
     request(
         f"{api_base}/auth/login",
-        payload={"email": email, "password": password, "organization_id": organization_id},
+        payload={
+            "email": email,
+            "password": password,
+            "organization_id": organization_id,
+        },
     )
     print("Initial owner created; password login verified.")
     return 0

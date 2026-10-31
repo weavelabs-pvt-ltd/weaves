@@ -173,12 +173,12 @@ Install dependencies with:
 
 ```sh
 python3 -m venv .venv
-.venv/bin/pip install -r backend/requirements-dev.txt
+.venv/bin/pip install -r requirements-dev.txt
 ```
 
-From `backend/`, use `pytest`, `ruff check .`, and `mypy` for the quality
+From the repository root, use `pytest`, `ruff check .`, and `mypy` for the quality
 harness. Product contracts and JSON schemas are under
-`backend/weaves/product/contracts/v1` and `schemas/product/v1`.
+`contracts/v1` and `schemas/product/v1`.
 
 To run a repeatable agent smoke/regression suite against the local API, see
 [`docs/product-evaluations-v0.md`](docs/product-evaluations-v0.md). The harness

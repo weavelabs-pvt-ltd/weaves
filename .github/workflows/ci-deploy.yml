@@ -3,7 +3,17 @@ name: Backend CI and deployment
 on:
   pull_request:
     paths:
-      - "backend/**"
+      - "apps/**"
+      - "application/**"
+      - "clients/**"
+      - "contracts/**"
+      - "infrastructure/**"
+      - "modules/**"
+      - "shared/**"
+      - "tests/**"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - "Dockerfile"
       - "docs/**"
       - "schemas/**"
       - "compose.yaml"
@@ -11,7 +21,17 @@ on:
   push:
     branches: [main]
     paths:
-      - "backend/**"
+      - "apps/**"
+      - "application/**"
+      - "clients/**"
+      - "contracts/**"
+      - "infrastructure/**"
+      - "modules/**"
+      - "shared/**"
+      - "tests/**"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - "Dockerfile"
       - "docs/**"
       - "schemas/**"
       - "compose.yaml"
@@ -46,9 +66,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-    defaults:
-      run:
-        working-directory: backend
     env:
       WEAVES_TEST_DATABASE_URL: postgresql://weaves:weaves@127.0.0.1:5432/weaves_test
     steps:
@@ -57,10 +74,12 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/requirements-dev.txt
+          cache-dependency-path: requirements-dev.txt
       - run: pip install -r requirements-dev.txt
       - run: pytest
       - run: ruff check .
+      - run: ruff format --check .
+      - run: python scripts/check_python_size.py
       - run: mypy
       - run: docker build -t weaves-backend-ci .
 
@@ -84,7 +103,7 @@ jobs:
       - name: Build and publish backend image
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
+          context: .
           push: true
           tags: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/backend:${{ github.sha }}
           cache-from: type=gha,scope=backend
@@ -129,7 +148,7 @@ jobs:
             --memory 512Mi \
             --service-account "weaves-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
             --command python \
-            --args=-m,weaves.product.worker \
+            --args=-m,apps.worker.main \
             --add-cloudsql-instances "${PROJECT_ID}:${REGION}:${CLOUDSQL_INSTANCE}" \
             --set-secrets "DATABASE_URL=weaves-database-url:latest,WEAVES_SECRET_ENCRYPTION_KEY=weaves-fernet-key:latest"
 
@@ -151,4 +170,4 @@ jobs:
           echo "WEAVES_E2E_PASSWORD=$password" >> "$GITHUB_ENV"
           echo "WEAVES_E2E_API_BASE=$(gcloud run services describe "$API_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')/api/v0" >> "$GITHUB_ENV"
       - name: Run deployed API end-to-end smoke
-        run: python backend/scripts/e2e_smoke.py
+        run: python scripts/e2e_smoke.py

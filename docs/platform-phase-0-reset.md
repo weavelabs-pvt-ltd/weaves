@@ -327,29 +327,16 @@ approvals, model usage, and external actions.
 
 ## Clean Package Direction
 
-The target codebase should be organized around platform boundaries:
+The backend is organized around platform boundaries at the repository root:
 
 ```text
-src/weave/product/
-  contracts/
-  services/
-  repositories/
-
-src/weave/identity/
-src/weave/policy/
-src/weave/models/
-src/weave/agents/
-src/weave/plugins/
-src/weave/workflows/
-src/weave/runs/
-src/weave/artifacts/
-src/weave/audit/
-
-src/weave/surfaces/
-  api/
-  dashboard/
-  slack/
-  webhooks/
+apps/
+clients/
+contracts/v1/
+infrastructure/
+modules/
+shared/
+tests/
 ```
 
 Current incident-specific modules can remain until replaced, but new platform
@@ -395,8 +382,8 @@ Add durable execution facts without adding runtime behavior.
 
 ### P2: Local Platform Runtime
 
-Status: implemented in `backend/weaves/product/runtime` with in-memory and
-PostgreSQL repositories. It bootstraps scoped local configuration and executes
+Status: implemented across `application/`, `modules/`, and `infrastructure/`,
+with in-memory and PostgreSQL repositories. It bootstraps scoped local configuration and executes
 an agent path through principal/role authorization, context retrieval, typed
 tool invocation, artifact creation, and audit recording. Product records are
 strictly validated on persistence reads. Contract and architecture tests cover
@@ -408,7 +395,7 @@ audit event records.
 
 ### P3: Model Gateway
 
-Status: implemented in `backend/weaves/product/runtime/model_gateway.py` with
+Status: implemented in `clients/model_providers/` with
 provider-neutral request/response contracts, a deterministic mock adapter, and
 an OpenAI-compatible HTTP adapter. The local runtime routes calls through this
 gateway and records resolved provider/model and token usage. Adapter tests use
@@ -419,7 +406,7 @@ before dispatching to its registered adapter.
 
 ### P4: Plugin Gateway
 
-Status: implemented in `backend/weaves/product/runtime/plugin_gateway.py`.
+Status: implemented in `infrastructure/integrations/plugin_gateway.py`.
 The gateway validates installation scope, capability grants, schemas, and
 payload bounds, and records invocation results in the run audit trail. Local
 knowledge and read-only GitHub, Slack, Jira, and allowlisted MCP context
@@ -427,7 +414,8 @@ connectors are available. Jira comments are an approval-backed write action.
 
 ### P5: Product API
 
-Status: implemented in `backend/weaves/product/api/app.py` under `/api/v0`.
+Status: implemented in `apps/api/` and capability routes under `modules/*/http/`
+under `/api/v0`.
 Routes expose organization/workspace records, provider and model profiles,
 plugin installation, agent create/update/read, workflow listing and execution,
 synchronous runs, durable execution jobs, threads, knowledge, memory,
@@ -448,8 +436,8 @@ production tenant isolation hardening remain future work.
 
 ### P6: First Dashboard
 
-Status: implemented in `backend/weaves/product/api/static/`. The platform API
-serves a responsive local dashboard at `/` with overview metrics, agent
+Status: the separate `weaves-app` repository provides the platform dashboard
+with overview metrics, agent
 creation and version updates, a run lab with execution trace, run and workflow
 inspection, connection and model-profile views, provider model discovery, and
 artifact/audit inspection. The dashboard is an evaluation surface; configured

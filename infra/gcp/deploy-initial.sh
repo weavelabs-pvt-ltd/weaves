@@ -8,7 +8,8 @@ SQL_INSTANCE="${SQL_INSTANCE:-weaves-db}"
 API_SERVICE="weaves-api"
 FRONTEND_SERVICE="weaves-frontend"
 WORKER_POOL="weaves-worker"
-BACKEND_IMAGE="${BACKEND_IMAGE:-$(git -C backend rev-parse --short=12 HEAD)}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+BACKEND_IMAGE="${BACKEND_IMAGE:-$(git -C "$ROOT" rev-parse --short=12 HEAD)}"
 FRONTEND_DIR="${FRONTEND_DIR:-../weaves-app}"
 FRONTEND_IMAGE="${FRONTEND_IMAGE:-$(git -C "$FRONTEND_DIR" rev-parse --short=12 HEAD)}"
 GCLOUD="${GCLOUD:-$(command -v gcloud || true)}"
@@ -27,7 +28,7 @@ connection_name="${PROJECT_ID}:${REGION}:${SQL_INSTANCE}"
 
 "$GCLOUD" auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 docker buildx build --platform=linux/amd64 --no-cache --provenance=false --push \
-  -t "$backend_ref" backend
+  -t "$backend_ref" "$ROOT"
 docker buildx build --platform=linux/amd64 --no-cache --provenance=false --push \
   -t "$frontend_ref" "$FRONTEND_DIR"
 
@@ -76,7 +77,7 @@ unset WEAVES_OWNER_PASSWORD WEAVES_ONBOARDING_TOKEN
   --project "$PROJECT_ID" --region "$REGION" --image "$backend_ref" \
   --instances 1 --cpu 1 --memory 512Mi \
   --service-account "weaves-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --command python --args=-m,weaves.product.worker \
+  --command python --args=-m,apps.worker.main \
   --add-cloudsql-instances "$connection_name" \
   --set-secrets "DATABASE_URL=weaves-database-url:1,WEAVES_SECRET_ENCRYPTION_KEY=weaves-fernet-key:1"
 
@@ -84,6 +85,6 @@ export WEAVES_E2E_API_BASE="${api_url}/api/v0"
 export WEAVES_E2E_EMAIL="$WEAVES_OWNER_EMAIL"
 export WEAVES_E2E_PASSWORD="$("$GCLOUD" secrets versions access latest \
   --secret=weaves-e2e-owner-password --project="$PROJECT_ID")"
-python3 backend/scripts/e2e_smoke.py
+python3 "$ROOT/scripts/e2e_smoke.py"
 
 printf 'Production is deployed.\nFrontend: %s\nAPI: %s\n' "$frontend_url" "$api_url"
