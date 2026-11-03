@@ -254,6 +254,7 @@ class AgentRunLifecycleMixin(RuntimeCapabilityHost):
             state.truncated_workflow_reference_ids,
         ) = self._assemble_agent_model_inputs(
             state.contexts,
+            state.invocations,
             state.previous_step_artifacts,
             state.skipped_capability_ids,
             state.thread_id,

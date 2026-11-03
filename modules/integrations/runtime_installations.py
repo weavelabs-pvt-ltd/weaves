@@ -46,8 +46,7 @@ class IntegrationInstallationMixin(RuntimeCapabilityHost):
         requested_by_principal_id: str = "local-developer",
     ) -> PluginInstallation:
         """Connect GitHub with repository-scoped read-only configuration."""
-        if not self._bootstrapped:
-            self.bootstrap()
+        self._ensure_bootstrapped()
         requested_by_principal_id = effective_principal_id(requested_by_principal_id)
         self.authorize(requested_by_principal_id, Permission.PLUGINS_MANAGE)
         if not api_token.strip():
@@ -110,11 +109,11 @@ class IntegrationInstallationMixin(RuntimeCapabilityHost):
         display_name: str,
         github_installation_id: str,
         repositories: tuple[str, ...],
+        account_login: str | None = None,
         requested_by_principal_id: str = "local-developer",
     ) -> PluginInstallation:
         """Create a GitHub App connection using ephemeral installation tokens."""
-        if not self._bootstrapped:
-            self.bootstrap()
+        self._ensure_bootstrapped()
         requested_by_principal_id = effective_principal_id(requested_by_principal_id)
         self.authorize(requested_by_principal_id, Permission.PLUGINS_MANAGE)
         if not github_installation_id.isdigit():
@@ -130,7 +129,24 @@ class IntegrationInstallationMixin(RuntimeCapabilityHost):
             for item in repositories
         ):
             raise ValueError("repositories must use the owner/repository format")
-        installation_id = _id()
+        matches = [
+            item
+            for item in self.installations.list_scoped(
+                effective_org_id(), effective_workspace_id()
+            )
+            if item.plugin_id == "github"
+            and item.configuration.get("github_installation_id")
+            == github_installation_id
+        ]
+        existing = next(
+            (
+                item
+                for item in matches
+                if item.status is not PluginInstallationStatus.DISABLED
+            ),
+            matches[0] if matches else None,
+        )
+        installation_id = existing.plugin_installation_id if existing else _id()
         now = _now()
         installation = PluginInstallation(
             plugin_installation_id=installation_id,
@@ -143,13 +159,28 @@ class IntegrationInstallationMixin(RuntimeCapabilityHost):
                 "auth_method": "github_app",
                 "github_installation_id": github_installation_id,
                 "repositories": list(repositories),
+                **({"account_login": account_login} if account_login else {}),
             },
-            enabled_capability_ids=("github.issues.search",),
-            status=PluginInstallationStatus.ACTIVE,
-            created_at=now,
+            enabled_capability_ids=(
+                tuple(
+                    dict.fromkeys(
+                        (*existing.enabled_capability_ids, "github.code.search")
+                    )
+                )
+                if existing
+                else ("github.issues.search", "github.code.search")
+            ),
+            status=(
+                PluginInstallationStatus.DISABLED
+                if existing and existing.status is PluginInstallationStatus.DISABLED
+                else PluginInstallationStatus.ACTIVE
+            ),
+            created_at=existing.created_at if existing else now,
             updated_at=now,
         )
-        self.installations.create(installation)
+        self.installations.put(installation) if existing else self.installations.create(
+            installation
+        )
         self.audit_events.create(
             AuditEvent(
                 audit_event_id=_id(),
@@ -157,16 +188,67 @@ class IntegrationInstallationMixin(RuntimeCapabilityHost):
                 target_scope=AuditTargetScope.WORKSPACE,
                 workspace_id=installation.workspace_id,
                 actor_principal_id=requested_by_principal_id,
-                action="plugin_installation.created",
+                action=(
+                    "plugin_installation.updated"
+                    if existing
+                    else "plugin_installation.created"
+                ),
                 target_type="plugin_installation",
                 target_id=installation_id,
-                summary="GitHub App installation connected",
+                summary=(
+                    "GitHub App connection scope updated"
+                    if existing
+                    else "GitHub App installation connected"
+                ),
                 request_id=installation_id,
                 metadata={"plugin_id": "github", "repository_count": len(repositories)},
                 created_at=now,
             )
         )
+        self._disable_duplicate_github_app_installations(
+            [
+                item
+                for item in matches
+                if item.plugin_installation_id != installation_id
+            ],
+            requested_by_principal_id,
+            now,
+        )
         return installation
+
+    def _disable_duplicate_github_app_installations(
+        self, duplicates: list[PluginInstallation], actor_id: str, timestamp: Any
+    ) -> None:
+        """Disable legacy duplicate records for the same GitHub App install."""
+        for duplicate in duplicates:
+            if duplicate.status is PluginInstallationStatus.DISABLED:
+                continue
+            disabled = duplicate.model_copy(
+                update={
+                    "status": PluginInstallationStatus.DISABLED,
+                    "updated_at": timestamp,
+                }
+            )
+            self.installations.put(disabled)
+            self.audit_events.create(
+                AuditEvent(
+                    audit_event_id=_id(),
+                    org_id=duplicate.org_id,
+                    target_scope=AuditTargetScope.WORKSPACE,
+                    workspace_id=duplicate.workspace_id,
+                    actor_principal_id=actor_id,
+                    action="plugin_installation.disabled",
+                    target_type="plugin_installation",
+                    target_id=duplicate.plugin_installation_id,
+                    summary="Duplicate GitHub App connection disabled",
+                    request_id=duplicate.plugin_installation_id,
+                    metadata={
+                        "plugin_id": "github",
+                        "reason": "duplicate_installation",
+                    },
+                    created_at=timestamp,
+                )
+            )
 
     def create_slack_installation(
         self,
@@ -178,8 +260,7 @@ class IntegrationInstallationMixin(RuntimeCapabilityHost):
         requested_by_principal_id: str = "local-developer",
     ) -> PluginInstallation:
         """Connect a Slack user token, limited to selected channel names."""
-        if not self._bootstrapped:
-            self.bootstrap()
+        self._ensure_bootstrapped()
         requested_by_principal_id = effective_principal_id(requested_by_principal_id)
         self.authorize(requested_by_principal_id, Permission.PLUGINS_MANAGE)
         if not user_token.strip():
@@ -214,8 +295,7 @@ class IntegrationInstallationMixin(RuntimeCapabilityHost):
         requested_by_principal_id: str = "local-developer",
     ) -> PluginInstallation:
         """Connect Jira Cloud using a token scoped to selected project keys."""
-        if not self._bootstrapped:
-            self.bootstrap()
+        self._ensure_bootstrapped()
         requested_by_principal_id = effective_principal_id(requested_by_principal_id)
         self.authorize(requested_by_principal_id, Permission.PLUGINS_MANAGE)
         normalized_url = site_url.strip().rstrip("/")
@@ -264,8 +344,7 @@ class IntegrationInstallationMixin(RuntimeCapabilityHost):
         requested_by_principal_id: str = "local-developer",
     ) -> PluginInstallation:
         """Import explicitly allowlisted query tools from an MCP server."""
-        if not self._bootstrapped:
-            self.bootstrap()
+        self._ensure_bootstrapped()
         requested_by_principal_id = effective_principal_id(requested_by_principal_id)
         self.authorize(requested_by_principal_id, Permission.PLUGINS_MANAGE)
         self._validate_mcp_installation_input(display_name, bearer_token)

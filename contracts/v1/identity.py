@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import AwareDatetime, Field, model_validator
 
 from contracts.v1.base import (
@@ -46,15 +48,23 @@ class Permission(StrEnum):
     USERS_MANAGE = "users.manage"
     ROLES_MANAGE = "roles.manage"
     MODELS_MANAGE = "models.manage"
+    MODELS_VIEW = "models.view"
     AGENTS_MANAGE = "agents.manage"
     AGENTS_RUN = "agents.run"
+    AGENTS_VIEW = "agents.view"
     WORKFLOWS_MANAGE = "workflows.manage"
     WORKFLOWS_RUN = "workflows.run"
+    WORKFLOWS_VIEW = "workflows.view"
     PLUGINS_MANAGE = "plugins.manage"
+    PLUGINS_VIEW = "plugins.view"
+    KNOWLEDGE_VIEW = "knowledge.view"
     ARTIFACTS_READ = "artifacts.read"
     ACTIONS_APPROVE = "actions.approve"
     APPROVAL_POLICIES_MANAGE = "approval_policies.manage"
     AUDIT_READ = "audit.read"
+
+
+type SystemRoleKey = Literal["admin", "builder", "user"]
 
 
 class Organization(MutableProductContract):
@@ -98,6 +108,7 @@ class Role(ProductContract):
     org_id: OpaqueId
     name: DisplayName
     permissions: list[Permission] = Field(default_factory=list)
+    system_role_key: SystemRoleKey | None = None
 
     @model_validator(mode="after")
     def permissions_are_unique(self) -> "Role":
@@ -124,6 +135,7 @@ __all__ = [
     "PrincipalType",
     "Role",
     "RoleBinding",
+    "SystemRoleKey",
     "User",
     "UserStatus",
     "Workspace",

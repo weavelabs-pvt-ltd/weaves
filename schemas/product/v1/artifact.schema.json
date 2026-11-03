@@ -2,6 +2,7 @@
   "$defs": {
     "ArtifactProvenance": {
       "additionalProperties": false,
+      "description": "Source reference used to build an execution artifact.",
       "properties": {
         "recorded_at": {
           "format": "date-time",
@@ -66,6 +67,7 @@
     }
   },
   "additionalProperties": false,
+  "description": "Durable output and bounded provenance from an execution.",
   "properties": {
     "agent_run_id": {
       "anyOf": [

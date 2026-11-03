@@ -7,17 +7,30 @@
         "users.manage",
         "roles.manage",
         "models.manage",
+        "models.view",
         "agents.manage",
         "agents.run",
+        "agents.view",
         "workflows.manage",
         "workflows.run",
+        "workflows.view",
         "plugins.manage",
+        "plugins.view",
+        "knowledge.view",
         "artifacts.read",
         "actions.approve",
         "approval_policies.manage",
         "audit.read"
       ],
       "title": "Permission",
+      "type": "string"
+    },
+    "SystemRoleKey": {
+      "enum": [
+        "admin",
+        "builder",
+        "user"
+      ],
       "type": "string"
     }
   },
@@ -53,6 +66,17 @@
       "default": 1,
       "title": "Schema Version",
       "type": "integer"
+    },
+    "system_role_key": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SystemRoleKey"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

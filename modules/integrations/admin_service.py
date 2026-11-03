@@ -91,13 +91,13 @@ class IntegrationAdminService(
     def list_plugin_descriptors(self) -> tuple[PluginDescriptor, ...]:
         """List registered connector definitions for authorized workspace users."""
         self._ensure_bootstrapped()
-        self.authorize("local-developer", Permission.PLUGINS_MANAGE)
+        self.authorize("local-developer", Permission.PLUGINS_VIEW)
         return self.plugins.list()
 
     def list_plugin_installations(self) -> tuple[PluginInstallation, ...]:
         """List installations visible in the selected workspace."""
         self._ensure_bootstrapped()
-        self.authorize("local-developer", Permission.PLUGINS_MANAGE)
+        self.authorize("local-developer", Permission.PLUGINS_VIEW)
         return self.installations.list_scoped(
             effective_org_id(), effective_workspace_id()
         )

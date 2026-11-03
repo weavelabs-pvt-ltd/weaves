@@ -19,6 +19,9 @@ from contracts.v1 import (
     WorkflowJoinPolicy,
     WorkflowRun,
 )
+from modules.workflows.conditions import (
+    workflow_condition_matches as _workflow_condition_matches,
+)
 from modules.workflows.runtime_execution_entrypoint import WorkflowExecutionEntryMixin
 from modules.workflows.runtime_execution_validation import (
     WorkflowExecutionPlan,
@@ -28,9 +31,6 @@ from modules.workflows.runtime_result import RuntimeResult
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.errors import ExecutionCancelled
-from shared.workflow_conditions import (
-    workflow_condition_matches as _workflow_condition_matches,
-)
 
 
 @dataclass
@@ -216,8 +216,8 @@ class WorkflowExecutionMixin(
             workflow_step_index=index,
             workflow_step_count=len(plan.agent_versions),
             previous_step_artifacts=self._workflow_step_artifacts(progress, index),
-            cancellation_event=None if parallel else progress.cancellation_event,
-            cancellation_check=None if parallel else progress.cancellation_check,
+            _cancellation_event=None if parallel else progress.cancellation_event,
+            _cancellation_check=None if parallel else progress.cancellation_check,
         )
 
     def _record_workflow_result(

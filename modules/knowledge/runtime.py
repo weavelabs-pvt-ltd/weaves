@@ -38,7 +38,7 @@ class KnowledgeService:
     def list_documents(self) -> tuple[KnowledgeDocument, ...]:
         """List documents visible in the active organization and workspace."""
         self._ensure_bootstrapped()
-        self._authorize("local-developer", Permission.PLUGINS_MANAGE)
+        self._authorize("local-developer", Permission.KNOWLEDGE_VIEW)
         return self._documents.list_scoped(effective_org_id(), effective_workspace_id())
 
     def create_document(self, *, title: str, text: str) -> KnowledgeDocument:

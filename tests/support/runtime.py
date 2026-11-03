@@ -5,8 +5,7 @@ from __future__ import annotations
 import httpx
 
 from application.platform import LocalPlatformRuntime as PlatformRuntime
-from apps.api.wiring import _open_store
-from apps.runtime_wiring import compose_platform_runtime
+from apps.runtime_wiring import _open_store, compose_platform_runtime
 from infrastructure.config.settings import load_pool_settings
 from infrastructure.database.store import ProductPostgresStore
 from infrastructure.http.pool import open_http_client

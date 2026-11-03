@@ -118,14 +118,12 @@ class GovernanceApprovalMixin(RuntimeCapabilityHost):
             and not policy.allow_self_approval
         ):
             raise PermissionError("approval policy forbids self-approval")
-        installation, _ = (
-            self.integration_admin_service.resolve_capability_installation(
-                approval.capability_id,
-                org_id=approval.org_id,
-                workspace_id=approval.workspace_id,
-                require_enabled=True,
-                allowed_kinds=(CapabilityKind.ACTION_WRITE,),
-            )
+        installation, _ = self._capability_installation(
+            approval.capability_id,
+            org_id=approval.org_id,
+            workspace_id=approval.workspace_id,
+            require_enabled=True,
+            allowed_kinds=(CapabilityKind.ACTION_WRITE,),
         )
         return agent_version, installation
 

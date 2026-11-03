@@ -4,7 +4,7 @@ import httpx
 from fastapi.testclient import TestClient
 
 from apps.api.app import create_app
-from clients.integrations.mcp import _last_sse_message, _safe_header_value
+from clients.integrations.mcp_protocol import last_sse_message, safe_header_value
 from tests.support.runtime import LocalPlatformRuntime
 
 _TOOL = {
@@ -27,13 +27,13 @@ _TOOL = {
 
 
 def test_mcp_sse_and_header_values_follow_transport_rules():
-    message = _last_sse_message(
+    message = last_sse_message(
         ': keepalive\n\nevent: message\ndata: {"jsonrpc":"2.0",\n'
         'data: "id":"abc","result":{}}\n\n'
     )
     assert message["id"] == "abc"
-    assert _safe_header_value("Hello, 世界") == "=?base64?SGVsbG8sIOS4lueVjA==?="
-    assert _safe_header_value(" padded ") == "=?base64?IHBhZGRlZCA=?="
+    assert safe_header_value("Hello, 世界") == "=?base64?SGVsbG8sIOS4lueVjA==?="
+    assert safe_header_value(" padded ") == "=?base64?IHBhZGRlZCA=?="
 
 
 def test_mcp_tools_are_allowlisted_governed_and_audited(monkeypatch):

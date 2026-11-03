@@ -54,12 +54,13 @@ class OAuthInstallationMixin(OAuthInstallationHost):
         display_name: str,
         token_bundle: str,
         channels: tuple[str, ...],
+        team_id: str | None = None,
+        team_name: str | None = None,
         include_thread_replies: bool = False,
         requested_by_principal_id: str = "local-developer",
     ) -> PluginInstallation:
         """Store an encrypted Slack OAuth token bundle for a workspace."""
-        if not self._bootstrapped:
-            self.bootstrap()
+        self._ensure_bootstrapped()
         requested_by_principal_id = effective_principal_id(requested_by_principal_id)
         self.authorize(requested_by_principal_id, Permission.PLUGINS_MANAGE)
         if not channels or len(channels) > 50 or len(set(channels)) != len(channels):
@@ -73,6 +74,8 @@ class OAuthInstallationMixin(OAuthInstallationHost):
             configuration={
                 "auth_method": "slack_oauth_v2",
                 "channels": list(channels),
+                **({"team_id": team_id} if team_id else {}),
+                **({"team_name": team_name} if team_name else {}),
                 **({"include_thread_replies": True} if include_thread_replies else {}),
             },
             capability_ids=("slack.messages.search",),
@@ -81,6 +84,8 @@ class OAuthInstallationMixin(OAuthInstallationHost):
                 "auth_method": "slack_oauth_v2",
             },
             requested_by_principal_id=requested_by_principal_id,
+            identity_field="team_id",
+            identity_value=team_id,
         )
 
     def create_jira_oauth_installation(
@@ -94,8 +99,7 @@ class OAuthInstallationMixin(OAuthInstallationHost):
         requested_by_principal_id: str = "local-developer",
     ) -> PluginInstallation:
         """Store Atlassian 3LO credentials bound to an authorized Jira cloud."""
-        if not self._bootstrapped:
-            self.bootstrap()
+        self._ensure_bootstrapped()
         requested_by_principal_id = effective_principal_id(requested_by_principal_id)
         self.authorize(requested_by_principal_id, Permission.PLUGINS_MANAGE)
         normalized_url = site_url.strip().rstrip("/")
@@ -134,6 +138,8 @@ class OAuthInstallationMixin(OAuthInstallationHost):
                 "auth_method": "atlassian_3lo",
             },
             requested_by_principal_id=requested_by_principal_id,
+            identity_field="cloud_id",
+            identity_value=cloud_id,
         )
 
     def _create_external_context_installation(
@@ -146,10 +152,29 @@ class OAuthInstallationMixin(OAuthInstallationHost):
         capability_ids: tuple[str, ...],
         audit_metadata: dict[str, Any],
         requested_by_principal_id: str,
+        identity_field: str | None = None,
+        identity_value: str | None = None,
     ) -> PluginInstallation:
         descriptor = self.plugins.get(plugin_id)
         secret_ref = self.secret_store.put(credential.strip())
-        installation_id = _id()
+        matches = [
+            item
+            for item in self.installations.list_scoped(
+                effective_org_id(), effective_workspace_id()
+            )
+            if item.plugin_id == plugin_id
+            and identity_field
+            and item.configuration.get(identity_field) == identity_value
+        ]
+        existing = next(
+            (
+                item
+                for item in matches
+                if item.status is not PluginInstallationStatus.DISABLED
+            ),
+            matches[0] if matches else None,
+        )
+        installation_id = existing.plugin_installation_id if existing else _id()
         installation = PluginInstallation(
             plugin_installation_id=installation_id,
             org_id=effective_org_id(),
@@ -158,13 +183,21 @@ class OAuthInstallationMixin(OAuthInstallationHost):
             display_name=display_name,
             auth_ref=secret_ref,
             configuration=configuration,
-            enabled_capability_ids=capability_ids,
-            status=PluginInstallationStatus.ACTIVE,
-            created_at=_now(),
+            enabled_capability_ids=(
+                existing.enabled_capability_ids if existing else capability_ids
+            ),
+            status=(
+                PluginInstallationStatus.DISABLED
+                if existing and existing.status == PluginInstallationStatus.DISABLED
+                else PluginInstallationStatus.ACTIVE
+            ),
+            created_at=existing.created_at if existing else _now(),
             updated_at=_now(),
         )
         try:
-            self.installations.create(installation)
+            self.installations.put(
+                installation
+            ) if existing else self.installations.create(installation)
         except Exception:
             self.secret_store.delete(secret_ref)
             raise
@@ -175,13 +208,68 @@ class OAuthInstallationMixin(OAuthInstallationHost):
                 target_scope=AuditTargetScope.WORKSPACE,
                 workspace_id=installation.workspace_id,
                 actor_principal_id=requested_by_principal_id,
-                action="plugin_installation.created",
+                action=(
+                    "plugin_installation.updated"
+                    if existing
+                    else "plugin_installation.created"
+                ),
                 target_type="plugin_installation",
                 target_id=installation_id,
-                summary=f"{descriptor.display_name} installation configured",
+                summary=(
+                    f"{descriptor.display_name} connection scope updated"
+                    if existing
+                    else f"{descriptor.display_name} installation configured"
+                ),
                 request_id=installation_id,
                 metadata={"plugin_id": plugin_id, **audit_metadata},
                 created_at=_now(),
             )
         )
+        if existing and existing.auth_ref and existing.auth_ref != secret_ref:
+            self.secret_store.delete(existing.auth_ref)
+        self._disable_duplicate_external_installations(
+            [
+                item
+                for item in matches
+                if item.plugin_installation_id != installation_id
+            ],
+            plugin_id,
+            requested_by_principal_id,
+        )
         return installation
+
+    def _disable_duplicate_external_installations(
+        self,
+        duplicates: list[PluginInstallation],
+        plugin_id: str,
+        actor_id: str,
+    ) -> None:
+        """Disable legacy duplicate records for a provider account in this workspace."""
+        for duplicate in duplicates:
+            if duplicate.status is PluginInstallationStatus.DISABLED:
+                continue
+            now = _now()
+            self.installations.put(
+                duplicate.model_copy(
+                    update={
+                        "status": PluginInstallationStatus.DISABLED,
+                        "updated_at": now,
+                    }
+                )
+            )
+            self.audit_events.create(
+                AuditEvent(
+                    audit_event_id=_id(),
+                    org_id=duplicate.org_id,
+                    target_scope=AuditTargetScope.WORKSPACE,
+                    workspace_id=duplicate.workspace_id,
+                    actor_principal_id=actor_id,
+                    action="plugin_installation.disabled",
+                    target_type="plugin_installation",
+                    target_id=duplicate.plugin_installation_id,
+                    summary=f"Duplicate {plugin_id} connection disabled",
+                    request_id=duplicate.plugin_installation_id,
+                    metadata={"plugin_id": plugin_id, "reason": "duplicate_account"},
+                    created_at=now,
+                )
+            )

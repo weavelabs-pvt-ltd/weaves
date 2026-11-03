@@ -64,6 +64,7 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
         state_service=OAuthStateService(
             states=runtime.oauth_authorization_states,
             credential_service=runtime.credential_service,
+            secret_store=runtime.secret_store,
         ),
         secret_store=runtime.secret_store,
         github_app_token_provider=runtime.github_app_token_provider,

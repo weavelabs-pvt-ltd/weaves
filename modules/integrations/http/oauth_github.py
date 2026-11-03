@@ -1,5 +1,6 @@
 """OAuth GitHub route handlers."""
 
+import logging
 import os
 from typing import Any
 
@@ -7,12 +8,11 @@ import httpx
 from fastapi import HTTPException, Query
 from fastapi.responses import RedirectResponse
 
-from contracts.v1 import OAuthAuthorizationState
 from modules.integrations.http.oauth_context import (
     OAuthContextBase,
-    _state_string,
-    _state_strings,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class OAuthGitHubMixin(OAuthContextBase):
@@ -24,8 +24,7 @@ class OAuthGitHubMixin(OAuthContextBase):
         """Handle the github callback step of the OAuth flow."""
         if error or not code:
             self.discard_state(state, "github")
-
-            return self.finish("github", "failed")
+            return self.finish("github", "failed", "authorization_denied")
 
         record = self.take_state(state, "github")
 
@@ -48,12 +47,12 @@ class OAuthGitHubMixin(OAuthContextBase):
             )
 
         except HTTPException:
-            return self.finish("github", "failed")
+            return self.finish("github", "failed", "token_exchange")
 
         user_token = payload.get("access_token")
 
         if not isinstance(user_token, str):
-            return self.finish("github", "failed")
+            return self.finish("github", "failed", "provider_response")
 
         secret_ref = self.dependencies.secret_store.put(user_token)
 
@@ -85,12 +84,16 @@ class OAuthGitHubMixin(OAuthContextBase):
     ) -> RedirectResponse:
         """Validate installation ownership and save the selected repositories."""
         record = self.take_state(state, "github", "github_install")
-        if setup_action != "install":
+        if setup_action not in {"install", "update"}:
+            logger.warning("GitHub OAuth installation rejected: setup action mismatch")
             self._delete_temporary_secret(record.secret_ref)
-            return self.finish("github", "failed")
+            return self.finish("github", "failed", "installation")
         self.request_as(record)
         if not record.secret_ref:
-            return self.finish("github", "failed")
+            logger.warning(
+                "GitHub OAuth installation rejected: temporary user token missing"
+            )
+            return self.finish("github", "failed", "provider_response")
         user_token = self.dependencies.secret_store.get(record.secret_ref)
         try:
             installations = self._github_collection(
@@ -98,45 +101,75 @@ class OAuthGitHubMixin(OAuthContextBase):
                 user_token,
                 "installations",
             )
-        except (httpx.HTTPError, ValueError, AttributeError):
+        except (httpx.HTTPError, ValueError, AttributeError) as exc:
+            status = (
+                exc.response.status_code
+                if isinstance(exc, httpx.HTTPStatusError)
+                else None
+            )
+            logger.warning(
+                "GitHub OAuth installation rejected: user installations lookup failed "
+                "exception=%s status=%s",
+                type(exc).__name__,
+                status,
+            )
             self._delete_temporary_secret(record.secret_ref)
-            return self.finish("github", "failed")
+            return self.finish("github", "failed", "installation")
         if not _owns_installation(installations, installation_id):
+            logger.warning(
+                "GitHub OAuth installation rejected: installation is not available "
+                "to the authorizing user"
+            )
             self._delete_temporary_secret(record.secret_ref)
-            return self.finish("github", "failed")
-        repositories = _state_strings(record, "repositories")
+            return self.finish("github", "failed", "installation")
         try:
-            self._save_github_installation(record, installation_id, repositories)
-        except Exception:
+            repositories = self._github_installation_repositories(installation_id)
+            setup = self.state_record(
+                "github",
+                {
+                    **record.configuration,
+                    "github_installation_id": installation_id,
+                    "resources": repositories,
+                    "account_login": _installation_account(
+                        installations, installation_id
+                    ),
+                },
+                step="resource_selection",
+            )
+        except Exception as exc:
+            logger.warning(
+                "GitHub OAuth installation rejected while validating repository access "
+                "exception=%s code=%s",
+                type(exc).__name__,
+                getattr(exc, "code", "unknown"),
+            )
             self._delete_temporary_secret(record.secret_ref)
-            return self.finish("github", "failed")
+            return self.finish("github", "failed", "resource_discovery")
         self._delete_temporary_secret(record.secret_ref)
-        return self.finish("github", "success")
+        return self.setup_redirect("github", setup.oauth_state_id)
 
-    def _save_github_installation(
-        self,
-        record: OAuthAuthorizationState,
-        installation_id: str,
-        repositories: tuple[str, ...],
-    ) -> None:
-        """Verify the GitHub App allowlist before saving its installation."""
-        token = self.dependencies.github_app_token_provider.installation_token(
-            installation_id, repositories
+    def _github_installation_repositories(
+        self, installation_id: str
+    ) -> list[dict[str, str]]:
+        """List repositories granted to the just-installed GitHub App."""
+        token = (
+            self.dependencies.github_app_token_provider.installation_discovery_token(
+                installation_id
+            )
         )
         rows = self._github_collection(
             "https://api.github.com/installation/repositories?per_page=100",
             token,
             "repositories",
         )
-        available = {item.get("full_name") for item in rows if isinstance(item, dict)}
-        if not set(repositories).issubset(available):
-            raise ValueError("requested repo outside installation")
-        self.dependencies.connection_service.create_github_app_installation(
-            display_name=_state_string(record, "display_name"),
-            github_installation_id=installation_id,
-            repositories=repositories,
-            requested_by_principal_id=record.principal_id,
-        )
+        return [
+            {
+                "full_name": item["full_name"],
+                "name": item.get("name", item["full_name"]),
+            }
+            for item in rows
+            if isinstance(item, dict) and isinstance(item.get("full_name"), str)
+        ][:500]
 
     def _github_collection(
         self, url: str, token: str, collection_key: str
@@ -171,3 +204,18 @@ def _owns_installation(rows: list[Any], installation_id: str) -> bool:
         for item in rows
         if isinstance(item, dict)
     )
+
+
+def _installation_account(rows: list[Any], installation_id: str) -> str | None:
+    """Return the GitHub account that owns the authorized installation."""
+    installation = next(
+        (
+            item
+            for item in rows
+            if isinstance(item, dict) and str(item.get("id")) == installation_id
+        ),
+        None,
+    )
+    account = installation.get("account") if isinstance(installation, dict) else None
+    login = account.get("login") if isinstance(account, dict) else None
+    return login if isinstance(login, str) else None

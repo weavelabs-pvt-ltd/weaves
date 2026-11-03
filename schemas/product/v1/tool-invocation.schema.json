@@ -63,6 +63,7 @@
     }
   },
   "additionalProperties": false,
+  "description": "One connector invocation with lifecycle, result, and approval state.",
   "properties": {
     "agent_run_id": {
       "anyOf": [

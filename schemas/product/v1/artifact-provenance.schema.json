@@ -1,5 +1,6 @@
 {
   "additionalProperties": false,
+  "description": "Source reference used to build an execution artifact.",
   "properties": {
     "recorded_at": {
       "format": "date-time",

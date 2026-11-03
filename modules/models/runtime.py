@@ -38,6 +38,7 @@ class ModelService:
         catalog_service: ModelCatalogService,
         is_bootstrapped: Callable[[], bool],
         bootstrap: Callable[[], None],
+        authorize: Callable[[str, Permission], None],
         authorize_organization: Callable[[str, Permission], None],
         unit_of_work: Callable[[], AbstractContextManager[None]],
         default_model_profile_id: str,
@@ -50,6 +51,7 @@ class ModelService:
         self.catalog_service = catalog_service
         self._is_bootstrapped = is_bootstrapped
         self._bootstrap = bootstrap
+        self._authorize = authorize
         self._authorize_organization = authorize_organization
         self._open_unit_of_work = unit_of_work
         self.default_model_profile_id = default_model_profile_id
@@ -58,8 +60,8 @@ class ModelService:
         """List organization profiles with the configured default first."""
         if not self._is_bootstrapped():
             self._bootstrap()
-        self._authorize_organization(
-            effective_principal_id("local-developer"), Permission.MODELS_MANAGE
+        self._authorize(
+            effective_principal_id("local-developer"), Permission.MODELS_VIEW
         )
         profiles = self.model_profiles.list_scoped(effective_org_id())
         return tuple(
@@ -70,8 +72,8 @@ class ModelService:
         """List organization providers without exposing secret references."""
         if not self._is_bootstrapped():
             self._bootstrap()
-        self._authorize_organization(
-            effective_principal_id("local-developer"), Permission.MODELS_MANAGE
+        self._authorize(
+            effective_principal_id("local-developer"), Permission.MODELS_VIEW
         )
         return self.providers.list_scoped(effective_org_id())
 

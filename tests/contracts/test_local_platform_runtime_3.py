@@ -4,9 +4,7 @@ from threading import Barrier, Event
 
 import pytest
 
-from application.platform import (
-    IdempotencyConflict,
-)
+from application import IdempotencyConflict
 from clients.model_providers.gateway import ModelGateway, ModelGatewayError
 from contracts.v1 import (
     ErrorSummary,

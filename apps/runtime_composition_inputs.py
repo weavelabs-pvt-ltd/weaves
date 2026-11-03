@@ -8,8 +8,6 @@ from datetime import datetime
 from threading import RLock
 from typing import Protocol
 
-from modules.agents.runtime_organizations import MockModelIdentifier
-
 from application.ports.repository import Repository
 from application.ports.runtime_adapters import PluginDispatcher
 from application.ports.secrets import SecretStore
@@ -57,6 +55,7 @@ from contracts.v1 import (
     Workspace,
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
+from modules.auth.runtime_organizations import MockModelIdentifier
 from modules.memory.context import MemoryContextBuilder
 
 

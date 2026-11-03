@@ -84,13 +84,13 @@ def test_product_postgres_migration_adds_idempotency_unique_index():
     assert "product_records_audit_event_org_page_idx" in sql
     assert "product_records_audit_event_workspace_page_idx" in sql
     assert "IS DISTINCT FROM" in sql
-    assert versions == list(range(1, 13))
+    assert versions == list(range(1, 14))
     assert "CREATE TABLE IF NOT EXISTS product_login_throttle" in sql
     assert "pg_advisory_xact_lock" in sql
 
 
 def test_product_postgres_migration_skips_applied_versions():
-    connection = RecordingConnection(rows=[(version,) for version in range(1, 13)])
+    connection = RecordingConnection(rows=[(version,) for version in range(1, 14)])
     store = ProductPostgresStore.__new__(ProductPostgresStore)
     store.pool = RecordingPool(connection)
 
@@ -107,11 +107,11 @@ def test_product_postgres_migration_skips_applied_versions():
 
 
 def test_product_postgres_migration_rejects_newer_database_schema():
-    connection = RecordingConnection(rows=[(13,)])
+    connection = RecordingConnection(rows=[(14,)])
     store = ProductPostgresStore.__new__(ProductPostgresStore)
     store.pool = RecordingPool(connection)
 
-    with pytest.raises(RuntimeError, match="unsupported migration versions: 13"):
+    with pytest.raises(RuntimeError, match="unsupported migration versions: 14"):
         store._migrate()
 
 
@@ -128,7 +128,7 @@ def test_product_postgres_migration_upgrades_legacy_version_five():
         for statement, params in connection.statements
         if "INSERT INTO product_schema_migrations" in statement
     ]
-    assert versions == list(range(6, 13))
+    assert versions == list(range(6, 14))
     assert "product_records_user_session_digest_uq" in sql
     assert "product_records_workflow_schedule_due_idx" in sql
     assert "product_records_audit_event_workspace_page_idx" in sql

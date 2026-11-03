@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from datetime import datetime
 from typing import TypeVar
 
@@ -21,6 +23,7 @@ from contracts.v1 import (
     WorkspaceStatus,
 )
 from contracts.v1.base import ProductContract
+from modules.auth.role_presets import build_role_preset
 
 TProduct = TypeVar("TProduct", bound=ProductContract)
 
@@ -37,6 +40,8 @@ class IdentityBootstrapService:
         organizations: Repository[Organization],
         workspaces: Repository[Workspace],
         role_bindings: Repository[RoleBinding],
+        unit_of_work: Callable[[], AbstractContextManager[None]] | None = None,
+        advisory_transaction_lock: Callable[[str], None] | None = None,
     ) -> None:
         """Bind identity repositories without depending on the platform runtime."""
         self.users = users
@@ -45,6 +50,8 @@ class IdentityBootstrapService:
         self.organizations = organizations
         self.workspaces = workspaces
         self.role_bindings = role_bindings
+        self._open_unit_of_work = unit_of_work or nullcontext
+        self._advisory_transaction_lock = advisory_transaction_lock
 
     @staticmethod
     def _seed(
@@ -129,6 +136,122 @@ class IdentityBootstrapService:
         if developer_binding.workspace_id is not None:
             self.role_bindings.put(
                 developer_binding.model_copy(update={"workspace_id": None})
+            )
+
+    def seed_standard_roles(self) -> None:
+        """Provision or repair standard roles for every organization once."""
+        with self._open_unit_of_work():
+            if self._advisory_transaction_lock is not None:
+                self._advisory_transaction_lock("weaves-standard-role-presets")
+            for organization in self.organizations.list():
+                self._ensure_organization_roles(organization.id)
+
+    def _ensure_organization_roles(self, org_id: str) -> None:
+        """Keep standard role records canonical without replacing their IDs."""
+        roles = list(self.roles.list_scoped(org_id))
+        bindings = self.role_bindings.list_scoped(org_id)
+        admin = self._ensure_admin_role(org_id, roles, bindings)
+        roles = [admin if item.id == admin.id else item for item in roles]
+        for key in ("builder", "user"):
+            matches = [item for item in roles if item.system_role_key == key]
+            if len(matches) > 1:
+                raise RuntimeError(f"organization {org_id} has duplicate {key} roles")
+            if matches:
+                current = matches[0]
+                canonical = build_role_preset(org_id, key).model_copy(
+                    update={"id": current.id}
+                )
+                self.roles.put(canonical)
+                roles = [canonical if item.id == current.id else item for item in roles]
+            else:
+                created = build_role_preset(org_id, key)
+                self.roles.create(created)
+                roles.append(created)
+        self._backfill_legacy_view_permissions(roles)
+
+    def _ensure_admin_role(
+        self, org_id: str, roles: list[Role], bindings: tuple[RoleBinding, ...]
+    ) -> Role:
+        """Adopt an unambiguous legacy owner role or create the Admin preset."""
+        matches = [item for item in roles if item.system_role_key == "admin"]
+        if len(matches) > 1:
+            raise RuntimeError(f"organization {org_id} has duplicate admin roles")
+        if matches:
+            current = matches[0]
+            canonical = build_role_preset(org_id, "admin").model_copy(
+                update={"id": current.id}
+            )
+            self.roles.put(canonical)
+            return canonical
+
+        legacy_permissions = {
+            Permission.ORGANIZATIONS_ADMIN,
+            Permission.WORKSPACES_ADMIN,
+            Permission.USERS_MANAGE,
+            Permission.ROLES_MANAGE,
+            Permission.MODELS_MANAGE,
+            Permission.AGENTS_MANAGE,
+            Permission.AGENTS_RUN,
+            Permission.WORKFLOWS_MANAGE,
+            Permission.WORKFLOWS_RUN,
+            Permission.PLUGINS_MANAGE,
+            Permission.ARTIFACTS_READ,
+            Permission.ACTIONS_APPROVE,
+            Permission.APPROVAL_POLICIES_MANAGE,
+            Permission.AUDIT_READ,
+        }
+        bound_role_ids = {
+            binding.role_id for binding in bindings if binding.workspace_id is None
+        }
+        candidates = [
+            role
+            for role in roles
+            if role.name == "Organization owner"
+            and role.id in bound_role_ids
+            and legacy_permissions.issubset(set(role.permissions))
+        ]
+        if len(candidates) > 1:
+            raise RuntimeError(f"organization {org_id} has ambiguous owner roles")
+        if candidates:
+            current = candidates[0]
+            canonical = build_role_preset(org_id, "admin").model_copy(
+                update={"id": current.id}
+            )
+            self.roles.put(canonical)
+            return canonical
+        created = build_role_preset(org_id, "admin")
+        self.roles.create(created)
+        return created
+
+    def _backfill_legacy_view_permissions(self, roles: list[Role]) -> None:
+        """Preserve browse access for roles that already manage a module."""
+        implied_views = {
+            Permission.AGENTS_MANAGE: (Permission.AGENTS_VIEW,),
+            Permission.WORKFLOWS_MANAGE: (Permission.WORKFLOWS_VIEW,),
+            Permission.WORKFLOWS_RUN: (Permission.WORKFLOWS_VIEW,),
+            Permission.MODELS_MANAGE: (Permission.MODELS_VIEW,),
+            Permission.PLUGINS_MANAGE: (
+                Permission.PLUGINS_VIEW,
+                Permission.KNOWLEDGE_VIEW,
+            ),
+        }
+        for role in roles:
+            permissions = set(role.permissions)
+            for source, views in implied_views.items():
+                if source in permissions:
+                    permissions.update(views)
+            if permissions == set(role.permissions):
+                continue
+            self.roles.put(
+                role.model_copy(
+                    update={
+                        "permissions": [
+                            permission
+                            for permission in Permission
+                            if permission in permissions
+                        ]
+                    }
+                )
             )
 
     def _repair_developer_permissions(self) -> None:

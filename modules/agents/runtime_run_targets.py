@@ -139,6 +139,7 @@ class AgentRunTargetsMixin(RuntimeCapabilityHost):
     def _assemble_agent_model_inputs(
         self,
         contexts: list[dict[str, Any]],
+        invocations: list[Any],
         previous_step_artifacts: tuple[Artifact, ...],
         skipped_capability_ids: list[str],
         thread_id: str | None,
@@ -158,6 +159,17 @@ class AgentRunTargetsMixin(RuntimeCapabilityHost):
             )
             or "No external context was available for this run."
         )
+        invocation_outcomes = [
+            _context_invocation_summary(item)
+            for item in invocations
+            if _context_invocation_summary(item)
+        ]
+        if invocation_outcomes:
+            context_text += (
+                "\n\nConnected tool query outcomes (these are execution evidence, "
+                "not source content):\n"
+                + "\n".join(f"- {item}" for item in invocation_outcomes)
+            )
         history_messages = self._thread_history_messages(thread_id) if thread_id else ()
         workflow_references, truncated_workflow_reference_ids = (
             bound_workflow_references(
@@ -386,3 +398,21 @@ class AgentRunTargetsMixin(RuntimeCapabilityHost):
             updated_at=now,
         )
         return agent_run
+
+
+def _context_invocation_summary(invocation: Any) -> str | None:
+    """Describe a context tool outcome without exposing its input or payload."""
+    capability_id = getattr(invocation, "capability_id", None)
+    status = getattr(invocation, "status", None)
+    if not isinstance(capability_id, str):
+        return None
+    status_value = getattr(status, "value", status)
+    output_summary = getattr(invocation, "output_summary", None) or {}
+    if not isinstance(output_summary, dict):
+        output_summary = {}
+    result_count = output_summary.get("result_count")
+    if isinstance(result_count, int) and result_count >= 0:
+        count_label = f"{result_count} matching records"
+    else:
+        count_label = "result count unavailable"
+    return f"{capability_id} completed with status {status_value}; {count_label}."

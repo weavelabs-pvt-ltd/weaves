@@ -9,7 +9,6 @@ from modules.integrations.http.oauth_context import (
     OAuthContextBase,
     _state_bool,
     _state_string,
-    _state_strings,
 )
 
 
@@ -22,8 +21,7 @@ class OAuthSlackMixin(OAuthContextBase):
         """Handle the slack callback step of the OAuth flow."""
         if error or not code:
             self.discard_state(state, "slack")
-
-            return self.finish("slack", "failed")
+            return self.finish("slack", "failed", "authorization_denied")
 
         record = self.take_state(state, "slack")
 
@@ -43,30 +41,53 @@ class OAuthSlackMixin(OAuthContextBase):
             )
 
         except HTTPException:
-            return self.finish("slack", "failed")
+            return self.finish("slack", "failed", "token_exchange")
 
         if payload.get("ok") is not True:
-            return self.finish("slack", "failed")
+            return self.finish("slack", "failed", "provider_response")
 
         user = payload.get("authed_user") or {}
 
         access_token = user.get("access_token") if isinstance(user, dict) else None
 
         if not isinstance(access_token, str):
-            return self.finish("slack", "failed")
+            return self.finish("slack", "failed", "provider_response")
 
         bundle = self.token_bundle("slack", user, access_token=access_token)
 
         try:
-            self.dependencies.connection_service.create_slack_oauth_installation(
-                display_name=_state_string(record, "display_name"),
-                token_bundle=bundle,
-                channels=_state_strings(record, "channels"),
-                include_thread_replies=_state_bool(record, "include_thread_replies"),
-                requested_by_principal_id=record.principal_id,
-            )
-
+            resources = self.slack_resources(access_token)
+        except HTTPException:
+            return self.finish("slack", "failed", "resource_discovery")
+        if not resources:
+            return self.finish("slack", "failed", "no_resources")
+        try:
+            secret_ref = self.dependencies.secret_store.put(bundle)
+            try:
+                setup = self.state_record(
+                    "slack",
+                    {
+                        "display_name": _state_string(record, "display_name"),
+                        "resources": resources,
+                        "include_thread_replies": _state_bool(
+                            record, "include_thread_replies"
+                        ),
+                        "team_id": _nested_string(payload, "team", "id"),
+                        "team_name": _nested_string(payload, "team", "name"),
+                    },
+                    step="resource_selection",
+                    secret_ref=secret_ref,
+                )
+            except Exception:
+                self.dependencies.secret_store.delete(secret_ref)
+                raise
         except Exception:
-            return self.finish("slack", "failed")
+            return self.finish("slack", "failed", "connection_setup")
+        return self.setup_redirect("slack", setup.oauth_state_id)
 
-        return self.finish("slack", "success")
+
+def _nested_string(payload: dict, parent: str, key: str) -> str | None:
+    """Return a nested provider string field when its shape is valid."""
+    value = payload.get(parent)
+    field = value.get(key) if isinstance(value, dict) else None
+    return field if isinstance(field, str) else None

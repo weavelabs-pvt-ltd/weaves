@@ -6,8 +6,6 @@ from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, Protocol
 
-from modules.agents.runtime_organizations import MockModelIdentifier
-
 from clients.integrations.github import GitHubReadPlugin
 from clients.integrations.github_app_auth import GitHubAppTokenProvider
 from clients.integrations.jira import JiraReadPlugin
@@ -23,6 +21,7 @@ from contracts.v1 import (
     PluginInstallation,
 )
 from contracts.v1.base import OpaqueId
+from modules.auth.runtime_organizations import MockModelIdentifier
 from modules.memory.context import MemoryContextBuilder
 
 

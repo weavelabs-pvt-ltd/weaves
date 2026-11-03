@@ -44,7 +44,25 @@ class IntegrationBootstrapService:
         """Create a deterministic starter record only when it is absent."""
         record_id = str(getattr(record, id_field))
         try:
-            return repository.get(record_id)
+            existing = repository.get(record_id)
+            if (
+                isinstance(existing, PluginDescriptor)
+                and isinstance(record, PluginDescriptor)
+                and (
+                    existing.configuration_schema != record.configuration_schema
+                    or existing.capability_manifest != record.capability_manifest
+                    or existing.description != record.description
+                )
+            ):
+                updated = existing.model_copy(
+                    update={
+                        "configuration_schema": record.configuration_schema,
+                        "capability_manifest": record.capability_manifest,
+                        "description": record.description,
+                    }
+                )
+                return repository.put(PluginDescriptor.model_validate(updated))
+            return existing
         except KeyError:
             try:
                 return repository.create(record)
@@ -162,6 +180,16 @@ class IntegrationBootstrapService:
             },
             timeout_seconds=20,
         )
+        github_code_search = github_search.model_copy(
+            update={
+                "capability_id": "github.code.search",
+                "name": "Search GitHub source code",
+                "description": (
+                    "Search code in configured repositories and return matching "
+                    "file paths with bounded excerpts."
+                ),
+            }
+        )
         self._seed(
             self.plugins,
             "plugin_id",
@@ -169,8 +197,10 @@ class IntegrationBootstrapService:
                 plugin_id="github",
                 plugin_type="github",
                 display_name="GitHub",
-                description="Read-only issue and pull request search.",
-                capability_manifest=(github_search,),
+                description=(
+                    "Read-only search across issues, pull requests, and source code."
+                ),
+                capability_manifest=(github_search, github_code_search),
                 auth_schema={
                     "type": "object",
                     "properties": {"token": {"type": "string"}},
@@ -180,6 +210,13 @@ class IntegrationBootstrapService:
                 configuration_schema={
                     "type": "object",
                     "properties": {
+                        "auth_method": {"enum": ["github_app"]},
+                        "github_installation_id": {
+                            "type": "string",
+                            "pattern": "^[0-9]+$",
+                            "maxLength": 32,
+                        },
+                        "account_login": {"type": "string", "maxLength": 39},
                         "repositories": {
                             "type": "array",
                             "minItems": 1,
@@ -190,7 +227,7 @@ class IntegrationBootstrapService:
                                 "pattern": r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
                                 "maxLength": 100,
                             },
-                        }
+                        },
                     },
                     "required": ["repositories"],
                     "additionalProperties": False,
@@ -232,6 +269,9 @@ class IntegrationBootstrapService:
                 configuration_schema={
                     "type": "object",
                     "properties": {
+                        "auth_method": {"enum": ["slack_oauth_v2"]},
+                        "team_id": {"type": "string", "maxLength": 128},
+                        "team_name": {"type": "string", "maxLength": 160},
                         "channels": {
                             "type": "array",
                             "minItems": 1,
@@ -273,10 +313,12 @@ class IntegrationBootstrapService:
                 configuration_schema={
                     "type": "object",
                     "properties": {
+                        "auth_method": {"enum": ["atlassian_3lo"]},
                         "site_url": {
                             "type": "string",
                             "pattern": r"^https://[A-Za-z0-9-]+\.atlassian\.net/?$",
                         },
+                        "cloud_id": {"type": "string", "maxLength": 128},
                         "email": {"type": "string", "format": "email"},
                         "project_keys": {
                             "type": "array",
@@ -289,7 +331,7 @@ class IntegrationBootstrapService:
                             },
                         },
                     },
-                    "required": ["site_url", "email", "project_keys"],
+                    "required": ["site_url", "project_keys"],
                     "additionalProperties": False,
                 },
                 status=PluginDescriptorStatus.ACTIVE,

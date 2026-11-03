@@ -43,6 +43,8 @@ def _configure_identity_bootstrap_service(
         organizations=dependencies.organizations,
         workspaces=dependencies.workspaces,
         role_bindings=dependencies.role_bindings,
+        unit_of_work=dependencies._unit_of_work,
+        advisory_transaction_lock=dependencies._advisory_transaction_lock,
     )
 
 
@@ -79,6 +81,7 @@ def _configure_invitation_service(
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,
         authorize=dependencies.authorize,
+        authorize_organization=dependencies.authorize_organization,
         unit_of_work=dependencies._unit_of_work,
     )
 

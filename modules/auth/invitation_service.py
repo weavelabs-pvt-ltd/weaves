@@ -50,6 +50,7 @@ class InvitationService(InvitationRuntimeMixin, InvitationAcceptanceMixin):
         is_bootstrapped: Callable[[], bool],
         bootstrap: Callable[[], None],
         authorize: Callable[[str, Permission], None],
+        authorize_organization: Callable[[str, Permission], None],
         unit_of_work: Callable[[], AbstractContextManager[None]],
     ) -> None:
         """Bind invitation repositories and application lifecycle callbacks."""
@@ -65,6 +66,7 @@ class InvitationService(InvitationRuntimeMixin, InvitationAcceptanceMixin):
         self._bootstrapped = is_bootstrapped
         self._bootstrap = bootstrap
         self._authorize = authorize
+        self._authorize_organization = authorize_organization
         self._open_unit_of_work = unit_of_work
 
     def bootstrap(self) -> None:
@@ -74,6 +76,10 @@ class InvitationService(InvitationRuntimeMixin, InvitationAcceptanceMixin):
     def authorize(self, principal_id: str, permission: Permission) -> None:
         """Enforce user and role permissions through the identity capability."""
         self._authorize(principal_id, permission)
+
+    def authorize_organization(self, principal_id: str, permission: Permission) -> None:
+        """Enforce organization roles for privilege-bearing invitation actions."""
+        self._authorize_organization(principal_id, permission)
 
     def _unit_of_work(self) -> AbstractContextManager[None]:
         """Open a transaction for invitation and account changes."""

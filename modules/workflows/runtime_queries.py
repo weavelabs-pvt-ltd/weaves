@@ -149,7 +149,7 @@ class WorkflowQueryMixin(WorkflowDefinitionRuntimeHost):
         """Return a historical version only when it belongs to the scoped workflow."""
         self._ensure_workflow_runtime()
         actor = effective_principal_id(requested_by_principal_id)
-        self.authorize(actor, Permission.WORKFLOWS_RUN)
+        self.authorize(actor, Permission.WORKFLOWS_VIEW)
         workflow = self.workflows.get_scoped(
             workflow_id, effective_org_id(), effective_workspace_id()
         )
@@ -171,7 +171,7 @@ class WorkflowQueryMixin(WorkflowDefinitionRuntimeHost):
         """Return a bounded, newest-first page of scoped workflow versions."""
         self._ensure_workflow_runtime()
         actor = effective_principal_id(requested_by_principal_id)
-        self.authorize(actor, Permission.WORKFLOWS_RUN)
+        self.authorize(actor, Permission.WORKFLOWS_VIEW)
         workflow = self.workflows.get_scoped(
             workflow_id, effective_org_id(), effective_workspace_id()
         )

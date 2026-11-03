@@ -30,6 +30,7 @@ from contracts.v1 import (
     Workspace,
     WorkspaceStatus,
 )
+from modules.auth.role_presets import validate_role_preset_scope
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.request_context import (
@@ -76,6 +77,11 @@ class InvitationRuntimeHost(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def authorize_organization(self, principal_id: str, permission: Permission) -> None:
+        """Enforce organization permissions for custom role provisioning."""
+        raise NotImplementedError
+
+    @abstractmethod
     def _unit_of_work(self) -> AbstractContextManager[None]:
         """Open a transaction for related invitation and account writes."""
         raise NotImplementedError
@@ -99,6 +105,9 @@ class InvitationRuntimeMixin(InvitationRuntimeHost):
         actor = effective_principal_id(requested_by_principal_id)
         self.authorize(actor, Permission.USERS_MANAGE)
         self.authorize(actor, Permission.ROLES_MANAGE)
+        if role_id is None:
+            self.authorize_organization(actor, Permission.USERS_MANAGE)
+            self.authorize_organization(actor, Permission.ROLES_MANAGE)
         workspace = self.workspaces.get_scoped(
             effective_workspace_id(), effective_org_id()
         )
@@ -198,7 +207,9 @@ class InvitationRuntimeMixin(InvitationRuntimeHost):
         if role_id is not None:
             if permissions:
                 raise ValueError("choose a role_id or permissions, not both")
-            return self.roles.get_scoped(role_id, effective_org_id())
+            role = self.roles.get_scoped(role_id, effective_org_id())
+            validate_role_preset_scope(role, effective_workspace_id())
+            return role
         if not permissions:
             raise ValueError("workspace user must have a role or permissions")
         if len(permissions) != len(set(permissions)):

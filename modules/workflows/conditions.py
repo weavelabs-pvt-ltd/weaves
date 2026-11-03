@@ -1,4 +1,4 @@
-"""Evaluate workflow conditions against structured JSON output."""
+"""Evaluate structured workflow branch conditions."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ def workflow_condition_matches(
     *,
     has_structured_output: bool,
 ) -> tuple[bool, str]:
-    """Evaluate a bounded JSON Pointer condition without exposing values."""
+    """Evaluate one JSON Pointer condition without exposing compared values."""
     if not has_structured_output:
         return False, "source_has_no_structured_output"
     current: Any = source_output

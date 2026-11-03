@@ -92,14 +92,14 @@ class AgentService:
         """List agents visible in the active workspace."""
         if not self._is_bootstrapped():
             self._bootstrap()
-        self._authorize("local-developer", Permission.AGENTS_MANAGE)
+        self._authorize("local-developer", Permission.AGENTS_VIEW)
         return self.agents.list_scoped(effective_org_id(), effective_workspace_id())
 
     def get_agent(self, agent_id: str) -> AgentDefinition:
-        """Load one agent after enforcing workspace management access."""
+        """Load one agent after enforcing workspace view access."""
         if not self._is_bootstrapped():
             self._bootstrap()
-        self._authorize("local-developer", Permission.AGENTS_MANAGE)
+        self._authorize("local-developer", Permission.AGENTS_VIEW)
         return self.agents.get_scoped(
             agent_id, effective_org_id(), effective_workspace_id()
         )
@@ -108,14 +108,14 @@ class AgentService:
         """Load a version visible to the active organization and workspace."""
         if not self._is_bootstrapped():
             self._bootstrap()
-        self._authorize("local-developer", Permission.AGENTS_MANAGE)
+        self._authorize("local-developer", Permission.AGENTS_VIEW)
         return self.agent_versions.get_scoped(
             version_id, effective_org_id(), effective_workspace_id()
         )
 
     def get_agent_templates(self) -> tuple[AgentTemplate, ...]:
         """List built-in agent templates visible to the current workspace."""
-        self._authorize("local-developer", Permission.AGENTS_MANAGE)
+        self._authorize("local-developer", Permission.AGENTS_VIEW)
         return list_agent_templates()
 
     def create_agent_from_template(

@@ -26,7 +26,6 @@ from contracts.v1 import (
     ModelProviderType,
     Organization,
     OrganizationStatus,
-    Permission,
     PluginInstallation,
     PluginInstallationStatus,
     Principal,
@@ -41,6 +40,7 @@ from contracts.v1 import (
     WorkspaceStatus,
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
+from modules.auth.role_presets import build_role_preset
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _auth_now
 from shared.clock import utc_now as _now
@@ -64,6 +64,7 @@ class OwnerRecords:
     user: User
     principal: Principal
     role: Role
+    preset_roles: tuple[Role, ...]
     binding: RoleBinding
     credential: ApiCredential
     token: str
@@ -191,11 +192,10 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
             created_at=timestamp,
             updated_at=timestamp,
         )
-        role = Role(
-            id=_id(),
-            org_id=organization_id,
-            name="Organization owner",
-            permissions=list(Permission),
+        role = build_role_preset(organization_id, "admin")
+        preset_roles = (
+            build_role_preset(organization_id, "builder"),
+            build_role_preset(organization_id, "user"),
         )
         binding = RoleBinding(
             id=_id(),
@@ -216,7 +216,15 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
             updated_at=timestamp,
         )
         return OwnerRecords(
-            organization, workspace, user, principal, role, binding, credential, token
+            organization,
+            workspace,
+            user,
+            principal,
+            role,
+            preset_roles,
+            binding,
+            credential,
+            token,
         )
 
     def _build_organization_defaults(
@@ -292,6 +300,8 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
             self.users.create(owner.user)
             self.principals.create(owner.principal)
             self.roles.create(owner.role)
+            for role in owner.preset_roles:
+                self.roles.create(role)
             self.role_bindings.create(owner.binding)
             self.api_credentials.create(owner.credential)
             self.providers.create(defaults.provider)

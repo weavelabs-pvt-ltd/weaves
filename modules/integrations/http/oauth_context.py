@@ -92,7 +92,9 @@ class OAuthContextBase:
         provider: Literal["github", "slack", "jira"],
         configuration: dict[str, Any],
         *,
-        step: Literal["authorize", "github_install"] = "authorize",
+        step: Literal[
+            "authorize", "github_install", "resource_selection"
+        ] = "authorize",
         secret_ref: str | None = None,
     ) -> OAuthAuthorizationState:
         """Handle the state record step of the OAuth flow."""
@@ -104,7 +106,9 @@ class OAuthContextBase:
         self,
         value: str,
         provider: Literal["github", "slack", "jira"],
-        step: Literal["authorize", "github_install"] = "authorize",
+        step: Literal[
+            "authorize", "github_install", "resource_selection"
+        ] = "authorize",
     ) -> OAuthAuthorizationState:
         """Handle the take state step of the OAuth flow."""
         try:
@@ -129,10 +133,20 @@ class OAuthContextBase:
         """Handle the request as step of the OAuth flow."""
         self.dependencies.state_service.authorize_state_principal(record)
 
-    def finish(self, provider: str, status: str) -> RedirectResponse:
+    def finish(
+        self, provider: str, status: str, error: str | None = None
+    ) -> RedirectResponse:
         """Handle the finish step of the OAuth flow."""
+        error_query = f"&connector_error={error}" if error else ""
         return RedirectResponse(
-            f"{self.frontend}/?connector_oauth={status}&provider={provider}#connections",
+            f"{self.frontend}/?connector_oauth={status}&provider={provider}{error_query}#connections",
+            status_code=303,
+        )
+
+    def setup_redirect(self, provider: str, state_id: str) -> RedirectResponse:
+        """Return the user to Weaves to select discovered provider resources."""
+        return RedirectResponse(
+            f"{self.frontend}/?connector_setup={state_id}&provider={provider}#connections",
             status_code=303,
         )
 

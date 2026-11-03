@@ -10,6 +10,7 @@
     }
   },
   "additionalProperties": false,
+  "description": "Immutable audit event scoped to an organization or workspace.",
   "properties": {
     "action": {
       "maxLength": 128,

@@ -13,7 +13,7 @@ class OAuthAuthorizationState(FrozenProductContract):
 
     oauth_state_id: OpaqueId
     provider: Literal["github", "slack", "jira"]
-    step: Literal["authorize", "github_install"] = "authorize"
+    step: Literal["authorize", "github_install", "resource_selection"] = "authorize"
     principal_id: OpaqueId
     org_id: OpaqueId
     workspace_id: OpaqueId

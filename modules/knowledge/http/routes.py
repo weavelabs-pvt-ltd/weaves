@@ -71,7 +71,10 @@ def _register_context_routes_group_1(
 
     def list_knowledge_documents() -> list[dict[str, Any]]:
         documents = knowledge_service.list_documents()
-        return [_dump(item) for item in documents]
+        views = [_dump(item) for item in documents]
+        for view in views:
+            view.pop("text", None)
+        return views
 
     def create_knowledge_document(
         request: KnowledgeDocumentCreateRequest,

@@ -21,6 +21,7 @@ from contracts.v1 import (
     Workspace,
     WorkspaceStatus,
 )
+from modules.auth.role_presets import validate_role_preset_scope
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.request_context import (
@@ -42,6 +43,7 @@ class MembershipRuntimeHost(ABC):
     role_bindings: Repository[RoleBinding]
     roles: Repository[Role]
     workspaces: Repository[Workspace]
+    _advisory_transaction_lock: Callable[[str], None] | None
 
     @abstractmethod
     def bootstrap(self) -> None:
@@ -143,7 +145,8 @@ class MembershipRuntimeMixin(MembershipRuntimeHost):
         principal = self.principals.get_scoped(principal_id, org_id)
         if principal.status is not PrincipalStatus.ACTIVE:
             raise ValueError("role bindings require an active principal")
-        self.roles.get_scoped(role_id, org_id)
+        role = self.roles.get_scoped(role_id, org_id)
+        validate_role_preset_scope(role, workspace_id)
 
         def find_existing_binding() -> RoleBinding | None:
             return next(
@@ -201,6 +204,154 @@ class MembershipRuntimeMixin(MembershipRuntimeHost):
                 raise
             return existing
         return binding
+
+    def replace_role_binding(
+        self,
+        *,
+        principal_id: str,
+        role_id: str,
+        workspace_id: str | None = None,
+        requested_by_principal_id: str = "local-developer",
+    ) -> RoleBinding:
+        """Atomically replace a principal's role bindings at one scope."""
+        if not self._bootstrapped():
+            self.bootstrap()
+        actor = effective_principal_id(requested_by_principal_id)
+        org_id = self._authorize_role_binding_scope(actor, workspace_id)
+        with self._unit_of_work():
+            self._lock_role_binding_replacement(org_id, principal_id, workspace_id)
+            principal = self.principals.get_scoped(principal_id, org_id)
+            if principal.status is not PrincipalStatus.ACTIVE:
+                raise ValueError("role bindings require an active principal")
+            role = self.roles.get_scoped(role_id, org_id)
+            validate_role_preset_scope(role, workspace_id)
+            all_bindings = self.role_bindings.list_scoped(org_id)
+            replacing = self._bindings_at_scope(
+                all_bindings, principal_id, workspace_id
+            )
+            if len(replacing) == 1 and replacing[0].role_id == role_id:
+                return replacing[0]
+            remaining = [
+                binding for binding in all_bindings if binding not in replacing
+            ]
+            proposed = RoleBinding(
+                id=_id(),
+                org_id=org_id,
+                principal_id=principal_id,
+                role_id=role_id,
+                workspace_id=workspace_id,
+                created_at=_now(),
+            )
+            self._validate_role_binding_replacement(
+                actor,
+                principal_id,
+                workspace_id,
+                replacing,
+                remaining,
+                proposed,
+                org_id,
+            )
+            for old_binding in replacing:
+                self.role_bindings.delete(old_binding.id)
+            self.role_bindings.create(proposed)
+            self.audit_events.create(
+                AuditEvent(
+                    audit_event_id=_id(),
+                    org_id=org_id,
+                    target_scope=(
+                        AuditTargetScope.ORGANIZATION
+                        if workspace_id is None
+                        else AuditTargetScope.WORKSPACE
+                    ),
+                    workspace_id=workspace_id,
+                    actor_principal_id=actor,
+                    action="role_binding.replaced",
+                    target_type="role_binding",
+                    target_id=proposed.id,
+                    summary="Role assignment replaced",
+                    request_id=proposed.id,
+                    metadata={
+                        "principal_id": principal_id,
+                        "previous_role_ids": [item.role_id for item in replacing],
+                        "role_id": role_id,
+                    },
+                    created_at=proposed.created_at,
+                )
+            )
+        return proposed
+
+    def _lock_role_binding_replacement(
+        self, org_id: str, principal_id: str, workspace_id: str | None
+    ) -> None:
+        """Serialize assignments that replace the same principal-scope pair."""
+        if self._advisory_transaction_lock is not None:
+            target_scope = workspace_id or "organization"
+            self._advisory_transaction_lock(
+                f"weaves-role-binding:{org_id}:{principal_id}:{target_scope}"
+            )
+
+    @staticmethod
+    def _bindings_at_scope(
+        bindings: tuple[RoleBinding, ...],
+        principal_id: str,
+        workspace_id: str | None,
+    ) -> list[RoleBinding]:
+        """Return one principal's assignments at exactly one scope."""
+        return [
+            binding
+            for binding in bindings
+            if binding.principal_id == principal_id
+            and binding.workspace_id == workspace_id
+        ]
+
+    def _validate_role_binding_replacement(
+        self,
+        actor: str,
+        principal_id: str,
+        workspace_id: str | None,
+        replacing: list[RoleBinding],
+        remaining: list[RoleBinding],
+        proposed: RoleBinding,
+        org_id: str,
+    ) -> None:
+        """Prevent replacement from removing the final effective administrator."""
+        candidates = [*remaining, proposed]
+        if workspace_id is None:
+            protected = {
+                Permission.ORGANIZATIONS_ADMIN,
+                Permission.ROLES_MANAGE,
+            }
+            for permission in protected:
+                had_permission = any(
+                    binding.workspace_id is None
+                    and permission
+                    in self.roles.get_scoped(binding.role_id, org_id).permissions
+                    for binding in replacing
+                )
+                remains = any(
+                    binding.workspace_id is None
+                    and permission
+                    in self.roles.get_scoped(binding.role_id, org_id).permissions
+                    for binding in candidates
+                )
+                if had_permission and not remains:
+                    raise ValueError(
+                        "cannot remove the last organization-level administrator"
+                    )
+        elif principal_id == actor and any(
+            Permission.ROLES_MANAGE
+            in self.roles.get_scoped(binding.role_id, org_id).permissions
+            for binding in replacing
+        ):
+            remains = any(
+                binding.workspace_id == workspace_id
+                and binding.principal_id == actor
+                and Permission.ROLES_MANAGE
+                in self.roles.get_scoped(binding.role_id, org_id).permissions
+                for binding in candidates
+            )
+            if not remains:
+                raise ValueError("cannot remove your last workspace role administrator")
 
     def _authorize_role_binding_scope(
         self, actor: str, workspace_id: str | None

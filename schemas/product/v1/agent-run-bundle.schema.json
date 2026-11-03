@@ -53,6 +53,7 @@
     },
     "AgentRun": {
       "additionalProperties": false,
+      "description": "One agent-level execution attempt and its metered model result.",
       "properties": {
         "agent_id": {
           "maxLength": 128,
@@ -479,6 +480,7 @@
     }
   },
   "additionalProperties": false,
+  "description": "An agent run pinned to the exact published agent version.",
   "properties": {
     "agent_version": {
       "$ref": "#/$defs/AgentVersion"

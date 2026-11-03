@@ -15,6 +15,7 @@ from contracts.v1 import (
     ModelResponse,
     ModelUsage,
     RunStatus,
+    WorkflowConditionOperator,
     WorkflowStepCondition,
 )
 from tests.support.runtime import LocalPlatformRuntime
@@ -164,6 +165,18 @@ def test_ten_step_workflow_bounds_prior_artifacts_in_model_requests():
     assert len(result.artifact.provenance) <= 50
 
 
+@pytest.mark.parametrize(
+    ("route", "operator", "expected_value", "expected_agents"),
+    (
+        (
+            "review",
+            WorkflowConditionOperator.EQUALS,
+            "review",
+            ("Router", "Reviewer", "Summarizer"),
+        ),
+        ("skip", WorkflowConditionOperator.EQUALS, "review", ("Router", "Summarizer")),
+    ),
+)
 def test_workflow_condition_routes_steps_from_structured_agent_output(
     route, operator, expected_value, expected_agents
 ):

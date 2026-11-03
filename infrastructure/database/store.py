@@ -147,6 +147,16 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
                    WHERE collection = 'audit_events'""",
         ),
     ),
+    (
+        13,
+        (
+            """CREATE UNIQUE INDEX IF NOT EXISTS
+                   product_records_system_role_key_uq
+                   ON product_records (org_id, (payload->>'system_role_key'))
+                   WHERE collection = 'roles'
+                     AND payload->>'system_role_key' IS NOT NULL""",
+        ),
+    ),
 )
 
 

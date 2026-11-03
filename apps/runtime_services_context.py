@@ -49,6 +49,7 @@ def _configure_model_and_context_services(
         catalog_service=services.model_catalog_service,
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,
+        authorize=dependencies.authorize,
         authorize_organization=dependencies.authorize_organization,
         unit_of_work=dependencies._unit_of_work,
         default_model_profile_id=dependencies.default_model_profile_id,

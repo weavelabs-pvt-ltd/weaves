@@ -201,6 +201,34 @@ def _register_create_role_binding(
         return _dump(binding)
 
 
+def _register_replace_role_binding(
+    app: FastAPI,
+    organization_service: OrganizationService,
+    workspace_access_service: WorkspaceAccessService,
+    dump: DumpModel,
+) -> None:
+    """Register atomic role replacement at the requested assignment scope."""
+    _dump = dump
+
+    @app.put("/api/v0/role-bindings")
+    def replace_role_binding(request: RoleBindingCreateRequest) -> dict[str, Any]:
+        try:
+            binding = workspace_access_service.replace_role_binding(
+                principal_id=request.principal_id,
+                role_id=request.role_id,
+                workspace_id=request.workspace_id,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=404, detail="Principal or role not found"
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return _dump(binding)
+
+
 def _register_delete_role_binding(
     app: FastAPI,
     organization_service: OrganizationService,
@@ -248,6 +276,9 @@ def register_workspace_routes(
         app, organization_service, workspace_access_service, dump
     )
     _register_create_role_binding(
+        app, organization_service, workspace_access_service, dump
+    )
+    _register_replace_role_binding(
         app, organization_service, workspace_access_service, dump
     )
     _register_delete_role_binding(

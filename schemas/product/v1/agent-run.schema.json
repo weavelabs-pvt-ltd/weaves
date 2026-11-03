@@ -49,6 +49,7 @@
     }
   },
   "additionalProperties": false,
+  "description": "One agent-level execution attempt and its metered model result.",
   "properties": {
     "agent_id": {
       "maxLength": 128,

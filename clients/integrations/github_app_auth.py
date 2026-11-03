@@ -33,15 +33,30 @@ class GitHubAppTokenProvider:
         )
 
     def installation_token(
-        self, installation_id: str, repositories: tuple[str, ...]
+        self, installation_id: str, repositories: tuple[str, ...] | None
+    ) -> str:
+        """Mint an installation token limited to the requested repositories."""
+        if repositories is None or not repositories:
+            raise PluginGatewayError(
+                "plugin.configuration_invalid",
+                "GitHub runtime tokens require an explicit repository allowlist",
+            )
+        return self._installation_token(installation_id, repositories)
+
+    def installation_discovery_token(self, installation_id: str) -> str:
+        """Mint a temporary token for post-install repository discovery only."""
+        return self._installation_token(installation_id, None)
+
+    def _installation_token(
+        self, installation_id: str, repositories: tuple[str, ...] | None
     ) -> str:
         if not self.configured:
             raise PluginGatewayError(
                 "plugin.oauth_unavailable",
                 "GitHub App authentication is not configured",
             )
-        selected = tuple(sorted(set(repositories)))
-        if not selected:
+        selected = tuple(sorted(set(repositories or ())))
+        if repositories is not None and not selected:
             raise PluginGatewayError(
                 "plugin.configuration_invalid",
                 "GitHub installation has no repositories",
@@ -54,13 +69,19 @@ class GitHubAppTokenProvider:
                 return cached[0]
         app_jwt = self._app_jwt()
         repo_names = [repository.split("/", 1)[1] for repository in selected]
+        token_request: dict[str, object] = {
+            "permissions": {
+                "contents": "read",
+                "issues": "read",
+                "pull_requests": "read",
+            }
+        }
+        if repositories is not None:
+            token_request["repositories"] = repo_names
         try:
             response = self._client.post(
                 f"https://api.github.com/app/installations/{installation_id}/access_tokens",
-                json={
-                    "repositories": repo_names,
-                    "permissions": {"issues": "read", "pull_requests": "read"},
-                },
+                json=token_request,
                 headers={
                     "Accept": "application/vnd.github+json",
                     "Authorization": f"Bearer {app_jwt}",

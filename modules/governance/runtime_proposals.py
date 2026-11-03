@@ -168,14 +168,12 @@ class GovernanceProposalMixin(RuntimeCapabilityHost):
         self, capability_id: str, agent_version: AgentVersion
     ) -> tuple[PluginInstallation, CapabilitySpec]:
         """Validate installation and workspace policy for a proposed Jira action."""
-        installation, capability = (
-            self.integration_admin_service.resolve_capability_installation(
-                capability_id,
-                org_id=effective_org_id(),
-                workspace_id=effective_workspace_id(),
-                require_enabled=True,
-                allowed_kinds=(CapabilityKind.ACTION_WRITE,),
-            )
+        installation, capability = self._capability_installation(
+            capability_id,
+            org_id=effective_org_id(),
+            workspace_id=effective_workspace_id(),
+            require_enabled=True,
+            allowed_kinds=(CapabilityKind.ACTION_WRITE,),
         )
         if not agent_version.approval_policy_id:
             raise ValueError("agent version has no approval policy")

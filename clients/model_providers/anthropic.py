@@ -85,8 +85,9 @@ class AnthropicAdapter:
             "model": binding.profile.model,
             "messages": messages,
             "max_tokens": request.max_output_tokens,
-            "temperature": request.temperature,
         }
+        if not _uses_default_sampling_parameters(binding.profile.model):
+            body["temperature"] = request.temperature
         if system:
             body["system"] = system
         try:
@@ -158,3 +159,28 @@ class AnthropicAdapter:
                 "Provider credential could not be resolved",
             )
         return secret
+
+
+def _uses_default_sampling_parameters(model: str) -> bool:
+    """Return whether Anthropic requires default sampling settings for a model.
+
+    Anthropic rejects non-default temperature for Claude 4.7+ and newer model
+    families. The adapter omits temperature for those models so configured
+    profile values cannot make otherwise valid requests fail with HTTP 400.
+    """
+    normalized = model.lower().removeprefix("claude-")
+    if "mythos-preview" in normalized:
+        return True
+
+    family, _, version = normalized.partition("-")
+    version_parts = version.split("-")
+    if not family.isalpha() or not version_parts or not version_parts[0].isdigit():
+        return False
+
+    major = int(version_parts[0])
+    if major >= 5:
+        return True
+    if major == 4 and family == "opus" and len(version_parts) > 1:
+        minor = version_parts[1]
+        return minor.isdigit() and int(minor) >= 7
+    return False

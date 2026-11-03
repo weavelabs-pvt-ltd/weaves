@@ -34,6 +34,7 @@ _TEMPLATES = {
         recommended_capability_ids=(
             "knowledge.search",
             "github.issues.search",
+            "github.code.search",
             "slack.messages.search",
             "jira.issues.search",
         ),

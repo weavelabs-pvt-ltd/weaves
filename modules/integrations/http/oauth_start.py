@@ -1,7 +1,6 @@
 """OAuth Start route handlers."""
 
 import os
-import re
 from typing import Any
 from urllib.parse import urlencode
 
@@ -76,11 +75,6 @@ class OAuthStartMixin(OAuthContextBase):
             raise HTTPException(
                 status_code=503, detail="GitHub App OAuth is not configured"
             )
-        if not request.repositories:
-            raise HTTPException(
-                status_code=422, detail="Select at least one repository"
-            )
-        configuration["repositories"] = list(request.repositories)
         redirect = self.callback_url("github/callback")
         state = self.state_record("github", configuration)
         return {
@@ -103,19 +97,14 @@ class OAuthStartMixin(OAuthContextBase):
             or not os.environ.get("WEAVES_SLACK_OAUTH_CLIENT_SECRET", "").strip()
         ):
             raise HTTPException(status_code=503, detail="Slack OAuth is not configured")
-        if not request.channels:
-            raise HTTPException(
-                status_code=422, detail="Select at least one Slack channel"
-            )
         configuration.update(
             {
-                "channels": list(request.channels),
                 "include_thread_replies": request.include_thread_replies,
             }
         )
         redirect = self.callback_url("slack/callback")
         state = self.state_record("slack", configuration)
-        scopes = "search:read,channels:history,groups:history"
+        scopes = "search:read,channels:read,groups:read,channels:history,groups:history"
         params = {
             "client_id": client_id,
             "redirect_uri": redirect,
@@ -138,18 +127,6 @@ class OAuthStartMixin(OAuthContextBase):
             raise HTTPException(
                 status_code=503, detail="Atlassian OAuth is not configured"
             )
-        site_url = (request.site_url or "").rstrip("/")
-        if re.fullmatch("https://[A-Za-z0-9-]+\\.atlassian\\.net", site_url) is None:
-            raise HTTPException(
-                status_code=422, detail="Enter a valid Atlassian site URL"
-            )
-        if not request.project_keys:
-            raise HTTPException(
-                status_code=422, detail="Select at least one Jira project"
-            )
-        configuration.update(
-            {"site_url": site_url, "project_keys": list(request.project_keys)}
-        )
         redirect = self.callback_url("jira/callback")
         state = self.state_record("jira", configuration)
         params = {

@@ -80,7 +80,7 @@ class WorkflowDefinitionService(
         """List definitions visible in the active workspace."""
         self._ensure_workflow_runtime()
         self.authorize(
-            effective_principal_id("local-developer"), Permission.WORKFLOWS_RUN
+            effective_principal_id("local-developer"), Permission.WORKFLOWS_VIEW
         )
         return self.workflows.list_scoped(effective_org_id(), effective_workspace_id())
 
@@ -88,7 +88,7 @@ class WorkflowDefinitionService(
         """Load one definition visible in the active workspace."""
         self._ensure_workflow_runtime()
         self.authorize(
-            effective_principal_id("local-developer"), Permission.WORKFLOWS_RUN
+            effective_principal_id("local-developer"), Permission.WORKFLOWS_VIEW
         )
         return self.workflows.get_scoped(
             workflow_id, effective_org_id(), effective_workspace_id()

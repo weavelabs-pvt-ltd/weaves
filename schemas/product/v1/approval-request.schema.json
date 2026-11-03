@@ -23,6 +23,7 @@
     }
   },
   "additionalProperties": false,
+  "description": "Human decision record for a proposed write capability.",
   "properties": {
     "action_summary": {
       "maxLength": 1000,

@@ -28,6 +28,7 @@ from contracts.v1 import (
     UserSessionStatus,
     UserStatus,
 )
+from modules.auth.role_presets import validate_role_preset_scope
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.request_context import (
@@ -89,6 +90,13 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
         requested_by_principal_id = effective_principal_id(requested_by_principal_id)
         self.authorize(requested_by_principal_id, Permission.USERS_MANAGE)
         self.authorize(requested_by_principal_id, Permission.ROLES_MANAGE)
+        if role_id is None:
+            self.authorize_organization(
+                requested_by_principal_id, Permission.USERS_MANAGE
+            )
+            self.authorize_organization(
+                requested_by_principal_id, Permission.ROLES_MANAGE
+            )
         normalized_email = email.strip().casefold()
         self._ensure_user_email_available(normalized_email)
         role = self._resolve_workspace_user_role(display_name, role_id, permissions)
@@ -160,7 +168,9 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
         if role_id is not None:
             if permissions:
                 raise ValueError("choose a role_id or permissions, not both")
-            return self.roles.get_scoped(role_id, effective_org_id())
+            role = self.roles.get_scoped(role_id, effective_org_id())
+            validate_role_preset_scope(role, effective_workspace_id())
+            return role
         if not permissions:
             raise ValueError("workspace user must have a role or permissions")
         if len(permissions) != len(set(permissions)):

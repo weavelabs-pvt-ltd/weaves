@@ -4,9 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from application.platform import (
-    IdempotencyConflict,
-)
+from application import IdempotencyConflict
 from contracts.v1 import (
     ExecutionJob,
     ExecutionJobStatus,

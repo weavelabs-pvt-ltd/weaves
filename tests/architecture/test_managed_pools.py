@@ -69,12 +69,15 @@ def test_runtime_closes_the_injected_http_client() -> None:
 def test_api_and_worker_wiring_inject_one_http_client(monkeypatch) -> None:
     api_client = httpx.Client()
     worker_client = httpx.Client()
-    monkeypatch.setattr("apps.api.wiring.open_http_client", lambda settings: api_client)
-    monkeypatch.setattr("apps.api.wiring._open_store", lambda settings: None)
+    clients = {
+        "weaves-product-api": api_client,
+        "weaves-product-worker": worker_client,
+    }
     monkeypatch.setattr(
-        "apps.worker.wiring.open_http_client", lambda settings: worker_client
+        "apps.runtime_wiring.open_http_client",
+        lambda settings: clients[settings.db_application_name],
     )
-    monkeypatch.setattr("apps.worker.wiring._open_store", lambda settings: None)
+    monkeypatch.setattr("apps.runtime_wiring._open_store", lambda settings: None)
     api_runtime = build_api_runtime()
     worker_runtime = build_worker_runtime()
     try:
