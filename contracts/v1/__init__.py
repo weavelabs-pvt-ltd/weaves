@@ -4,6 +4,7 @@ from contracts.v1.agents import (
     AgentBudget,
     AgentBundle,
     AgentDefinition,
+    AgentSkillSnapshot,
     AgentStatus,
     AgentVersion,
 )
@@ -128,6 +129,7 @@ __all__ = [
     "AgentDefinition",
     "AgentRun",
     "AgentRunBundle",
+    "AgentSkillSnapshot",
     "AgentStatus",
     "AgentVersion",
     "ApiCredential",

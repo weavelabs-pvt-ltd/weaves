@@ -372,22 +372,57 @@ def test_product_api_configures_agent_runs_and_inspects_platform_records():
             json={
                 "name": "Policy helper",
                 "description": "Answers policy questions.",
+                "persona": "A concise policy analyst.",
                 "instructions": "Use approved handbook context and cite the sources.",
+                "skill_ids": ["evidence-based-research"],
             },
         )
         assert created.status_code == 201
         agent = created.json()
         assert agent["current_version"]["instructions"].startswith("Use approved")
+        assert agent["current_version"]["persona"] == "A concise policy analyst."
+        assert agent["current_version"]["skills"][0]["skill_id"] == (
+            "evidence-based-research"
+        )
         first_version_id = agent["current_version"]["agent_version_id"]
         updated = client.patch(
             f"/api/v0/agents/{agent['id']}",
-            json={"instructions": "Summarize approved context and name the sources."},
+            json={
+                "persona": "A direct policy analyst.",
+                "instructions": "Summarize approved context and name the sources.",
+                "skill_ids": ["concise-action-plan"],
+            },
         )
         assert updated.status_code == 200
         assert updated.json()["current_version"]["version"] == 2
+        assert (
+            updated.json()["current_version"]["persona"] == "A direct policy analyst."
+        )
+        assert updated.json()["current_version"]["skills"][0]["skill_id"] == (
+            "concise-action-plan"
+        )
         assert runtime.agent_versions.get(first_version_id).instructions.startswith(
             "Use approved"
         )
+        history = client.get(f"/api/v0/agents/{agent['id']}/versions")
+        assert history.status_code == 200
+        assert [item["version"] for item in history.json()] == [2, 1]
+        historical = client.get(
+            f"/api/v0/agents/{agent['id']}/versions/{first_version_id}"
+        )
+        assert historical.status_code == 200
+        assert historical.json()["persona"] == "A concise policy analyst."
+        unchanged = client.patch(
+            f"/api/v0/agents/{agent['id']}",
+            json={
+                "persona": "A direct policy analyst.",
+                "instructions": "Summarize approved context and name the sources.",
+                "skill_ids": ["concise-action-plan"],
+            },
+        )
+        assert unchanged.status_code == 200
+        assert unchanged.json()["current_version"]["version"] == 2
+        assert client.get("/api/v0/agent-skills").status_code == 200
 
         run_response = client.post(
             "/api/v0/runs",
@@ -402,6 +437,9 @@ def test_product_api_configures_agent_runs_and_inspects_platform_records():
             == updated.json()["current_version"]["agent_version_id"]
         )
         assert result["artifacts"][0]["provenance"]
+        agent_runs = client.get(f"/api/v0/agents/{agent['id']}/runs")
+        assert agent_runs.status_code == 200
+        assert agent_runs.json()[0]["run_id"] == run_id
 
         listed = client.get("/api/v0/runs").json()
         assert listed[0]["run_id"] == run_id
@@ -412,3 +450,14 @@ def test_product_api_configures_agent_runs_and_inspects_platform_records():
         assert client.get("/api/v0/artifacts").json()[0]["run_id"] == run_id
         events = client.get("/api/v0/audit-events").json()
         assert any(event["target_id"] == run_id for event in events)
+        archived = client.post(f"/api/v0/agents/{agent['id']}/archive")
+        assert archived.status_code == 200
+        assert archived.json()["status"] == "archived"
+        blocked = client.post(
+            "/api/v0/runs",
+            json={"agent_id": agent["id"], "task": "Try archived agent."},
+        )
+        assert blocked.status_code == 422
+        activated = client.post(f"/api/v0/agents/{agent['id']}/activate")
+        assert activated.status_code == 200
+        assert activated.json()["status"] == "active"

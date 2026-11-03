@@ -8,6 +8,7 @@ from contracts.v1 import (
     AgentBudget,
     AgentBundle,
     AgentDefinition,
+    AgentSkillSnapshot,
     AgentStatus,
     AgentVersion,
     ModelProfile,
@@ -151,6 +152,17 @@ def test_agent_version_is_immutable():
         version.output_schema["type"] = "string"
     with pytest.raises(TypeError):
         version.output_schema["properties"]["answer"]["type"] = "integer"
+
+
+def test_agent_version_rejects_duplicate_pinned_skills():
+    skill = AgentSkillSnapshot(
+        skill_id="evidence-based-research",
+        version=1,
+        name="Evidence-based research",
+        instructions="Use approved sources and cite evidence.",
+    )
+    with pytest.raises(ValidationError, match="agent skills must be unique"):
+        agent_version(skills=(skill, skill))
 
 
 def test_agent_version_scope_matches_its_definition():

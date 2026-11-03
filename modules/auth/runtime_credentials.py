@@ -278,6 +278,24 @@ class CredentialRuntimeMixin(CredentialRuntimeHost):
             raise PermissionError("principal is not active")
         return principal.id
 
+    def effective_permissions(self, principal_id: str) -> tuple[Permission, ...]:
+        """Resolve sorted permissions from org and selected-workspace bindings."""
+        if not self._bootstrapped():
+            self.bootstrap()
+        principal_id = effective_principal_id(principal_id)
+        principal = self.principals.get_scoped(principal_id, effective_org_id())
+        if principal.status is not PrincipalStatus.ACTIVE:
+            raise PermissionError("principal is not active")
+        permissions: set[Permission] = set()
+        for binding in self.role_bindings.list_scoped(effective_org_id()):
+            if binding.principal_id != principal_id:
+                continue
+            if binding.workspace_id not in {None, effective_workspace_id()}:
+                continue
+            role = self.roles.get_scoped(binding.role_id, effective_org_id())
+            permissions.update(role.permissions)
+        return tuple(sorted(permissions, key=lambda permission: permission.value))
+
     def authorize(self, principal_id: str, permission: Permission) -> None:
         """Require an active principal to hold a permission in its workspace."""
         principal_id = effective_principal_id(principal_id)

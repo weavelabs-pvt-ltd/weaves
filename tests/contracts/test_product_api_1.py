@@ -95,8 +95,21 @@ def test_organization_onboarding_token_gates_public_provisioning(monkeypatch):
     assert created.status_code == 201, created.text
 
 
-def test_engineering_agent_template_creates_a_scoped_runnable_agent():
-    client = TestClient(create_app(LocalPlatformRuntime()))
+def test_engineering_agent_template_creates_a_scoped_runnable_agent(monkeypatch):
+    runtime = LocalPlatformRuntime()
+    captured_requests = []
+
+    def complete(request, selected_binding):
+        captured_requests.append(request)
+        return ModelResponse(
+            provider_id=selected_binding.provider.id,
+            model_id=selected_binding.profile.model,
+            content="Research complete.",
+            usage=ModelUsage(input_tokens=10, output_tokens=5, total_tokens=15),
+        )
+
+    monkeypatch.setattr(runtime.model, "complete", complete)
+    client = TestClient(create_app(runtime))
     with client:
         onboarded = client.post(
             "/api/v0/onboarding/organizations",
@@ -119,6 +132,18 @@ def test_engineering_agent_template_creates_a_scoped_runnable_agent():
         assert "github.issues.search" in template["recommended_capability_ids"]
         assert "slack.messages.search" in template["recommended_capability_ids"]
         assert "jira.issues.search" in template["recommended_capability_ids"]
+        assert "evidence-based-research" in template["recommended_skill_ids"]
+
+        invalid_skill = client.post(
+            "/api/v0/agents",
+            headers=headers,
+            json={
+                "name": "Invalid skill agent",
+                "instructions": "This should not be stored.",
+                "skill_ids": ["not-installed-or-defined"],
+            },
+        )
+        assert invalid_skill.status_code == 422
 
         created = client.post(
             "/api/v0/agent-templates/engineering-assistant/agents",
@@ -135,6 +160,9 @@ def test_engineering_agent_template_creates_a_scoped_runnable_agent():
         assert agent["name"] == "Engineering Assistant"
         assert agent["current_version"]["persona"] == (
             "A careful engineering operations assistant."
+        )
+        assert agent["current_version"]["skills"][0]["skill_id"] == (
+            "evidence-based-research"
         )
         assert agent["current_version"]["allowed_capability_ids"] == [
             "knowledge.search"
@@ -171,6 +199,7 @@ def test_engineering_agent_template_creates_a_scoped_runnable_agent():
         assert run.status_code == 201, run.text
         assert run.json()["run"]["status"] == "succeeded"
         assert run.json()["artifacts"]
+        assert "Research skill:" in captured_requests[0].messages[0].content
 
 
 def test_agent_output_schema_can_be_configured_and_returned_through_api(monkeypatch):

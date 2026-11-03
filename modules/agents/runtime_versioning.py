@@ -12,6 +12,7 @@ from application.ports.repository import Repository
 from contracts.v1 import (
     AgentBudget,
     AgentDefinition,
+    AgentSkillSnapshot,
     AgentVersion,
     AuditEvent,
     AuditTargetScope,
@@ -51,6 +52,8 @@ class AgentVersionPublisher:
         old_version: AgentVersion,
         *,
         profile_id: str,
+        persona: str | None,
+        skills: tuple[AgentSkillSnapshot, ...],
         instructions: str | None,
         capability_ids: tuple[str, ...],
         memory_scopes: tuple[MemoryScope, ...] | None,
@@ -66,9 +69,12 @@ class AgentVersionPublisher:
             org_id=current.org_id,
             workspace_id=current.workspace_id,
             version=old_version.version + 1,
-            persona=old_version.persona,
-            instructions=instructions or old_version.instructions,
+            persona=persona or old_version.persona,
+            instructions=(
+                old_version.instructions if instructions is None else instructions
+            ),
             model_profile_id=profile_id,
+            skills=skills,
             allowed_capability_ids=capability_ids,
             allowed_workflow_ids=old_version.allowed_workflow_ids,
             approval_policy_id=old_version.approval_policy_id,

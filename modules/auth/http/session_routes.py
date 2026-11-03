@@ -18,7 +18,7 @@ from modules.auth.http.schemas import (
 from modules.auth.invitation_service import InvitationService
 from modules.auth.organization_service import OrganizationService
 from shared.errors import LoginThrottled
-from shared.request_context import effective_principal_id
+from shared.request_context import effective_principal_id, effective_workspace_id
 
 
 def _register_accept_user_invitation(
@@ -150,7 +150,16 @@ def _register_get_authenticated_user(
         principal, user = authentication_service.get_authenticated_identity(
             effective_principal_id("local-developer")
         )
-        return {"principal": _dump(principal), "user": _dump(user) if user else None}
+        try:
+            permissions = credential_service.effective_permissions(principal.id)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        return {
+            "principal": _dump(principal),
+            "user": _dump(user) if user else None,
+            "workspace_id": effective_workspace_id(),
+            "effective_permissions": [permission.value for permission in permissions],
+        }
 
 
 def _register_logout_user(

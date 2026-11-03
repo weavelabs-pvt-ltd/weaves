@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
-from contracts.v1 import AgentBudget, MemoryScope
+from contracts.v1 import AgentBudget, AgentStatus, MemoryScope
 from modules.agents.runtime_lifecycle import AgentService
 from modules.integrations.admin_service import IntegrationAdminService
 
@@ -17,9 +17,13 @@ class AgentCreateRequest(BaseModel):
 
     name: str = Field(min_length=2, max_length=160)
     description: str = Field(default="", max_length=1000)
+    persona: str = Field(
+        default="A helpful work assistant.", min_length=1, max_length=2000
+    )
     instructions: str = Field(min_length=1, max_length=12000)
     model_profile_id: str | None = None
     allowed_capability_ids: tuple[str, ...] = ("knowledge.search",)
+    skill_ids: tuple[str, ...] = Field(default=(), max_length=50)
     memory_scopes: tuple[MemoryScope, ...] = (MemoryScope.WORKSPACE,)
     max_runtime_seconds: int = Field(default=300, ge=1, le=3600)
     max_tool_calls: int = Field(default=10, ge=0, le=100)
@@ -36,6 +40,7 @@ class AgentTemplateCreateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=160)
     model_profile_id: str | None = None
     allowed_capability_ids: tuple[str, ...] = Field(min_length=1, max_length=100)
+    skill_ids: tuple[str, ...] | None = Field(default=None, max_length=50)
     memory_scopes: tuple[MemoryScope, ...] = (MemoryScope.WORKSPACE,)
     max_runtime_seconds: int = Field(default=300, ge=1, le=3600)
     max_tool_calls: int = Field(default=10, ge=0, le=100)
@@ -51,9 +56,11 @@ class AgentPatchRequest(BaseModel):
 
     name: str | None = Field(default=None, min_length=2, max_length=160)
     description: str | None = Field(default=None, max_length=1000)
+    persona: str | None = Field(default=None, min_length=1, max_length=2000)
     instructions: str | None = Field(default=None, min_length=1, max_length=12000)
     model_profile_id: str | None = None
     allowed_capability_ids: tuple[str, ...] | None = None
+    skill_ids: tuple[str, ...] | None = Field(default=None, max_length=50)
     memory_scopes: tuple[MemoryScope, ...] | None = None
     budget: AgentBudget | None = None
     output_schema: dict[str, JsonValue] | None = None
@@ -120,6 +127,7 @@ def _register_agent_routes_group_1(
                     "name": item.name,
                     "description": item.description,
                     "recommended_capability_ids": list(item.recommended_capability_ids),
+                    "recommended_skill_ids": list(item.recommended_skill_ids),
                 }
                 for item in agent_service.get_agent_templates()
             ]
@@ -130,6 +138,22 @@ def _register_agent_routes_group_1(
     app.get("/api/v0/plugin-descriptors")(list_plugin_descriptors)
     app.get("/api/v0/agents")(list_agents)
     app.get("/api/v0/agent-templates")(list_agent_templates)
+
+    def list_agent_skills() -> list[dict[str, Any]]:
+        try:
+            return [
+                {
+                    "skill_id": item.skill_id,
+                    "name": item.name,
+                    "description": item.description,
+                    "version": item.version,
+                }
+                for item in agent_service.get_agent_skills()
+            ]
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    app.get("/api/v0/agent-skills")(list_agent_skills)
 
 
 def _register_agent_routes_group_2(
@@ -153,6 +177,7 @@ def _register_agent_routes_group_2(
                 name=request.name,
                 model_profile_id=request.model_profile_id,
                 allowed_capability_ids=request.allowed_capability_ids,
+                skill_ids=request.skill_ids,
                 memory_scopes=request.memory_scopes,
                 budget=AgentBudget(
                     max_runtime_seconds=request.max_runtime_seconds,
@@ -178,9 +203,11 @@ def _register_agent_routes_group_2(
             agent = agent_service.create_agent(
                 name=request.name,
                 description=request.description,
+                persona=request.persona,
                 instructions=request.instructions,
                 model_profile_id=request.model_profile_id,
                 allowed_capability_ids=request.allowed_capability_ids,
+                skill_ids=request.skill_ids,
                 memory_scopes=request.memory_scopes,
                 budget=AgentBudget(
                     max_runtime_seconds=request.max_runtime_seconds,
@@ -246,5 +273,47 @@ def _register_agent_routes_group_3(
             raise HTTPException(status_code=404, detail="Agent not found") from exc
         return agent_view(agent)
 
+    def list_agent_versions(agent_id: str) -> list[dict[str, Any]]:
+        try:
+            return [_dump(item) for item in agent_service.list_agent_versions(agent_id)]
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Agent not found") from exc
+
+    def get_agent_version(agent_id: str, version_id: str) -> dict[str, Any]:
+        try:
+            agent = agent_service.get_agent(agent_id)
+            version = agent_service.get_agent_version(version_id)
+            if version.agent_id != agent.id:
+                raise KeyError(version_id)
+            return _dump(version)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=404, detail="Agent version not found"
+            ) from exc
+
+    def change_agent_status(agent_id: str, status: AgentStatus) -> dict[str, Any]:
+        try:
+            return agent_view(agent_service.set_agent_status(agent_id, status))
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Agent not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    def archive_agent(agent_id: str) -> dict[str, Any]:
+        return change_agent_status(agent_id, AgentStatus.ARCHIVED)
+
+    def activate_agent(agent_id: str) -> dict[str, Any]:
+        return change_agent_status(agent_id, AgentStatus.ACTIVE)
+
     app.patch("/api/v0/agents/{agent_id}")(update_agent)
     app.get("/api/v0/agents/{agent_id}")(get_agent)
+    app.get("/api/v0/agents/{agent_id}/versions")(list_agent_versions)
+    app.get("/api/v0/agents/{agent_id}/versions/{version_id}")(get_agent_version)
+    app.post("/api/v0/agents/{agent_id}/archive")(archive_agent)
+    app.post("/api/v0/agents/{agent_id}/activate")(activate_agent)

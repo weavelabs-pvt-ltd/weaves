@@ -1,0 +1,43 @@
+{
+  "additionalProperties": false,
+  "description": "Version-pinned, trusted instructions selected from the skill catalog.",
+  "properties": {
+    "instructions": {
+      "maxLength": 12000,
+      "minLength": 1,
+      "title": "Instructions",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "skill_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Skill Id",
+      "type": "string"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "skill_id",
+    "version",
+    "name",
+    "instructions"
+  ],
+  "title": "AgentSkillSnapshot",
+  "type": "object"
+}

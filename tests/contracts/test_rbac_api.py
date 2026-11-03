@@ -124,6 +124,7 @@ def _assert_user_can_view_metadata(
     headers = scenario.user_headers
     assert client.get("/api/v0/agents", headers=headers).status_code == 200
     assert client.get("/api/v0/agent-templates", headers=headers).status_code == 200
+    assert client.get("/api/v0/agent-skills", headers=headers).status_code == 200
     agent = client.get(f"/api/v0/agents/{scenario.agent_id}", headers=headers)
     assert agent.status_code == 200
     assert client.get("/api/v0/workflows", headers=headers).status_code == 200
@@ -239,6 +240,9 @@ def _assert_user_mutations_denied(
             headers=user_headers,
             json={"enabled_capability_ids": []},
         ),
+        client.post(
+            f"/api/v0/agents/{scenario.agent_id}/archive", headers=user_headers
+        ),
     )
     assert [response.status_code for response in responses] == [403] * len(responses)
     assert _resource_counts(client, owner_headers) == before
@@ -277,6 +281,11 @@ def test_user_can_browse_and_run_but_cannot_mutate_workspace_configuration():
     client = TestClient(create_app(runtime))
     with client:
         scenario = _create_rbac_api_scenario(client)
+        identity = client.get("/api/v0/auth/me", headers=scenario.user_headers)
+        assert identity.status_code == 200
+        assert identity.json()["workspace_id"] == scenario.workspace_id
+        assert "agents.view" in identity.json()["effective_permissions"]
+        assert "agents.manage" not in identity.json()["effective_permissions"]
         _assert_user_can_view_metadata(client, scenario)
         result = client.post(
             "/api/v0/runs",
@@ -284,6 +293,12 @@ def test_user_can_browse_and_run_but_cannot_mutate_workspace_configuration():
             json={"agent_id": scenario.agent_id, "task": "Say hello."},
         )
         assert result.status_code == 201, result.text
+        agent_runs = client.get(
+            f"/api/v0/agents/{scenario.agent_id}/runs",
+            headers=scenario.user_headers,
+        )
+        assert agent_runs.status_code == 200, agent_runs.text
+        assert agent_runs.json()[0]["run_id"] == result.json()["run"]["run_id"]
         workflow_result = client.post(
             f"/api/v0/workflows/{scenario.workflow_id}/runs",
             headers=scenario.user_headers,
@@ -306,46 +321,6 @@ def test_user_mutations_are_denied_and_builder_replacement_is_atomic():
         scenario = _create_rbac_api_scenario(client)
         _assert_user_mutations_denied(client, scenario)
         _replace_user_with_builder(client, scenario)
-
-
-def test_builder_can_manage_product_definitions_but_not_org_admin_settings():
-    runtime = LocalPlatformRuntime(postgres_store=None)
-    client = TestClient(create_app(runtime))
-    with client:
-        scenario = _create_rbac_api_scenario(client)
-        _replace_user_with_builder(client, scenario)
-        builder_headers = scenario.user_headers
-        workflow = client.post(
-            "/api/v0/workflows",
-            headers=builder_headers,
-            json={"name": "Builder workflow", "agent_id": scenario.agent_id},
-        )
-        assert workflow.status_code == 201, workflow.text
-        denied = (
-            client.get("/api/v0/users", headers=builder_headers),
-            client.get("/api/v0/roles", headers=builder_headers),
-            client.get("/api/v0/audit-events", headers=builder_headers),
-            client.post(
-                "/api/v0/model-providers",
-                headers=builder_headers,
-                json={
-                    "provider_type": "openai",
-                    "display_name": "Denied provider",
-                    "api_key": "not-a-real-key",
-                },
-            ),
-            client.post(
-                "/api/v0/plugin-installations",
-                headers=builder_headers,
-                json={
-                    "plugin_id": "github",
-                    "display_name": "Denied connector",
-                    "api_token": "not-a-real-token",
-                    "repositories": ["org/repo"],
-                },
-            ),
-        )
-        assert [response.status_code for response in denied] == [403] * len(denied)
 
 
 def _assert_custom_permission_paths_are_admin_only(

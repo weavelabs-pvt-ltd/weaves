@@ -244,6 +244,17 @@ def _register_execution_routes_group_3(
         runs = services.agent_execution.list_runs(limit=limit)
         return [run_view(item) for item in runs]
 
+    def list_agent_runs(
+        agent_id: str, limit: int = Query(default=50, ge=1, le=100)
+    ) -> list[dict[str, Any]]:
+        try:
+            runs = services.agent_execution.list_agent_runs(agent_id, limit=limit)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Agent not found") from exc
+        return [run_view(item) for item in runs]
+
     def get_run(run_id: str) -> dict[str, Any]:
         try:
             run = services.agent_execution.get_run(run_id)
@@ -256,6 +267,7 @@ def _register_execution_routes_group_3(
     )
     app.get("/api/v0/artifacts")(list_artifacts)
     app.get("/api/v0/runs")(list_runs)
+    app.get("/api/v0/agents/{agent_id}/runs")(list_agent_runs)
     app.get("/api/v0/runs/{run_id}")(get_run)
 
 

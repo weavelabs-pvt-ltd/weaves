@@ -49,6 +49,15 @@ class AgentBudget(FrozenProductContract):
     ) = None
 
 
+class AgentSkillSnapshot(FrozenProductContract):
+    """Version-pinned, trusted instructions selected from the skill catalog."""
+
+    skill_id: OpaqueId
+    version: PositiveVersion
+    name: DisplayName
+    instructions: InstructionText
+
+
 class AgentDefinition(MutableWorkspaceScopedContract):
     id: OpaqueId
     name: DisplayName
@@ -72,6 +81,7 @@ class AgentVersion(ImmutableWorkspaceVersionContract):
     persona: PersonaText
     instructions: InstructionText
     model_profile_id: OpaqueId
+    skills: tuple[AgentSkillSnapshot, ...] = Field(default_factory=tuple, max_length=50)
     allowed_capability_ids: tuple[OpaqueId, ...] = Field(
         default_factory=tuple, max_length=100
     )
@@ -103,6 +113,9 @@ class AgentVersion(ImmutableWorkspaceVersionContract):
             raise ValueError("allowed_capability_ids must be unique")
         if len(self.allowed_workflow_ids) != len(set(self.allowed_workflow_ids)):
             raise ValueError("allowed_workflow_ids must be unique")
+        skill_ids = [skill.skill_id for skill in self.skills]
+        if len(skill_ids) != len(set(skill_ids)):
+            raise ValueError("agent skills must be unique")
         return self
 
 
@@ -129,6 +142,7 @@ __all__ = [
     "AgentBudget",
     "AgentBundle",
     "AgentDefinition",
+    "AgentSkillSnapshot",
     "AgentStatus",
     "AgentVersion",
 ]

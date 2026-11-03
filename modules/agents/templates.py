@@ -11,6 +11,7 @@ class AgentTemplate:
     persona: str
     instructions: str
     recommended_capability_ids: tuple[str, ...]
+    recommended_skill_ids: tuple[str, ...] = ()
 
 
 _TEMPLATES = {
@@ -38,6 +39,7 @@ _TEMPLATES = {
             "slack.messages.search",
             "jira.issues.search",
         ),
+        recommended_skill_ids=("evidence-based-research",),
     )
 }
 

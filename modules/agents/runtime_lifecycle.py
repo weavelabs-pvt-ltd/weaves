@@ -11,6 +11,7 @@ from application.ports.repository import Repository
 from contracts.v1 import (
     AgentBudget,
     AgentDefinition,
+    AgentSkillSnapshot,
     AgentStatus,
     AgentVersion,
     AuditEvent,
@@ -28,11 +29,12 @@ from contracts.v1 import (
     WorkflowVersion,
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
+from modules.agents.runtime_catalog import AgentCatalogMixin
 from modules.agents.runtime_versioning import AgentVersionPublisher
+from modules.agents.skills import snapshot_agent_skills
 from modules.agents.templates import (
     AgentTemplate,
     get_agent_template,
-    list_agent_templates,
 )
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
@@ -43,7 +45,7 @@ from shared.request_context import (
 )
 
 
-class AgentService:
+class AgentService(AgentCatalogMixin):
     """Create and version agents through explicit persistence and policy ports."""
 
     def __init__(
@@ -113,16 +115,12 @@ class AgentService:
             version_id, effective_org_id(), effective_workspace_id()
         )
 
-    def get_agent_templates(self) -> tuple[AgentTemplate, ...]:
-        """List built-in agent templates visible to the current workspace."""
-        self._authorize("local-developer", Permission.AGENTS_VIEW)
-        return list_agent_templates()
-
     def create_agent_from_template(
         self,
         template_id: str,
         *,
         allowed_capability_ids: tuple[str, ...],
+        skill_ids: tuple[str, ...] | None = None,
         name: str | None = None,
         model_profile_id: str | None = None,
         memory_scopes: tuple[MemoryScope, ...] = (MemoryScope.WORKSPACE,),
@@ -140,6 +138,9 @@ class AgentService:
             instructions=template.instructions,
             model_profile_id=model_profile_id,
             allowed_capability_ids=allowed_capability_ids,
+            skill_ids=(
+                template.recommended_skill_ids if skill_ids is None else skill_ids
+            ),
             memory_scopes=memory_scopes,
             budget=budget,
             output_schema=output_schema,
@@ -171,6 +172,7 @@ class AgentService:
         memory_scopes: tuple[MemoryScope, ...] = (MemoryScope.WORKSPACE,),
         budget: AgentBudget | None = None,
         output_schema: dict[str, JsonValue] | None = None,
+        skill_ids: tuple[str, ...] = (),
         requested_by_principal_id: str = "local-developer",
     ) -> AgentDefinition:
         """Create an agent and immutable executable/workflow versions."""
@@ -178,8 +180,8 @@ class AgentService:
             self._bootstrap()
         requested_by_principal_id = effective_principal_id(requested_by_principal_id)
         self._authorize(requested_by_principal_id, Permission.AGENTS_MANAGE)
-        profile = self._validate_new_agent_configuration(
-            model_profile_id, allowed_capability_ids
+        profile, skills = self._validate_new_agent_configuration(
+            model_profile_id, allowed_capability_ids, skill_ids
         )
         definition, agent_version, workflow, workflow_version = (
             self._build_new_agent_records(
@@ -192,6 +194,7 @@ class AgentService:
                 memory_scopes,
                 budget,
                 output_schema,
+                skills,
             )
         )
         self._persist_new_agent_records(
@@ -207,7 +210,8 @@ class AgentService:
         self,
         model_profile_id: str | None,
         capability_ids: tuple[str, ...],
-    ) -> ModelProfile:
+        skill_ids: tuple[str, ...],
+    ) -> tuple[ModelProfile, tuple[AgentSkillSnapshot, ...]]:
         """Validate model and capability bindings before agent creation."""
         profile = self.model_profiles.get_scoped(
             model_profile_id or self._default_model_profile().id, effective_org_id()
@@ -229,7 +233,7 @@ class AgentService:
                     CapabilityKind.ACTION_WRITE,
                 ),
             )
-        return profile
+        return profile, snapshot_agent_skills(skill_ids)
 
     def _build_new_agent_records(
         self,
@@ -242,6 +246,7 @@ class AgentService:
         memory_scopes: tuple[MemoryScope, ...],
         budget: AgentBudget | None,
         output_schema: dict[str, JsonValue] | None,
+        skills: tuple[AgentSkillSnapshot, ...],
     ) -> tuple[AgentDefinition, AgentVersion, WorkflowDefinition, WorkflowVersion]:
         """Build the first immutable agent and workflow records."""
         now = _now()
@@ -256,6 +261,7 @@ class AgentService:
             persona=persona,
             instructions=instructions,
             model_profile_id=profile.id,
+            skills=skills,
             allowed_capability_ids=capability_ids,
             allowed_workflow_ids=(workflow_id,),
             approval_policy_id=self._default_approval_policy_id(),
@@ -312,26 +318,27 @@ class AgentService:
         workflow_version: WorkflowVersion,
     ) -> None:
         """Persist agent, initial workflow, and creation audit event."""
-        self.agent_versions.create(version)
-        self.agents.create(definition)
-        self.workflow_versions.create(workflow_version)
-        self.workflows.create(workflow)
-        self.audit_events.create(
-            AuditEvent(
-                audit_event_id=_id(),
-                org_id=definition.org_id,
-                target_scope=AuditTargetScope.WORKSPACE,
-                workspace_id=definition.workspace_id,
-                actor_principal_id=actor,
-                action="agent.created",
-                target_type="agent",
-                target_id=definition.id,
-                summary="Agent created",
-                request_id=definition.id,
-                metadata={"agent_version_id": version.agent_version_id},
-                created_at=definition.created_at,
+        with self._open_unit_of_work():
+            self.agent_versions.create(version)
+            self.agents.create(definition)
+            self.workflow_versions.create(workflow_version)
+            self.workflows.create(workflow)
+            self.audit_events.create(
+                AuditEvent(
+                    audit_event_id=_id(),
+                    org_id=definition.org_id,
+                    target_scope=AuditTargetScope.WORKSPACE,
+                    workspace_id=definition.workspace_id,
+                    actor_principal_id=actor,
+                    action="agent.created",
+                    target_type="agent",
+                    target_id=definition.id,
+                    summary="Agent created",
+                    request_id=definition.id,
+                    metadata={"agent_version_id": version.agent_version_id},
+                    created_at=definition.created_at,
+                )
             )
-        )
 
     def update_agent(
         self,
@@ -346,6 +353,8 @@ class AgentService:
         budget: AgentBudget | None = None,
         output_schema: dict[str, JsonValue] | None = None,
         clear_output_schema: bool = False,
+        persona: str | None = None,
+        skill_ids: tuple[str, ...] | None = None,
         requested_by_principal_id: str = "local-developer",
     ) -> AgentDefinition:
         """Update editable metadata and publish a new immutable agent version."""
@@ -372,6 +381,12 @@ class AgentService:
             current,
             old_version,
             profile_id=profile.id,
+            persona=persona,
+            skills=(
+                old_version.skills
+                if skill_ids is None
+                else snapshot_agent_skills(skill_ids)
+            ),
             instructions=instructions,
             capability_ids=capability_ids,
             memory_scopes=memory_scopes,
@@ -380,15 +395,31 @@ class AgentService:
             clear_output_schema=clear_output_schema,
             now=now,
         )
+        updated_name = current.name if name is None else name
+        updated_description = (
+            current.description if description is None else description
+        )
+        prior_configuration = old_version.model_dump(
+            mode="json",
+            exclude={"agent_version_id", "version", "created_at"},
+        )
+        next_configuration = next_version.model_dump(
+            mode="json",
+            exclude={"agent_version_id", "version", "created_at"},
+        )
+        if (
+            prior_configuration == next_configuration
+            and updated_name == current.name
+            and updated_description == current.description
+        ):
+            return current
         workflow_updates = self._version_publisher.republish_bound_workflows(
             current, next_version, old_version, now
         )
         updated: AgentDefinition = current.model_copy(
             update={
-                "name": name or current.name,
-                "description": description
-                if description is not None
-                else current.description,
+                "name": updated_name,
+                "description": updated_description,
                 "current_version_id": next_version.agent_version_id,
                 "updated_at": now,
             }

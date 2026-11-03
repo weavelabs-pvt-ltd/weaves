@@ -143,6 +143,27 @@ class AgentExecutionService(
             sorted(runs, key=lambda item: item.created_at, reverse=True)[:limit]
         )
 
+    def list_agent_runs(self, agent_id: str, *, limit: int) -> tuple[WorkflowRun, ...]:
+        """List recent runs that executed the selected agent in this workspace."""
+        self.authorize("local-developer", Permission.AGENTS_RUN)
+        self.agents.get_scoped(agent_id, effective_org_id(), effective_workspace_id())
+        agent_run_records = self.agent_runs.list_scoped(
+            effective_org_id(), effective_workspace_id()
+        )
+        matching_run_ids = {
+            item.run_id for item in agent_run_records if item.agent_id == agent_id
+        }
+        runs = (
+            run
+            for run in self.runs.list_scoped(
+                effective_org_id(), effective_workspace_id()
+            )
+            if run.run_id in matching_run_ids
+        )
+        return tuple(
+            sorted(runs, key=lambda item: item.created_at, reverse=True)[:limit]
+        )
+
     def get_run(self, run_id: str) -> WorkflowRun:
         """Load one run after enforcing the active workspace permission."""
         self.authorize("local-developer", Permission.AGENTS_RUN)
