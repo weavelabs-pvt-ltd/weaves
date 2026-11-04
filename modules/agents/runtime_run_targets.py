@@ -133,7 +133,15 @@ class AgentRunTargetsMixin(RuntimeCapabilityHost):
             raise ValueError("model profile must be active to run")
         if provider.status is not ModelProviderStatus.ACTIVE:
             raise ValueError("model provider must be active to run")
-        binding = ModelProfileBinding(provider=provider, profile=profile)
+        try:
+            access_mode = self.model_configurations.get_scoped(
+                effective_org_id(), effective_org_id()
+            ).mode
+        except KeyError:
+            access_mode = None
+        binding = ModelProfileBinding(
+            provider=provider, profile=profile, access_mode=access_mode
+        )
         return profile, provider, binding
 
     def _assemble_agent_model_inputs(

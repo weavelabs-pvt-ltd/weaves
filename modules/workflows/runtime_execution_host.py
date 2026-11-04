@@ -15,6 +15,7 @@ from contracts.v1 import (
     AuditEvent,
     ConversationThread,
     ModelProfile,
+    OrganizationModelConfiguration,
     Permission,
     WorkflowDefinition,
     WorkflowRun,
@@ -36,6 +37,7 @@ class WorkflowExecutionRuntimeHost(ABC):
     agent_versions: Repository[AgentVersion]
     agents: Repository[AgentDefinition]
     model_profiles: Repository[ModelProfile]
+    model_configurations: Repository[OrganizationModelConfiguration]
     providers: Repository[ModelProviderContract]
     threads: Repository[ConversationThread]
     audit_events: Repository[AuditEvent]

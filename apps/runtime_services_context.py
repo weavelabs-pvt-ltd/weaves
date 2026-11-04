@@ -43,6 +43,7 @@ def _configure_model_and_context_services(
     )
     services.model_service = ModelService(
         audit_events=dependencies.audit_events,
+        model_configurations=dependencies.model_configurations,
         model_profiles=dependencies.model_profiles,
         providers=dependencies.providers,
         secret_store=dependencies.secret_store,

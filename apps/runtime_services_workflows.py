@@ -63,6 +63,7 @@ def _configure_agent_service(
         agents=dependencies.agents,
         agent_versions=dependencies.agent_versions,
         audit_events=dependencies.audit_events,
+        model_configurations=dependencies.model_configurations,
         model_profiles=dependencies.model_profiles,
         providers=dependencies.providers,
         workflows=dependencies.workflows,
@@ -71,7 +72,7 @@ def _configure_agent_service(
         bootstrap=dependencies.bootstrap,
         authorize=dependencies.authorize,
         default_model_profile=lambda: default_active_model_profile(
-            dependencies.model_profiles
+            dependencies.model_profiles, dependencies.model_configurations
         ),
         default_approval_policy_id=(
             services.governance_service.default_approval_policy_id

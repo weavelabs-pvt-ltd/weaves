@@ -70,7 +70,15 @@ class WorkflowExecutionValidationMixin(WorkflowExecutionRuntimeHost):
                 agent_version.model_profile_id, workflow.org_id
             )
             provider = self.providers.get_scoped(profile.provider_id, workflow.org_id)
-            ModelProfileBinding(provider=provider, profile=profile)
+            try:
+                access_mode = self.model_configurations.get_scoped(
+                    workflow.org_id, workflow.org_id
+                ).mode
+            except KeyError:
+                access_mode = None
+            ModelProfileBinding(
+                provider=provider, profile=profile, access_mode=access_mode
+            )
             if (
                 definition.status is not AgentStatus.ACTIVE
                 or profile.status is not ModelProfileStatus.ACTIVE

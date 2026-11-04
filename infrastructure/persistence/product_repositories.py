@@ -22,6 +22,7 @@ from contracts.v1 import (
     ModelProfile,
     OAuthAuthorizationState,
     Organization,
+    OrganizationModelConfiguration,
     PluginDescriptor,
     PluginInstallation,
     Principal,
@@ -61,6 +62,12 @@ REPOSITORY_SPECS: tuple[tuple[str, str, str, type[ProductContract]], ...] = (
     ("role_bindings", "role_bindings", "id", RoleBinding),
     ("model_providers", "model_providers", "id", ModelProviderContract),
     ("model_profiles", "model_profiles", "id", ModelProfile),
+    (
+        "model_configurations",
+        "model_configurations",
+        "org_id",
+        OrganizationModelConfiguration,
+    ),
     ("plugins", "plugins", "plugin_id", PluginDescriptor),
     (
         "plugin_installations",

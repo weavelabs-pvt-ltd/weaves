@@ -12,6 +12,7 @@ from contracts.v1.base import (
     ProductContract,
     StrEnum,
 )
+from contracts.v1.model_configuration import ModelAccessMode
 
 ModelName = Annotated[
     str, Field(min_length=1, max_length=160, pattern=r"^[A-Za-z0-9._:/-]+$")
@@ -126,6 +127,7 @@ class ModelProfileBinding(ProductContract):
 
     provider: ModelProvider
     profile: ModelProfile
+    access_mode: ModelAccessMode | None = None
 
     @model_validator(mode="after")
     def provider_and_profile_must_match(
@@ -137,6 +139,13 @@ class ModelProfileBinding(ProductContract):
             raise ValueError("model profile must reference the supplied provider")
         if self.profile.model not in self.provider.allowed_models:
             raise ValueError("model profile model must be allowed by its provider")
+        if self.access_mode is ModelAccessMode.CUSTOMER_MANAGED and (
+            self.provider.provider_type is ModelProviderType.LOCAL
+            or (self.provider.auth_ref or "").startswith("env:")
+        ):
+            raise ValueError(
+                "customer-managed mode requires an organization-owned provider key"
+            )
         return self
 
 

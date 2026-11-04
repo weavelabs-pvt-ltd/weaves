@@ -81,6 +81,7 @@ def _configure_workflow_execution_service(
         agent_versions=dependencies.agent_versions,
         agents=dependencies.agents,
         model_profiles=dependencies.model_profiles,
+        model_configurations=dependencies.model_configurations,
         providers=dependencies.providers,
         threads=dependencies.threads,
         audit_events=dependencies.audit_events,

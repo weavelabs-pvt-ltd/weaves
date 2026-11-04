@@ -25,6 +25,7 @@ from contracts.v1 import (
     ModelProfile,
     OAuthAuthorizationState,
     Organization,
+    OrganizationModelConfiguration,
     PluginDescriptor,
     PluginInstallation,
     Principal,
@@ -67,6 +68,7 @@ class RuntimeRepositoryBindingMixin:
     role_bindings: Repository[RoleBinding]
     providers: Repository[ModelProviderContract]
     model_profiles: Repository[ModelProfile]
+    model_configurations: Repository[OrganizationModelConfiguration]
     plugins: Repository[PluginDescriptor]
     installations: Repository[PluginInstallation]
     oauth_authorization_states: Repository[OAuthAuthorizationState]
@@ -108,6 +110,9 @@ class RuntimeRepositoryBindingMixin:
         self.role_bindings = self._repository("role_bindings", RoleBinding)
         self.providers = self._repository("model_providers", ModelProviderContract)
         self.model_profiles = self._repository("model_profiles", ModelProfile)
+        self.model_configurations = self._repository(
+            "model_configurations", OrganizationModelConfiguration
+        )
         self.plugins = self._repository("plugins", PluginDescriptor)
         self.installations = self._repository(
             "plugin_installations", PluginInstallation

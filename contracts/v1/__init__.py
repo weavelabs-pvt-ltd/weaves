@@ -73,6 +73,10 @@ from contracts.v1.memory import (
     MemoryRetentionClass,
     MemoryScope,
 )
+from contracts.v1.model_configuration import (
+    ModelAccessMode,
+    OrganizationModelConfiguration,
+)
 from contracts.v1.model_execution import (
     ModelMessage,
     ModelMessageRole,
@@ -173,6 +177,7 @@ __all__ = [
     "MemoryPolicy",
     "MemoryRetentionClass",
     "MemoryScope",
+    "ModelAccessMode",
     "ModelMessage",
     "ModelMessageRole",
     "ModelProfile",
@@ -186,6 +191,7 @@ __all__ = [
     "ModelUsage",
     "OAuthAuthorizationState",
     "Organization",
+    "OrganizationModelConfiguration",
     "OrganizationStatus",
     "Permission",
     "PluginDescriptor",

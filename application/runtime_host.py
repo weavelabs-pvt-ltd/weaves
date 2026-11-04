@@ -23,6 +23,7 @@ from contracts.v1 import (
     ExecutionJob,
     ExecutionJobStatus,
     ModelProfile,
+    OrganizationModelConfiguration,
     PluginInstallation,
     ToolInvocation,
     WorkflowRun,
@@ -101,6 +102,7 @@ class RuntimeCapabilityHost:
     audit_events: Repository[AuditEvent]
     evaluation_executions: Repository[EvaluationExecution]
     model_profiles: Repository[ModelProfile]
+    model_configurations: Repository[OrganizationModelConfiguration]
     agents: Repository[AgentDefinition]
     agent_runs: Repository[AgentRun]
     agent_versions: Repository[AgentVersion]

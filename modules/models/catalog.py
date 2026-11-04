@@ -98,6 +98,19 @@ class ModelCatalogService:
             )
         return tuple(profiles)
 
+    def preview_provider_models(
+        self, provider: ModelProviderContract
+    ) -> tuple[dict[str, str], ...]:
+        """Validate a transient provider credential and return its model catalog."""
+        if not self._is_bootstrapped():
+            self._bootstrap()
+        self._authorize_organization(
+            effective_principal_id("local-developer"), Permission.MODELS_MANAGE
+        )
+        adapter = self._catalog_adapter(provider)
+        models = self._available_model_ids(adapter.list_models(provider))
+        return tuple({"id": model_id} for model_id in models)
+
     def _active_provider_for_catalog(self, provider_id: str) -> ModelProviderContract:
         if not self._is_bootstrapped():
             self._bootstrap()

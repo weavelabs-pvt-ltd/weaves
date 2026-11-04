@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
+from datetime import datetime
 from decimal import Decimal
 
 from application.ports.repository import Repository
@@ -12,16 +13,19 @@ from application.ports.secrets import SecretStore
 from contracts.v1 import (
     AuditEvent,
     AuditTargetScope,
+    ModelAccessMode,
     ModelProfile,
     ModelProfileStatus,
     ModelProviderStatus,
     ModelProviderType,
+    OrganizationModelConfiguration,
     Permission,
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
 from modules.models.catalog import ModelCatalogService
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
+from shared.errors import ModelGatewayError
 from shared.request_context import effective_org_id, effective_principal_id
 
 
@@ -33,6 +37,7 @@ class ModelService:
         *,
         audit_events: Repository[AuditEvent],
         model_profiles: Repository[ModelProfile],
+        model_configurations: Repository[OrganizationModelConfiguration],
         providers: Repository[ModelProviderContract],
         secret_store: SecretStore,
         catalog_service: ModelCatalogService,
@@ -46,6 +51,7 @@ class ModelService:
         """Bind repositories, security operations, and provider adapters."""
         self.audit_events = audit_events
         self.model_profiles = model_profiles
+        self.model_configurations = model_configurations
         self.providers = providers
         self.secret_store = secret_store
         self.catalog_service = catalog_service
@@ -64,9 +70,21 @@ class ModelService:
             effective_principal_id("local-developer"), Permission.MODELS_VIEW
         )
         profiles = self.model_profiles.list_scoped(effective_org_id())
-        return tuple(
-            sorted(profiles, key=lambda item: item.id != self.default_model_profile_id)
+        configuration = self._configuration_or_none()
+        if configuration and configuration.mode is ModelAccessMode.CUSTOMER_MANAGED:
+            profiles = tuple(
+                profile
+                for profile in profiles
+                if self._is_customer_managed_provider(
+                    self.providers.get_scoped(profile.provider_id, effective_org_id())
+                )
+            )
+        default_profile_id = (
+            configuration.default_model_profile_id
+            if configuration and configuration.default_model_profile_id
+            else self.default_model_profile_id
         )
+        return tuple(sorted(profiles, key=lambda item: item.id != default_profile_id))
 
     def list_model_providers(self) -> tuple[ModelProviderContract, ...]:
         """List organization providers without exposing secret references."""
@@ -75,7 +93,155 @@ class ModelService:
         self._authorize(
             effective_principal_id("local-developer"), Permission.MODELS_VIEW
         )
-        return self.providers.list_scoped(effective_org_id())
+        providers = self.providers.list_scoped(effective_org_id())
+        configuration = self._configuration_or_none()
+        if configuration and configuration.mode is ModelAccessMode.CUSTOMER_MANAGED:
+            providers = tuple(
+                provider
+                for provider in providers
+                if self._is_customer_managed_provider(provider)
+            )
+        return providers
+
+    def get_model_configuration(self) -> OrganizationModelConfiguration | None:
+        """Return the active organization's selected model ownership mode."""
+        if not self._is_bootstrapped():
+            self._bootstrap()
+        self._authorize(
+            effective_principal_id("local-developer"), Permission.MODELS_VIEW
+        )
+        try:
+            return self.model_configurations.get_scoped(
+                effective_org_id(), effective_org_id()
+            )
+        except KeyError:
+            return None
+
+    def configure_model_mode(
+        self,
+        mode: ModelAccessMode,
+        *,
+        provider_id: str | None = None,
+        model_profile_id: str | None = None,
+        requested_by_principal_id: str = "local-developer",
+    ) -> OrganizationModelConfiguration:
+        """Select a supported organization model mode and optional default model."""
+        if not self._is_bootstrapped():
+            self._bootstrap()
+        actor = effective_principal_id(requested_by_principal_id)
+        self._authorize_organization(actor, Permission.MODELS_MANAGE)
+        if mode is ModelAccessMode.WEAVES_MANAGED:
+            raise ModelGatewayError(
+                "model.mode_unavailable",
+                "Weaves-managed model routing is not available yet",
+            )
+        current = self._configuration_or_none()
+        if current and current.mode not in {None, mode}:
+            raise ValueError(
+                "changing model access mode requires an explicit migration"
+            )
+        selected_profile_id = model_profile_id or (
+            current.default_model_profile_id if current else None
+        )
+        selected_provider: ModelProviderContract | None = None
+        if selected_profile_id:
+            profile = self.model_profiles.get_scoped(
+                selected_profile_id, effective_org_id()
+            )
+            provider_id = provider_id or profile.provider_id
+            selected_provider = self.providers.get_scoped(
+                provider_id, effective_org_id()
+            )
+            if profile.provider_id != selected_provider.id:
+                raise ValueError("default model profile does not belong to provider")
+            if profile.status is not ModelProfileStatus.ACTIVE:
+                raise ValueError("default model profile must be active")
+        elif provider_id:
+            selected_provider = self.providers.get_scoped(
+                provider_id, effective_org_id()
+            )
+        elif current and current.default_provider_id:
+            provider_id = current.default_provider_id
+            selected_provider = self.providers.get_scoped(
+                provider_id, effective_org_id()
+            )
+        if selected_provider is None:
+            raise ValueError(
+                "configure an organization provider before selecting this mode"
+            )
+        if not self._is_customer_managed_provider(selected_provider):
+            raise ValueError(
+                "customer-managed mode requires an organization-owned provider key"
+            )
+        if selected_provider.status is not ModelProviderStatus.ACTIVE:
+            raise ValueError("default model provider must be active")
+        config = OrganizationModelConfiguration(
+            org_id=effective_org_id(),
+            mode=mode,
+            default_provider_id=provider_id,
+            default_model_profile_id=selected_profile_id,
+            created_at=current.created_at if current else _now(),
+            updated_at=_now(),
+        )
+        with self._open_unit_of_work():
+            self.model_configurations.put(config)
+            self.audit_events.create(
+                AuditEvent(
+                    audit_event_id=_id(),
+                    org_id=config.org_id,
+                    target_scope=AuditTargetScope.ORGANIZATION,
+                    actor_principal_id=actor,
+                    action="model_configuration.updated",
+                    target_type="model_configuration",
+                    target_id=config.org_id,
+                    summary="Organization model configuration updated",
+                    request_id=config.org_id,
+                    metadata={"mode": mode.value},
+                    created_at=config.updated_at,
+                )
+            )
+        return config
+
+    def validate_provider_credential(
+        self,
+        *,
+        provider_type: ModelProviderType,
+        api_key: str,
+        requested_by_principal_id: str = "local-developer",
+    ) -> tuple[dict[str, str], ...]:
+        """Check an OpenAI or Anthropic key without persisting the connection."""
+        if not self._is_bootstrapped():
+            self._bootstrap()
+        self._authorize_organization(
+            effective_principal_id(requested_by_principal_id), Permission.MODELS_MANAGE
+        )
+        if provider_type not in {
+            ModelProviderType.OPENAI,
+            ModelProviderType.ANTHROPIC,
+        }:
+            raise ValueError("only OpenAI and Anthropic credentials are supported")
+        if not api_key.strip():
+            raise ValueError("provider API key is required")
+        secret_ref = self.secret_store.put(api_key.strip())
+        base_urls = {
+            ModelProviderType.OPENAI: "https://api.openai.com/v1",
+            ModelProviderType.ANTHROPIC: "https://api.anthropic.com",
+        }
+        transient_provider = ModelProviderContract(
+            id=_id(),
+            org_id=effective_org_id(),
+            provider_type=provider_type,
+            display_name="Credential validation",
+            allowed_models=["validation-pending"],
+            auth_ref=secret_ref,
+            base_url=base_urls[provider_type],
+            status=ModelProviderStatus.ACTIVE,
+        )
+        try:
+            models = self.catalog_service.preview_provider_models(transient_provider)
+            return tuple(item for item in models if isinstance(item.get("id"), str))
+        finally:
+            self.secret_store.delete(secret_ref)
 
     def create_model_provider(
         self,
@@ -94,6 +260,14 @@ class ModelService:
         self._authorize_organization(
             requested_by_principal_id, Permission.MODELS_MANAGE
         )
+        current_configuration = self._configuration_or_none()
+        if (
+            current_configuration
+            and current_configuration.mode is ModelAccessMode.WEAVES_MANAGED
+        ):
+            raise ValueError(
+                "customer provider keys are disabled in Weaves-managed mode"
+            )
         if provider_type not in {
             ModelProviderType.OPENAI,
             ModelProviderType.OPENAI_COMPATIBLE,
@@ -113,6 +287,24 @@ class ModelService:
         selected_model = initial_model.strip() if initial_model else "catalog-pending"
         secret_ref = self.secret_store.put(api_key.strip())
         provider_id = _id()
+        candidate = ModelProviderContract(
+            id=provider_id,
+            org_id=effective_org_id(),
+            provider_type=provider_type,
+            display_name=display_name,
+            allowed_models=[selected_model],
+            auth_ref=secret_ref,
+            base_url=(base_url.strip() if base_url else defaults[provider_type]),
+            status=ModelProviderStatus.ACTIVE,
+        )
+        try:
+            discovered_models = self.catalog_service.preview_provider_models(candidate)
+            discovered_ids = {item["id"] for item in discovered_models}
+            if initial_model and selected_model not in discovered_ids:
+                raise ValueError("selected model is not available to this API key")
+        except Exception:
+            self.secret_store.delete(secret_ref)
+            raise
         provider = self._store_model_provider(
             defaults,
             provider_id,
@@ -151,27 +343,43 @@ class ModelService:
                 status=ModelProviderStatus.ACTIVE,
             )
             timestamp = _now()
-            profile: ModelProfile | None = None
-            if initial_model:
-                profile = ModelProfile(
-                    id=(
-                        "model-"
-                        + hashlib.sha256(
-                            (provider.id + selected_model).encode("utf-8")
-                        ).hexdigest()[:24]
-                    ),
-                    org_id=effective_org_id(),
-                    provider_id=provider.id,
-                    model=selected_model,
-                    display_name=f"{provider.display_name} · {selected_model}"[:160],
-                    status=ModelProfileStatus.ACTIVE,
-                    created_at=timestamp,
-                    updated_at=timestamp,
-                )
+            profile = self._build_initial_profile(
+                provider, initial_model, selected_model, timestamp
+            )
             with self._open_unit_of_work():
                 self.providers.create(provider)
                 if profile is not None:
                     self.model_profiles.create(profile)
+                existing_config = self._configuration_or_none()
+                config = OrganizationModelConfiguration(
+                    org_id=effective_org_id(),
+                    mode=ModelAccessMode.CUSTOMER_MANAGED,
+                    default_provider_id=(
+                        provider.id
+                        if profile is not None
+                        else (
+                            existing_config.default_provider_id
+                            if existing_config
+                            and existing_config.mode is ModelAccessMode.CUSTOMER_MANAGED
+                            else provider.id
+                        )
+                    ),
+                    default_model_profile_id=(
+                        profile.id
+                        if profile is not None
+                        else (
+                            existing_config.default_model_profile_id
+                            if existing_config
+                            and existing_config.mode is ModelAccessMode.CUSTOMER_MANAGED
+                            else None
+                        )
+                    ),
+                    created_at=(
+                        existing_config.created_at if existing_config else timestamp
+                    ),
+                    updated_at=timestamp,
+                )
+                self.model_configurations.put(config)
                 self.audit_events.create(
                     AuditEvent(
                         audit_event_id=_id(),
@@ -191,6 +399,46 @@ class ModelService:
             self.secret_store.delete(secret_ref)
             raise
         return provider
+
+    @staticmethod
+    def _build_initial_profile(
+        provider: ModelProviderContract,
+        initial_model: str | None,
+        selected_model: str,
+        timestamp: datetime,
+    ) -> ModelProfile | None:
+        """Create a profile for an explicitly selected model, if supplied."""
+        if not initial_model:
+            return None
+        model_hash = hashlib.sha256((provider.id + selected_model).encode("utf-8"))
+        return ModelProfile(
+            id="model-" + model_hash.hexdigest()[:24],
+            org_id=effective_org_id(),
+            provider_id=provider.id,
+            model=selected_model,
+            display_name=f"{provider.display_name} · {selected_model}"[:160],
+            status=ModelProfileStatus.ACTIVE,
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+
+    def _configuration_or_none(self) -> OrganizationModelConfiguration | None:
+        """Load the current organization model settings when already configured."""
+        try:
+            return self.model_configurations.get_scoped(
+                effective_org_id(), effective_org_id()
+            )
+        except KeyError:
+            return None
+
+    @staticmethod
+    def _is_customer_managed_provider(provider: ModelProviderContract) -> bool:
+        """Return whether provider credentials are owned by the organization."""
+        return (
+            provider.provider_type is not ModelProviderType.LOCAL
+            and bool(provider.auth_ref)
+            and not provider.auth_ref.startswith("env:")
+        )
 
     def refresh_provider_model_catalog(
         self, provider_id: str
@@ -218,6 +466,13 @@ class ModelService:
             requested_by_principal_id, Permission.MODELS_MANAGE
         )
         current = self.model_profiles.get_scoped(profile_id, effective_org_id())
+        configuration = self._configuration_or_none()
+        if (
+            status is ModelProfileStatus.DISABLED
+            and configuration
+            and configuration.default_model_profile_id == profile_id
+        ):
+            raise ValueError("select another default model before disabling this one")
         timestamp = _now()
         changes = {
             key: value
@@ -280,6 +535,7 @@ class ModelService:
         )
         updated = ModelProviderContract.model_validate(updated.model_dump())
         try:
+            self.catalog_service.preview_provider_models(updated)
             timestamp = _now()
             with self._open_unit_of_work():
                 self.providers.put(updated)

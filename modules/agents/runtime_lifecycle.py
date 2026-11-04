@@ -23,6 +23,7 @@ from contracts.v1 import (
     ModelProfile,
     ModelProfileBinding,
     ModelProfileStatus,
+    OrganizationModelConfiguration,
     Permission,
     PluginInstallation,
     WorkflowDefinition,
@@ -37,6 +38,7 @@ from modules.agents.templates import (
     AgentTemplate,
     get_agent_template,
 )
+from modules.models.defaults import configured_model_access_mode
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.request_context import (
@@ -56,6 +58,7 @@ class AgentService(AgentCatalogMixin):
         agent_versions: Repository[AgentVersion],
         audit_events: Repository[AuditEvent],
         model_profiles: Repository[ModelProfile],
+        model_configurations: Repository[OrganizationModelConfiguration],
         providers: Repository[ModelProviderContract],
         workflows: Repository[WorkflowDefinition],
         workflow_versions: Repository[WorkflowVersion],
@@ -72,6 +75,7 @@ class AgentService(AgentCatalogMixin):
         self.agent_versions = agent_versions
         self.audit_events = audit_events
         self.model_profiles = model_profiles
+        self.model_configurations = model_configurations
         self.providers = providers
         self.workflows = workflows
         self.workflow_versions = workflow_versions
@@ -218,7 +222,11 @@ class AgentService(AgentCatalogMixin):
             model_profile_id or self._default_model_profile().id, effective_org_id()
         )
         provider = self.providers.get_scoped(profile.provider_id, effective_org_id())
-        ModelProfileBinding(provider=provider, profile=profile)
+        ModelProfileBinding(
+            provider=provider,
+            profile=profile,
+            access_mode=configured_model_access_mode(self.model_configurations),
+        )
         if profile.status is not ModelProfileStatus.ACTIVE:
             raise ValueError("model profile must be active")
         if len(capability_ids) != len(set(capability_ids)):
@@ -464,7 +472,11 @@ class AgentService(AgentCatalogMixin):
         """Validate the model profile and enabled capabilities for an update."""
         profile = self.model_profiles.get_scoped(profile_id, effective_org_id())
         provider = self.providers.get_scoped(profile.provider_id, effective_org_id())
-        ModelProfileBinding(provider=provider, profile=profile)
+        ModelProfileBinding(
+            provider=provider,
+            profile=profile,
+            access_mode=configured_model_access_mode(self.model_configurations),
+        )
         if profile.status is not ModelProfileStatus.ACTIVE:
             raise ValueError("model profile must be active")
         capability_ids = (

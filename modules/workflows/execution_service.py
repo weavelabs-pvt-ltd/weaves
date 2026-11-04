@@ -15,6 +15,7 @@ from contracts.v1 import (
     ConversationThread,
     ModelProfile,
     ModelProvider,
+    OrganizationModelConfiguration,
     Permission,
     WorkflowDefinition,
     WorkflowRun,
@@ -33,6 +34,7 @@ class WorkflowExecutionService(WorkflowExecutionMixin):
     agent_versions: Repository[AgentVersion]
     agents: Repository[AgentDefinition]
     model_profiles: Repository[ModelProfile]
+    model_configurations: Repository[OrganizationModelConfiguration]
     providers: Repository[ModelProvider]
     threads: Repository[ConversationThread]
     audit_events: Repository[AuditEvent]
@@ -46,6 +48,7 @@ class WorkflowExecutionService(WorkflowExecutionMixin):
         agent_versions: Repository[AgentVersion],
         agents: Repository[AgentDefinition],
         model_profiles: Repository[ModelProfile],
+        model_configurations: Repository[OrganizationModelConfiguration],
         providers: Repository[ModelProvider],
         threads: Repository[ConversationThread],
         audit_events: Repository[AuditEvent],
@@ -65,6 +68,7 @@ class WorkflowExecutionService(WorkflowExecutionMixin):
         self.agent_versions = agent_versions
         self.agents = agents
         self.model_profiles = model_profiles
+        self.model_configurations = model_configurations
         self.providers = providers
         self.threads = threads
         self.audit_events = audit_events

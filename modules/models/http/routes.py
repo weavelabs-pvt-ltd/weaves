@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from contracts.v1 import (
+    ModelAccessMode,
     ModelProfileStatus,
     ModelProviderStatus,
     ModelProviderType,
@@ -21,10 +22,29 @@ class ModelProviderCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     provider_type: ModelProviderType
-    display_name: str = Field(min_length=2, max_length=160)
+    display_name: str | None = Field(default=None, min_length=2, max_length=160)
     api_key: SecretStr = Field(min_length=1, max_length=4096)
     base_url: str | None = Field(default=None, min_length=8, max_length=2048)
     initial_model: str | None = Field(default=None, min_length=1, max_length=160)
+
+
+class ModelProviderValidationRequest(BaseModel):
+    """Validate a provider key and discover selectable models without saving it."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    provider_type: ModelProviderType
+    api_key: SecretStr = Field(min_length=1, max_length=4096)
+
+
+class ModelConfigurationUpdateRequest(BaseModel):
+    """Select the organization's model access mode and default profile."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    mode: ModelAccessMode
+    provider_id: str | None = Field(default=None, min_length=1, max_length=128)
+    model_profile_id: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class ModelProfilePatchRequest(BaseModel):
@@ -45,7 +65,11 @@ class ModelProfilePatchRequest(BaseModel):
 
 
 def _model_catalog_error(exc: ModelGatewayError) -> HTTPException:
-    if exc.code in {"model.provider_disabled", "model.catalog_unsupported"}:
+    if exc.code in {
+        "model.provider_disabled",
+        "model.catalog_unsupported",
+        "model.mode_unavailable",
+    }:
         return HTTPException(status_code=409, detail=exc.message)
     return HTTPException(status_code=502, detail=exc.message)
 
@@ -68,6 +92,7 @@ def register_model_routes(
     _register_model_routes_group_1(app, model_service, dump)
     _register_model_routes_group_2(app, model_service, dump)
     _register_model_routes_group_3(app, model_service, dump)
+    _register_model_configuration_routes(app, model_service)
 
 
 def _register_model_routes_group_1(
@@ -110,7 +135,9 @@ def _register_model_routes_group_1(
         try:
             provider = model_service.create_model_provider(
                 provider_type=request.provider_type,
-                display_name=request.display_name,
+                display_name=(
+                    request.display_name or request.provider_type.value.title()
+                ),
                 api_key=request.api_key.get_secret_value(),
                 base_url=request.base_url,
                 initial_model=request.initial_model,
@@ -119,6 +146,8 @@ def _register_model_routes_group_1(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ModelGatewayError as exc:
+            raise _model_catalog_error(exc) from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return provider_view(provider)
@@ -162,6 +191,8 @@ def _register_model_routes_group_2(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ModelGatewayError as exc:
+            raise _model_catalog_error(exc) from exc
         except KeyError as exc:
             raise HTTPException(
                 status_code=404, detail="Model provider not found"
@@ -170,9 +201,51 @@ def _register_model_routes_group_2(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return provider_view(provider)
 
+    def validate_provider_credential(
+        request: ModelProviderValidationRequest,
+    ) -> dict[str, Any]:
+        try:
+            models = model_service.validate_provider_credential(
+                provider_type=request.provider_type,
+                api_key=request.api_key.get_secret_value(),
+            )
+        except SecretStoreUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ModelGatewayError as exc:
+            raise _model_catalog_error(exc) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {
+            "provider_type": request.provider_type.value,
+            "models": list(models),
+        }
+
+    def list_supported_provider_types() -> dict[str, Any]:
+        """Describe provider choices exposed by the current settings flow."""
+        return {
+            "providers": [
+                {
+                    "provider_type": ModelProviderType.OPENAI.value,
+                    "display_name": "OpenAI",
+                    "credential_type": "api_key",
+                    "supports_model_discovery": True,
+                },
+                {
+                    "provider_type": ModelProviderType.ANTHROPIC.value,
+                    "display_name": "Anthropic",
+                    "credential_type": "api_key",
+                    "supports_model_discovery": True,
+                },
+            ]
+        }
+
     app.post("/api/v0/model-providers/{provider_id}/refresh-models")(
         refresh_provider_models
     )
+    app.get("/api/v0/model-providers/catalog")(list_supported_provider_types)
+    app.post("/api/v0/model-providers/validate")(validate_provider_credential)
     app.put("/api/v0/model-providers/{provider_id}/credential")(
         rotate_provider_credential
     )
@@ -219,3 +292,61 @@ def _register_model_routes_group_3(
         return [_dump(item) for item in profiles]
 
     app.post("/api/v0/models/refresh")(refresh_models)
+
+
+def _register_model_configuration_routes(
+    app: FastAPI, model_service: ModelService
+) -> None:
+    """Register organization AI mode and default model configuration routes."""
+
+    def get_model_configuration() -> dict[str, Any]:
+        configuration = model_service.get_model_configuration()
+        return {
+            "mode": configuration.mode.value
+            if configuration and configuration.mode
+            else None,
+            "default_provider_id": configuration.default_provider_id
+            if configuration
+            else None,
+            "default_model_profile_id": configuration.default_model_profile_id
+            if configuration
+            else None,
+            "available_modes": [
+                {"mode": ModelAccessMode.CUSTOMER_MANAGED.value, "available": True},
+                {
+                    "mode": ModelAccessMode.WEAVES_MANAGED.value,
+                    "available": False,
+                    "unavailable_reason": (
+                        "Weaves-managed model routing is not available yet."
+                    ),
+                },
+            ],
+        }
+
+    def update_model_configuration(
+        request: ModelConfigurationUpdateRequest,
+    ) -> dict[str, Any]:
+        try:
+            configuration = model_service.configure_model_mode(
+                request.mode,
+                provider_id=request.provider_id,
+                model_profile_id=request.model_profile_id,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=404, detail="Model configuration not found"
+            ) from exc
+        except ModelGatewayError as exc:
+            raise _model_catalog_error(exc) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {
+            "mode": configuration.mode.value if configuration.mode else None,
+            "default_provider_id": configuration.default_provider_id,
+            "default_model_profile_id": configuration.default_model_profile_id,
+        }
+
+    app.get("/api/v0/model-configuration")(get_model_configuration)
+    app.put("/api/v0/model-configuration")(update_model_configuration)

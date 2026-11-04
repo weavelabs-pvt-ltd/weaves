@@ -36,6 +36,7 @@ from contracts.v1 import (
     ModelProfile,
     ModelProviderType,
     Organization,
+    OrganizationModelConfiguration,
     Permission,
     PluginDescriptor,
     PluginInstallation,
@@ -95,6 +96,7 @@ class RuntimeCompositionInputs(Protocol):
     knowledge_documents: Repository[KnowledgeDocument]
     memory_items: Repository[MemoryItem]
     model_profiles: Repository[ModelProfile]
+    model_configurations: Repository[OrganizationModelConfiguration]
     organizations: Repository[Organization]
     plugins: Repository[PluginDescriptor]
     principals: Repository[Principal]
