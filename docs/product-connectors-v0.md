@@ -7,13 +7,14 @@ run provenance path.
 
 ## Setup flow
 
-1. In the dashboard, open **Connections → Connect a tool**, choose GitHub, Slack, or Jira, set the resource allowlist, and continue to the provider sign-in page.
-2. The provider callback creates the installation after authorization. GitHub verifies that the app installation belongs to the initiating user.
-3. Run `POST /api/v0/plugin-installations/{id}/healthcheck`.
-4. Create an agent with the matching capability ID in
+1. In the dashboard, open **Connections → Connect a tool**, choose GitHub, Slack, or Jira, name the workspace connection, and continue to provider authorization.
+2. After authorization, Weaves discovers resources available to that account. GitHub users select repositories in GitHub's installation screen and then choose the Weaves connection scope. Slack and Jira users select channels or a site and its projects in Weaves.
+3. Weaves validates the selection against the provider's discovered resources and creates or updates the workspace connection.
+4. Run `POST /api/v0/plugin-installations/{id}/healthcheck`.
+5. Create an agent with the matching capability ID in
    `allowed_capability_ids`, or PATCH an existing agent to publish a new
    version with that capability.
-5. Start work with `POST /api/v0/runs`, then inspect the run, invocations,
+6. Start work with `POST /api/v0/runs`, then inspect the run, invocations,
    artifacts, and audit event.
 
 OAuth tokens and refresh tokens are stored encrypted in PostgreSQL and never
@@ -34,9 +35,11 @@ the provider and test the configured scope.
 ## GitHub
 
 The dashboard uses a GitHub App authorization flow. The user authorizes their
-GitHub account, installs the Weaves App, and selects repositories. Weaves checks
-the installation against the initiating user and mints short-lived tokens
-restricted to selected repositories. Configure the app as described in
+GitHub account, installs the Weaves App, selects repositories in GitHub, then
+chooses the Weaves connection scope from repositories GitHub granted. Weaves
+checks the installation against the initiating user and mints short-lived
+tokens restricted to selected repositories. Reconnecting an existing app
+installation updates its scope instead of creating a duplicate. Configure the app as described in
 [connector-oauth.md](connector-oauth.md).
 
 The API retains a legacy fine-grained-token request for existing integrations:
@@ -70,8 +73,10 @@ The channel allowlist remains enforced by the connector.
 }
 ```
 
-Slack search uses a user token with the `search:read` scope. Search is issued
-once per configured channel and results are checked against that allowlist.
+Slack search uses a user token with `search:read`; resource discovery requests
+`channels:read` and `groups:read` to list the channels the account can access.
+Search is issued once per configured channel and results are checked against
+the saved workspace connection allowlist.
 Thread reply retrieval is opt-in. When enabled, the adapter fetches replies for
 at most the top threaded search match, only after its channel name passes the
 installation allowlist. The user token also needs `channels:history` for public
