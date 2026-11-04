@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import AbstractContextManager
+from datetime import datetime
 
 from pydantic import JsonValue
 
@@ -399,27 +400,46 @@ class AgentService(AgentCatalogMixin):
         updated_description = (
             current.description if description is None else description
         )
-        prior_configuration = old_version.model_dump(
-            mode="json",
-            exclude={"agent_version_id", "version", "created_at"},
+        return self._publish_agent_revision(
+            current,
+            old_version,
+            next_version,
+            updated_name,
+            updated_description,
+            requested_by_principal_id,
+            now,
         )
-        next_configuration = next_version.model_dump(
-            mode="json",
-            exclude={"agent_version_id", "version", "created_at"},
+
+    def _publish_agent_revision(
+        self,
+        current: AgentDefinition,
+        old_version: AgentVersion,
+        next_version: AgentVersion,
+        name: str,
+        description: str,
+        actor: str,
+        now: datetime,
+    ) -> AgentDefinition:
+        """Persist a changed agent revision and any bound workflow versions."""
+        prior = old_version.model_dump(
+            mode="json", exclude={"agent_version_id", "version", "created_at"}
+        )
+        next_state = next_version.model_dump(
+            mode="json", exclude={"agent_version_id", "version", "created_at"}
         )
         if (
-            prior_configuration == next_configuration
-            and updated_name == current.name
-            and updated_description == current.description
+            prior == next_state
+            and name == current.name
+            and description == current.description
         ):
             return current
         workflow_updates = self._version_publisher.republish_bound_workflows(
             current, next_version, old_version, now
         )
-        updated: AgentDefinition = current.model_copy(
+        updated = current.model_copy(
             update={
-                "name": updated_name,
-                "description": updated_description,
+                "name": name,
+                "description": description,
                 "current_version_id": next_version.agent_version_id,
                 "updated_at": now,
             }
@@ -429,7 +449,7 @@ class AgentService(AgentCatalogMixin):
             next_version=next_version,
             now=now,
             old_version=old_version,
-            actor=requested_by_principal_id,
+            actor=actor,
             updated=updated,
             workflow_updates=workflow_updates,
         )

@@ -22,6 +22,8 @@ def role_preset_permissions(key: SystemRoleKey) -> tuple[Permission, ...]:
         Permission.AGENTS_RUN,
         Permission.WORKFLOWS_VIEW,
         Permission.WORKFLOWS_RUN,
+        Permission.TASKS_VIEW,
+        Permission.TASKS_CREATE,
         Permission.MODELS_VIEW,
         Permission.PLUGINS_VIEW,
         Permission.KNOWLEDGE_VIEW,
@@ -36,6 +38,7 @@ def role_preset_permissions(key: SystemRoleKey) -> tuple[Permission, ...]:
                     *shared_read,
                     Permission.AGENTS_MANAGE,
                     Permission.WORKFLOWS_MANAGE,
+                    Permission.TASKS_MANAGE,
                 )
             )
         )

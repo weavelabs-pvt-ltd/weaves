@@ -4,7 +4,6 @@ import hashlib
 import json
 import os
 import re
-from time import monotonic
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -13,17 +12,12 @@ import httpx
 
 from clients.integrations.mcp_protocol import (
     MAX_PAGES,
-    MAX_RESPONSE_BYTES,
-    MAX_RPC_SECONDS,
     MAX_TOOLS,
-    PROTOCOL_VERSION,
     contains_mcp_header,
-    last_sse_message,
     redact_secrets,
     request_metadata,
-    safe_header_value,
-    safe_mcp_name,
 )
+from clients.integrations.mcp_session import McpSessionMixin
 from contracts.v1 import (
     CapabilityKind,
     CapabilitySpec,
@@ -37,7 +31,7 @@ class SecretResolver(Protocol):
     def resolve(self, auth_ref: str) -> str: ...
 
 
-class McpHttpPlugin:
+class McpHttpPlugin(McpSessionMixin):
     """MCP client that exposes only explicitly allowlisted search tools."""
 
     def __init__(self, secrets: SecretResolver, client: httpx.Client) -> None:
@@ -81,20 +75,26 @@ class McpHttpPlugin:
         return endpoint.rstrip("/")
 
     def discover_tools(
-        self, endpoint: str, bearer_token: str | None = None
+        self,
+        endpoint: str,
+        bearer_token: str | None = None,
+        *,
+        initialize: bool = True,
     ) -> tuple[dict[str, Any], ...]:
         endpoint = self.validate_endpoint(endpoint)
+        session_id = self._initialize(endpoint, bearer_token) if initialize else None
         cursor: str | None = None
         tools: list[dict[str, Any]] = []
         for _ in range(MAX_PAGES):
             params: dict[str, Any] = {"_meta": request_metadata()}
             if cursor:
                 params["cursor"] = cursor
-            result = self._rpc(
+            result, session_id = self._rpc_with_session(
                 endpoint,
                 method="tools/list",
                 params=params,
                 bearer_token=bearer_token,
+                session_id=session_id,
             )
             if result.get("resultType") != "complete":
                 raise PluginGatewayError(
@@ -155,7 +155,7 @@ class McpHttpPlugin:
     def healthcheck(self, installation: PluginInstallation) -> dict[str, str]:
         config = thaw_json_value(installation.configuration)
         tools = self.discover_tools(
-            config["endpoint"], self._resolve_token(installation)
+            config["endpoint"], self._resolve_token(installation), initialize=True
         )
         available = {tool.get("name"): tool for tool in tools}
         selected = config.get("tools", {}).values()
@@ -205,6 +205,8 @@ class McpHttpPlugin:
             raise PluginGatewayError(
                 "mcp.query_too_long", "MCP query exceeds the header transport limit"
             )
+        token = self._resolve_token(installation)
+        session_id = self._initialize(config["endpoint"], token)
         result = self._rpc(
             config["endpoint"],
             method="tools/call",
@@ -213,8 +215,9 @@ class McpHttpPlugin:
                 "arguments": payload,
                 "_meta": request_metadata(),
             },
-            bearer_token=self._resolve_token(installation),
+            bearer_token=token,
             name=tool_name,
+            session_id=session_id,
             parameter_headers=(
                 {query_header: payload["query"]} if query_header else None
             ),
@@ -252,79 +255,17 @@ class McpHttpPlugin:
         if not installation.auth_ref:
             return None
         try:
-            token = self._secrets.resolve(installation.auth_ref)
+            resolver = getattr(self._secrets, "resolve_for_plugin", None)
+            token = (
+                resolver(installation.auth_ref, "mcp")
+                if callable(resolver)
+                else self._secrets.resolve(installation.auth_ref)
+            )
         except Exception as exc:
             raise PluginGatewayError(
                 "mcp.credential_unavailable", "MCP credential is unavailable"
             ) from exc
         return token
-
-    def _rpc(
-        self,
-        endpoint: str,
-        *,
-        method: str,
-        params: dict[str, Any],
-        bearer_token: str | None = None,
-        name: str | None = None,
-        parameter_headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        endpoint = self.validate_endpoint(endpoint)
-        request_id = str(uuid4())
-        message = {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "method": method,
-            "params": params,
-        }
-        headers = self._rpc_headers(method, name, bearer_token, parameter_headers)
-        body, content_type = self._send_rpc(endpoint, message, headers)
-        return _parse_rpc_result(body, content_type, request_id)
-
-    def _rpc_headers(
-        self,
-        method: str,
-        name: str | None,
-        bearer_token: str | None,
-        parameter_headers: dict[str, str] | None,
-    ) -> dict[str, str]:
-        headers = {
-            "Accept": "application/json, text/event-stream",
-            "Content-Type": "application/json",
-            "MCP-Protocol-Version": PROTOCOL_VERSION,
-            "Mcp-Method": method,
-        }
-        if name:
-            headers["Mcp-Name"] = safe_mcp_name(name)
-        for key, value in (parameter_headers or {}).items():
-            headers[f"Mcp-Param-{key}"] = safe_header_value(value)
-        if bearer_token:
-            headers["Authorization"] = f"Bearer {bearer_token}"
-        return headers
-
-    def _send_rpc(
-        self, endpoint: str, message: dict[str, Any], headers: dict[str, str]
-    ) -> tuple[bytearray, str]:
-        deadline = monotonic() + MAX_RPC_SECONDS
-        timeout = httpx.Timeout(
-            MAX_RPC_SECONDS, connect=5.0, read=5.0, write=5.0, pool=5.0
-        )
-        try:
-            with self._client.stream(
-                "POST", endpoint, json=message, headers=headers, timeout=timeout
-            ) as response:
-                if response.is_error:
-                    raise PluginGatewayError(
-                        "mcp.http_error", "MCP server returned an HTTP error"
-                    )
-                body = _read_rpc_body(response, deadline)
-                return body, response.headers.get("content-type", "")
-        except PluginGatewayError:
-            raise
-        except Exception as exc:
-            raise PluginGatewayError(
-                "mcp.transport_error", "MCP server could not be reached"
-            ) from exc
 
 
 def imported_capability(capability_id: str, tool: dict[str, Any]) -> CapabilitySpec:
@@ -414,50 +355,6 @@ def schema_fingerprint(tool: dict[str, Any]) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
-
-
-def _read_rpc_body(response: httpx.Response, deadline: float) -> bytearray:
-    body = bytearray()
-    for chunk in response.iter_bytes():
-        if monotonic() > deadline:
-            raise PluginGatewayError(
-                "mcp.timeout", "MCP request exceeded its time limit"
-            )
-        body.extend(chunk)
-        if len(body) > MAX_RESPONSE_BYTES:
-            raise PluginGatewayError(
-                "mcp.response_too_large", "MCP response exceeded its size limit"
-            )
-    return body
-
-
-def _parse_rpc_result(
-    body: bytearray, content_type: str, request_id: str
-) -> dict[str, Any]:
-    try:
-        decoded = _decode_rpc_body(body, content_type)
-    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
-        raise PluginGatewayError(
-            "mcp.response_invalid", "MCP server returned an invalid response"
-        ) from exc
-    if not isinstance(decoded, dict) or decoded.get("id") != request_id:
-        raise PluginGatewayError(
-            "mcp.response_invalid", "MCP server returned a mismatched response"
-        )
-    if "error" in decoded:
-        raise PluginGatewayError("mcp.rpc_error", "MCP server reported an RPC error")
-    result = decoded.get("result")
-    if not isinstance(result, dict):
-        raise PluginGatewayError(
-            "mcp.response_invalid", "MCP server returned an invalid result"
-        )
-    return result
-
-
-def _decode_rpc_body(body: bytearray, content_type: str) -> Any:
-    if "text/event-stream" in content_type:
-        return last_sse_message(body.decode("utf-8"))
-    return json.loads(body)
 
 
 __all__ = [

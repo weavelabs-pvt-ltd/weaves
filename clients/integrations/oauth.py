@@ -59,7 +59,9 @@ class OAuthTokenResolver:
         refresh_token = bundle.get("refresh_token")
         if not isinstance(refresh_token, str) or not refresh_token:
             raise ValueError("OAuth credential expired; reconnect this integration")
-        if provider == "jira":
+        if provider == "mcp":
+            response = self._mcp_refresh_request(bundle, refresh_token)
+        elif provider == "jira":
             client_id = os.environ.get("WEAVES_ATLASSIAN_OAUTH_CLIENT_ID", "").strip()
             client_secret = os.environ.get(
                 "WEAVES_ATLASSIAN_OAUTH_CLIENT_SECRET", ""
@@ -109,6 +111,7 @@ class OAuthTokenResolver:
             int(raw_expires_in) if isinstance(raw_expires_in, (int, float)) else 3600
         )
         return {
+            **bundle,
             "weaves_oauth": True,
             "provider": provider,
             "access_token": next_access_token,
@@ -117,3 +120,41 @@ class OAuthTokenResolver:
                 datetime.now(UTC) + timedelta(seconds=expires_in)
             ).isoformat(),
         }
+
+    def _mcp_refresh_request(
+        self, bundle: dict[str, Any], refresh_token: str
+    ) -> httpx.Response:
+        """Refresh an MCP OAuth token only through its approved token host."""
+        from urllib.parse import urlsplit
+
+        url = bundle.get("token_url")
+        client_id = bundle.get("client_id")
+        if (
+            not isinstance(url, str)
+            or not url.startswith("https://")
+            or not isinstance(client_id, str)
+        ):
+            raise ValueError("MCP OAuth refresh configuration is invalid")
+        allowed_hosts = {
+            item.strip().casefold()
+            for item in os.environ.get("WEAVES_MCP_ALLOWED_HOSTS", "").split(",")
+            if item.strip()
+        }
+        if (urlsplit(url).hostname or "").casefold() not in allowed_hosts:
+            raise ValueError("MCP OAuth refresh host is not allowed")
+        refresh_payload = {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": client_id,
+            "resource": str(bundle.get("resource", "")),
+        }
+        client_secret = bundle.get("client_secret")
+        if isinstance(client_secret, str) and client_secret:
+            refresh_payload["client_secret"] = client_secret
+        return self._client.post(
+            url,
+            data=refresh_payload,
+            headers={"Accept": "application/json"},
+            timeout=15,
+            follow_redirects=False,
+        )

@@ -6,6 +6,7 @@ import socket
 import time
 from uuid import uuid4
 
+from apps.worker.services import WorkerServices
 from apps.worker.wiring import build_worker_services
 
 logger = logging.getLogger("product.worker")
@@ -16,6 +17,26 @@ def configure_logging() -> None:
         level=os.environ.get("LOG_LEVEL", "INFO").upper(),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+
+
+def _recover_worker_state(services: WorkerServices) -> None:
+    """Recover stale task turns, action calls, and expired memory."""
+    recovered_task_turns = services.tasks.recover_stale_turns()
+    if recovered_task_turns:
+        logger.warning("recovered stale task turns count=%d", len(recovered_task_turns))
+    recovery = services.execution_recovery
+    recovery.recover_stale_runs()
+    recovered_jobs = recovery.recover_stale_execution_jobs()
+    recovered_actions = services.action_recovery.recover_stale_action_invocations()
+    if recovered_jobs:
+        logger.warning("recovered stale execution jobs count=%d", len(recovered_jobs))
+    if recovered_actions:
+        logger.warning(
+            "recovered stale action invocations count=%d", len(recovered_actions)
+        )
+    expired_memory = services.memory.purge_expired_memory_items()
+    if expired_memory:
+        logger.info("purged expired memory items count=%d", len(expired_memory))
 
 
 def main() -> None:
@@ -38,28 +59,7 @@ def main() -> None:
         while True:
             try:
                 if time.monotonic() - last_recovery >= 30:
-                    recovery = services.execution_recovery
-                    recovery.recover_stale_runs()
-                    recovered_jobs = recovery.recover_stale_execution_jobs()
-                    action_recovery = services.action_recovery
-                    recover_actions = action_recovery.recover_stale_action_invocations
-                    recovered_actions = recover_actions()
-                    if recovered_jobs:
-                        logger.warning(
-                            "recovered stale execution jobs count=%d",
-                            len(recovered_jobs),
-                        )
-                    if recovered_actions:
-                        logger.warning(
-                            "recovered stale action invocations count=%d",
-                            len(recovered_actions),
-                        )
-                    expired_memory = services.memory.purge_expired_memory_items()
-                    if expired_memory:
-                        logger.info(
-                            "purged expired memory items count=%d",
-                            len(expired_memory),
-                        )
+                    _recover_worker_state(services)
                     last_recovery = time.monotonic()
                 if time.monotonic() - last_schedule_poll >= schedule_interval:
                     scheduled_jobs = (
@@ -72,15 +72,23 @@ def main() -> None:
                         )
                     last_schedule_poll = time.monotonic()
                 job = services.execution.process_next_execution_job(worker_id)
-                if job is None:
+                turn = services.tasks.process_next_turn(worker_id)
+                if turn is not None:
+                    logger.info(
+                        "task turn finished turn_id=%s status=%s",
+                        turn.turn_id,
+                        turn.status.value,
+                    )
+                if job is None and turn is None:
                     time.sleep(interval)
                     continue
-                logger.info(
-                    "product execution job finished job_id=%s status=%s run_id=%s",
-                    job.job_id,
-                    job.status.value,
-                    job.run_id,
-                )
+                if job is not None:
+                    logger.info(
+                        "product execution job finished job_id=%s status=%s run_id=%s",
+                        job.job_id,
+                        job.status.value,
+                        job.run_id,
+                    )
             except KeyboardInterrupt:
                 raise
             except Exception:

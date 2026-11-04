@@ -60,14 +60,14 @@ def test_due_schedule_enqueues_once_and_coalesces_missed_intervals():
 def test_schedule_permissions_are_rechecked_and_failures_are_recorded_safely():
     runtime = LocalPlatformRuntime()
     schedule, now = _create_due_schedule(runtime)
-    actual_authorize = runtime.authorize
+    actual_authorize = runtime.workflow_automation_service._authorize
 
     def revoked(principal_id, permission):
         if permission is Permission.WORKFLOWS_RUN:
             raise PermissionError("The schedule creator's current role changed.")
         return actual_authorize(principal_id, permission)
 
-    runtime.authorize = revoked
+    runtime.workflow_automation_service._authorize = revoked
     assert runtime.dispatch_due_workflow_schedules(now=now) == ()
     failed = runtime.workflow_schedules.get(schedule.schedule_id)
 

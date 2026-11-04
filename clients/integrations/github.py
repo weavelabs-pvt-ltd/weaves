@@ -15,10 +15,6 @@ from contracts.v1.json_data import thaw_json_value
 from shared.errors import PluginGatewayError
 
 
-class _Resolver(Protocol):
-    def resolve(self, auth_ref: str) -> str: ...
-
-
 class _InstallationTokenProvider(Protocol):
     def installation_token(
         self, installation_id: str, repositories: tuple[str, ...]
@@ -30,21 +26,19 @@ class GitHubReadPlugin:
 
     def __init__(
         self,
-        secret_resolver: _Resolver,
         client: httpx.Client,
         *,
         api_base_url: str = "https://api.github.com",
         timeout_seconds: float = 15.0,
         installation_token_provider: _InstallationTokenProvider | None = None,
     ) -> None:
-        self._secrets = secret_resolver
         self._client = client
         self._api_base_url = api_base_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
         self._installation_tokens = installation_token_provider
 
     def healthcheck(self, installation: PluginInstallation) -> dict[str, str]:
-        token = self._resolve_token(installation)
+        token = self._installation_token(installation)
         configuration = thaw_json_value(installation.configuration)
         repositories = configuration.get("repositories", [])
         if not repositories:
@@ -115,7 +109,7 @@ class GitHubReadPlugin:
                 "plugin.configuration_invalid",
                 "GitHub installation has no repositories",
             )
-        token = self._resolve_token(installation)
+        token = self._installation_token(installation)
 
         query = payload["query"].strip()
         if not query:
@@ -345,7 +339,7 @@ class GitHubReadPlugin:
                 break
         return documents
 
-    def _resolve_token(self, installation: PluginInstallation) -> str:
+    def _installation_token(self, installation: PluginInstallation) -> str:
         configuration = thaw_json_value(installation.configuration)
         if configuration.get("auth_method") == "github_app":
             installation_id = configuration.get("github_installation_id")
@@ -371,23 +365,10 @@ class GitHubReadPlugin:
                     "plugin.credential_unavailable",
                     "GitHub installation token could not be issued",
                 ) from exc
-        if not installation.auth_ref:
-            raise PluginGatewayError(
-                "plugin.credential_missing", "GitHub installation has no credential"
-            )
-        try:
-            token = self._secrets.resolve(installation.auth_ref)
-        except Exception as exc:
-            raise PluginGatewayError(
-                "plugin.credential_unavailable",
-                "GitHub credential could not be resolved",
-            ) from exc
-        if not token:
-            raise PluginGatewayError(
-                "plugin.credential_unavailable",
-                "GitHub credential could not be resolved",
-            )
-        return token
+        raise PluginGatewayError(
+            "plugin.oauth_unavailable",
+            "GitHub connection is not configured as a GitHub App",
+        )
 
 
 def _issue_document(repository: str, item: Any) -> dict[str, Any] | None:

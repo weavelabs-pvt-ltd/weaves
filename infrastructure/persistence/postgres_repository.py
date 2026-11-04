@@ -8,10 +8,13 @@ from typing import Any, Generic
 
 from application.ports.repository import TContract, _updated_at
 from contracts.v1.base import OpaqueId
+from infrastructure.persistence.postgres_query_repository import (
+    PostgresQueryRepositoryMixin,
+)
 from shared.errors import IdempotencyKeyAlreadyExists
 
 
-class PostgresRepository(Generic[TContract]):
+class PostgresRepository(PostgresQueryRepositoryMixin[TContract], Generic[TContract]):
     """JSONB-backed repository with tenant scope stored as queryable columns."""
 
     def __init__(
@@ -55,6 +58,8 @@ class PostgresRepository(Generic[TContract]):
             if getattr(exc.diag, "constraint_name", None) in {
                 "product_records_run_idempotency_uq",
                 "product_records_execution_job_idempotency_uq",
+                "product_records_task_idempotency_uq",
+                "product_records_task_turn_idempotency_uq",
             }:
                 raise IdempotencyKeyAlreadyExists(
                     "workflow run idempotency key already exists"
@@ -174,120 +179,6 @@ class PostgresRepository(Generic[TContract]):
             ).fetchall()
         return tuple(self._deserialize(row[0]) for row in rows)
 
-    def list_audit_page(
-        self,
-        org_id: OpaqueId,
-        workspace_id: OpaqueId | None,
-        *,
-        action: str | None,
-        target_type: str | None,
-        target_id: str | None,
-        actor_principal_id: str | None,
-        created_after: datetime | None,
-        created_before: datetime | None,
-        cursor_created_at: datetime | None,
-        cursor_event_id: str | None,
-        limit: int,
-    ) -> tuple[TContract, ...]:
-        """Return a filtered audit page after the supplied keyset cursor."""
-        if self._collection != "audit_events":
-            raise TypeError("audit event paging requires an audit event repository")
-        if limit < 1:
-            raise ValueError("limit must be positive")
-        query = """SELECT payload FROM product_records
-                   WHERE collection = %s AND org_id = %s"""
-        params: tuple[object, ...] = (self._collection, str(org_id))
-        if workspace_id is not None:
-            query += " AND workspace_id = %s"
-            params += (str(workspace_id),)
-        for field, value in (
-            ("action", action),
-            ("target_type", target_type),
-            ("target_id", target_id),
-            ("actor_principal_id", actor_principal_id),
-        ):
-            if value is not None:
-                query += f" AND payload->>'{field}' = %s"
-                params += (value,)
-        if created_after is not None:
-            query += " AND created_at >= %s"
-            params += (created_after,)
-        if created_before is not None:
-            query += " AND created_at <= %s"
-            params += (created_before,)
-        if cursor_created_at is not None:
-            if cursor_event_id is None:
-                raise ValueError("cursor event ID is required")
-            query += " AND (created_at, record_id) < (%s, %s)"
-            params += (cursor_created_at, cursor_event_id)
-        query += " ORDER BY created_at DESC, record_id DESC LIMIT %s"
-        params += (limit,)
-        with self._pool.connection() as connection:
-            rows = connection.execute(query, params).fetchall()
-        return tuple(self._deserialize(row[0]) for row in rows)
-
-    def find_by_field(self, field: str, value: str) -> TContract | None:
-        """Return the first record matching a validated contract field."""
-        if not field.isascii() or not field.replace("_", "a").isalnum():
-            raise ValueError("field must be a valid contract field name")
-        with self._pool.connection() as connection:
-            row = connection.execute(
-                f"""SELECT payload FROM product_records
-                    WHERE collection = %s AND payload ->> '{field}' = %s LIMIT 1""",
-                (self._collection, value),
-            ).fetchone()
-        return self._deserialize(row[0]) if row is not None else None
-
-    def claim_next_queued(
-        self,
-        worker_id: str,
-        timestamp: datetime,
-        org_id: str | None,
-        workspace_id: str | None,
-    ) -> TContract | None:
-        """Atomically claim the next eligible queued execution record."""
-        scope_filter = ""
-        scope_params: tuple[object, ...] = ()
-        if org_id is not None:
-            scope_filter += " AND org_id = %s"
-            scope_params += (org_id,)
-        if workspace_id is not None:
-            scope_filter += " AND workspace_id = %s"
-            scope_params += (workspace_id,)
-        with self._pool.connection() as connection:
-            row = connection.execute(
-                f"""WITH candidate AS (
-                       SELECT record_id FROM product_records
-                       WHERE collection = %s{scope_filter}
-                         AND payload->>'status' = 'queued'
-                       ORDER BY created_at, record_id
-                       LIMIT 1 FOR UPDATE SKIP LOCKED
-                   )
-                   UPDATE product_records AS job
-                   SET payload = job.payload || jsonb_build_object(
-                           'status', 'running',
-                           'attempts',
-                           COALESCE((job.payload->>'attempts')::integer, 0) + 1,
-                           'worker_id', %s::text,
-                           'started_at', to_jsonb(%s::timestamptz),
-                           'updated_at', to_jsonb(%s::timestamptz)
-                       ),
-                       updated_at = %s
-                   FROM candidate
-                   WHERE job.collection = %s AND job.record_id = candidate.record_id
-                   RETURNING job.payload""",
-                (
-                    self._collection,
-                    *scope_params,
-                    worker_id,
-                    timestamp,
-                    timestamp,
-                    timestamp,
-                    self._collection,
-                ),
-            ).fetchone()
-        return self._deserialize(row[0]) if row is not None else None
-
     def list_scoped(
         self, org_id: OpaqueId, workspace_id: OpaqueId | None = None
     ) -> tuple[TContract, ...]:
@@ -361,6 +252,22 @@ class PostgresRepository(Generic[TContract]):
         expected_status: str = "running",
     ) -> bool:
         """Fence job heartbeat and completion updates to the active claim."""
+        return self.put_if_worker_owned(
+            record,
+            worker_id=worker_id,
+            attempts=attempts,
+            expected_status=expected_status,
+        )
+
+    def put_if_worker_owned(
+        self,
+        record: TContract,
+        *,
+        worker_id: str,
+        attempts: int,
+        expected_status: str = "running",
+    ) -> bool:
+        """Fence a record update to the current worker lease and attempt."""
         from psycopg.types.json import Jsonb
 
         with self._pool.connection() as connection:
@@ -378,6 +285,33 @@ class PostgresRepository(Generic[TContract]):
                     expected_status,
                     worker_id,
                     attempts,
+                ),
+            )
+        return int(result.rowcount) == 1
+
+    def put_if_task_state(
+        self,
+        record: TContract,
+        *,
+        expected_status: str,
+        expected_active_turn_id: str | None,
+    ) -> bool:
+        """Atomically replace task state only if its turn/status are unchanged."""
+        from psycopg.types.json import Jsonb
+
+        with self._pool.connection() as connection:
+            result = connection.execute(
+                """UPDATE product_records SET payload = %s, updated_at = %s
+                   WHERE collection = %s AND record_id = %s
+                     AND payload->>'status' = %s
+                     AND payload->>'active_turn_id' IS NOT DISTINCT FROM %s""",
+                (
+                    Jsonb(record.model_dump(mode="json")),
+                    _updated_at(record),
+                    self._collection,
+                    self._record_id(record),
+                    expected_status,
+                    expected_active_turn_id,
                 ),
             )
         return int(result.rowcount) == 1

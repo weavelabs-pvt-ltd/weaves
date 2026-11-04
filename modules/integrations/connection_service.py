@@ -15,10 +15,11 @@ from contracts.v1 import (
 )
 from modules.integrations.oauth_installations import OAuthInstallationMixin
 from modules.integrations.runtime_installations import IntegrationInstallationMixin
+from modules.integrations.runtime_mcp_installations import McpInstallationMixin
 
 
 class IntegrationConnectionService(
-    OAuthInstallationMixin, IntegrationInstallationMixin
+    OAuthInstallationMixin, McpInstallationMixin, IntegrationInstallationMixin
 ):
     """Create token, OAuth, GitHub App, and MCP installations."""
 

@@ -121,6 +121,10 @@ class IntegrationInstallationAdminMixin(RuntimeCapabilityHost):
         current = self.installations.get_scoped(
             installation_id, effective_org_id(), effective_workspace_id()
         )
+        if current.configuration.get("auth_method") != "mcp_bearer":
+            raise ValueError(
+                "credential replacement is only available for bearer MCP connections"
+            )
         next_secret_ref = self.secret_store.put(api_token.strip())
         updated = current.model_copy(
             update={"auth_ref": next_secret_ref, "updated_at": _now()}
@@ -150,3 +154,42 @@ class IntegrationInstallationAdminMixin(RuntimeCapabilityHost):
             )
         )
         return updated
+
+    def disconnect_plugin_installation(
+        self,
+        installation_id: str,
+        *,
+        requested_by_principal_id: str = "local-developer",
+    ) -> None:
+        """Remove a workspace connection and destroy its stored credentials."""
+        self._ensure_bootstrapped()
+        actor_id = effective_principal_id(requested_by_principal_id)
+        self.authorize(actor_id, Permission.PLUGINS_MANAGE)
+        current = self.installations.get_scoped(
+            installation_id, effective_org_id(), effective_workspace_id()
+        )
+        self.installations.delete(installation_id)
+        if current.auth_ref:
+            self.secret_store.delete(current.auth_ref)
+        if current.plugin_id.startswith("mcp-") and not any(
+            item.plugin_id == current.plugin_id for item in self.installations.list()
+        ):
+            self.plugins.delete(current.plugin_id)
+        self.audit_events.create(
+            AuditEvent(
+                audit_event_id=_id(),
+                org_id=current.org_id,
+                target_scope=AuditTargetScope.WORKSPACE,
+                workspace_id=current.workspace_id,
+                actor_principal_id=actor_id,
+                action="plugin_installation.disconnected",
+                target_type="plugin_installation",
+                target_id=installation_id,
+                summary=(
+                    "Workspace connector disconnected and local credentials removed"
+                ),
+                request_id=installation_id,
+                metadata={"plugin_id": current.plugin_id},
+                created_at=_now(),
+            )
+        )

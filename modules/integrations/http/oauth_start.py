@@ -15,35 +15,6 @@ from modules.integrations.http.oauth_schemas import _OAuthStart
 class OAuthStartMixin(OAuthContextBase):
     """Implement oauth start OAuth route operations."""
 
-    def oauth_providers(self) -> dict[str, bool]:
-        """Handle the oauth providers step of the OAuth flow."""
-        self.dependencies.state_service.authorize_current_principal()
-
-        public_api_configured = bool(
-            os.environ.get("WEAVES_PUBLIC_API_BASE_URL", "").strip()
-        )
-
-        return {
-            "github": public_api_configured
-            and bool(
-                os.environ.get("WEAVES_GITHUB_APP_CLIENT_ID", "").strip()
-                and os.environ.get("WEAVES_GITHUB_APP_CLIENT_SECRET", "").strip()
-                and os.environ.get("WEAVES_GITHUB_APP_SLUG", "").strip()
-                and os.environ.get("WEAVES_GITHUB_APP_ID", "").strip()
-                and os.environ.get("WEAVES_GITHUB_APP_PRIVATE_KEY", "").strip()
-            ),
-            "slack": public_api_configured
-            and bool(
-                os.environ.get("WEAVES_SLACK_OAUTH_CLIENT_ID", "").strip()
-                and os.environ.get("WEAVES_SLACK_OAUTH_CLIENT_SECRET", "").strip()
-            ),
-            "jira": public_api_configured
-            and bool(
-                os.environ.get("WEAVES_ATLASSIAN_OAUTH_CLIENT_ID", "").strip()
-                and os.environ.get("WEAVES_ATLASSIAN_OAUTH_CLIENT_SECRET", "").strip()
-            ),
-        }
-
     def start_oauth(self, provider: str, request: _OAuthStart) -> dict[str, str]:
         """Validate the requested connector and return its authorization URL."""
         self.dependencies.state_service.authorize_current_principal()

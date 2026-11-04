@@ -32,10 +32,11 @@ class MemberSetup:
 
 
 def test_organization_onboarding_scopes_requests_and_runs_agent():
-    client = TestClient(create_app(LocalPlatformRuntime()))
+    runtime = LocalPlatformRuntime()
+    client = TestClient(create_app(runtime))
     with client:
         organization = _onboard_organization(client)
-        _verify_owner_access_and_agent_run(client, organization)
+        _verify_owner_access_and_agent_run(client, runtime, organization)
         runner_role_id = _verify_approval_policy_management(
             client, organization.headers, organization.workspace_id
         )
@@ -72,7 +73,7 @@ def _onboard_organization(client: TestClient) -> OrganizationSetup:
 
 
 def _verify_owner_access_and_agent_run(
-    client: TestClient, organization: OrganizationSetup
+    client: TestClient, runtime: LocalPlatformRuntime, organization: OrganizationSetup
 ) -> None:
     headers = organization.headers
     organization_list = client.get("/api/v0/organizations", headers=headers)
@@ -100,14 +101,21 @@ def _verify_owner_access_and_agent_run(
         },
     )
     assert agent.status_code == 201, agent.text
-    run = client.post(
-        "/api/v0/runs",
+    task = client.post(
+        "/api/v0/tasks",
         headers=headers,
-        json={"task": "Summarize the workspace guide", "agent_id": agent.json()["id"]},
+        json={
+            "title": "Workspace guide",
+            "initial_message": "Summarize the workspace guide",
+            "agent_id": agent.json()["id"],
+        },
     )
-    assert run.status_code == 201, run.text
-    assert run.json()["run"]["org_id"] == organization.org_id
-    assert run.json()["run"]["workspace_id"] == organization.workspace_id
+    assert task.status_code == 202, task.text
+    runtime.task_worker_service.process_next_turn("onboarding-test")
+    detail = client.get(f"/api/v0/tasks/{task.json()['task_id']}", headers=headers)
+    assert detail.status_code == 200
+    assert detail.json()["org_id"] == organization.org_id
+    assert detail.json()["workspace_id"] == organization.workspace_id
     _verify_run_audit_and_range_validation(client, organization)
 
 
@@ -170,7 +178,10 @@ def _verify_approval_policy_management(
     runner_role = client.post(
         "/api/v0/roles",
         headers=headers,
-        json={"name": "Workspace runner", "permissions": ["agents.run"]},
+        json={
+            "name": "Workspace runner",
+            "permissions": ["agents.run", "tasks.create"],
+        },
     )
     assert runner_role.status_code == 201, runner_role.text
     return runner_role.json()["id"]
@@ -227,16 +238,17 @@ def _create_secondary_workspace(
         },
     )
     assert agent.status_code == 201, agent.text
-    run = client.post(
-        "/api/v0/runs",
+    task = client.post(
+        "/api/v0/tasks",
         headers=headers,
         json={
-            "task": "Summarize the workspace guide",
+            "title": "Workspace guide",
+            "initial_message": "Summarize the workspace guide",
             "agent_id": agent.json()["id"],
         },
     )
-    assert run.status_code == 201, run.text
-    assert run.json()["run"]["workspace_id"] == workspace_id
+    assert task.status_code == 202, task.text
+    assert task.json()["workspace_id"] == workspace_id
     return WorkspaceSetup(workspace_id, headers, agent.json()["id"])
 
 
@@ -292,17 +304,18 @@ def _verify_member_scope_restrictions(
         json={"name": "Unauthorized policy"},
     )
     assert denied_policy.status_code == 403
-    run = client.post(
-        "/api/v0/runs",
+    task = client.post(
+        "/api/v0/tasks",
         headers=member.headers,
         json={
-            "task": "Summarize the workspace guide",
+            "title": "Workspace guide",
+            "initial_message": "Summarize the workspace guide",
             "agent_id": workspace.agent_id,
         },
     )
-    assert run.status_code == 201, run.text
-    assert run.json()["run"]["workspace_id"] == workspace.workspace_id
-    assert client.get("/api/v0/artifacts", headers=member.headers).status_code == 403
+    assert task.status_code == 202, task.text
+    assert task.json()["workspace_id"] == workspace.workspace_id
+    assert client.get("/api/v0/artifacts", headers=member.headers).status_code == 404
 
 
 def _verify_artifact_role_binding(
@@ -314,7 +327,7 @@ def _verify_artifact_role_binding(
     role = client.post(
         "/api/v0/roles",
         headers=workspace.headers,
-        json={"name": "Artifact reader", "permissions": ["artifacts.read"]},
+        json={"name": "Task reader", "permissions": ["tasks.view"]},
     )
     assert role.status_code == 201, role.text
     binding_payload = {
@@ -331,12 +344,12 @@ def _verify_artifact_role_binding(
     )
     assert repeated.status_code == 201
     assert repeated.json()["id"] == binding.json()["id"]
-    assert client.get("/api/v0/artifacts", headers=member.headers).status_code == 200
+    assert client.get("/api/v0/tasks", headers=member.headers).status_code == 200
     removed = client.delete(
         f"/api/v0/role-bindings/{binding.json()['id']}", headers=workspace.headers
     )
     assert removed.status_code == 204
-    assert client.get("/api/v0/artifacts", headers=member.headers).status_code == 403
+    assert client.get("/api/v0/tasks", headers=member.headers).status_code == 403
     cross_workspace = client.get(
         "/api/v0/agents",
         headers={**member.headers, "X-Workspace-ID": other_workspace_id},

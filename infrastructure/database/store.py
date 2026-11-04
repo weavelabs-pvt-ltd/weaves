@@ -157,6 +157,39 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
                      AND payload->>'system_role_key' IS NOT NULL""",
         ),
     ),
+    (
+        14,
+        (
+            """CREATE UNIQUE INDEX IF NOT EXISTS product_records_task_idempotency_uq
+                   ON product_records
+                     (org_id, workspace_id, requested_by_principal_id, idempotency_key)
+                   WHERE collection = 'tasks'
+                     AND idempotency_key IS NOT NULL""",
+            """CREATE UNIQUE INDEX IF NOT EXISTS
+                   product_records_task_turn_idempotency_uq
+                   ON product_records
+                     (org_id, workspace_id, requested_by_principal_id, idempotency_key)
+                   WHERE collection = 'task_turns'
+                     AND idempotency_key IS NOT NULL""",
+            """CREATE INDEX IF NOT EXISTS product_records_task_page_idx
+                   ON product_records
+                     (org_id, workspace_id, created_at DESC, record_id DESC)
+                   WHERE collection = 'tasks'""",
+            """CREATE INDEX IF NOT EXISTS product_records_task_messages_page_idx
+                   ON product_records
+                     (org_id, workspace_id, (payload->>'task_id'),
+                      created_at DESC, record_id DESC)
+                   WHERE collection = 'task_messages'""",
+            """CREATE INDEX IF NOT EXISTS product_records_task_turn_claim_idx
+                   ON product_records (created_at, record_id)
+                   WHERE collection = 'task_turns'
+                     AND payload->>'status' = 'queued'""",
+            """CREATE INDEX IF NOT EXISTS product_records_task_turn_stale_idx
+                   ON product_records (updated_at, record_id)
+                   WHERE collection = 'task_turns'
+                     AND payload->>'status' = 'running'""",
+        ),
+    ),
 )
 
 

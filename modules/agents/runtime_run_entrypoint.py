@@ -28,6 +28,7 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
         idempotency_key: str | None = None,
         *,
         workflow_id: str | None = None,
+        agent_version_id: str | None = None,
         _cancellation_event: Event | None = None,
         _cancellation_check: Callable[[], bool] | None = None,
     ) -> RuntimeResult:
@@ -40,6 +41,7 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
                 agent_id,
                 thread_id,
                 workflow_id=workflow_id,
+                agent_version_id=agent_version_id,
                 _cancellation_event=_cancellation_event,
                 _cancellation_check=_cancellation_check,
             )
@@ -51,6 +53,31 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
         self.authorize(requested_by_principal_id, Permission.AGENTS_RUN)
         if workflow_id is not None:
             self.authorize(requested_by_principal_id, Permission.WORKFLOWS_RUN)
+        return self._run_agent_with_key(
+            task,
+            requested_by_principal_id,
+            agent_id,
+            thread_id,
+            key,
+            workflow_id,
+            agent_version_id,
+            _cancellation_event,
+            _cancellation_check,
+        )
+
+    def _run_agent_with_key(
+        self,
+        task: str,
+        requested_by_principal_id: str,
+        agent_id: str | None,
+        thread_id: str | None,
+        key: str,
+        workflow_id: str | None,
+        agent_version_id: str | None,
+        cancellation_event: Event | None,
+        cancellation_check: Callable[[], bool] | None,
+    ) -> RuntimeResult:
+        """Serialize idempotent requests and replay only matching runs."""
         lock_key = (requested_by_principal_id, key)
         with self._idempotency_guard:
             lock = self._idempotency_locks.setdefault(lock_key, RLock())
@@ -68,6 +95,7 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
                     agent_id=agent_id,
                     thread_id=thread_id,
                     workflow_id=workflow_id,
+                    agent_version_id=agent_version_id,
                 )
             try:
                 return self._execute_agent_run(
@@ -77,8 +105,9 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
                     thread_id,
                     idempotency_key=key,
                     workflow_id=workflow_id,
-                    _cancellation_event=_cancellation_event,
-                    _cancellation_check=_cancellation_check,
+                    agent_version_id=agent_version_id,
+                    _cancellation_event=cancellation_event,
+                    _cancellation_check=cancellation_check,
                 )
             except IdempotencyKeyAlreadyExists:
                 # Another API process won the unique-index race. The losing
@@ -98,6 +127,7 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
                     agent_id=agent_id,
                     thread_id=thread_id,
                     workflow_id=workflow_id,
+                    agent_version_id=agent_version_id,
                 )
 
     def _replay_idempotent_run(
@@ -108,9 +138,10 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
         agent_id: str | None,
         thread_id: str | None,
         workflow_id: str | None,
+        agent_version_id: str | None = None,
     ) -> RuntimeResult:
         agent_runs = self._validate_replayed_run_request(
-            run, task, agent_id, thread_id, workflow_id
+            run, task, agent_id, thread_id, workflow_id, agent_version_id
         )
         artifacts = tuple(
             item
@@ -156,6 +187,7 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
         agent_id: str | None,
         thread_id: str | None,
         workflow_id: str | None,
+        agent_version_id: str | None = None,
     ) -> tuple[AgentRun, ...]:
         """Verify the saved run matches the original idempotent request."""
         agent_runs = tuple(
@@ -195,6 +227,10 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
             and run.trigger_ref == thread_id
             and run.workflow_id == expected_workflow_id
             and agent_matches
+            and (
+                agent_version_id is None
+                or first_agent_run.agent_version_id == agent_version_id
+            )
         )
         if not payload_matches:
             raise IdempotencyConflict(

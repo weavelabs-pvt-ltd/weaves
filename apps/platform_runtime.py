@@ -74,22 +74,6 @@ class LocalPlatformRuntime(
         """Check a principal's organization-level permission."""
         self.credential_service.authorize_organization(principal_id, permission)
 
-    def create_github_installation(
-        self,
-        *,
-        display_name: str,
-        api_token: str,
-        repositories: tuple[str, ...],
-        requested_by_principal_id: str = "local-developer",
-    ) -> PluginInstallation:
-        """Retain the runtime API while delegating GitHub connection creation."""
-        return self.integration_connection_service.create_github_installation(
-            display_name=display_name,
-            api_token=api_token,
-            repositories=repositories,
-            requested_by_principal_id=requested_by_principal_id,
-        )
-
     def create_github_app_installation(
         self,
         *,
@@ -103,44 +87,6 @@ class LocalPlatformRuntime(
             display_name=display_name,
             github_installation_id=github_installation_id,
             repositories=repositories,
-            requested_by_principal_id=requested_by_principal_id,
-        )
-
-    def create_slack_installation(
-        self,
-        *,
-        display_name: str,
-        user_token: str,
-        channels: tuple[str, ...],
-        include_thread_replies: bool = False,
-        requested_by_principal_id: str = "local-developer",
-    ) -> PluginInstallation:
-        """Retain Slack token connection compatibility."""
-        return self.integration_connection_service.create_slack_installation(
-            display_name=display_name,
-            user_token=user_token,
-            channels=channels,
-            include_thread_replies=include_thread_replies,
-            requested_by_principal_id=requested_by_principal_id,
-        )
-
-    def create_jira_installation(
-        self,
-        *,
-        display_name: str,
-        api_token: str,
-        site_url: str,
-        email: str,
-        project_keys: tuple[str, ...],
-        requested_by_principal_id: str = "local-developer",
-    ) -> PluginInstallation:
-        """Retain Jira token connection compatibility."""
-        return self.integration_connection_service.create_jira_installation(
-            display_name=display_name,
-            api_token=api_token,
-            site_url=site_url,
-            email=email,
-            project_keys=project_keys,
             requested_by_principal_id=requested_by_principal_id,
         )
 
@@ -253,12 +199,19 @@ class LocalPlatformRuntime(
     def update_workflow_trigger(
         self,
         trigger_id: str,
-        status: WorkflowTriggerStatus,
+        status: WorkflowTriggerStatus | None = None,
         requested_by_principal_id: str = "local-developer",
+        *,
+        name: str | None = None,
+        task_instructions: str | None = None,
     ) -> WorkflowTrigger:
         """Retain workflow trigger updates compatibility."""
         return self.workflow_automation_service.update_workflow_trigger(
-            trigger_id, status, requested_by_principal_id
+            trigger_id,
+            status,
+            name=name,
+            task_instructions=task_instructions,
+            requested_by_principal_id=requested_by_principal_id,
         )
 
     def rotate_workflow_trigger_secret(
@@ -308,12 +261,21 @@ class LocalPlatformRuntime(
     def update_workflow_schedule(
         self,
         schedule_id: str,
-        status: WorkflowScheduleStatus,
+        status: WorkflowScheduleStatus | None = None,
         requested_by_principal_id: str = "local-developer",
+        *,
+        name: str | None = None,
+        task_instructions: str | None = None,
+        interval_seconds: int | None = None,
     ) -> WorkflowSchedule:
         """Retain workflow schedule updates compatibility."""
         return self.workflow_automation_service.update_workflow_schedule(
-            schedule_id, status, requested_by_principal_id
+            schedule_id,
+            status,
+            name=name,
+            task_instructions=task_instructions,
+            interval_seconds=interval_seconds,
+            requested_by_principal_id=requested_by_principal_id,
         )
 
     def dispatch_due_workflow_schedules(

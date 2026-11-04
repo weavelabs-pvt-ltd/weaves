@@ -1,0 +1,93 @@
+{
+  "$defs": {
+    "TaskMessageRole": {
+      "description": "Human-facing speaker roles supported by task conversations.",
+      "enum": [
+        "user",
+        "assistant"
+      ],
+      "title": "TaskMessageRole",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Immutable transcript entry linked to its task turn.",
+  "properties": {
+    "content": {
+      "maxLength": 32000,
+      "minLength": 1,
+      "title": "Content",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_by_principal_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created By Principal Id"
+    },
+    "message_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Message Id",
+      "type": "string"
+    },
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
+      "type": "string"
+    },
+    "role": {
+      "$ref": "#/$defs/TaskMessageRole"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "task_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Task Id",
+      "type": "string"
+    },
+    "turn_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Turn Id",
+      "type": "string"
+    },
+    "workspace_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "created_at",
+    "org_id",
+    "workspace_id",
+    "message_id",
+    "task_id",
+    "turn_id",
+    "role",
+    "content"
+  ],
+  "title": "TaskMessage",
+  "type": "object"
+}

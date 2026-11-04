@@ -12,7 +12,6 @@ from contracts.v1 import (
     AuditEvent,
     Permission,
     WorkflowDefinition,
-    WorkflowRun,
     WorkflowVersion,
 )
 from modules.workflows.runtime_creation import WorkflowCreationMixin
@@ -33,7 +32,6 @@ class WorkflowDefinitionService(
     agent_versions: Repository[AgentVersion]
     agents: Repository[AgentDefinition]
     audit_events: Repository[AuditEvent]
-    runs: Repository[WorkflowRun]
     workflow_versions: Repository[WorkflowVersion]
     workflows: Repository[WorkflowDefinition]
 
@@ -43,7 +41,6 @@ class WorkflowDefinitionService(
         agent_versions: Repository[AgentVersion],
         agents: Repository[AgentDefinition],
         audit_events: Repository[AuditEvent],
-        runs: Repository[WorkflowRun],
         workflow_versions: Repository[WorkflowVersion],
         workflows: Repository[WorkflowDefinition],
         is_bootstrapped: Callable[[], bool],
@@ -55,7 +52,6 @@ class WorkflowDefinitionService(
         self.agent_versions = agent_versions
         self.agents = agents
         self.audit_events = audit_events
-        self.runs = runs
         self.workflow_versions = workflow_versions
         self.workflows = workflows
         self._is_bootstrapped = is_bootstrapped

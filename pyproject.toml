@@ -66,7 +66,6 @@ convention = "google"
 "modules/auth/http/routes.py" = ["C901", "D101", "D102"]
 "modules/evaluations/http/routes.py" = ["C901", "D101"]
 "modules/evaluations/runtime.py" = ["B904", "C901", "D102"]
-"modules/executions/http/routes.py" = ["C901", "D101"]
 "modules/governance/http/routes.py" = ["C901", "D101"]
 "modules/integrations/http/oauth.py" = ["C901", "SIM105"]
 "modules/integrations/http/routes.py" = ["C901", "D101"]

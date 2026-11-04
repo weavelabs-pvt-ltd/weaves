@@ -37,11 +37,9 @@ def _register_list_workflows(
     app: FastAPI,
     definition_service: WorkflowDefinitionService,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the list workflows endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.get("/api/v0/workflows")
     def list_workflows() -> list[dict[str, Any]]:
@@ -52,11 +50,9 @@ def _register_get_workflow(
     app: FastAPI,
     definition_service: WorkflowDefinitionService,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the get workflow endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.get("/api/v0/workflows/{workflow_id}")
     def get_workflow(workflow_id: str) -> dict[str, Any]:
@@ -65,18 +61,20 @@ def _register_get_workflow(
             version = definition_service.get_current_workflow_version(workflow)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Workflow not found") from exc
-        return {"definition": _dump(workflow), "version": _dump(version)}
+        return {
+            "definition": _dump(workflow),
+            "version": _dump(version),
+            "graph": definition_service.graph_for_version(version),
+        }
 
 
 def _register_list_workflow_versions(
     app: FastAPI,
     definition_service: WorkflowDefinitionService,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the list workflow versions endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.get("/api/v0/workflows/{workflow_id}/versions")
     def list_workflow_versions(
@@ -106,11 +104,9 @@ def _register_get_workflow_version(
     app: FastAPI,
     definition_service: WorkflowDefinitionService,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the get workflow version endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.get("/api/v0/workflows/{workflow_id}/versions/{workflow_version_id}")
     def get_workflow_version(
@@ -129,53 +125,30 @@ def _register_get_workflow_version(
                 status_code=404, detail="Workflow version not found"
             ) from exc
 
-
-def _register_list_workflow_runs(
-    app: FastAPI,
-    definition_service: WorkflowDefinitionService,
-    dump: WorkflowDump,
-    run_view: Any,
-) -> None:
-    """Register the list workflow runs endpoint."""
-    _dump = dump
-    _run_view = run_view
-
-    @app.get("/api/v0/workflows/{workflow_id}/runs")
-    def list_workflow_runs(
-        workflow_id: str,
-        limit: int = Query(default=50, ge=1, le=100),
-        cursor: str | None = Query(default=None, max_length=1024),
+    @app.get("/api/v0/workflows/{workflow_id}/versions/{workflow_version_id}/graph")
+    def get_workflow_version_graph(
+        workflow_id: str, workflow_version_id: str
     ) -> dict[str, Any]:
         try:
-            runs = definition_service.list_workflow_runs(
-                workflow_id, limit=limit + 1, cursor=cursor
+            version = definition_service.get_workflow_version(
+                workflow_id, workflow_version_id
             )
+            return {"graph": definition_service.graph_for_version(version)}
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Workflow not found") from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-        page = runs[:limit]
-        return {
-            "items": [_run_view(item) for item in page],
-            "next_cursor": (
-                definition_service.workflow_run_cursor(page[-1])
-                if len(runs) > limit and page
-                else None
-            ),
-        }
+            raise HTTPException(
+                status_code=404, detail="Workflow version not found"
+            ) from exc
 
 
 def _register_create_workflow(
     app: FastAPI,
     definition_service: WorkflowDefinitionService,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the create workflow endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.post("/api/v0/workflows", status_code=201)
     def create_workflow(request: WorkflowCreateRequest) -> dict[str, Any]:
@@ -193,18 +166,20 @@ def _register_create_workflow(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         version = definition_service.get_current_workflow_version(workflow)
-        return {"definition": _dump(workflow), "version": _dump(version)}
+        return {
+            "definition": _dump(workflow),
+            "version": _dump(version),
+            "graph": definition_service.graph_for_version(version),
+        }
 
 
 def _register_update_workflow(
     app: FastAPI,
     definition_service: WorkflowDefinitionService,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the update workflow endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.patch("/api/v0/workflows/{workflow_id}")
     def update_workflow(
@@ -227,11 +202,9 @@ def _register_replace_workflow_steps(
     app: FastAPI,
     definition_service: WorkflowDefinitionService,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the replace workflow steps endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.put("/api/v0/workflows/{workflow_id}/steps")
     def replace_workflow_steps(
@@ -280,21 +253,23 @@ def _register_replace_workflow_steps(
         except ValidationError as exc:
             raise HTTPException(status_code=422, detail=exc.errors()) from exc
         version = definition_service.get_current_workflow_version(workflow)
-        return {"definition": _dump(workflow), "version": _dump(version)}
+        return {
+            "definition": _dump(workflow),
+            "version": _dump(version),
+            "graph": definition_service.graph_for_version(version),
+        }
 
 
 def register_definition_routes(
     app: FastAPI,
     definition_service: WorkflowDefinitionService,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register definition routes."""
-    _register_list_workflows(app, definition_service, dump, run_view)
-    _register_get_workflow(app, definition_service, dump, run_view)
-    _register_list_workflow_versions(app, definition_service, dump, run_view)
-    _register_get_workflow_version(app, definition_service, dump, run_view)
-    _register_list_workflow_runs(app, definition_service, dump, run_view)
-    _register_create_workflow(app, definition_service, dump, run_view)
-    _register_update_workflow(app, definition_service, dump, run_view)
-    _register_replace_workflow_steps(app, definition_service, dump, run_view)
+    _register_list_workflows(app, definition_service, dump)
+    _register_get_workflow(app, definition_service, dump)
+    _register_list_workflow_versions(app, definition_service, dump)
+    _register_get_workflow_version(app, definition_service, dump)
+    _register_create_workflow(app, definition_service, dump)
+    _register_update_workflow(app, definition_service, dump)
+    _register_replace_workflow_steps(app, definition_service, dump)

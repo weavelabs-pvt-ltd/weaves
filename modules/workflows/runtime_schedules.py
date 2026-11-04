@@ -173,10 +173,14 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
     def update_workflow_schedule(
         self,
         schedule_id: str,
-        status: WorkflowScheduleStatus,
+        status: WorkflowScheduleStatus | None = None,
+        *,
+        name: str | None = None,
+        task_instructions: str | None = None,
+        interval_seconds: int | None = None,
         requested_by_principal_id: str = "local-developer",
     ) -> WorkflowSchedule:
-        """Enable or disable a schedule; re-enabling starts a fresh interval."""
+        """Update a schedule; changes restart its interval."""
         if status is WorkflowScheduleStatus.ERROR:
             raise ValueError("schedule status can only be set to active or disabled")
         if not self._bootstrapped():
@@ -187,16 +191,38 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
             current = self.workflow_schedules.get_scoped(
                 schedule_id, effective_org_id(), effective_workspace_id()
             )
-            if current.status is status:
+            next_status = status or current.status
+            next_name = name.strip() if name is not None else current.name
+            next_instructions = (
+                task_instructions.strip()
+                if task_instructions is not None
+                else current.task_instructions
+            )
+            next_interval = interval_seconds or current.interval_seconds
+            if not next_name or not next_instructions:
+                raise ValueError(
+                    "schedule name and task instructions must not be blank"
+                )
+            if not 60 <= next_interval <= 31_536_000:
+                raise ValueError("interval_seconds must be between 60 and 31536000")
+            if (
+                current.status is next_status
+                and current.name == next_name
+                and current.task_instructions == next_instructions
+                and current.interval_seconds == next_interval
+            ):
                 return current
             timestamp = _now()
             updated = WorkflowSchedule.model_validate(
                 current.model_copy(
                     update={
-                        "status": status,
+                        "status": next_status,
+                        "name": next_name,
+                        "task_instructions": next_instructions,
+                        "interval_seconds": next_interval,
                         "next_run_at": (
-                            timestamp + timedelta(seconds=current.interval_seconds)
-                            if status is WorkflowScheduleStatus.ACTIVE
+                            timestamp + timedelta(seconds=next_interval)
+                            if next_status is WorkflowScheduleStatus.ACTIVE
                             else current.next_run_at
                         ),
                         "last_error": None,
@@ -210,8 +236,8 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
                     updated,
                     actor,
                     "workflow.schedule.updated",
-                    f"Workflow schedule {status.value}",
-                    metadata={},
+                    f"Workflow schedule {next_status.value}",
+                    metadata={"interval_seconds": next_interval},
                 )
             return updated
 
@@ -341,6 +367,7 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
         idempotency_key: str,
     ) -> ExecutionJob | None:
         try:
+            self.authorize(schedule.created_by_principal_id, Permission.WORKFLOWS_RUN)
             job, _ = self.enqueue_agent_run(
                 task=task,
                 requested_by_principal_id=schedule.created_by_principal_id,

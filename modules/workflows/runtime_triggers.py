@@ -155,10 +155,13 @@ class WorkflowTriggerRuntimeMixin(WorkflowTriggerRuntimeHost):
     def update_workflow_trigger(
         self,
         trigger_id: str,
-        status: WorkflowTriggerStatus,
+        status: WorkflowTriggerStatus | None = None,
+        *,
+        name: str | None = None,
+        task_instructions: str | None = None,
         requested_by_principal_id: str = "local-developer",
     ) -> WorkflowTrigger:
-        """Enable or disable a workflow webhook trigger."""
+        """Update a workflow webhook's status or instructions."""
         if not self._bootstrapped():
             self.bootstrap()
         actor = effective_principal_id(requested_by_principal_id)
@@ -167,11 +170,30 @@ class WorkflowTriggerRuntimeMixin(WorkflowTriggerRuntimeHost):
             current = self.workflow_triggers.get_scoped(
                 trigger_id, effective_org_id(), effective_workspace_id()
             )
-            if current.status is status:
+            next_status = status or current.status
+            next_name = name.strip() if name is not None else current.name
+            next_instructions = (
+                task_instructions.strip()
+                if task_instructions is not None
+                else current.task_instructions
+            )
+            if not next_name or not next_instructions:
+                raise ValueError("trigger name and task instructions must not be blank")
+            if (
+                current.status is next_status
+                and current.name == next_name
+                and current.task_instructions == next_instructions
+            ):
                 return current
+            timestamp = _now()
             updated = WorkflowTrigger.model_validate(
                 current.model_copy(
-                    update={"status": status, "updated_at": _now()}
+                    update={
+                        "status": next_status,
+                        "name": next_name,
+                        "task_instructions": next_instructions,
+                        "updated_at": timestamp,
+                    }
                 ).model_dump()
             )
             with self._unit_of_work():
@@ -180,7 +202,7 @@ class WorkflowTriggerRuntimeMixin(WorkflowTriggerRuntimeHost):
                     updated,
                     actor,
                     "workflow.trigger.updated",
-                    f"Workflow trigger {status.value}",
+                    f"Workflow trigger {next_status.value}",
                 )
             return updated
 

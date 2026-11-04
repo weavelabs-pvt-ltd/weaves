@@ -25,6 +25,8 @@ from modules.memory.runtime import MemoryService
 from modules.models.bootstrap import ModelBootstrapService
 from modules.models.catalog import ModelCatalogService
 from modules.models.runtime import ModelService
+from modules.tasks.service import TaskService
+from modules.tasks.worker_service import TaskWorkerService
 from modules.workflows.automation_service import WorkflowAutomationService
 from modules.workflows.definition_service import WorkflowDefinitionService
 from modules.workflows.execution_service import WorkflowExecutionService
@@ -60,4 +62,6 @@ class CapabilityServiceSet:
     workflow_automation_service: WorkflowAutomationService
     workflow_definition_service: WorkflowDefinitionService
     workflow_execution_service: WorkflowExecutionService
+    task_service: TaskService
+    task_worker_service: TaskWorkerService
     workspace_access_service: WorkspaceAccessService

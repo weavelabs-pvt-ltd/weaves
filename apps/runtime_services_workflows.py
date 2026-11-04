@@ -38,7 +38,6 @@ def _configure_workflow_definition_service(
         agent_versions=dependencies.agent_versions,
         agents=dependencies.agents,
         audit_events=dependencies.audit_events,
-        runs=dependencies.runs,
         workflow_versions=dependencies.workflow_versions,
         workflows=dependencies.workflows,
         is_bootstrapped=lambda: dependencies._bootstrapped,

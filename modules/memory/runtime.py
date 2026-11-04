@@ -19,7 +19,6 @@ from contracts.v1 import (
     MemoryScope,
     Permission,
     WorkflowDefinition,
-    WorkflowRun,
 )
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
@@ -40,7 +39,6 @@ class MemoryService:
         audit_events: Repository[AuditEvent],
         memory_items: Repository[MemoryItem],
         threads: Repository[ConversationThread],
-        runs: Repository[WorkflowRun],
         workflows: Repository[WorkflowDefinition],
         is_bootstrapped: Callable[[], bool],
         bootstrap: Callable[[], None],
@@ -54,7 +52,6 @@ class MemoryService:
         self.audit_events = audit_events
         self.memory_items = memory_items
         self.threads = threads
-        self.runs = runs
         self.workflows = workflows
         self._is_bootstrapped = is_bootstrapped
         self._bootstrap = bootstrap
@@ -172,20 +169,6 @@ class MemoryService:
         )
         return self.threads.get_scoped(
             thread_id, effective_org_id(), effective_workspace_id()
-        )
-
-    def list_conversation_thread_runs(
-        self, thread_id: str, *, limit: int
-    ) -> tuple[WorkflowRun, ...]:
-        """List recent workflow runs associated with a visible conversation."""
-        thread = self.get_conversation_thread(thread_id)
-        runs = (
-            item
-            for item in self.runs.list_scoped(thread.org_id, thread.workspace_id)
-            if item.trigger_ref == thread_id
-        )
-        return tuple(
-            sorted(runs, key=lambda item: item.created_at, reverse=True)[:limit]
         )
 
     def create_memory_item(

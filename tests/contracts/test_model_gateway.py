@@ -146,7 +146,7 @@ def test_adapter_errors_do_not_expose_provider_response_bodies_or_secrets():
 
 def test_gateway_failure_is_recorded_on_run_and_agent_run():
     runtime = LocalPlatformRuntime()
-    runtime.model_gateway = ModelGateway({})
+    runtime.agent_execution_service.model_gateway = ModelGateway({})
 
     with pytest.raises(ModelGatewayError):
         runtime.run_agent("Summarize the handbook")

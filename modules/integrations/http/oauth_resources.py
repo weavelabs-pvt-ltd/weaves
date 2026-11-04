@@ -35,6 +35,9 @@ class OAuthResourceMixin(OAuthContextBase):
             "display_name": record.configuration.get("display_name", ""),
             "account_login": record.configuration.get("account_login", ""),
             "resources": record.configuration.get("resources", []),
+            "tools": record.configuration.get("resources", [])
+            if record.provider == "mcp"
+            else [],
             "sites": record.configuration.get("sites", []),
             "include_thread_replies": record.configuration.get(
                 "include_thread_replies", False
@@ -72,21 +75,23 @@ class OAuthResourceMixin(OAuthContextBase):
     def _validate_selection(
         self, record: OAuthAuthorizationState, request: OAuthResourceSelection
     ) -> tuple[str, ...]:
-        offered = record.configuration.get("resources", [])
+        offered_value = record.configuration.get("resources")
+        offered = offered_value if isinstance(offered_value, list) else []
         if record.provider == "jira":
-            sites = record.configuration.get("sites", [])
+            sites_value = record.configuration.get("sites")
+            sites = sites_value if isinstance(sites_value, list) else []
             site = next(
                 (
                     item
                     for item in sites
-                    if isinstance(item, dict)
-                    and item.get("id") == request.site_id
+                    if isinstance(item, dict) and item.get("id") == request.site_id
                 ),
                 None,
             )
             if site is None:
                 raise ValueError("Choose an Atlassian site available to this account")
-            offered = site.get("projects", [])
+            projects = site.get("projects")
+            offered = projects if isinstance(projects, list) else []
         names = {
             item.get("full_name") or item.get("key") or item.get("name")
             for item in offered
@@ -112,11 +117,7 @@ class OAuthResourceMixin(OAuthContextBase):
                 display_name=str(config["display_name"]),
                 github_installation_id=str(config["github_installation_id"]),
                 repositories=selected,
-                account_login=(
-                    config.get("account_login")
-                    if isinstance(config.get("account_login"), str)
-                    else None
-                ),
+                account_login=_config_string(config, "account_login"),
                 requested_by_principal_id=record.principal_id,
             )
         if not record.secret_ref:
@@ -127,20 +128,26 @@ class OAuthResourceMixin(OAuthContextBase):
                 display_name=str(config["display_name"]),
                 token_bundle=bundle,
                 channels=selected,
-                team_id=(
-                    config.get("team_id")
-                    if isinstance(config.get("team_id"), str)
-                    else None
-                ),
-                team_name=(
-                    config.get("team_name")
-                    if isinstance(config.get("team_name"), str)
-                    else None
-                ),
+                team_id=_config_string(config, "team_id"),
+                team_name=_config_string(config, "team_name"),
                 include_thread_replies=bool(config.get("include_thread_replies")),
                 requested_by_principal_id=record.principal_id,
             )
-        sites = config.get("sites", [])
+        if record.provider == "mcp":
+            return self.dependencies.connection_service.create_mcp_installation(
+                display_name=str(config["display_name"]),
+                endpoint_url=str(config["endpoint"]),
+                read_only_tool_names=selected,
+                oauth_token_bundle=self.dependencies.secret_store.get(
+                    str(record.secret_ref)
+                ),
+                catalog_connector_id=(
+                    _config_string(config, "catalog_connector_id") or "custom-mcp"
+                ),
+                requested_by_principal_id=record.principal_id,
+            )
+        sites_value = config.get("sites")
+        sites = sites_value if isinstance(sites_value, list) else []
         site = next(
             item
             for item in sites
@@ -155,9 +162,9 @@ class OAuthResourceMixin(OAuthContextBase):
             requested_by_principal_id=record.principal_id,
         )
 
-    def slack_resources(self, token: str) -> list[dict[str, str]]:
+    def slack_resources(self, token: str) -> list[dict[str, Any]]:
         """List public and private Slack channels visible to the OAuth user."""
-        result: list[dict[str, str]] = []
+        result: list[dict[str, Any]] = []
         cursor = ""
         while True:
             try:
@@ -254,7 +261,14 @@ class OAuthResourceMixin(OAuthContextBase):
                 ) from exc
             values = payload.get("values", [])
             projects.extend(
-                {"key": item["key"], "name": item.get("name", item["key"])}
+                {
+                    "key": item["key"],
+                    "name": (
+                        item["name"]
+                        if isinstance(item.get("name"), str)
+                        else item["key"]
+                    ),
+                }
                 for item in values
                 if isinstance(item, dict)
                 and isinstance(item.get("key"), str)
@@ -264,3 +278,9 @@ class OAuthResourceMixin(OAuthContextBase):
                 break
             start_at += len(values)
         return projects[:500]
+
+
+def _config_string(configuration: dict[str, Any], key: str) -> str | None:
+    """Return a validated optional string from OAuth state configuration."""
+    value = configuration.get(key)
+    return value if isinstance(value, str) else None

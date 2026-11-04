@@ -116,6 +116,9 @@ class IdentityBootstrapService:
                     Permission.WORKSPACES_ADMIN,
                     Permission.WORKFLOWS_MANAGE,
                     Permission.WORKFLOWS_RUN,
+                    Permission.TASKS_VIEW,
+                    Permission.TASKS_CREATE,
+                    Permission.TASKS_MANAGE,
                 ],
             ),
         )
@@ -194,6 +197,9 @@ class IdentityBootstrapService:
             Permission.AGENTS_RUN,
             Permission.WORKFLOWS_MANAGE,
             Permission.WORKFLOWS_RUN,
+            Permission.TASKS_VIEW,
+            Permission.TASKS_CREATE,
+            Permission.TASKS_MANAGE,
             Permission.PLUGINS_MANAGE,
             Permission.ARTIFACTS_READ,
             Permission.ACTIONS_APPROVE,
@@ -229,6 +235,7 @@ class IdentityBootstrapService:
             Permission.AGENTS_MANAGE: (Permission.AGENTS_VIEW,),
             Permission.WORKFLOWS_MANAGE: (Permission.WORKFLOWS_VIEW,),
             Permission.WORKFLOWS_RUN: (Permission.WORKFLOWS_VIEW,),
+            Permission.TASKS_MANAGE: (Permission.TASKS_VIEW, Permission.TASKS_CREATE),
             Permission.MODELS_MANAGE: (Permission.MODELS_VIEW,),
             Permission.PLUGINS_MANAGE: (
                 Permission.PLUGINS_VIEW,

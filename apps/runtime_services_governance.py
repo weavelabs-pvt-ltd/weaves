@@ -17,7 +17,6 @@ def _configure_governance_service(
         audit_events=dependencies.audit_events,
         agent_runs=dependencies.agent_runs,
         agent_versions=dependencies.agent_versions,
-        runs=dependencies.runs,
         tool_invocations=dependencies.tool_invocations,
         plugin_gateway=dependencies.plugin_gateway,
         is_bootstrapped=lambda: dependencies._bootstrapped,

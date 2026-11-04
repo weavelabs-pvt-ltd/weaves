@@ -27,6 +27,9 @@ from contracts.v1 import (
     Principal,
     Role,
     RoleBinding,
+    Task,
+    TaskMessage,
+    TaskTurn,
     ToolInvocation,
     User,
     UserInvitation,
@@ -135,6 +138,9 @@ REPOSITORY_SPECS: tuple[tuple[str, str, str, type[ProductContract]], ...] = (
         ConversationThread,
     ),
     ("execution_jobs", "execution_jobs", "job_id", ExecutionJob),
+    ("tasks", "tasks", "task_id", Task),
+    ("task_messages", "task_messages", "message_id", TaskMessage),
+    ("task_turns", "task_turns", "turn_id", TaskTurn),
     ("audit_events", "audit_events", "audit_event_id", AuditEvent),
 )
 

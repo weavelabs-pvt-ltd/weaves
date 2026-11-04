@@ -15,11 +15,11 @@ from shared.errors import PluginGatewayError
 
 
 class _Resolver(Protocol):
-    def resolve(self, auth_ref: str) -> str: ...
+    def resolve_for_plugin(self, auth_ref: str, provider: str) -> str: ...
 
 
 class JiraReadPlugin:
-    """Search Jira issues using a read-only API token and project allowlist."""
+    """Search Jira issues using an OAuth grant and project allowlist."""
 
     def __init__(
         self,
@@ -230,12 +230,7 @@ class JiraReadPlugin:
                 "plugin.credential_missing", "Jira installation has no credential"
             )
         try:
-            resolver = getattr(self._secrets, "resolve_for_plugin", None)
-            token = (
-                resolver(installation.auth_ref, "jira")
-                if callable(resolver)
-                else self._secrets.resolve(installation.auth_ref)
-            )
+            token = self._secrets.resolve_for_plugin(installation.auth_ref, "jira")
         except Exception as exc:
             raise PluginGatewayError(
                 "plugin.credential_unavailable", "Jira credential could not be resolved"

@@ -40,6 +40,11 @@ class OAuthInstallationHost(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def _ensure_bootstrapped(self) -> None:
+        """Ensure platform bootstrap has completed before installation writes."""
+        raise NotImplementedError
+
+    @abstractmethod
     def authorize(self, principal_id: str, permission: Permission) -> None:
         """Enforce connector-management permission in the current workspace."""
         raise NotImplementedError
@@ -201,6 +206,39 @@ class OAuthInstallationMixin(OAuthInstallationHost):
         except Exception:
             self.secret_store.delete(secret_ref)
             raise
+        self._audit_external_context_installation(
+            installation=installation,
+            descriptor=descriptor,
+            plugin_id=plugin_id,
+            audit_metadata=audit_metadata,
+            requested_by_principal_id=requested_by_principal_id,
+            existing=existing,
+        )
+        if existing and existing.auth_ref and existing.auth_ref != secret_ref:
+            self.secret_store.delete(existing.auth_ref)
+        self._disable_duplicate_external_installations(
+            [
+                item
+                for item in matches
+                if item.plugin_installation_id != installation_id
+            ],
+            plugin_id,
+            requested_by_principal_id,
+        )
+        return installation
+
+    def _audit_external_context_installation(
+        self,
+        *,
+        installation: PluginInstallation,
+        descriptor: PluginDescriptor,
+        plugin_id: str,
+        audit_metadata: dict[str, Any],
+        requested_by_principal_id: str,
+        existing: PluginInstallation | None,
+    ) -> None:
+        """Record a safe audit event for OAuth connector creation or update."""
+        installation_id = installation.plugin_installation_id
         self.audit_events.create(
             AuditEvent(
                 audit_event_id=_id(),
@@ -225,18 +263,6 @@ class OAuthInstallationMixin(OAuthInstallationHost):
                 created_at=_now(),
             )
         )
-        if existing and existing.auth_ref and existing.auth_ref != secret_ref:
-            self.secret_store.delete(existing.auth_ref)
-        self._disable_duplicate_external_installations(
-            [
-                item
-                for item in matches
-                if item.plugin_installation_id != installation_id
-            ],
-            plugin_id,
-            requested_by_principal_id,
-        )
-        return installation
 
     def _disable_duplicate_external_installations(
         self,

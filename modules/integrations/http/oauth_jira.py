@@ -1,12 +1,14 @@
 """OAuth Jira route handlers."""
 
 import os
+from typing import cast
 
 from fastapi import HTTPException, Query
 from fastapi.responses import RedirectResponse
 
 from modules.integrations.http.oauth_context import (
     OAuthContextBase,
+    OAuthResourceDiscovery,
     _state_string,
 )
 
@@ -55,7 +57,7 @@ class OAuthJiraMixin(OAuthContextBase):
 
         try:
             bundle = self.token_bundle("jira", payload)
-            resources = self.jira_sites(access)
+            resources = cast(OAuthResourceDiscovery, self).jira_sites(access)
         except HTTPException:
             return self.finish("jira", "failed", "resource_discovery")
         if not resources:

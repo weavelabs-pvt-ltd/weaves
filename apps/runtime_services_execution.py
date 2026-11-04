@@ -127,6 +127,8 @@ def _configure_evaluation_and_recovery_services(
         evaluation_reports=dependencies.evaluation_reports,
         evaluation_suites=dependencies.evaluation_suites,
         execution_jobs=dependencies.execution_jobs,
+        tasks=dependencies.tasks,
+        task_turns=dependencies.task_turns,
         runs=dependencies.runs,
         tool_invocations=dependencies.tool_invocations,
         is_bootstrapped=lambda: dependencies._bootstrapped,
@@ -142,6 +144,8 @@ def _configure_evaluation_and_recovery_services(
             )
         ),
         run_agent=services.agent_execution_service.run_agent,
+        idempotency_guard=dependencies._idempotency_guard,
+        execution_job_idempotency_locks=(dependencies._execution_job_idempotency_locks),
     )
     services.recovery_service = ExecutionRecoveryService(
         runs=dependencies.runs,

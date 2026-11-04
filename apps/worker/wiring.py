@@ -22,4 +22,5 @@ def build_worker_services() -> WorkerServices:
         action_recovery=runtime.action_recovery_service,
         memory=runtime.memory_service,
         workflow_automation=runtime.workflow_automation_service,
+        tasks=runtime.task_worker_service,
     )

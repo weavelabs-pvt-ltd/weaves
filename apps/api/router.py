@@ -11,13 +11,13 @@ from apps.api.route_services import ApiRouteServices
 from modules.agents.http.routes import register_agent_routes
 from modules.auth.http.routes import register_identity_routes
 from modules.evaluations.http.routes import register_evaluation_routes
-from modules.executions.http.routes import register_execution_routes
-from modules.executions.http.views import execution_run_view
+from modules.governance.http.audit_routes import register_audit_routes
 from modules.governance.http.routes import register_governance_routes
 from modules.integrations.http.oauth import register_oauth_routes
 from modules.integrations.http.routes import register_plugin_routes
 from modules.knowledge.http.routes import register_context_routes
 from modules.models.http.routes import register_model_routes
+from modules.tasks.http.routes import register_task_routes
 from modules.workflows.http.routes import register_workflow_routes
 
 
@@ -59,13 +59,7 @@ def register_v0_routes(app: FastAPI, services: ApiRouteServices) -> None:
         dump,
     )
     register_oauth_routes(app, services.oauth)
-    register_context_routes(
-        app,
-        services.knowledge,
-        services.memory,
-        dump,
-        lambda run: execution_run_view(services.agent_execution, run),
-    )
+    register_context_routes(app, services.knowledge, services.memory, dump)
     register_agent_routes(app, services.agents, services.integration_admin, dump)
     register_evaluation_routes(
         app, services.evaluations, services.storage_mode == "postgres", dump
@@ -74,15 +68,9 @@ def register_v0_routes(app: FastAPI, services: ApiRouteServices) -> None:
         app,
         services.workflow_definition,
         services.workflow_automation,
-        services.workflow_execution,
         services.storage_mode == "postgres",
         dump,
-        lambda run: execution_run_view(services.agent_execution, run),
     )
-    register_execution_routes(
-        app,
-        services.execution,
-        dump,
-        lambda run: execution_run_view(services.agent_execution, run),
-    )
+    register_task_routes(app, services.tasks, dump)
+    register_audit_routes(app, services.governance, dump)
     register_governance_routes(app, services.governance, dump)

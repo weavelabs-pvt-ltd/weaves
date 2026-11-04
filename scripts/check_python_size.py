@@ -15,6 +15,9 @@ SKIP_DIRS = {
     ".pytest_cache",
     ".ruff_cache",
     ".venv",
+    ".local",
+    "venv",
+    ".tox",
     "__pycache__",
     "node_modules",
 }

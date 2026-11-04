@@ -9,6 +9,7 @@ from contracts.v1 import (
     ExecutionJob,
     ExecutionJobStatus,
     RunStatus,
+    TaskTurnStatus,
 )
 from tests.support.runtime import LocalPlatformRuntime
 
@@ -172,30 +173,34 @@ def test_execution_job_queue_is_idempotent_and_worker_completes_a_run():
 
 def test_execution_job_worker_renews_lease_during_long_run(monkeypatch):
     runtime = LocalPlatformRuntime()
-    job, _ = runtime.enqueue_agent_run("Keep the execution lease alive")
-    runtime.EXECUTION_JOB_HEARTBEAT_SECONDS = 0.005
-    original_run_agent = runtime.run_agent
+    task = runtime.task_service.create_task(
+        agent_id="local-assistant",
+        title="Heartbeat task",
+        initial_message="Keep the task turn lease alive",
+    )
+    runtime.task_worker_service.heartbeat_interval_seconds = 0.005
+    original_run_agent = runtime.agent_execution_service.run_agent
     heartbeat_calls = []
 
     def slow_run_agent(*args, **kwargs):
         time.sleep(0.04)
         return original_run_agent(*args, **kwargs)
 
-    original_heartbeat = runtime.heartbeat_execution_job
+    original_heartbeat = runtime.task_turns.put_if_worker_owned
 
-    def observed_heartbeat(job_id, *, worker_id, attempts):
-        result = original_heartbeat(job_id, worker_id=worker_id, attempts=attempts)
+    def observed_heartbeat(turn, *, worker_id, attempts):
+        result = original_heartbeat(turn, worker_id=worker_id, attempts=attempts)
         heartbeat_calls.append(result)
         return result
 
-    monkeypatch.setattr(runtime, "run_agent", slow_run_agent)
-    monkeypatch.setattr(runtime, "heartbeat_execution_job", observed_heartbeat)
+    monkeypatch.setattr(runtime.agent_execution_service, "run_agent", slow_run_agent)
+    monkeypatch.setattr(runtime.task_turns, "put_if_worker_owned", observed_heartbeat)
 
-    completed = runtime.process_next_execution_job("worker-with-heartbeat")
+    completed = runtime.task_worker_service.process_next_turn("worker-with-heartbeat")
 
     assert completed is not None
-    assert completed.job_id == job.job_id
-    assert completed.status is ExecutionJobStatus.SUCCEEDED
+    assert completed.task_id == task.task_id
+    assert completed.status is TaskTurnStatus.SUCCEEDED
     assert heartbeat_calls
     assert any(heartbeat_calls)
 

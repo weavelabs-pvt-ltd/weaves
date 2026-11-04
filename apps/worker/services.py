@@ -9,6 +9,7 @@ from modules.executions.recovery_service import ExecutionRecoveryService
 from modules.executions.worker_service import ExecutionWorkerService
 from modules.governance.action_recovery_service import ActionRecoveryService
 from modules.memory.runtime import MemoryService
+from modules.tasks.worker_service import TaskWorkerService
 from modules.workflows.automation_service import WorkflowAutomationService
 
 
@@ -24,3 +25,4 @@ class WorkerServices:
     action_recovery: ActionRecoveryService
     memory: MemoryService
     workflow_automation: WorkflowAutomationService
+    tasks: TaskWorkerService

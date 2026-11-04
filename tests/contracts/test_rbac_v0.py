@@ -41,6 +41,8 @@ def test_standard_role_bundles_and_legacy_role_payload_compatibility():
         Permission.AGENTS_RUN,
         Permission.WORKFLOWS_VIEW,
         Permission.WORKFLOWS_RUN,
+        Permission.TASKS_VIEW,
+        Permission.TASKS_CREATE,
         Permission.MODELS_VIEW,
         Permission.PLUGINS_VIEW,
         Permission.KNOWLEDGE_VIEW,
@@ -48,6 +50,7 @@ def test_standard_role_bundles_and_legacy_role_payload_compatibility():
     }
     assert Permission.AGENTS_MANAGE in builder.permissions
     assert Permission.WORKFLOWS_MANAGE in builder.permissions
+    assert Permission.TASKS_MANAGE in builder.permissions
     assert Permission.MODELS_MANAGE not in builder.permissions
     assert set(admin.permissions) == set(Permission)
     assert old_role.system_role_key is None

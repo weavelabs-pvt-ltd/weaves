@@ -1,12 +1,14 @@
 """OAuth Slack route handlers."""
 
 import os
+from typing import Any, cast
 
 from fastapi import HTTPException, Query
 from fastapi.responses import RedirectResponse
 
 from modules.integrations.http.oauth_context import (
     OAuthContextBase,
+    OAuthResourceDiscovery,
     _state_bool,
     _state_string,
 )
@@ -56,7 +58,7 @@ class OAuthSlackMixin(OAuthContextBase):
         bundle = self.token_bundle("slack", user, access_token=access_token)
 
         try:
-            resources = self.slack_resources(access_token)
+            resources = cast(OAuthResourceDiscovery, self).slack_resources(access_token)
         except HTTPException:
             return self.finish("slack", "failed", "resource_discovery")
         if not resources:
@@ -86,7 +88,7 @@ class OAuthSlackMixin(OAuthContextBase):
         return self.setup_redirect("slack", setup.oauth_state_id)
 
 
-def _nested_string(payload: dict, parent: str, key: str) -> str | None:
+def _nested_string(payload: dict[str, Any], parent: str, key: str) -> str | None:
     """Return a nested provider string field when its shape is valid."""
     value = payload.get(parent)
     field = value.get(key) if isinstance(value, dict) else None

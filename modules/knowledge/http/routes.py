@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from contracts.v1 import (
@@ -52,11 +52,10 @@ def register_context_routes(
     knowledge_service: KnowledgeService,
     memory_service: MemoryService,
     dump: Callable[[BaseModel], dict[str, Any]],
-    run_view: Callable[[Any], dict[str, Any]],
 ) -> None:
     """Register knowledge, memory, and conversation thread endpoints."""
     _register_context_routes_group_1(app, knowledge_service, memory_service, dump)
-    _register_context_routes_group_2(app, memory_service, dump, run_view)
+    _register_context_routes_group_2(app, memory_service, dump)
     _register_context_routes_group_3(app, memory_service)
 
 
@@ -135,27 +134,15 @@ def _register_context_routes_group_2(
     app: FastAPI,
     memory_service: MemoryService,
     dump: Callable[[BaseModel], dict[str, Any]],
-    run_view: Callable[[Any], dict[str, Any]],
 ) -> None:
     """Register knowledge, memory, and conversation thread endpoints."""
     _dump = dump
-    _run_view = run_view
 
     def get_conversation_thread(thread_id: str) -> dict[str, Any]:
         try:
             return _dump(memory_service.get_conversation_thread(thread_id))
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Thread not found") from exc
-
-    def list_conversation_thread_runs(
-        thread_id: str,
-        limit: int = Query(default=50, ge=1, le=100),
-    ) -> list[dict[str, Any]]:
-        try:
-            runs = memory_service.list_conversation_thread_runs(thread_id, limit=limit)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Thread not found") from exc
-        return [_run_view(item) for item in runs]
 
     def update_conversation_thread(
         thread_id: str, request: ConversationThreadPatchRequest
@@ -179,7 +166,6 @@ def _register_context_routes_group_2(
         return _dump(item)
 
     app.get("/api/v0/threads/{thread_id}")(get_conversation_thread)
-    app.get("/api/v0/threads/{thread_id}/runs")(list_conversation_thread_runs)
     app.patch("/api/v0/threads/{thread_id}")(update_conversation_thread)
     app.post("/api/v0/memory-items", status_code=201)(create_memory_item)
 

@@ -21,6 +21,7 @@ from contracts.v1 import (
     PluginInstallation,
     PluginInstallationStatus,
 )
+from modules.integrations.catalog import connector_catalog, oauth_provider_readiness
 from modules.integrations.runtime_installation_admin import (
     IntegrationInstallationAdminMixin,
 )
@@ -101,6 +102,34 @@ class IntegrationAdminService(
         return self.installations.list_scoped(
             effective_org_id(), effective_workspace_id()
         )
+
+    def list_connector_catalog(self) -> tuple[dict[str, object], ...]:
+        """Return connector catalog entries enriched with workspace status."""
+        self._ensure_bootstrapped()
+        self.authorize("local-developer", Permission.PLUGINS_VIEW)
+        installations = self.installations.list_scoped(
+            effective_org_id(), effective_workspace_id()
+        )
+        result: list[dict[str, object]] = []
+        for entry in connector_catalog(oauth_provider_readiness()):
+            connector_id = str(entry["connector_id"])
+            related = [
+                item
+                for item in installations
+                if item.plugin_id == connector_id
+                or item.configuration.get("catalog_connector_id") == connector_id
+            ]
+            result.append(
+                {
+                    **entry,
+                    "connected": any(
+                        item.status is PluginInstallationStatus.ACTIVE
+                        for item in related
+                    ),
+                    "connection_count": len(related),
+                }
+            )
+        return tuple(result)
 
     def resolve_capability_installation(
         self,

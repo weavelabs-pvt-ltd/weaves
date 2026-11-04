@@ -66,7 +66,6 @@ def _configure_model_and_context_services(
         audit_events=dependencies.audit_events,
         memory_items=dependencies.memory_items,
         threads=dependencies.threads,
-        runs=dependencies.runs,
         workflows=dependencies.workflows,
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,

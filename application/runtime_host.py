@@ -54,6 +54,7 @@ if TYPE_CHECKING:
     from modules.models.bootstrap import ModelBootstrapService
     from modules.models.catalog import ModelCatalogService
     from modules.models.runtime import ModelService
+    from modules.tasks.service import TaskService
     from modules.workflows.automation_service import WorkflowAutomationService
     from modules.workflows.definition_service import WorkflowDefinitionService
     from modules.workflows.execution_service import WorkflowExecutionService
@@ -85,6 +86,7 @@ class RuntimeCapabilityHost:
     workflow_automation_service: WorkflowAutomationService
     workflow_definition_service: WorkflowDefinitionService
     workflow_execution_service: WorkflowExecutionService
+    task_service: TaskService
     agent_bootstrap_service: AgentBootstrapService
     integration_bootstrap_service: IntegrationBootstrapService
     identity_bootstrap_service: IdentityBootstrapService
@@ -191,6 +193,7 @@ class RuntimeCapabilityHost:
         idempotency_key: str | None = None,
         *,
         workflow_id: str | None = None,
+        agent_version_id: str | None = None,
         _cancellation_event: Event | None = None,
         _cancellation_check: Callable[[], bool] | None = None,
     ) -> RuntimeResult:

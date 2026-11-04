@@ -1,12 +1,6 @@
 from fastapi.testclient import TestClient
 
 from apps.api.app import create_app
-from clients.model_providers.gateway import ModelGateway
-from contracts.v1 import (
-    ModelProviderType,
-    ModelResponse,
-    ModelUsage,
-)
 from tests.support.runtime import LocalPlatformRuntime
 
 
@@ -14,36 +8,38 @@ def test_run_idempotency_replays_success_and_rejects_key_reuse():
     runtime = LocalPlatformRuntime()
     client = TestClient(create_app(runtime))
     headers = {"Idempotency-Key": "client-request-001"}
+    payload = {
+        "agent_id": "local-assistant",
+        "title": "Idempotency task",
+        "initial_message": "Summarize the security basics",
+    }
 
     with client:
         first = client.post(
-            "/api/v0/runs",
-            json={"task": "Summarize the security basics"},
+            "/api/v0/tasks",
+            json=payload,
             headers=headers,
         )
-        assert first.status_code == 201
-        assert first.json()["replayed"] is False
+        assert first.status_code == 202
 
         repeated = client.post(
-            "/api/v0/runs",
-            json={"task": "Summarize the security basics"},
+            "/api/v0/tasks",
+            json=payload,
             headers=headers,
         )
-        assert repeated.status_code == 201
-        assert repeated.json()["replayed"] is True
-        assert repeated.json()["run"]["run_id"] == first.json()["run"]["run_id"]
-        assert len(client.get("/api/v0/runs").json()) == 1
-        assert len(runtime.tool_invocations.list()) == 1
+        assert repeated.status_code == 202
+        assert repeated.json()["task_id"] == first.json()["task_id"]
+        assert len(runtime.tasks.list()) == 1
 
         conflict = client.post(
-            "/api/v0/runs",
-            json={"task": "Summarize the time off policy"},
+            "/api/v0/tasks",
+            json={**payload, "initial_message": "Summarize the time off policy"},
             headers=headers,
         )
         assert conflict.status_code == 409
 
 
-def test_api_runs_published_workflow_by_workflow_id():
+def test_published_workflow_exposes_its_versioned_graph():
     client = TestClient(create_app(LocalPlatformRuntime()))
 
     with client:
@@ -51,100 +47,14 @@ def test_api_runs_published_workflow_by_workflow_id():
         assert workflows_response.status_code == 200
         workflow_id = workflows_response.json()[0]["workflow_id"]
 
-        response = client.post(
-            f"/api/v0/workflows/{workflow_id}/runs",
-            json={"task": "Summarize the security basics"},
-            headers={"Idempotency-Key": "workflow-run-001"},
+        detail = client.get(f"/api/v0/workflows/{workflow_id}").json()
+        graph = detail["graph"]
+        assert graph["workflow_id"] == workflow_id
+        assert len(graph["nodes"]) == 1
+        assert (
+            graph["nodes"][0]["agent_version_id"]
+            == (detail["version"]["agent_version_ids"][0])
         )
-
-        assert response.status_code == 201
-        body = response.json()
-        assert body["run"]["workflow_id"] == workflow_id
-        assert body["run"]["status"] == "succeeded"
-        assert body["artifacts"][0]["provenance"]
-        assert body["replayed"] is False
-
-        replayed = client.post(
-            f"/api/v0/workflows/{workflow_id}/runs",
-            json={"task": "Summarize the security basics"},
-            headers={"Idempotency-Key": "workflow-run-001"},
-        )
-        assert replayed.status_code == 201
-        assert replayed.json()["replayed"] is True
-        assert replayed.json()["run"]["run_id"] == body["run"]["run_id"]
-
-        newer = client.post(
-            f"/api/v0/workflows/{workflow_id}/runs",
-            json={"task": "Summarize the time off policy"},
-        )
-        assert newer.status_code == 201
-        _create_other_workflow_run(client)
-        _assert_workflow_run_history(
-            client,
-            workflow_id,
-            body["run"]["run_id"],
-            newer.json()["run"]["run_id"],
-        )
-
-
-def _create_other_workflow_run(client: TestClient) -> None:
-    agent = client.post(
-        "/api/v0/agents",
-        json={"name": "Separate workflow agent", "instructions": "Summarize."},
-    )
-    assert agent.status_code == 201
-    workflow = client.post(
-        "/api/v0/workflows",
-        json={"name": "Separate workflow", "agent_id": agent.json()["id"]},
-    )
-    assert workflow.status_code == 201
-    run = client.post(
-        f"/api/v0/workflows/{workflow.json()['definition']['workflow_id']}/runs",
-        json={"task": "Summarize a separate process"},
-    )
-    assert run.status_code == 201
-
-
-def _assert_workflow_run_history(
-    client: TestClient,
-    workflow_id: str,
-    original_run_id: str,
-    newer_run_id: str,
-) -> None:
-    history = client.get(f"/api/v0/workflows/{workflow_id}/runs")
-    assert history.status_code == 200, history.text
-    items = history.json()["items"]
-    assert {item["run_id"] for item in items} == {newer_run_id, original_run_id}
-    assert all(item["workflow_id"] == workflow_id for item in items)
-    assert items == sorted(
-        items,
-        key=lambda item: (item["created_at"], item["run_id"]),
-        reverse=True,
-    )
-    assert items[0]["agent_runs"]
-    assert items[0]["artifacts"]
-    assert items[0]["tool_invocations"]
-    _assert_history_pagination(client, workflow_id, items)
-
-
-def _assert_history_pagination(
-    client: TestClient, workflow_id: str, history_items: list[dict]
-) -> None:
-    first_page = client.get(
-        f"/api/v0/workflows/{workflow_id}/runs", params={"limit": 1}
-    ).json()
-    assert [item["run_id"] for item in first_page["items"]] == [
-        history_items[0]["run_id"]
-    ]
-    assert first_page["next_cursor"]
-    second_page = client.get(
-        f"/api/v0/workflows/{workflow_id}/runs",
-        params={"limit": 1, "cursor": first_page["next_cursor"]},
-    ).json()
-    assert [item["run_id"] for item in second_page["items"]] == [
-        history_items[1]["run_id"]
-    ]
-    assert second_page["next_cursor"] is None
 
 
 def test_api_rejects_unknown_workflow_run():
@@ -169,7 +79,7 @@ def test_api_creates_manages_and_keeps_workflows_bound_to_agent_versions():
 
 
 def _create_version_bound_workflow(client):
-    """Create and run a workflow pinned to an immutable agent version."""
+    """Create a workflow pinned to an immutable agent version."""
     agent_response = client.post(
         "/api/v0/agents",
         json={"name": "Release helper", "instructions": "Review releases."},
@@ -207,14 +117,6 @@ def _create_version_bound_workflow(client):
         detail.json()["version"]["workflow_version_id"]
         == workflow["current_version_id"]
     )
-    first_run = client.post(
-        f"/api/v0/workflows/{workflow_id}/runs",
-        json={"task": "Review the release notes"},
-    )
-    assert first_run.status_code == 201
-    assert first_run.json()["run"]["workflow_id"] == workflow_id
-    assert first_run.json()["run"]["workflow_version_id"] == first_workflow_version_id
-    assert first_run.json()["agent_run"]["agent_version_id"] == agent_version_id
     return {
         "agent": agent,
         "workflow_id": workflow_id,
@@ -273,46 +175,25 @@ def _assert_archived_workflow_can_be_reactivated(client, workflow_id):
         f"/api/v0/workflows/{workflow_id}/runs",
         json={"task": "Review the next release"},
     )
-    assert unavailable.status_code == 422
+    assert unavailable.status_code == 404
     reactivated = client.patch(
         f"/api/v0/workflows/{workflow_id}", json={"status": "active"}
     )
     assert reactivated.status_code == 200
-    run = client.post(
-        f"/api/v0/workflows/{workflow_id}/runs",
-        json={"task": "Review the next release"},
-    )
-    assert run.status_code == 201
-    assert run.json()["run"]["status"] == "succeeded"
 
 
-def test_api_runs_linear_multi_agent_workflow_and_replays_all_steps():
+def test_linear_workflow_projects_ordered_steps_into_graph():
     runtime = LocalPlatformRuntime()
-    captured_requests = []
-
-    class CapturingModel:
-        def complete(self, request, binding):
-            captured_requests.append(request)
-            step = len(captured_requests)
-            return ModelResponse(
-                provider_id=binding.provider.id,
-                model_id=binding.profile.model,
-                content=f"Step {step} output",
-                usage=ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2),
-            )
-
-    runtime.model_adapters[ModelProviderType.LOCAL] = CapturingModel()
-    runtime.model_gateway = ModelGateway(runtime.model_adapters)
     client = TestClient(create_app(runtime))
 
     with client:
-        agent_ids, workflow_id, version = _create_linear_workflow(client)
-        _assert_linear_workflow_replay(
-            client, workflow_id, agent_ids, captured_requests
-        )
-        _assert_linear_workflow_republishes_agent_version(
-            client, workflow_id, agent_ids, version, captured_requests
-        )
+        agent_ids, workflow_id, _version = _create_linear_workflow(client)
+        graph = client.get(f"/api/v0/workflows/{workflow_id}").json()["graph"]
+        assert [node["agent_id"] for node in graph["nodes"]] == agent_ids
+        assert [stage["execution_mode"] for stage in graph["stages"]] == [
+            "sequential",
+            "sequential",
+        ]
 
 
 def _create_linear_workflow(client):
@@ -334,69 +215,3 @@ def _create_linear_workflow(client):
     assert version["handler_key"] == "agent.sequence"
     assert len(version["agent_version_ids"]) == 2
     return agent_ids, created.json()["definition"]["workflow_id"], version
-
-
-def _assert_linear_workflow_replay(client, workflow_id, agent_ids, captured_requests):
-    """Run both workflow steps, inspect artifacts, and verify idempotent replay."""
-    headers = {"Idempotency-Key": "linear-workflow-001"}
-    response = client.post(
-        f"/api/v0/workflows/{workflow_id}/runs",
-        json={"task": "Assess this release candidate"},
-        headers=headers,
-    )
-    assert response.status_code == 201
-    result = response.json()
-    run_id = result["run"]["run_id"]
-    assert result["run"]["status"] == "succeeded"
-    assert result["run"]["workflow_id"] == workflow_id
-    assert [item["agent_id"] for item in result["agent_runs"]] == agent_ids
-    assert [
-        item["input_summary"]["workflow_step_index"] for item in result["agent_runs"]
-    ] == [0, 1]
-    assert len(result["artifacts"]) == 2
-    assert all(item["run_id"] == run_id for item in result["agent_runs"])
-    assert all(item["run_id"] == run_id for item in result["artifacts"])
-    assert any(
-        item["source_ref"] == result["artifacts"][0]["artifact_id"]
-        for item in result["artifacts"][1]["provenance"]
-    )
-    assert "Step 1 output" in captured_requests[1].messages[-1].content
-    assert "untrusted reference data" in captured_requests[1].messages[0].content
-    detail = client.get(f"/api/v0/runs/{run_id}")
-    assert len(detail.json()["agent_runs"]) == 2
-    assert len(detail.json()["artifacts"]) == 2
-    replay = client.post(
-        f"/api/v0/workflows/{workflow_id}/runs",
-        json={"task": "Assess this release candidate"},
-        headers=headers,
-    )
-    assert replay.status_code == 201
-    assert replay.json()["replayed"] is True
-    assert replay.json()["run"]["run_id"] == run_id
-    assert len(replay.json()["agent_runs"]) == 2
-    assert len(captured_requests) == 2
-
-
-def _assert_linear_workflow_republishes_agent_version(
-    client, workflow_id, agent_ids, version, captured_requests
-):
-    """Publish an agent update and confirm a new workflow run uses it."""
-    updated = client.patch(
-        f"/api/v0/agents/{agent_ids[0]}",
-        json={"instructions": "Plan the release review with clear criteria."},
-    )
-    assert updated.status_code == 200
-    workflow = client.get(f"/api/v0/workflows/{workflow_id}").json()
-    assert workflow["version"]["version"] == 2
-    assert workflow["version"]["agent_version_ids"] == [
-        updated.json()["current_version"]["agent_version_id"],
-        version["agent_version_ids"][1],
-    ]
-    response = client.post(
-        f"/api/v0/workflows/{workflow_id}/runs",
-        json={"task": "Assess this release candidate"},
-        headers={"Idempotency-Key": "linear-workflow-002"},
-    )
-    assert response.status_code == 201
-    assert [item["agent_id"] for item in response.json()["agent_runs"]] == agent_ids
-    assert len(captured_requests) == 4

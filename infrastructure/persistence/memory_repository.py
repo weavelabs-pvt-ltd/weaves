@@ -8,7 +8,6 @@ from typing import Any, Generic
 
 from application.ports.repository import TContract
 from contracts.v1.base import OpaqueId
-from contracts.v1.executions import ExecutionJobStatus
 
 
 def _record_value(record: TContract, field: str) -> Any:
@@ -182,6 +181,121 @@ class InMemoryRepository(Generic[TContract]):
                     return self._clone(record)
         return None
 
+    def list_task_page(
+        self,
+        org_id: OpaqueId,
+        workspace_id: OpaqueId,
+        *,
+        status: str | None,
+        agent_id: str | None,
+        created_by_principal_id: str | None,
+        cursor_created_at: datetime | None,
+        cursor_task_id: str | None,
+        limit: int,
+    ) -> tuple[TContract, ...]:
+        """Return a bounded newest-first page from the task collection."""
+        if self._id_field != "task_id":
+            raise TypeError("task paging requires a task repository")
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        with self._lock:
+            records = tuple(self._records.values())
+        selected = [
+            record
+            for record in records
+            if getattr(record, "org_id", None) == org_id
+            and getattr(record, "workspace_id", None) == workspace_id
+            and (status is None or _record_value(record, "status").value == status)
+            and (agent_id is None or getattr(record, "agent_id", None) == agent_id)
+            and (
+                created_by_principal_id is None
+                or getattr(record, "created_by_principal_id", None)
+                == created_by_principal_id
+            )
+            and (
+                cursor_created_at is None
+                or (
+                    _record_value(record, "created_at"),
+                    self._record_id(record),
+                )
+                < (cursor_created_at, cursor_task_id or "")
+            )
+        ]
+        selected.sort(
+            key=lambda record: (
+                _record_value(record, "created_at"),
+                self._record_id(record),
+            ),
+            reverse=True,
+        )
+        return tuple(self._clone(record) for record in selected[:limit])
+
+    def list_task_messages_page(
+        self,
+        task_id: OpaqueId,
+        org_id: OpaqueId,
+        workspace_id: OpaqueId,
+        *,
+        cursor_created_at: datetime | None,
+        cursor_message_id: str | None,
+        limit: int,
+    ) -> tuple[TContract, ...]:
+        """Return a bounded newest-first transcript page for one task."""
+        if self._id_field != "message_id":
+            raise TypeError("task message paging requires a message repository")
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        with self._lock:
+            records = tuple(self._records.values())
+        selected = [
+            record
+            for record in records
+            if getattr(record, "task_id", None) == task_id
+            and getattr(record, "org_id", None) == org_id
+            and getattr(record, "workspace_id", None) == workspace_id
+            and (
+                cursor_created_at is None
+                or (
+                    _record_value(record, "created_at"),
+                    self._record_id(record),
+                )
+                < (cursor_created_at, cursor_message_id or "")
+            )
+        ]
+        selected.sort(
+            key=lambda record: (
+                _record_value(record, "created_at"),
+                self._record_id(record),
+            ),
+            reverse=True,
+        )
+        return tuple(self._clone(record) for record in selected[:limit])
+
+    def list_status_updated_before(
+        self,
+        status: str,
+        updated_before: datetime,
+        *,
+        limit: int,
+    ) -> tuple[TContract, ...]:
+        """Return bounded stale records for lease recovery."""
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        with self._lock:
+            selected = [
+                record
+                for record in self._records.values()
+                if getattr(getattr(record, "status", None), "value", None) == status
+                and _record_value(record, "updated_at") <= updated_before
+            ]
+        selected.sort(
+            key=lambda record: (
+                _record_value(record, "updated_at"),
+                self._record_id(record),
+            )
+        )
+        return tuple(self._clone(record) for record in selected[:limit])
+
     def claim_next_queued(
         self,
         worker_id: str,
@@ -204,10 +318,11 @@ class InMemoryRepository(Generic[TContract]):
             if not queued:
                 return None
             current = min(queued, key=lambda item: _record_value(item, "created_at"))
+            status_type = type(_record_value(current, "status"))
             claimed = type(current).model_validate(
                 current.model_copy(
                     update={
-                        "status": ExecutionJobStatus.RUNNING,
+                        "status": status_type("running"),
                         "attempts": int(getattr(current, "attempts", 0)) + 1,
                         "worker_id": worker_id,
                         "started_at": timestamp,
@@ -281,6 +396,22 @@ class InMemoryRepository(Generic[TContract]):
         expected_status: str = "running",
     ) -> bool:
         """Update an execution job only for its current owner and state."""
+        return self.put_if_worker_owned(
+            record,
+            worker_id=worker_id,
+            attempts=attempts,
+            expected_status=expected_status,
+        )
+
+    def put_if_worker_owned(
+        self,
+        record: TContract,
+        *,
+        worker_id: str,
+        attempts: int,
+        expected_status: str = "running",
+    ) -> bool:
+        """Fence a record update to the worker's current lease and attempt."""
         record_id = self._record_id(record)
         with self._lock:
             current = self._records.get(record_id)
@@ -290,6 +421,27 @@ class InMemoryRepository(Generic[TContract]):
                 != expected_status
                 or getattr(current, "worker_id", None) != worker_id
                 or getattr(current, "attempts", None) != attempts
+            ):
+                return False
+            self._records[record_id] = self._clone(record)
+        return True
+
+    def put_if_task_state(
+        self,
+        record: TContract,
+        *,
+        expected_status: str,
+        expected_active_turn_id: str | None,
+    ) -> bool:
+        """Compare task lifecycle and active turn before replacing the record."""
+        record_id = self._record_id(record)
+        with self._lock:
+            current = self._records.get(record_id)
+            if (
+                current is None
+                or getattr(getattr(current, "status", None), "value", None)
+                != expected_status
+                or getattr(current, "active_turn_id", None) != expected_active_turn_id
             ):
                 return False
             self._records[record_id] = self._clone(record)

@@ -58,10 +58,18 @@ def test_slack_search_stays_in_the_configured_channel():
     runtime.slack_plugin._client = client
     try:
         runtime.bootstrap()
-        installation = runtime.create_slack_installation(
-            display_name="Engineering Slack",
-            user_token="xoxp-test-token",
-            channels=("engineering",),
+        installation = (
+            runtime.integration_connection_service.create_slack_oauth_installation(
+                display_name="Engineering Slack",
+                token_bundle=json.dumps(
+                    {
+                        "weaves_oauth": True,
+                        "provider": "slack",
+                        "access_token": "xoxp-test-token",
+                    }
+                ),
+                channels=("engineering",),
+            )
         )
 
         result = _invoke(
@@ -127,11 +135,19 @@ def test_slack_search_can_include_replies_from_one_allowlisted_thread():
     runtime.slack_plugin._client = client
     try:
         runtime.bootstrap()
-        installation = runtime.create_slack_installation(
-            display_name="Engineering Slack with threads",
-            user_token="xoxp-test-token",
-            channels=("engineering",),
-            include_thread_replies=True,
+        installation = (
+            runtime.integration_connection_service.create_slack_oauth_installation(
+                display_name="Engineering Slack with threads",
+                token_bundle=json.dumps(
+                    {
+                        "weaves_oauth": True,
+                        "provider": "slack",
+                        "access_token": "xoxp-test-token",
+                    }
+                ),
+                channels=("engineering",),
+                include_thread_replies=True,
+            )
         )
 
         result = _invoke(
@@ -193,12 +209,20 @@ def test_jira_search_carries_the_project_allowlist_into_jql():
     runtime.jira_plugin._client = client
     try:
         runtime.bootstrap()
-        installation = runtime.create_jira_installation(
-            display_name="Weaves Jira",
-            api_token="jira-test-token",
-            site_url="https://example.atlassian.net",
-            email="dev@example.com",
-            project_keys=("WEAVES",),
+        installation = (
+            runtime.integration_connection_service.create_jira_oauth_installation(
+                display_name="Weaves Jira",
+                token_bundle=json.dumps(
+                    {
+                        "weaves_oauth": True,
+                        "provider": "jira",
+                        "access_token": "jira-test-token",
+                    }
+                ),
+                site_url="https://example.atlassian.net",
+                cloud_id="cloud-weaves",
+                project_keys=("WEAVES",),
+            )
         )
 
         result = _invoke(

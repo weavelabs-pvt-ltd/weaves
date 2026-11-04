@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from contracts.v1 import PluginInstallationStatus
@@ -20,40 +20,6 @@ class PluginInstallationPatchRequest(BaseModel):
     status: PluginInstallationStatus | None = None
 
 
-class GitHubInstallationCreateRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    plugin_id: Literal["github"]
-    display_name: str = Field(min_length=2, max_length=160)
-    api_token: SecretStr = Field(min_length=1, max_length=4096)
-    repositories: tuple[str, ...] = Field(min_length=1, max_length=50)
-
-
-class SlackInstallationCreateRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    plugin_id: Literal["slack"]
-    display_name: str = Field(min_length=2, max_length=160)
-    user_token: SecretStr = Field(min_length=1, max_length=4096)
-    channels: tuple[str, ...] = Field(min_length=1, max_length=50)
-    include_thread_replies: bool = False
-
-
-class JiraInstallationCreateRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    plugin_id: Literal["jira"]
-    display_name: str = Field(min_length=2, max_length=160)
-    api_token: SecretStr = Field(min_length=1, max_length=4096)
-    site_url: str = Field(
-        min_length=12,
-        max_length=256,
-        pattern=r"^https://[A-Za-z0-9-]+\.atlassian\.net/?$",
-    )
-    email: str = Field(min_length=3, max_length=320)
-    project_keys: tuple[str, ...] = Field(min_length=1, max_length=50)
-
-
 class McpToolDiscoverRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -65,6 +31,9 @@ class McpInstallationCreateRequest(McpToolDiscoverRequest):
     plugin_id: Literal["mcp"]
     display_name: str = Field(min_length=2, max_length=160)
     read_only_tool_names: tuple[str, ...] = Field(min_length=1, max_length=100)
+    catalog_connector_id: str = Field(
+        default="custom-mcp", min_length=2, max_length=128
+    )
 
 
 def _installation_view(
@@ -114,6 +83,9 @@ def _register_plugin_routes_group_1(
             for item in integration_admin_service.list_plugin_installations()
         ]
 
+    def list_connector_catalog() -> list[dict[str, Any]]:
+        return list(integration_admin_service.list_connector_catalog())
+
     def discover_mcp_tools(request: McpToolDiscoverRequest) -> list[dict[str, Any]]:
         try:
             return list(
@@ -132,6 +104,7 @@ def _register_plugin_routes_group_1(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     app.get("/api/v0/plugin-installations")(list_plugin_installations)
+    app.get("/api/v0/connectors/catalog")(list_connector_catalog)
     app.post("/api/v0/mcp/discover")(discover_mcp_tools)
 
 
@@ -147,28 +120,10 @@ def _register_plugin_routes_group_2(
         return _installation_view(installation, _dump)
 
     def create_plugin_installation(
-        request: GitHubInstallationCreateRequest
-        | SlackInstallationCreateRequest
-        | JiraInstallationCreateRequest
-        | McpInstallationCreateRequest,
+        request: McpInstallationCreateRequest,
     ) -> dict[str, Any]:
         try:
-            if isinstance(request, GitHubInstallationCreateRequest):
-                installation = (
-                    integration_connection_service.create_github_installation(
-                        display_name=request.display_name,
-                        api_token=request.api_token.get_secret_value(),
-                        repositories=request.repositories,
-                    )
-                )
-            elif isinstance(request, SlackInstallationCreateRequest):
-                installation = integration_connection_service.create_slack_installation(
-                    display_name=request.display_name,
-                    user_token=request.user_token.get_secret_value(),
-                    channels=request.channels,
-                    include_thread_replies=request.include_thread_replies,
-                )
-            elif isinstance(request, McpInstallationCreateRequest):
+            if isinstance(request, McpInstallationCreateRequest):
                 installation = integration_connection_service.create_mcp_installation(
                     display_name=request.display_name,
                     endpoint_url=request.endpoint_url,
@@ -178,14 +133,7 @@ def _register_plugin_routes_group_2(
                         else None
                     ),
                     read_only_tool_names=request.read_only_tool_names,
-                )
-            else:
-                installation = integration_connection_service.create_jira_installation(
-                    display_name=request.display_name,
-                    api_token=request.api_token.get_secret_value(),
-                    site_url=request.site_url,
-                    email=request.email,
-                    project_keys=request.project_keys,
+                    catalog_connector_id=request.catalog_connector_id,
                 )
         except SecretStoreUnavailable as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -230,6 +178,23 @@ def _register_plugin_routes_group_3(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return installation_view(installation)
 
+    app.put("/api/v0/plugin-installations/{installation_id}/credential")(
+        rotate_plugin_credential
+    )
+    _register_plugin_routes_group_4(app, integration_admin_service, dump)
+
+
+def _register_plugin_routes_group_4(
+    app: FastAPI,
+    integration_admin_service: IntegrationAdminService,
+    dump: Callable[[BaseModel], dict[str, Any]],
+) -> None:
+    """Register plugin health, scope-update, and disconnect operations."""
+    _dump = dump
+
+    def installation_view(installation: Any) -> dict[str, Any]:
+        return _installation_view(installation, _dump)
+
     def healthcheck_plugin_installation(installation_id: str) -> dict[str, str]:
         try:
             details = integration_admin_service.healthcheck_plugin_installation(
@@ -267,12 +232,23 @@ def _register_plugin_routes_group_3(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return installation_view(installation)
 
-    app.put("/api/v0/plugin-installations/{installation_id}/credential")(
-        rotate_plugin_credential
-    )
+    def disconnect_plugin_installation(installation_id: str) -> Response:
+        try:
+            integration_admin_service.disconnect_plugin_installation(installation_id)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=404, detail="Plugin installation not found"
+            ) from exc
+        return Response(status_code=204)
+
     app.post("/api/v0/plugin-installations/{installation_id}/healthcheck")(
         healthcheck_plugin_installation
     )
     app.patch("/api/v0/plugin-installations/{installation_id}")(
         update_plugin_installation
+    )
+    app.delete("/api/v0/plugin-installations/{installation_id}")(
+        disconnect_plugin_installation
     )

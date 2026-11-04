@@ -24,6 +24,7 @@ _PUBLIC_EXACT_PATHS = {
     "/api/v0/oauth/github/installation",
     "/api/v0/oauth/slack/callback",
     "/api/v0/oauth/jira/callback",
+    "/api/v0/oauth/mcp/callback",
 }
 
 

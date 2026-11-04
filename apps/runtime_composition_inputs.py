@@ -42,6 +42,9 @@ from contracts.v1 import (
     Principal,
     Role,
     RoleBinding,
+    Task,
+    TaskMessage,
+    TaskTurn,
     ToolInvocation,
     User,
     UserInvitation,
@@ -85,6 +88,9 @@ class RuntimeCompositionInputs(Protocol):
     evaluation_reports: Repository[EvaluationReportRecord]
     evaluation_suites: Repository[EvaluationSuiteRecord]
     execution_jobs: Repository[ExecutionJob]
+    tasks: Repository[Task]
+    task_messages: Repository[TaskMessage]
+    task_turns: Repository[TaskTurn]
     installations: Repository[PluginInstallation]
     knowledge_documents: Repository[KnowledgeDocument]
     memory_items: Repository[MemoryItem]

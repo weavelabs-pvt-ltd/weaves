@@ -31,6 +31,7 @@ class RuntimeAuthExecutionCompatibilityMixin:
         idempotency_key: str | None = None,
         *,
         workflow_id: str | None = None,
+        agent_version_id: str | None = None,
         _cancellation_event: Event | None = None,
         _cancellation_check: Callable[[], bool] | None = None,
     ) -> RuntimeResult:
@@ -42,6 +43,7 @@ class RuntimeAuthExecutionCompatibilityMixin:
             thread_id,
             idempotency_key,
             workflow_id=workflow_id,
+            agent_version_id=agent_version_id,
             _cancellation_event=_cancellation_event,
             _cancellation_check=_cancellation_check,
         )

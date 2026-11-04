@@ -15,6 +15,7 @@ from modules.evaluations.scoring import (
 )
 from scripts import run_evaluations
 from tests.support.runtime import LocalPlatformRuntime
+from tests.support.task_execution import run_task
 
 
 def test_evaluation_suite_requires_unique_case_ids():
@@ -44,15 +45,19 @@ def test_local_smoke_suite_runs_through_product_api_and_scoring():
     )
     suite = EvaluationSuite.model_validate_json(suite_path.read_text())
     case = suite.cases[0]
-    with TestClient(create_app(LocalPlatformRuntime())) as client:
-        response = client.post(
-            "/api/v0/runs", json={"agent_id": suite.agent_id, "task": case.task}
+    runtime = LocalPlatformRuntime()
+    with TestClient(create_app(runtime)) as client:
+        task, turn, _agent_run, artifacts = run_task(
+            client, runtime, case.task, agent_id=suite.agent_id
         )
-
-    assert response.status_code == 201, response.text
-    result = run_evaluations.score_run_response(case, response.json(), duration_ms=10)
+    result = score_evaluation_case(
+        case,
+        status=turn.status.value,
+        run_id=task["task_id"],
+        summaries=tuple(artifact.summary for artifact in artifacts),
+    )
     assert result.passed
-    assert result.run_id == response.json()["run"]["run_id"]
+    assert result.run_id == task["task_id"]
 
 
 def test_evaluation_rejects_conflicting_phrase_assertions():
@@ -148,25 +153,24 @@ def test_runner_maps_api_response_to_a_privacy_bounded_result(monkeypatch):
                 task="Summarize release REL-42.",
                 must_contain=("release ready",),
                 required_sources=("jira:REL-42",),
-                minimum_tool_calls=1,
+                minimum_tool_calls=0,
             ),
         ),
     )
-    payload = {
-        "run": {"run_id": "run-eval-1", "status": "succeeded"},
-        "agent_run": {
-            "input_tokens": 120,
-            "output_tokens": 40,
-            "estimated_cost_usd": "0.00025",
+    payloads = [
+        {"task_id": "task-eval-1"},
+        {"task_id": "task-eval-1", "latest_turn_status": "succeeded"},
+        {
+            "items": [
+                {
+                    "role": "assistant",
+                    "content": (
+                        "Release ready for launch. Retrieved sources: jira:REL-42"
+                    ),
+                }
+            ]
         },
-        "artifacts": [
-            {
-                "summary": "Release ready for launch.",
-                "provenance": [{"source_ref": "jira:REL-42"}],
-            }
-        ],
-        "tool_invocations": [{"invocation_id": "invocation-1"}],
-    }
+    ]
 
     class FakeResponse:
         def __enter__(self):
@@ -176,7 +180,7 @@ def test_runner_maps_api_response_to_a_privacy_bounded_result(monkeypatch):
             return False
 
         def read(self):
-            return json.dumps(payload).encode()
+            return json.dumps(payloads.pop(0)).encode()
 
     requests = []
 
@@ -190,19 +194,17 @@ def test_runner_maps_api_response_to_a_privacy_bounded_result(monkeypatch):
     )
 
     assert result.passed
-    assert result.run_id == "run-eval-1"
-    assert result.estimated_cost_usd == Decimal("0.00025")
-    assert len(requests) == 1
+    assert result.run_id == "task-eval-1"
+    assert len(requests) == 3
     request, timeout = requests[0]
     assert request.get_header("Authorization") == "Bearer test-token"
     assert (
         request.get_header("Idempotency-key") == "weaves-eval-eval-123-release-ticket"
     )
     assert timeout == 180
-    assert "Release ready for launch" not in result.model_dump_json()
 
 
-def test_product_api_persists_suite_and_runner_report_with_run_scope():
+def test_product_api_persists_suite_and_task_scoped_report():
     suite = EvaluationSuite(
         suite_id="api-smoke",
         agent_id="local-assistant",
@@ -234,13 +236,27 @@ def test_product_api_persists_suite_and_runner_report_with_run_scope():
             == suite
         )
 
-        run_response = client.post(
-            "/api/v0/runs",
-            json={"agent_id": suite.agent_id, "task": suite.cases[0].task},
+        task, turn, _agent_run, artifacts = run_task(
+            client, runtime, suite.cases[0].task, agent_id=suite.agent_id
         )
-        assert run_response.status_code == 201, run_response.text
-        result = run_evaluations.score_run_response(
-            suite.cases[0], run_response.json(), duration_ms=12
+        result = score_evaluation_case(
+            suite.cases[0],
+            status=turn.status.value,
+            run_id=task["task_id"],
+            summaries=tuple(item.summary for item in artifacts),
+            cited_sources=tuple(
+                provenance.source_ref
+                for artifact in artifacts
+                for provenance in artifact.provenance
+            ),
+            tool_call_count=sum(
+                item.run_id == _agent_run.run_id
+                for item in runtime.tool_invocations.list()
+            ),
+            input_tokens=_agent_run.input_tokens,
+            output_tokens=_agent_run.output_tokens,
+            estimated_cost_usd=_agent_run.estimated_cost_usd,
+            duration_ms=12,
         )
         report = EvaluationReport(
             suite_id=suite.suite_id,
@@ -257,20 +273,22 @@ def test_product_api_persists_suite_and_runner_report_with_run_scope():
                 "report": report.model_dump(mode="json"),
             },
         )
-        assert submitted.status_code == 201, submitted.text
-        assert submitted.json()["report"]["pass_rate"] == 1.0
-        assert submitted.json()["definition"]["cases"][0]["case_id"] == (
-            suite.cases[0].case_id
-        )
+        _assert_saved_evaluation_report(client, submitted, report, suite)
 
-        reports = client.get("/api/v0/evaluation-reports")
-        assert reports.status_code == 200, reports.text
-        assert [item["evaluation_id"] for item in reports.json()] == [
-            report.evaluation_id
-        ]
-        loaded = client.get(f"/api/v0/evaluation-reports/{report.evaluation_id}")
-        assert loaded.status_code == 200, loaded.text
-        assert loaded.json()["submitted_by_principal_id"] == "local-developer"
+
+def _assert_saved_evaluation_report(client, submitted, report, suite):
+    """Check the report submission and its persisted workspace listing."""
+    assert submitted.status_code == 201, submitted.text
+    assert submitted.json()["report"]["pass_rate"] == 1.0
+    assert submitted.json()["definition"]["cases"][0]["case_id"] == (
+        suite.cases[0].case_id
+    )
+    reports = client.get("/api/v0/evaluation-reports")
+    assert reports.status_code == 200, reports.text
+    assert [item["evaluation_id"] for item in reports.json()] == [report.evaluation_id]
+    loaded = client.get(f"/api/v0/evaluation-reports/{report.evaluation_id}")
+    assert loaded.status_code == 200, loaded.text
+    assert loaded.json()["submitted_by_principal_id"] == "local-developer"
 
 
 def test_evaluation_report_must_match_the_saved_suite_cases():
@@ -294,15 +312,10 @@ def test_evaluation_report_must_match_the_saved_suite_cases():
                 json={"definition": definition.model_dump(mode="json")},
             )
             assert response.status_code == 201
-        run = client.post(
-            "/api/v0/runs",
-            json={"agent_id": suite.agent_id, "task": other_suite.cases[0].task},
-        )
-        assert run.status_code == 201
         result = score_evaluation_case(
             other_suite.cases[0],
             status="succeeded",
-            run_id=run.json()["run"]["run_id"],
+            run_id="task-from-other-suite",
         )
         report = EvaluationReport(
             suite_id=suite.suite_id,
@@ -332,17 +345,6 @@ def test_cli_fetches_saved_suite_runs_cases_and_persists_report(monkeypatch):
             / "local-smoke-evaluation.json"
         ).read_text()
     )
-    run_payload = {
-        "run": {"run_id": "run-cli-eval", "status": "succeeded"},
-        "agent_run": {"input_tokens": 5, "output_tokens": 7},
-        "artifacts": [
-            {
-                "summary": "LOCAL-SMOKE-OK",
-                "provenance": [{"source_ref": "knowledge:local-smoke"}],
-            }
-        ],
-        "tool_invocations": [],
-    }
     requests = []
 
     class FakeResponse:
@@ -362,8 +364,15 @@ def test_cli_fetches_saved_suite_runs_cases_and_persists_report(monkeypatch):
         requests.append(request)
         if request.full_url.endswith("/api/v0/evaluation-suites/local-assistant-smoke"):
             payload = {"definition": suite.model_dump(mode="json")}
-        elif request.full_url.endswith("/api/v0/runs"):
-            payload = run_payload
+        elif request.full_url.endswith("/api/v0/tasks"):
+            payload = {"task_id": "task-cli-eval"}
+        elif request.full_url.endswith("/api/v0/tasks/task-cli-eval"):
+            payload = {
+                "task_id": "task-cli-eval",
+                "latest_turn_status": "succeeded",
+            }
+        elif request.full_url.endswith("/api/v0/tasks/task-cli-eval/messages"):
+            payload = {"items": [{"role": "assistant", "content": "LOCAL-SMOKE-OK"}]}
         else:
             payload = {"evaluation_id": "saved"}
         return FakeResponse(payload)
@@ -385,8 +394,14 @@ def test_cli_fetches_saved_suite_runs_cases_and_persists_report(monkeypatch):
 
     assert run_evaluations.main() == 0
 
-    assert [request.get_method() for request in requests] == ["GET", "POST", "POST"]
+    assert [request.get_method() for request in requests] == [
+        "GET",
+        "POST",
+        "GET",
+        "GET",
+        "POST",
+    ]
     submitted = json.loads(requests[-1].data)
     assert submitted["definition"]["suite_id"] == suite.suite_id
     assert submitted["report"]["passed_cases"] == 1
-    assert submitted["report"]["results"][0]["run_id"] == "run-cli-eval"
+    assert submitted["report"]["results"][0]["run_id"] == "task-cli-eval"

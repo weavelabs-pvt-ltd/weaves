@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from datetime import datetime
-from threading import Event
+from threading import Event, RLock
 
 from application.ports.repository import Repository
 from contracts.v1 import (
@@ -21,6 +21,8 @@ from contracts.v1 import (
     ExecutionJob,
     ExecutionJobStatus,
     Permission,
+    Task,
+    TaskTurn,
     ToolInvocation,
     WorkflowRun,
 )
@@ -42,6 +44,8 @@ class EvaluationService(EvaluationRuntimeMixin):
         evaluation_reports: Repository[EvaluationReportRecord],
         evaluation_suites: Repository[EvaluationSuiteRecord],
         execution_jobs: Repository[ExecutionJob],
+        tasks: Repository[Task],
+        task_turns: Repository[TaskTurn],
         runs: Repository[WorkflowRun],
         tool_invocations: Repository[ToolInvocation],
         is_bootstrapped: Callable[[], bool],
@@ -51,6 +55,8 @@ class EvaluationService(EvaluationRuntimeMixin):
         cancel_execution_job: Callable[[str, str], ExecutionJob],
         cancellation_requested: Callable[[str, Event], bool],
         run_agent: Callable[..., RuntimeResult],
+        idempotency_guard: RLock,
+        execution_job_idempotency_locks: dict[tuple[str, str], RLock],
     ) -> None:
         """Bind evaluation repositories and the execution operations it needs."""
         self.agents = agents
@@ -61,6 +67,8 @@ class EvaluationService(EvaluationRuntimeMixin):
         self.evaluation_reports = evaluation_reports
         self.evaluation_suites = evaluation_suites
         self.execution_jobs = execution_jobs
+        self.tasks = tasks
+        self.task_turns = task_turns
         self.runs = runs
         self.tool_invocations = tool_invocations
         self._is_bootstrapped = is_bootstrapped
@@ -70,6 +78,8 @@ class EvaluationService(EvaluationRuntimeMixin):
         self._cancel_execution_job = cancel_execution_job
         self._cancellation_requested = cancellation_requested
         self._run_agent = run_agent
+        self._idempotency_guard = idempotency_guard
+        self._execution_job_idempotency_locks = execution_job_idempotency_locks
 
     def bootstrap(self) -> None:
         """Initialize the product defaults required by evaluation operations."""

@@ -68,7 +68,7 @@ def test_postgres_schema_migrations_are_ordered_and_idempotent(
                     "SELECT version FROM product_schema_migrations ORDER BY version"
                 ).fetchall()
             )
-        assert versions == tuple(range(1, 13))
+        assert versions == tuple(range(1, 15))
 
         # A second API/worker startup must observe the applied history and leave
         # the migration ledger unchanged.

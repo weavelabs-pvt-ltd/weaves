@@ -16,15 +16,6 @@ from contracts.v1 import (
 )
 
 
-class WorkflowRunCreateRequest(BaseModel):
-    """Validated workflow run request input."""
-
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    task: str = Field(min_length=3, max_length=12000)
-    thread_id: str | None = Field(default=None, max_length=128)
-
-
 class WorkflowCreateRequest(BaseModel):
     """Validated workflow definition creation input."""
 
@@ -107,7 +98,9 @@ class WorkflowTriggerPatchRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    status: WorkflowTriggerStatus
+    status: WorkflowTriggerStatus | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    task_instructions: str | None = Field(default=None, min_length=1, max_length=2000)
 
 
 class WorkflowScheduleCreateRequest(BaseModel):
@@ -125,4 +118,7 @@ class WorkflowSchedulePatchRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    status: Literal["active", "disabled"]
+    status: Literal["active", "disabled"] | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    task_instructions: str | None = Field(default=None, min_length=1, max_length=2000)
+    interval_seconds: int | None = Field(default=None, ge=60, le=31_536_000)

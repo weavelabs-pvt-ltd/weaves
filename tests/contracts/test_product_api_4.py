@@ -16,6 +16,7 @@ from contracts.v1 import (
     WorkspaceStatus,
 )
 from tests.support.runtime import LocalPlatformRuntime
+from tests.support.task_execution import run_task
 
 
 @dataclass(frozen=True)
@@ -210,7 +211,11 @@ def test_product_api_token_resolves_principal_and_enforces_assigned_permissions(
             id="run-only-role",
             org_id="local-org",
             name="Run only",
-            permissions=[Permission.AGENTS_RUN],
+            permissions=[
+                Permission.AGENTS_RUN,
+                Permission.TASKS_VIEW,
+                Permission.TASKS_CREATE,
+            ],
         )
     )
     runtime.role_bindings.create(
@@ -241,30 +246,40 @@ def test_product_api_token_resolves_principal_and_enforces_assigned_permissions(
     client = TestClient(create_app(runtime))
 
     with client:
-        assert client.get("/api/v0/runs").status_code == 401
-        headers = {"Authorization": "Bearer read-only-secret"}
-        assert client.get("/api/v0/runs", headers=headers).status_code == 200
-        visible_workspaces = client.get("/api/v0/workspaces", headers=headers)
-        assert [item["id"] for item in visible_workspaces.json()] == ["local-workspace"]
-        assert client.get("/api/v0/agents", headers=headers).status_code == 403
-        denied_workspace = client.post(
-            "/api/v0/workspaces",
-            headers=headers,
-            json={"name": "Unauthorized workspace"},
-        )
-        assert denied_workspace.status_code == 403
-        created = client.post(
-            "/api/v0/runs",
-            headers=headers,
-            json={"task": "Summarize security basics"},
-        )
-        assert created.status_code == 201
-        run_id = created.json()["run"]["run_id"]
-        assert created.json()["run"]["requested_by_principal_id"] == "reader-principal"
-        assert any(
-            item.actor_principal_id == "reader-principal" and item.target_id == run_id
-            for item in runtime.audit_events.list()
-        )
+        _assert_token_task_permissions(client, runtime)
+
+
+def _assert_token_task_permissions(client, runtime):
+    """Verify API token scope gates task, workspace, and agent operations."""
+    assert client.get("/api/v0/tasks").status_code == 401
+    headers = {"Authorization": "Bearer read-only-secret"}
+    assert client.get("/api/v0/tasks", headers=headers).status_code == 200
+    visible = client.get("/api/v0/workspaces", headers=headers)
+    assert [item["id"] for item in visible.json()] == ["local-workspace"]
+    assert client.get("/api/v0/agents", headers=headers).status_code == 403
+    denied = client.post(
+        "/api/v0/workspaces",
+        headers=headers,
+        json={"name": "Unauthorized workspace"},
+    )
+    assert denied.status_code == 403
+    created = client.post(
+        "/api/v0/tasks",
+        headers=headers,
+        json={
+            "agent_id": "local-assistant",
+            "title": "Token scoped task",
+            "initial_message": "Summarize security basics",
+        },
+    )
+    assert created.status_code == 202
+    turn = runtime.task_worker_service.process_next_turn("token-test-worker")
+    assert turn is not None and turn.agent_run_id is not None
+    run_id = runtime.agent_runs.get(turn.agent_run_id).run_id
+    assert any(
+        item.actor_principal_id == "reader-principal" and item.target_id == run_id
+        for item in runtime.audit_events.list()
+    )
 
 
 def test_service_account_api_token_is_one_time_and_revocable(monkeypatch):
@@ -278,7 +293,7 @@ def test_service_account_api_token_is_one_time_and_revocable(monkeypatch):
             "/api/v0/service-accounts",
             json={
                 "name": "Run service",
-                "permissions": ["agents.run"],
+                "permissions": ["agents.run", "tasks.view", "tasks.create"],
                 "expires_in_days": 7,
             },
         )
@@ -290,7 +305,7 @@ def test_service_account_api_token_is_one_time_and_revocable(monkeypatch):
         assert payload["credential"]["expires_at"] is not None
 
         service_headers = {"Authorization": f"Bearer {token}"}
-        assert client.get("/api/v0/runs", headers=service_headers).status_code == 200
+        assert client.get("/api/v0/tasks", headers=service_headers).status_code == 200
         assert client.get("/api/v0/agents", headers=service_headers).status_code == 403
         listed = client.get("/api/v0/api-credentials").json()
         assert len(listed) == 1
@@ -304,10 +319,10 @@ def test_service_account_api_token_is_one_time_and_revocable(monkeypatch):
         assert replacement["principal_id"] == payload["principal"]["id"]
         assert replacement["expires_at"] == payload["credential"]["expires_at"]
         assert "token_digest" not in replacement
-        assert client.get("/api/v0/runs", headers=service_headers).status_code == 401
+        assert client.get("/api/v0/tasks", headers=service_headers).status_code == 401
         replacement_headers = {"Authorization": f"Bearer {replacement_token}"}
         assert (
-            client.get("/api/v0/runs", headers=replacement_headers).status_code == 200
+            client.get("/api/v0/tasks", headers=replacement_headers).status_code == 200
         )
 
         replacement_id = replacement["id"]
@@ -315,7 +330,7 @@ def test_service_account_api_token_is_one_time_and_revocable(monkeypatch):
         assert revoked.status_code == 200
         assert revoked.json()["status"] == "revoked"
         assert (
-            client.get("/api/v0/runs", headers=replacement_headers).status_code == 401
+            client.get("/api/v0/tasks", headers=replacement_headers).status_code == 401
         )
         assert (
             client.delete(f"/api/v0/api-credentials/{replacement_id}").status_code
@@ -328,34 +343,22 @@ def test_service_account_api_token_is_one_time_and_revocable(monkeypatch):
 
 
 def test_execution_job_retry_requires_postgres_storage():
-    runtime = LocalPlatformRuntime()
-    job, _ = runtime.enqueue_agent_run("Retry requires a durable queue")
-    client = TestClient(create_app(runtime))
-
+    client = TestClient(create_app(LocalPlatformRuntime()))
     with client:
         response = client.post(
-            f"/api/v0/execution-jobs/{job.job_id}/retry",
+            "/api/v0/execution-jobs/removed-job/retry",
             headers={"Idempotency-Key": "retry-request-1"},
         )
 
-    assert response.status_code == 503
+    assert response.status_code == 404
 
 
 def test_execution_job_cancel_api_exposes_requested_state():
-    runtime = LocalPlatformRuntime()
-    job, _ = runtime.enqueue_agent_run("Cancel through the API")
-    claimed = runtime.execution_jobs.claim_next_queued(
-        "api-cancel-worker", job.updated_at, job.org_id, job.workspace_id
-    )
-    assert claimed is not None
-    client = TestClient(create_app(runtime))
-
+    client = TestClient(create_app(LocalPlatformRuntime()))
     with client:
-        response = client.post(f"/api/v0/execution-jobs/{job.job_id}/cancel")
+        response = client.post("/api/v0/execution-jobs/removed-job/cancel")
 
-    assert response.status_code == 200
-    assert response.json()["status"] == "cancel_requested"
-    assert response.json()["worker_id"] == "api-cancel-worker"
+    assert response.status_code == 404
 
 
 def test_product_api_configures_agent_runs_and_inspects_platform_records():
@@ -424,40 +427,40 @@ def test_product_api_configures_agent_runs_and_inspects_platform_records():
         assert unchanged.json()["current_version"]["version"] == 2
         assert client.get("/api/v0/agent-skills").status_code == 200
 
-        run_response = client.post(
-            "/api/v0/runs",
-            json={"agent_id": agent["id"], "task": "Summarize security basics"},
-        )
-        assert run_response.status_code == 201
-        result = run_response.json()
-        run_id = result["run"]["run_id"]
-        assert result["run"]["status"] == "succeeded"
-        assert (
-            result["agent_run"]["agent_version_id"]
-            == updated.json()["current_version"]["agent_version_id"]
-        )
-        assert result["artifacts"][0]["provenance"]
-        agent_runs = client.get(f"/api/v0/agents/{agent['id']}/runs")
-        assert agent_runs.status_code == 200
-        assert agent_runs.json()[0]["run_id"] == run_id
+        _assert_agent_task_lifecycle(client, runtime, agent, updated)
 
-        listed = client.get("/api/v0/runs").json()
-        assert listed[0]["run_id"] == run_id
-        assert listed[0]["tool_invocations"][0]["capability_id"] == "knowledge.search"
-        assert (
-            client.get(f"/api/v0/runs/{run_id}/artifacts").json()[0]["run_id"] == run_id
-        )
-        assert client.get("/api/v0/artifacts").json()[0]["run_id"] == run_id
-        events = client.get("/api/v0/audit-events").json()
-        assert any(event["target_id"] == run_id for event in events)
-        archived = client.post(f"/api/v0/agents/{agent['id']}/archive")
-        assert archived.status_code == 200
-        assert archived.json()["status"] == "archived"
-        blocked = client.post(
-            "/api/v0/runs",
-            json={"agent_id": agent["id"], "task": "Try archived agent."},
-        )
-        assert blocked.status_code == 422
-        activated = client.post(f"/api/v0/agents/{agent['id']}/activate")
-        assert activated.status_code == 200
-        assert activated.json()["status"] == "active"
+
+def _assert_agent_task_lifecycle(client, runtime, agent, updated):
+    """Verify task execution evidence and agent archive/activation behavior."""
+    _task, turn, agent_run, artifacts = run_task(
+        client, runtime, "Summarize security basics", agent_id=agent["id"]
+    )
+    run_id = agent_run.run_id
+    assert turn.status.value == "succeeded"
+    assert (
+        agent_run.agent_version_id
+        == updated.json()["current_version"]["agent_version_id"]
+    )
+    assert artifacts[0].provenance
+    invocations = [
+        item for item in runtime.tool_invocations.list() if item.run_id == run_id
+    ]
+    assert invocations[0].capability_id == "knowledge.search"
+    assert runtime.artifacts.list()[0].run_id == run_id
+    events = client.get("/api/v0/audit-events").json()
+    assert any(event["target_id"] == run_id for event in events)
+    archived = client.post(f"/api/v0/agents/{agent['id']}/archive")
+    assert archived.status_code == 200
+    assert archived.json()["status"] == "archived"
+    blocked = client.post(
+        "/api/v0/tasks",
+        json={
+            "agent_id": agent["id"],
+            "title": "Archived",
+            "initial_message": "Try archived agent.",
+        },
+    )
+    assert blocked.status_code == 409
+    activated = client.post(f"/api/v0/agents/{agent['id']}/activate")
+    assert activated.status_code == 200
+    assert activated.json()["status"] == "active"

@@ -1,7 +1,7 @@
 """Approval policy and safe-write governance API routes."""
 
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -37,29 +37,11 @@ class ApprovalPolicyPatchRequest(BaseModel):
     enabled: bool | None = None
 
 
-class RunActionProposalRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    capability_id: Literal["jira.issues.comment"]
-    issue_key: str = Field(min_length=3, max_length=60)
-    comment: str = Field(min_length=1, max_length=4000)
-    agent_run_id: str | None = Field(default=None, max_length=128)
-
-
 class ApprovalDecisionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     approved: bool
     decision_comment: str | None = Field(default=None, max_length=1000)
-
-
-def _require_run(governance_service: GovernanceService, run_id: str) -> None:
-    try:
-        governance_service.runs.get_scoped(
-            run_id, effective_org_id(), effective_workspace_id()
-        )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail="Run not found") from exc
 
 
 def _approval_view(
@@ -171,28 +153,6 @@ def _register_governance_routes_group_2(
     """Register approval policies, proposals, and reviewer decisions."""
     _dump = dump
 
-    def propose_run_action(
-        run_id: str, request: RunActionProposalRequest
-    ) -> dict[str, Any]:
-        try:
-            if request.capability_id != "jira.issues.comment":
-                raise ValueError("unsupported action capability")
-            approval, invocation = governance_service.propose_jira_comment(
-                run_id,
-                issue_key=request.issue_key,
-                comment=request.comment,
-                agent_run_id=request.agent_run_id,
-            )
-        except PermissionError as exc:
-            raise HTTPException(status_code=403, detail=str(exc)) from exc
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Run not found") from exc
-        except PluginGatewayError as exc:
-            raise HTTPException(status_code=422, detail=exc.message) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-        return {"approval": _dump(approval), "tool_invocation": _dump(invocation)}
-
     def decide_approval(
         approval_id: str, request: ApprovalDecisionRequest
     ) -> dict[str, Any]:
@@ -215,5 +175,4 @@ def _register_governance_routes_group_2(
             raise HTTPException(status_code=status_code, detail=str(exc)) from exc
         return {"approval": _dump(approval), "tool_invocation": _dump(invocation)}
 
-    app.post("/api/v0/runs/{run_id}/actions", status_code=201)(propose_run_action)
     app.post("/api/v0/approvals/{approval_id}/decision")(decide_approval)

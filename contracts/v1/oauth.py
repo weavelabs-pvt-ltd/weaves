@@ -12,7 +12,7 @@ class OAuthAuthorizationState(FrozenProductContract):
     """Server-side, one-time state for an OAuth authorization redirect."""
 
     oauth_state_id: OpaqueId
-    provider: Literal["github", "slack", "jira"]
+    provider: Literal["github", "slack", "jira", "mcp"]
     step: Literal["authorize", "github_install", "resource_selection"] = "authorize"
     principal_id: OpaqueId
     org_id: OpaqueId

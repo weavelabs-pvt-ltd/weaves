@@ -21,6 +21,7 @@ from apps.runtime_services_execution import (
 )
 from apps.runtime_services_governance import _configure_governance_service
 from apps.runtime_services_integrations import _configure_integration_services
+from apps.runtime_services_tasks import _configure_task_services
 from apps.runtime_services_workflows import (
     _configure_agent_service,
     _configure_workflow_automation_service,
@@ -51,4 +52,5 @@ def configure_capability_services(
     _configure_model_and_context_services(dependencies, services)
     _configure_evaluation_and_recovery_services(dependencies, services)
     _configure_execution_worker_service(dependencies, services)
+    _configure_task_services(dependencies, services)
     return services

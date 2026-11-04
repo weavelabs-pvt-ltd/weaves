@@ -19,11 +19,9 @@ from contracts.v1 import (
     Permission,
     PluginInstallation,
     ToolInvocation,
-    WorkflowRun,
 )
 from modules.governance.runtime_approvals import GovernanceApprovalMixin
 from modules.governance.runtime_policy import GovernancePolicyMixin
-from modules.governance.runtime_proposals import GovernanceProposalMixin
 
 if TYPE_CHECKING:
     from application.ports.runtime_adapters import PluginDispatcher
@@ -31,9 +29,7 @@ if TYPE_CHECKING:
 CapabilityInstallation = Callable[..., tuple[PluginInstallation, CapabilitySpec]]
 
 
-class GovernanceService(
-    GovernanceApprovalMixin, GovernanceProposalMixin, GovernancePolicyMixin
-):
+class GovernanceService(GovernanceApprovalMixin, GovernancePolicyMixin):
     """Coordinate approval policies, proposals, decisions, and audit search."""
 
     approvals: Repository[ApprovalRequest]
@@ -41,7 +37,6 @@ class GovernanceService(
     audit_events: Repository[AuditEvent]
     agent_runs: Repository[AgentRun]
     agent_versions: Repository[AgentVersion]
-    runs: Repository[WorkflowRun]
     tool_invocations: Repository[ToolInvocation]
     plugin_gateway: PluginDispatcher
 
@@ -53,7 +48,6 @@ class GovernanceService(
         audit_events: Repository[AuditEvent],
         agent_runs: Repository[AgentRun],
         agent_versions: Repository[AgentVersion],
-        runs: Repository[WorkflowRun],
         tool_invocations: Repository[ToolInvocation],
         plugin_gateway: PluginDispatcher,
         is_bootstrapped: Callable[[], bool],
@@ -69,7 +63,6 @@ class GovernanceService(
         self.audit_events = audit_events
         self.agent_runs = agent_runs
         self.agent_versions = agent_versions
-        self.runs = runs
         self.tool_invocations = tool_invocations
         self.plugin_gateway = plugin_gateway
         self._is_bootstrapped = is_bootstrapped

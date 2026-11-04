@@ -4,10 +4,12 @@ from fastapi.testclient import TestClient
 
 from apps.api.app import create_app
 from tests.support.runtime import LocalPlatformRuntime
+from tests.support.task_execution import run_task
 
 
 def test_product_api_bounds_requests_and_rejects_unknown_agents():
-    client = TestClient(create_app(LocalPlatformRuntime()))
+    runtime = LocalPlatformRuntime()
+    client = TestClient(create_app(runtime))
 
     with client:
         too_short = client.post(
@@ -16,31 +18,15 @@ def test_product_api_bounds_requests_and_rejects_unknown_agents():
         )
         assert too_short.status_code == 422
         unknown = client.post(
-            "/api/v0/runs",
-            json={"agent_id": "missing-agent", "task": "Run this task"},
+            "/api/v0/tasks",
+            json={
+                "agent_id": "missing-agent",
+                "title": "Unknown agent",
+                "initial_message": "Run this task",
+            },
         )
         assert unknown.status_code == 404
-        queued = client.post(
-            "/api/v0/execution-jobs", json={"task": "Run a durable job"}
-        )
-        assert queued.status_code == 503
-        queued_workflow = client.post(
-            "/api/v0/execution-jobs",
-            json={
-                "task": "Run a durable workflow",
-                "workflow_id": "local-assistant-workflow",
-            },
-        )
-        assert queued_workflow.status_code == 503
-        ambiguous = client.post(
-            "/api/v0/execution-jobs",
-            json={
-                "task": "Run a durable job",
-                "agent_id": "local-assistant",
-                "workflow_id": "local-assistant-workflow",
-            },
-        )
-        assert ambiguous.status_code == 422
+        assert client.post("/api/v0/execution-jobs").status_code == 404
 
 
 def test_product_api_manages_memory_and_agent_scope_policy():
@@ -72,20 +58,16 @@ def test_product_api_manages_memory_and_agent_scope_policy():
         policy = agent_response.json()["current_version"]["memory_policy"]
         assert policy["allowed_scopes"] == ["organization"]
 
-        run = client.post(
-            "/api/v0/runs",
-            json={
-                "agent_id": agent_response.json()["id"],
-                "task": "Who reviews the release checklist?",
-            },
+        _task, _turn, agent_run, artifacts = run_task(
+            client,
+            runtime,
+            "Who reviews the release checklist?",
+            agent_id=agent_response.json()["id"],
         )
-        assert run.status_code == 201
-        agent_run = run.json()["agent_run"]
-        assert f"memory:{memory_id}" in agent_run["output_summary"]["source_ids"]
-        assert "Retrieved sources:" in agent_run["output_summary"]["response"]
+        assert f"memory:{memory_id}" in agent_run.output_summary["source_ids"]
+        assert "Retrieved sources:" in agent_run.output_summary["response"]
         assert any(
-            item["source_type"] == "memory.item"
-            for item in run.json()["artifacts"][0]["provenance"]
+            item.source_type == "memory.item" for item in artifacts[0].provenance
         )
 
         deleted = client.delete(f"/api/v0/memory-items/{memory_id}")
@@ -237,7 +219,8 @@ def _assert_memory_retention_validation(client, context):
 
 
 def test_model_profile_rates_produce_per_run_cost_estimates():
-    client = TestClient(create_app(LocalPlatformRuntime()))
+    runtime = LocalPlatformRuntime()
+    client = TestClient(create_app(runtime))
 
     with client:
         agent = client.post(
@@ -257,21 +240,19 @@ def test_model_profile_rates_produce_per_run_cost_estimates():
         )
         assert configured.status_code == 200
 
-        result = client.post(
-            "/api/v0/runs",
-            json={"agent_id": agent["id"], "task": "Summarize security basics"},
+        _task, _turn, agent_run, _artifacts = run_task(
+            client, runtime, "Summarize security basics", agent_id=agent["id"]
         )
-        assert result.status_code == 201
-        agent_run = result.json()["agent_run"]
         expected_cost = (
-            Decimal(agent_run["input_tokens"]) * Decimal("2.5")
-            + Decimal(agent_run["output_tokens"]) * Decimal("10")
+            Decimal(agent_run.input_tokens) * Decimal("2.5")
+            + Decimal(agent_run.output_tokens) * Decimal("10")
         ) / Decimal(1_000_000)
-        assert Decimal(agent_run["estimated_cost_usd"]) == expected_cost
+        assert agent_run.estimated_cost_usd == expected_cost
 
 
 def test_model_profile_cost_budget_records_usage_and_fails_over_budget_run():
-    client = TestClient(create_app(LocalPlatformRuntime()))
+    runtime = LocalPlatformRuntime()
+    client = TestClient(create_app(runtime))
 
     with client:
         agent = client.post(
@@ -293,24 +274,19 @@ def test_model_profile_cost_budget_records_usage_and_fails_over_budget_run():
         )
         assert configured.status_code == 200
 
-        result = client.post(
-            "/api/v0/runs",
-            json={"agent_id": agent["id"], "task": "Explain the knowledge base"},
+        _task, turn, agent_run, _artifacts = run_task(
+            client, runtime, "Explain the knowledge base", agent_id=agent["id"]
         )
-        assert result.status_code == 422
-        assert "provider request already completed" in result.json()["detail"]
-
-        run = client.get("/api/v0/runs").json()[0]
-        assert run["status"] == "failed"
-        agent_run = client.get(f"/api/v0/runs/{run['run_id']}").json()["agent_runs"][0]
-        assert agent_run["status"] == "failed"
-        assert agent_run["input_tokens"] > 0
-        assert agent_run["output_tokens"] > 0
-        assert Decimal(agent_run["estimated_cost_usd"]) > Decimal("0.000001")
+        assert turn.status.value == "failed"
+        assert agent_run.status.value == "failed"
+        assert agent_run.input_tokens > 0
+        assert agent_run.output_tokens > 0
+        assert agent_run.estimated_cost_usd > Decimal("0.000001")
 
 
 def test_cost_budget_requires_configured_input_and_output_rates():
-    client = TestClient(create_app(LocalPlatformRuntime()))
+    runtime = LocalPlatformRuntime()
+    client = TestClient(create_app(runtime))
 
     with client:
         agent = client.post(
@@ -324,115 +300,60 @@ def test_cost_budget_requires_configured_input_and_output_rates():
         )
         assert configured.status_code == 200
 
-        result = client.post(
-            "/api/v0/runs",
-            json={"agent_id": agent["id"], "task": "Explain the knowledge base"},
+        _task, turn, _agent_run, _artifacts = run_task(
+            client, runtime, "Explain the knowledge base", agent_id=agent["id"]
         )
-        assert result.status_code == 422
-        assert "require input and output token rates" in result.json()["detail"]
-        assert client.get("/api/v0/runs").json() == []
+        assert turn.status.value == "failed"
+        assert turn.error is not None
+        assert turn.error.code == "task.agent_run_failed"
 
 
-def test_thread_and_workflow_memory_do_not_cross_execution_scopes():
-    client = TestClient(create_app(LocalPlatformRuntime()))
-
+def test_task_thread_memory_isolated_between_task_conversations():
+    runtime = LocalPlatformRuntime()
+    client = TestClient(create_app(runtime))
     with client:
-        scope = _create_thread_and_workflow_memories(client)
-        runs = _run_in_separate_memory_scopes(client, scope)
-        _assert_thread_run_history(client, scope, runs)
-        _assert_closed_thread_rejects_runs(client, scope)
-
-
-def _create_thread_and_workflow_memories(client):
-    """Create workflow- and thread-scoped memories for one agent."""
-    agent = client.post(
-        "/api/v0/agents",
-        json={
-            "name": "Scoped memory helper",
-            "instructions": "Use the matching conversation and workflow memory.",
-            "memory_scopes": ["thread", "workflow"],
-        },
-    )
-    assert agent.status_code == 201
-    agent_id = agent.json()["id"]
-    workflow_id = agent.json()["current_version"]["allowed_workflow_ids"][0]
-    workflow_memory = client.post(
-        "/api/v0/memory-items",
-        json={
-            "title": "Release calendar",
-            "text": "The release checklist owner is Maya.",
-            "scope": "workflow",
-            "scope_ref": workflow_id,
-        },
-    )
-    assert workflow_memory.status_code == 201
-    first = client.post(
-        "/api/v0/threads",
-        json={"agent_id": agent_id, "title": "Release conversation A"},
-    )
-    second = client.post(
-        "/api/v0/threads",
-        json={"agent_id": agent_id, "title": "Release conversation B"},
-    )
-    assert first.status_code == second.status_code == 201
-    thread_memory = client.post(
-        "/api/v0/memory-items",
-        json={
-            "title": "Conversation decision",
-            "text": "Conversation A approved the blue release window.",
-            "scope": "thread",
-            "scope_ref": first.json()["thread_id"],
-        },
-    )
-    assert thread_memory.status_code == 201
-    return workflow_memory.json(), first.json(), second.json(), thread_memory.json()
-
-
-def _run_in_separate_memory_scopes(client, scope):
-    """Run the same query in two threads and verify scoped retrieval results."""
-    workflow_memory, first_thread, second_thread, thread_memory = scope
-    task = "Who owns the release checklist and what is the blue window?"
-    first = client.post(
-        "/api/v0/runs",
-        json={"task": task, "thread_id": first_thread["thread_id"]},
-    )
-    second = client.post(
-        "/api/v0/runs",
-        json={"task": task, "thread_id": second_thread["thread_id"]},
-    )
-    assert first.status_code == second.status_code == 201
-    first_sources = first.json()["agent_run"]["output_summary"]["source_ids"]
-    second_sources = second.json()["agent_run"]["output_summary"]["source_ids"]
-    thread_id = f"memory:{thread_memory['memory_id']}"
-    workflow_id = f"memory:{workflow_memory['memory_id']}"
-    assert thread_id in first_sources and workflow_id in first_sources
-    assert thread_id not in second_sources and workflow_id in second_sources
-    assert first.json()["run"]["trigger_ref"] == first_thread["thread_id"]
-    return first.json()
-
-
-def _assert_thread_run_history(client, scope, run):
-    """Check thread history points to the run created in that thread."""
-    _, first_thread, _, _ = scope
-    response = client.get(f"/api/v0/threads/{first_thread['thread_id']}/runs")
-    assert response.status_code == 200
-    assert len(response.json()) == 1
-    assert response.json()[0]["run_id"] == run["run"]["run_id"]
-
-
-def _assert_closed_thread_rejects_runs(client, scope):
-    """Close a conversation and verify new execution requests are rejected."""
-    _, first_thread, _, _ = scope
-    closed = client.patch(
-        f"/api/v0/threads/{first_thread['thread_id']}",
-        json={"status": "closed"},
-    )
-    assert closed.status_code == 200
-    rejected = client.post(
-        "/api/v0/runs",
-        json={
-            "task": "Do not continue a closed conversation.",
-            "thread_id": first_thread["thread_id"],
-        },
-    )
-    assert rejected.status_code == 422
+        agent = client.post(
+            "/api/v0/agents",
+            json={
+                "name": "Scoped memory helper",
+                "instructions": "Use matching conversation memory.",
+                "memory_scopes": ["thread"],
+            },
+        )
+        assert agent.status_code == 201
+        first_task = client.post(
+            "/api/v0/tasks",
+            json={
+                "agent_id": agent.json()["id"],
+                "title": "Release conversation A",
+                "initial_message": "What window did this conversation approve?",
+            },
+        )
+        second_task = client.post(
+            "/api/v0/tasks",
+            json={
+                "agent_id": agent.json()["id"],
+                "title": "Release conversation B",
+                "initial_message": "What window did this conversation approve?",
+            },
+        )
+        assert first_task.status_code == second_task.status_code == 202
+        first_thread = first_task.json()["thread_id"]
+        memory = client.post(
+            "/api/v0/memory-items",
+            json={
+                "title": "Conversation decision",
+                "text": "This conversation approved the blue release window.",
+                "scope": "thread",
+                "scope_ref": first_thread,
+            },
+        )
+        assert memory.status_code == 201
+        first_turn = runtime.task_worker_service.process_next_turn("memory-worker")
+        second_turn = runtime.task_worker_service.process_next_turn("memory-worker")
+        assert first_turn is not None and second_turn is not None
+        first_run = runtime.agent_runs.get(first_turn.agent_run_id)
+        second_run = runtime.agent_runs.get(second_turn.agent_run_id)
+        source_id = f"memory:{memory.json()['memory_id']}"
+        assert source_id in first_run.output_summary["source_ids"]
+        assert source_id not in second_run.output_summary["source_ids"]

@@ -7,7 +7,13 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
-from contracts.v1 import AgentBudget, AgentStatus, MemoryScope
+from contracts.v1 import (
+    AgentBudget,
+    AgentStatus,
+    MemoryScope,
+    PluginDescriptorStatus,
+    PluginInstallationStatus,
+)
 from modules.agents.runtime_lifecycle import AgentService
 from modules.integrations.admin_service import IntegrationAdminService
 
@@ -104,11 +110,20 @@ def _register_agent_routes_group_1(
         return _agent_view(agent_service, agent, _dump)
 
     def list_capabilities() -> list[dict[str, Any]]:
+        installations = integration_admin_service.list_plugin_installations()
+        enabled_capability_ids = {
+            capability_id
+            for installation in installations
+            if installation.status == PluginInstallationStatus.ACTIVE
+            for capability_id in installation.enabled_capability_ids
+        }
         descriptors = integration_admin_service.list_plugin_descriptors()
         return [
             _dump(capability)
             for descriptor in descriptors
+            if descriptor.status == PluginDescriptorStatus.ACTIVE
             for capability in descriptor.capability_manifest
+            if capability.capability_id in enabled_capability_ids
         ]
 
     def list_plugin_descriptors() -> list[dict[str, Any]]:
@@ -273,6 +288,23 @@ def _register_agent_routes_group_3(
             raise HTTPException(status_code=404, detail="Agent not found") from exc
         return agent_view(agent)
 
+    app.patch("/api/v0/agents/{agent_id}")(update_agent)
+    app.get("/api/v0/agents/{agent_id}")(get_agent)
+    _register_agent_routes_group_4(app, agent_service, integration_admin_service, dump)
+
+
+def _register_agent_routes_group_4(
+    app: FastAPI,
+    agent_service: AgentService,
+    integration_admin_service: IntegrationAdminService,
+    dump: Callable[[BaseModel], dict[str, Any]],
+) -> None:
+    """Register agent version inspection and lifecycle endpoints."""
+    _dump = dump
+
+    def agent_view(agent: Any) -> dict[str, Any]:
+        return _agent_view(agent_service, agent, _dump)
+
     def list_agent_versions(agent_id: str) -> list[dict[str, Any]]:
         try:
             return [_dump(item) for item in agent_service.list_agent_versions(agent_id)]
@@ -311,8 +343,6 @@ def _register_agent_routes_group_3(
     def activate_agent(agent_id: str) -> dict[str, Any]:
         return change_agent_status(agent_id, AgentStatus.ACTIVE)
 
-    app.patch("/api/v0/agents/{agent_id}")(update_agent)
-    app.get("/api/v0/agents/{agent_id}")(get_agent)
     app.get("/api/v0/agents/{agent_id}/versions")(list_agent_versions)
     app.get("/api/v0/agents/{agent_id}/versions/{version_id}")(get_agent_version)
     app.post("/api/v0/agents/{agent_id}/archive")(archive_agent)

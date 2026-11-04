@@ -75,11 +75,9 @@ def _register_list_workflow_triggers(
     automation_service: WorkflowAutomationService,
     durable_execution_enabled: bool,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the list workflow triggers endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.get("/api/v0/workflow-triggers")
     def list_workflow_triggers() -> list[dict[str, Any]]:
@@ -97,11 +95,9 @@ def _register_create_workflow_trigger(
     automation_service: WorkflowAutomationService,
     durable_execution_enabled: bool,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the create workflow trigger endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.post("/api/v0/workflows/{workflow_id}/triggers", status_code=201)
     def create_workflow_trigger(
@@ -136,11 +132,9 @@ def _register_list_workflow_schedules(
     automation_service: WorkflowAutomationService,
     durable_execution_enabled: bool,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the list workflow schedules endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.get("/api/v0/workflow-schedules")
     def list_workflow_schedules() -> list[dict[str, Any]]:
@@ -157,11 +151,9 @@ def _register_create_workflow_schedule(
     automation_service: WorkflowAutomationService,
     durable_execution_enabled: bool,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the create workflow schedule endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.post("/api/v0/workflows/{workflow_id}/schedules", status_code=201)
     def create_workflow_schedule(
@@ -193,19 +185,31 @@ def _register_update_workflow_schedule(
     automation_service: WorkflowAutomationService,
     durable_execution_enabled: bool,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the update workflow schedule endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.patch("/api/v0/workflow-schedules/{schedule_id}")
     def update_workflow_schedule(
         schedule_id: str, patch: WorkflowSchedulePatchRequest
     ) -> dict[str, Any]:
         try:
+            if all(
+                value is None
+                for value in (
+                    patch.status,
+                    patch.name,
+                    patch.task_instructions,
+                    patch.interval_seconds,
+                )
+            ):
+                raise ValueError("No schedule changes supplied")
             schedule = automation_service.update_workflow_schedule(
-                schedule_id, WorkflowScheduleStatus(patch.status)
+                schedule_id,
+                WorkflowScheduleStatus(patch.status) if patch.status else None,
+                name=patch.name,
+                task_instructions=patch.task_instructions,
+                interval_seconds=patch.interval_seconds,
             )
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -223,19 +227,26 @@ def _register_update_workflow_trigger(
     automation_service: WorkflowAutomationService,
     durable_execution_enabled: bool,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the update workflow trigger endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.patch("/api/v0/workflow-triggers/{trigger_id}")
     def update_workflow_trigger(
         trigger_id: str, patch: WorkflowTriggerPatchRequest
     ) -> dict[str, Any]:
         try:
+            if (
+                patch.status is None
+                and patch.name is None
+                and patch.task_instructions is None
+            ):
+                raise ValueError("No trigger changes supplied")
             trigger = automation_service.update_workflow_trigger(
-                trigger_id, patch.status
+                trigger_id,
+                patch.status,
+                name=patch.name,
+                task_instructions=patch.task_instructions,
             )
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -251,11 +262,9 @@ def _register_rotate_workflow_trigger_secret(
     automation_service: WorkflowAutomationService,
     durable_execution_enabled: bool,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the rotate workflow trigger secret endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.put("/api/v0/workflow-triggers/{trigger_id}/secret")
     def rotate_workflow_trigger_secret(trigger_id: str) -> dict[str, Any]:
@@ -277,11 +286,9 @@ def _register_receive_workflow_webhook(
     automation_service: WorkflowAutomationService,
     durable_execution_enabled: bool,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register the signed workflow webhook endpoint."""
     _dump = dump
-    _run_view = run_view
 
     @app.post("/api/v0/webhooks/{trigger_id}", status_code=202)
     async def receive_workflow_webhook(
@@ -301,7 +308,7 @@ def _register_receive_workflow_webhook(
         raw_payload = await _read_webhook_body(request)
         payload = _parse_webhook_payload(raw_payload)
         try:
-            job, replayed = automation_service.enqueue_workflow_trigger_event(
+            _, replayed = automation_service.enqueue_workflow_trigger_event(
                 trigger_id, trigger_secret, event_id, payload
             )
         except PermissionError as exc:
@@ -314,7 +321,7 @@ def _register_receive_workflow_webhook(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-        return {"job": _dump(job), "replayed": replayed}
+        return {"accepted": True, "replayed": replayed}
 
 
 def register_automation_routes(
@@ -322,30 +329,29 @@ def register_automation_routes(
     automation_service: WorkflowAutomationService,
     durable_execution_enabled: bool,
     dump: WorkflowDump,
-    run_view: Any,
 ) -> None:
     """Register automation routes."""
     _register_list_workflow_triggers(
-        app, automation_service, durable_execution_enabled, dump, run_view
+        app, automation_service, durable_execution_enabled, dump
     )
     _register_create_workflow_trigger(
-        app, automation_service, durable_execution_enabled, dump, run_view
+        app, automation_service, durable_execution_enabled, dump
     )
     _register_list_workflow_schedules(
-        app, automation_service, durable_execution_enabled, dump, run_view
+        app, automation_service, durable_execution_enabled, dump
     )
     _register_create_workflow_schedule(
-        app, automation_service, durable_execution_enabled, dump, run_view
+        app, automation_service, durable_execution_enabled, dump
     )
     _register_update_workflow_schedule(
-        app, automation_service, durable_execution_enabled, dump, run_view
+        app, automation_service, durable_execution_enabled, dump
     )
     _register_update_workflow_trigger(
-        app, automation_service, durable_execution_enabled, dump, run_view
+        app, automation_service, durable_execution_enabled, dump
     )
     _register_rotate_workflow_trigger_secret(
-        app, automation_service, durable_execution_enabled, dump, run_view
+        app, automation_service, durable_execution_enabled, dump
     )
     _register_receive_workflow_webhook(
-        app, automation_service, durable_execution_enabled, dump, run_view
+        app, automation_service, durable_execution_enabled, dump
     )

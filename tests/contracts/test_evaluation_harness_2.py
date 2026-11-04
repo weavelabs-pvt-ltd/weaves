@@ -94,7 +94,6 @@ def test_running_evaluation_cancels_between_cases_and_keeps_completed_progress(
     monkeypatch,
 ):
     runtime = LocalPlatformRuntime()
-    runtime.EXECUTION_JOB_HEARTBEAT_SECONDS = 0.01
     suite = EvaluationSuite(
         suite_id="running-evaluation-cancel",
         agent_id="local-assistant",
@@ -109,7 +108,7 @@ def test_running_evaluation_cancels_between_cases_and_keeps_completed_progress(
     )
     first_case_completed = Event()
     release_first_case = Event()
-    original_run_agent = runtime.run_agent
+    original_run_agent = runtime.evaluation_service._run_agent
     run_count = 0
 
     def pause_after_first_case(*args, **kwargs):
@@ -121,10 +120,9 @@ def test_running_evaluation_cancels_between_cases_and_keeps_completed_progress(
             assert release_first_case.wait(timeout=3)
         return result
 
-    monkeypatch.setattr(runtime, "run_agent", pause_after_first_case)
-    # Keep heartbeat signaling out of the test so cancellation must be observed
-    # directly from the durable job state at the next case boundary.
-    monkeypatch.setattr(runtime, "_renew_execution_job_lease", lambda *args: None)
+    monkeypatch.setattr(
+        runtime.evaluation_service, "_run_agent", pause_after_first_case
+    )
     with ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(
             runtime.process_next_execution_job, "evaluation-cancel-worker"
@@ -343,22 +341,9 @@ def test_evaluation_run_api_enqueues_replays_and_cancels(monkeypatch):
         cases=(EvaluationCase(case_id="case-a", task="Check the status."),),
     )
     runtime.evaluation_service.create_evaluation_suite(suite)
-    client = TestClient(
-        create_app(runtime),
-        headers={"Authorization": "Bearer evaluation-api-test-token"},
-    )
-
-    with client:
-        unavailable = client.post(
-            f"/api/v0/evaluation-suites/{suite.suite_id}/runs",
-            headers={"Idempotency-Key": "api-queued-eval-001"},
-        )
-        assert unavailable.status_code == 503
-
-        # The HTTP route requires durable storage. Mark the test runtime as
-        # PostgreSQL-backed to exercise its request/response contract without
-        # requiring a live database in this unit test.
-        runtime.storage_mode = "postgres"
+    runtime.storage_mode = "postgres"
+    headers = {"Authorization": "Bearer evaluation-api-test-token"}
+    with TestClient(create_app(runtime), headers=headers) as client:
         submitted = client.post(
             f"/api/v0/evaluation-suites/{suite.suite_id}/runs",
             headers={"Idempotency-Key": "api-queued-eval-001"},

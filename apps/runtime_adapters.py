@@ -80,15 +80,13 @@ def build_runtime_adapters(
     model, model_settings, adapters = _build_model_adapters(http_client, secret_store)
     oauth_resolver = OAuthTokenResolver(secret_store, http_client)
     github_app_provider = GitHubAppTokenProvider(http_client)
-    secret_resolver = CompositeSecretResolver(secret_store)
     github_plugin = GitHubReadPlugin(
-        secret_resolver,
         http_client,
         installation_token_provider=github_app_provider,
     )
     slack_plugin = SlackReadPlugin(oauth_resolver, http_client)
     jira_plugin = JiraReadPlugin(oauth_resolver, http_client)
-    mcp_plugin = McpHttpPlugin(secret_resolver, http_client)
+    mcp_plugin = McpHttpPlugin(oauth_resolver, http_client)
     knowledge_plugin = RepositoryKnowledgePlugin(
         repositories.get("knowledge_documents")
     )

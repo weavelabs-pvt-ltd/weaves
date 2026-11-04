@@ -1,13 +1,10 @@
 import json
 from datetime import UTC, datetime
-from threading import Barrier, Lock
 
 from fastapi.testclient import TestClient
 
 from apps.api.app import create_app
 from contracts.v1 import (
-    ModelResponse,
-    ModelUsage,
     Permission,
     Principal,
     PrincipalStatus,
@@ -71,32 +68,18 @@ def test_api_replaces_workflow_steps_by_publishing_new_versions():
         ]
         assert previous_first_version != current["workflow_version_id"]
 
-        run = client.post(
-            f"/api/v0/workflows/{first_id}/runs",
-            json={"task": "Review this operational change"},
-        )
-        assert run.status_code == 201, run.text
-        assert [item["agent_id"] for item in run.json()["agent_runs"]] == agent_ids[1:]
+        graph = replaced.json()["graph"]
+        assert [item["agent_id"] for item in graph["nodes"]] == agent_ids[1:]
+        assert [item["step_index"] for item in graph["nodes"]] == [0, 1]
 
 
-def test_api_publishes_and_executes_structured_workflow_conditions(monkeypatch):
+def test_api_publishes_workflow_conditions_as_graph_edges():
     runtime = LocalPlatformRuntime()
-    responses = iter(['{"route":"escalate"}', "Escalation complete", "Final summary"])
-
-    def complete(request, binding):
-        return ModelResponse(
-            provider_id=binding.provider.id,
-            model_id=binding.profile.model,
-            content=next(responses),
-            usage=ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2),
-        )
-
-    monkeypatch.setattr(runtime.model, "complete", complete)
     client = TestClient(create_app(runtime))
     with client:
         agent_ids = _create_conditional_workflow_agents(client)
         workflow_id, published = _publish_conditional_workflow(client, agent_ids)
-        _assert_conditional_workflow_routes_escalation(client, workflow_id, agent_ids)
+        _assert_conditional_workflow_graph(client, workflow_id, agent_ids)
         _assert_invalid_conditional_versions_are_not_published(
             client, workflow_id, agent_ids, published
         )
@@ -176,29 +159,21 @@ def _publish_conditional_workflow(client, agent_ids):
     return workflow_id, published.json()
 
 
-def _assert_conditional_workflow_routes_escalation(client, workflow_id, agent_ids):
-    """Run the published workflow and verify conditional routing and audit."""
-    response = client.post(
-        f"/api/v0/workflows/{workflow_id}/runs",
-        json={"task": "Route this request"},
+def _assert_conditional_workflow_graph(client, workflow_id, agent_ids):
+    """Verify conditions and their links are exposed in the graph projection."""
+    detail = client.get(f"/api/v0/workflows/{workflow_id}").json()
+    response = client.get(
+        f"/api/v0/workflows/{workflow_id}/versions/"
+        f"{detail['version']['workflow_version_id']}/graph"
     )
-    assert response.status_code == 201, response.text
-    body = response.json()
-    assert [item["agent_id"] for item in body["agent_runs"]] == [
-        agent_ids[0],
-        agent_ids[2],
-        agent_ids[3],
+    assert response.status_code == 200
+    graph = response.json()["graph"]
+    assert [node["agent_id"] for node in graph["nodes"]] == agent_ids
+    conditional_edges = [edge for edge in graph["edges"] if edge["condition"]]
+    assert [edge["condition"]["expected_value"] for edge in conditional_edges] == [
+        "review",
+        "escalate",
     ]
-    assert body["agent_runs"][2]["input_summary"]["previous_step_artifact_ids"] == [
-        body["artifacts"][1]["artifact_id"]
-    ]
-    skipped = [
-        event
-        for event in client.get("/api/v0/audit-events").json()
-        if event["action"] == "workflow.step.skipped"
-        and event["target_id"] == agent_ids[1]
-    ]
-    assert len(skipped) == 1
 
 
 def _assert_invalid_conditional_versions_are_not_published(
@@ -249,51 +224,18 @@ def _assert_invalid_conditional_versions_are_not_published(
     assert current["version"]["workflow_version_id"] == version_id
 
 
-def test_api_executes_versioned_parallel_workflow_steps(monkeypatch):
+def test_api_projects_versioned_parallel_workflow_stages():
     runtime = LocalPlatformRuntime()
-    branch_barrier = Barrier(2)
-    call_lock = Lock()
-    state = {"call_count": 0}
-    monkeypatch.setattr(
-        runtime.model,
-        "complete",
-        _parallel_workflow_model(branch_barrier, call_lock, state),
-    )
     client = TestClient(create_app(runtime))
     with client:
         agent_ids, workflow_id, published = _create_parallel_workflow(client)
         current_version = _assert_parallel_group_persists_after_agent_update(
             client, agent_ids, workflow_id, published
         )
-        _assert_parallel_workflow_execution(client, workflow_id, agent_ids, state)
+        _assert_parallel_workflow_graph(client, workflow_id, agent_ids)
         _assert_invalid_parallel_edit_is_not_published(
             client, workflow_id, agent_ids, current_version
         )
-
-
-def _parallel_workflow_model(barrier, lock, state):
-    """Create the deterministic model response callback for concurrent steps."""
-
-    def complete(request, binding):
-        with lock:
-            state["call_count"] += 1
-            current = state["call_count"]
-        if current in {2, 3}:
-            barrier.wait(timeout=5)
-        content = {
-            1: "Root completed",
-            2: "Branch completed",
-            3: "Branch completed",
-            4: "Joined result",
-        }[current]
-        return ModelResponse(
-            provider_id=binding.provider.id,
-            model_id=binding.profile.model,
-            content=content,
-            usage=ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2),
-        )
-
-    return complete
 
 
 def _create_parallel_workflow(client):
@@ -357,25 +299,22 @@ def _assert_parallel_group_persists_after_agent_update(
     return current
 
 
-def _assert_parallel_workflow_execution(client, workflow_id, agent_ids, state):
-    """Verify parallel execution, collected artifacts, and model call count."""
-    response = client.post(
-        f"/api/v0/workflows/{workflow_id}/runs",
-        json={"task": "Review this release in parallel"},
+def _assert_parallel_workflow_graph(client, workflow_id, agent_ids):
+    """Verify parallel stage and join dependency data are in the graph."""
+    detail = client.get(f"/api/v0/workflows/{workflow_id}").json()
+    response = client.get(
+        f"/api/v0/workflows/{workflow_id}/versions/"
+        f"{detail['version']['workflow_version_id']}/graph"
     )
-    assert response.status_code == 201, response.text
-    body = response.json()
-    assert body["run"]["status"] == "succeeded"
-    assert [item["agent_id"] for item in body["agent_runs"]] == agent_ids
-    assert state["call_count"] == 4
-    root_artifact = body["artifacts"][0]["artifact_id"]
-    assert body["agent_runs"][1]["input_summary"]["previous_step_artifact_ids"] == []
-    assert body["agent_runs"][2]["input_summary"]["previous_step_artifact_ids"] == [
-        root_artifact
+    assert response.status_code == 200
+    graph = response.json()["graph"]
+    assert [stage["execution_mode"] for stage in graph["stages"]] == [
+        "sequential",
+        "parallel",
+        "sequential",
     ]
-    assert body["agent_runs"][3]["input_summary"]["previous_step_artifact_ids"] == [
-        item["artifact_id"] for item in body["artifacts"][1:3]
-    ]
+    joined = next(node for node in graph["nodes"] if node["agent_id"] == agent_ids[3])
+    assert joined["dependencies"]["join_policy"] == "all"
 
 
 def _assert_invalid_parallel_edit_is_not_published(

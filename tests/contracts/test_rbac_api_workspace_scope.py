@@ -46,10 +46,12 @@ def test_builder_can_manage_definitions_but_not_org_admin_settings():
                 "/api/v0/plugin-installations",
                 headers=builder_headers,
                 json={
-                    "plugin_id": "github",
+                    "plugin_id": "mcp",
                     "display_name": "Denied connector",
-                    "api_token": "not-a-real-token",
-                    "repositories": ["org/repo"],
+                    "endpoint_url": "https://tools.example.com/mcp",
+                    "bearer_token": "not-a-real-token",
+                    "read_only_tool_names": ["search_issues"],
+                    "catalog_connector_id": "custom-mcp",
                 },
             ),
         )

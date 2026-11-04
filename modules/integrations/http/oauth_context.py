@@ -6,7 +6,7 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal, cast
+from typing import Any, Literal, Protocol, cast
 
 import httpx
 from fastapi import HTTPException
@@ -33,6 +33,18 @@ class OAuthRouteDependencies:
     secret_store: SecretStore
     github_app_token_provider: GitHubAppTokenProvider
     connection_service: IntegrationConnectionService
+
+
+class OAuthResourceDiscovery(Protocol):
+    """Provider inventory methods composed into the OAuth route context."""
+
+    def slack_resources(self, token: str) -> list[dict[str, Any]]:
+        """List Slack channels visible to the OAuth user."""
+        ...
+
+    def jira_sites(self, token: str) -> list[dict[str, Any]]:
+        """List Jira sites and projects visible to the OAuth user."""
+        ...
 
 
 def _state_string(record: OAuthAuthorizationState, key: str) -> str:
@@ -89,7 +101,7 @@ class OAuthContextBase:
 
     def state_record(
         self,
-        provider: Literal["github", "slack", "jira"],
+        provider: Literal["github", "slack", "jira", "mcp"],
         configuration: dict[str, Any],
         *,
         step: Literal[
@@ -105,7 +117,7 @@ class OAuthContextBase:
     def take_state(
         self,
         value: str,
-        provider: Literal["github", "slack", "jira"],
+        provider: Literal["github", "slack", "jira", "mcp"],
         step: Literal[
             "authorize", "github_install", "resource_selection"
         ] = "authorize",
@@ -120,7 +132,7 @@ class OAuthContextBase:
         return record
 
     def discard_state(
-        self, value: str, provider: Literal["github", "slack", "jira"]
+        self, value: str, provider: Literal["github", "slack", "jira", "mcp"]
     ) -> None:
         """Handle the discard state step of the OAuth flow."""
         try:

@@ -14,11 +14,11 @@ from shared.errors import PluginGatewayError
 
 
 class _Resolver(Protocol):
-    def resolve(self, auth_ref: str) -> str: ...
+    def resolve_for_plugin(self, auth_ref: str, provider: str) -> str: ...
 
 
 class SlackReadPlugin:
-    """Search messages visible to a Slack user token in allowed channels."""
+    """Search messages visible to a Slack OAuth grant in allowed channels."""
 
     def __init__(
         self,
@@ -206,12 +206,7 @@ class SlackReadPlugin:
                 "plugin.credential_missing", "Slack installation has no credential"
             )
         try:
-            resolver = getattr(self._secrets, "resolve_for_plugin", None)
-            token = (
-                resolver(installation.auth_ref, "slack")
-                if callable(resolver)
-                else self._secrets.resolve(installation.auth_ref)
-            )
+            token = self._secrets.resolve_for_plugin(installation.auth_ref, "slack")
         except Exception as exc:
             raise PluginGatewayError(
                 "plugin.credential_unavailable",

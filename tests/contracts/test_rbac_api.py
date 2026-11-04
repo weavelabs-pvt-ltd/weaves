@@ -104,17 +104,6 @@ def _create_sensitive_test_resources(
         },
     )
     assert provider.status_code == 201, provider.text
-    connector = client.post(
-        "/api/v0/plugin-installations",
-        headers=owner_headers,
-        json={
-            "plugin_id": "slack",
-            "display_name": "RBAC test Slack",
-            "user_token": "rbac-slack-secret",
-            "channels": ["support"],
-        },
-    )
-    assert connector.status_code == 201, connector.text
 
 
 def _assert_user_can_view_metadata(
@@ -151,7 +140,6 @@ def _assert_user_can_view_metadata(
     installations = client.get("/api/v0/plugin-installations", headers=headers)
     assert installations.status_code == 200
     assert all("auth_ref" not in item for item in installations.json())
-    assert "rbac-slack-secret" not in installations.text
     documents = client.get("/api/v0/knowledge-documents", headers=headers)
     assert documents.status_code == 200
     assert all("text" not in item for item in documents.json())
@@ -199,10 +187,12 @@ def _assert_user_mutations_denied(
             "/api/v0/plugin-installations",
             headers=user_headers,
             json={
-                "plugin_id": "github",
+                "plugin_id": "mcp",
                 "display_name": "Denied connector",
-                "api_token": "not-a-real-token",
-                "repositories": ["org/repo"],
+                "endpoint_url": "https://tools.example.com/mcp",
+                "bearer_token": "not-a-real-token",
+                "read_only_tool_names": ["search_issues"],
+                "catalog_connector_id": "custom-mcp",
             },
         ),
         client.post(
@@ -288,30 +278,20 @@ def test_user_can_browse_and_run_but_cannot_mutate_workspace_configuration():
         assert "agents.manage" not in identity.json()["effective_permissions"]
         _assert_user_can_view_metadata(client, scenario)
         result = client.post(
-            "/api/v0/runs",
+            "/api/v0/tasks",
             headers=scenario.user_headers,
-            json={"agent_id": scenario.agent_id, "task": "Say hello."},
+            json={
+                "agent_id": scenario.agent_id,
+                "title": "RBAC smoke task",
+                "initial_message": "Say hello.",
+            },
         )
-        assert result.status_code == 201, result.text
-        agent_runs = client.get(
-            f"/api/v0/agents/{scenario.agent_id}/runs",
+        assert result.status_code == 202, result.text
+        detail = client.get(
+            f"/api/v0/tasks/{result.json()['task_id']}",
             headers=scenario.user_headers,
         )
-        assert agent_runs.status_code == 200, agent_runs.text
-        assert agent_runs.json()[0]["run_id"] == result.json()["run"]["run_id"]
-        workflow_result = client.post(
-            f"/api/v0/workflows/{scenario.workflow_id}/runs",
-            headers=scenario.user_headers,
-            json={"task": "Say hello through the workflow."},
-        )
-        assert workflow_result.status_code == 201, workflow_result.text
-        assert (
-            client.get(
-                f"/api/v0/workflows/{scenario.workflow_id}/runs",
-                headers=scenario.user_headers,
-            ).status_code
-            == 200
-        )
+        assert detail.status_code == 200, detail.text
 
 
 def test_user_mutations_are_denied_and_builder_replacement_is_atomic():

@@ -103,6 +103,14 @@ from contracts.v1.schedules import (
     WorkflowSchedule,
     WorkflowScheduleStatus,
 )
+from contracts.v1.tasks import (
+    Task,
+    TaskMessage,
+    TaskMessageRole,
+    TaskStatus,
+    TaskTurn,
+    TaskTurnStatus,
+)
 from contracts.v1.threads import (
     ConversationThread,
     ConversationThreadStatus,
@@ -194,6 +202,12 @@ __all__ = [
     "RoleBinding",
     "RunStatus",
     "SystemRoleKey",
+    "Task",
+    "TaskMessage",
+    "TaskMessageRole",
+    "TaskStatus",
+    "TaskTurn",
+    "TaskTurnStatus",
     "ToolInvocation",
     "User",
     "UserInvitation",

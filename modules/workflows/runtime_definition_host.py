@@ -13,7 +13,6 @@ from contracts.v1 import (
     AuditEvent,
     Permission,
     WorkflowDefinition,
-    WorkflowRun,
     WorkflowVersion,
 )
 
@@ -25,7 +24,6 @@ class WorkflowDefinitionRuntimeHost(ABC):
     agent_versions: Repository[AgentVersion]
     agents: Repository[AgentDefinition]
     audit_events: Repository[AuditEvent]
-    runs: Repository[WorkflowRun]
     workflow_versions: Repository[WorkflowVersion]
     workflows: Repository[WorkflowDefinition]
 

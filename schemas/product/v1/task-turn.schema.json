@@ -1,0 +1,238 @@
+{
+  "$defs": {
+    "ErrorSummary": {
+      "additionalProperties": false,
+      "description": "Bounded user-safe error details; stack traces and provider payloads do not belong here.",
+      "properties": {
+        "code": {
+          "maxLength": 128,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "summary": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "summary"
+      ],
+      "title": "ErrorSummary",
+      "type": "object"
+    },
+    "TaskTurnStatus": {
+      "description": "Durable processing state for one user message and agent response.",
+      "enum": [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "title": "TaskTurnStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Internal durable dispatch and outcome for one task conversation turn.",
+  "properties": {
+    "agent_run_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Agent Run Id"
+    },
+    "assistant_message_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Assistant Message Id"
+    },
+    "attempts": {
+      "default": 0,
+      "maximum": 100,
+      "minimum": 0,
+      "title": "Attempts",
+      "type": "integer"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ErrorSummary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Finished At"
+    },
+    "idempotency_key": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Idempotency Key"
+    },
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
+      "type": "string"
+    },
+    "requested_by_principal_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Requested By Principal Id",
+      "type": "string"
+    },
+    "run_idempotency_key": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Run Idempotency Key"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "started_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Started At"
+    },
+    "status": {
+      "$ref": "#/$defs/TaskTurnStatus"
+    },
+    "task_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Task Id",
+      "type": "string"
+    },
+    "turn_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Turn Id",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "user_message_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "User Message Id",
+      "type": "string"
+    },
+    "worker_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Worker Id"
+    },
+    "workspace_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "created_at",
+    "updated_at",
+    "org_id",
+    "workspace_id",
+    "turn_id",
+    "task_id",
+    "user_message_id",
+    "requested_by_principal_id",
+    "status"
+  ],
+  "title": "TaskTurn",
+  "type": "object"
+}

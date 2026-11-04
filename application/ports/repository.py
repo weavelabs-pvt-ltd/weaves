@@ -76,6 +76,44 @@ class Repository(Protocol[TContract]):
         """Return one filtered audit page after an optional keyset cursor."""
         ...
 
+    def list_task_page(
+        self,
+        org_id: OpaqueId,
+        workspace_id: OpaqueId,
+        *,
+        status: str | None,
+        agent_id: str | None,
+        created_by_principal_id: str | None,
+        cursor_created_at: datetime | None,
+        cursor_task_id: str | None,
+        limit: int,
+    ) -> tuple[TContract, ...]:
+        """Return one bounded task page in newest-first keyset order."""
+        ...
+
+    def list_task_messages_page(
+        self,
+        task_id: OpaqueId,
+        org_id: OpaqueId,
+        workspace_id: OpaqueId,
+        *,
+        cursor_created_at: datetime | None,
+        cursor_message_id: str | None,
+        limit: int,
+    ) -> tuple[TContract, ...]:
+        """Return one newest-first page of a task's scoped messages."""
+        ...
+
+    def list_status_updated_before(
+        self,
+        status: str,
+        updated_before: datetime,
+        *,
+        limit: int,
+    ) -> tuple[TContract, ...]:
+        """Return a bounded set of records with a stale status lease."""
+        ...
+
     def find_by_field(self, field: str, value: str) -> TContract | None:
         """Find the first record matching a validated contract field."""
         ...
@@ -125,6 +163,27 @@ class Repository(Protocol[TContract]):
         expected_status: str = "running",
     ) -> bool:
         """Update a queued job only for the current worker lease."""
+        ...
+
+    def put_if_worker_owned(
+        self,
+        record: TContract,
+        *,
+        worker_id: str,
+        attempts: int,
+        expected_status: str = "running",
+    ) -> bool:
+        """Fence a worker update to the record's current lease and attempt."""
+        ...
+
+    def put_if_task_state(
+        self,
+        record: TContract,
+        *,
+        expected_status: str,
+        expected_active_turn_id: str | None,
+    ) -> bool:
+        """Compare and set a task only while its lifecycle/active turn match."""
         ...
 
     def put_if_invitation_pending(

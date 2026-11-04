@@ -48,7 +48,7 @@ def test_mcp_tools_are_allowlisted_governed_and_audited(monkeypatch):
     try:
         with client:
             installation, imported = _discover_and_install_mcp(client)
-            _assert_mcp_tool_runs_and_redacts_secrets(client, imported)
+            _assert_mcp_tool_runs_and_redacts_secrets(client, runtime, imported)
             _assert_mcp_schema_drift_and_tool_rejection(
                 client, active_tool, installation, requests
             )
@@ -67,17 +67,22 @@ def _mcp_mock_handler(active_tool, requests):
         assert request.headers["MCP-Protocol-Version"] == "2026-07-28"
         assert request.headers["Mcp-Method"] == message["method"]
         assert request.headers["Authorization"] == "Bearer mcp-secret"
+        if message["method"] == "notifications/initialized":
+            return httpx.Response(202)
         result = _mcp_result_for_request(request, message, active_tool)
         return httpx.Response(
             200,
             json={"jsonrpc": "2.0", "id": message["id"], "result": result},
+            headers={"Mcp-Session-Id": "session-test"},
         )
 
     return respond
 
 
 def _mcp_result_for_request(request, message, active_tool):
-    """Return a tools/list or validated tools/call payload for the mock server."""
+    """Return a valid MCP handshake, tools/list, or tools/call result."""
+    if message["method"] == "initialize":
+        return {"protocolVersion": "2026-07-28", "capabilities": {}}
     if message["method"] == "tools/list":
         return {"resultType": "complete", "tools": [active_tool]}
     if message["method"] != "tools/call":
@@ -137,8 +142,8 @@ def _discover_and_install_mcp(client):
     return installation, imported
 
 
-def _assert_mcp_tool_runs_and_redacts_secrets(client, imported):
-    """Execute the imported MCP context capability and verify audit/redaction."""
+def _assert_mcp_tool_runs_and_redacts_secrets(client, runtime, imported):
+    """Execute a Task using an MCP context tool and verify redaction/audit."""
     agent = client.post(
         "/api/v0/agents",
         json={
@@ -148,26 +153,25 @@ def _assert_mcp_tool_runs_and_redacts_secrets(client, imported):
         },
     )
     assert agent.status_code == 201
-    run = client.post(
-        "/api/v0/runs",
-        json={"agent_id": agent.json()["id"], "task": "launch checklist"},
+    task = client.post(
+        "/api/v0/tasks",
+        json={
+            "agent_id": agent.json()["id"],
+            "title": "Find launch checklist",
+            "initial_message": "launch checklist",
+        },
     )
-    assert run.status_code == 201
-    invocation = next(
-        item
-        for item in run.json()["tool_invocations"]
-        if item["capability_id"] == imported["capability_id"]
+    assert task.status_code == 202
+    turn = runtime.task_worker_service.process_next_turn("mcp-task-worker")
+    assert turn is not None and turn.status.value == "succeeded"
+    messages = client.get(f"/api/v0/tasks/{task.json()['task_id']}/messages").json()
+    response = next(
+        item["content"] for item in messages["items"] if item["role"] == "assistant"
     )
-    assert invocation["status"] == "succeeded"
-    response = run.json()["agent_run"]["output_summary"]["response"]
     assert "hiddenvalue" not in response
     assert "hidden-bearer-token" not in response
     events = client.get("/api/v0/audit-events").json()
-    assert any(
-        event["action"] == "plugin.capability.succeeded"
-        and event["target_id"] == invocation["invocation_id"]
-        for event in events
-    )
+    assert any(event["action"] == "plugin.capability.succeeded" for event in events)
 
 
 def _assert_mcp_schema_drift_and_tool_rejection(

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TypeVar
+from typing import TypeVar, cast
 
 from application.ports.repository import Repository
 from contracts.v1 import (
@@ -20,6 +20,57 @@ from contracts.v1.base import ProductContract
 from modules.knowledge.context import read_context_search
 
 TProduct = TypeVar("TProduct", bound=ProductContract)
+
+
+def _github_search_capabilities() -> tuple[CapabilitySpec, CapabilitySpec]:
+    """Build the issue and source-code search capability descriptors."""
+    github_search = CapabilitySpec(
+        capability_id="github.issues.search",
+        name="Search GitHub issues and pull requests",
+        description="Search issues and pull requests in configured repositories.",
+        kind=CapabilityKind.CONTEXT_READ,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "minLength": 1, "maxLength": 500}
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+        output_schema={
+            "type": "object",
+            "properties": {
+                "documents": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "source_id": {"type": "string", "maxLength": 128},
+                            "title": {"type": "string", "maxLength": 160},
+                            "text": {"type": "string", "maxLength": 2000},
+                        },
+                        "required": ["source_id", "title", "text"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["documents"],
+            "additionalProperties": False,
+        },
+        timeout_seconds=20,
+    )
+    github_code_search = github_search.model_copy(
+        update={
+            "capability_id": "github.code.search",
+            "name": "Search GitHub source code",
+            "description": (
+                "Search code in configured repositories and return matching "
+                "file paths with bounded excerpts."
+            ),
+        }
+    )
+    return github_search, github_code_search
 
 
 class IntegrationBootstrapService:
@@ -61,7 +112,12 @@ class IntegrationBootstrapService:
                         "description": record.description,
                     }
                 )
-                return repository.put(PluginDescriptor.model_validate(updated))
+                return cast(
+                    TProduct,
+                    cast(Repository[PluginDescriptor], repository).put(
+                        PluginDescriptor.model_validate(updated)
+                    ),
+                )
             return existing
         except KeyError:
             try:
@@ -144,52 +200,7 @@ class IntegrationBootstrapService:
 
     def _seed_github_plugin(self) -> None:
         """Seed the built-in GitHub plugin descriptor."""
-        github_search = CapabilitySpec(
-            capability_id="github.issues.search",
-            name="Search GitHub issues and pull requests",
-            description="Search issues and pull requests in configured repositories.",
-            kind=CapabilityKind.CONTEXT_READ,
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "minLength": 1, "maxLength": 500}
-                },
-                "required": ["query"],
-                "additionalProperties": False,
-            },
-            output_schema={
-                "type": "object",
-                "properties": {
-                    "documents": {
-                        "type": "array",
-                        "maxItems": 5,
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "source_id": {"type": "string", "maxLength": 128},
-                                "title": {"type": "string", "maxLength": 160},
-                                "text": {"type": "string", "maxLength": 2000},
-                            },
-                            "required": ["source_id", "title", "text"],
-                            "additionalProperties": False,
-                        },
-                    }
-                },
-                "required": ["documents"],
-                "additionalProperties": False,
-            },
-            timeout_seconds=20,
-        )
-        github_code_search = github_search.model_copy(
-            update={
-                "capability_id": "github.code.search",
-                "name": "Search GitHub source code",
-                "description": (
-                    "Search code in configured repositories and return matching "
-                    "file paths with bounded excerpts."
-                ),
-            }
-        )
+        github_search, github_code_search = _github_search_capabilities()
         self._seed(
             self.plugins,
             "plugin_id",
@@ -201,12 +212,6 @@ class IntegrationBootstrapService:
                     "Read-only search across issues, pull requests, and source code."
                 ),
                 capability_manifest=(github_search, github_code_search),
-                auth_schema={
-                    "type": "object",
-                    "properties": {"token": {"type": "string"}},
-                    "required": ["token"],
-                    "additionalProperties": False,
-                },
                 configuration_schema={
                     "type": "object",
                     "properties": {
@@ -260,12 +265,6 @@ class IntegrationBootstrapService:
                         ),
                     ),
                 ),
-                auth_schema={
-                    "type": "object",
-                    "properties": {"user_token": {"type": "string"}},
-                    "required": ["user_token"],
-                    "additionalProperties": False,
-                },
                 configuration_schema={
                     "type": "object",
                     "properties": {
@@ -304,12 +303,6 @@ class IntegrationBootstrapService:
                 display_name="Jira Cloud",
                 description="Read-only issue search scoped to configured projects.",
                 capability_manifest=(jira_search, jira_comment),
-                auth_schema={
-                    "type": "object",
-                    "properties": {"api_token": {"type": "string"}},
-                    "required": ["api_token"],
-                    "additionalProperties": False,
-                },
                 configuration_schema={
                     "type": "object",
                     "properties": {

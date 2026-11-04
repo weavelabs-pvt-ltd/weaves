@@ -30,6 +30,9 @@ from contracts.v1 import (
     Principal,
     Role,
     RoleBinding,
+    Task,
+    TaskMessage,
+    TaskTurn,
     ToolInvocation,
     User,
     UserInvitation,
@@ -86,6 +89,9 @@ class RuntimeRepositoryBindingMixin:
     memory_items: Repository[MemoryItem]
     threads: Repository[ConversationThread]
     execution_jobs: Repository[ExecutionJob]
+    tasks: Repository[Task]
+    task_messages: Repository[TaskMessage]
+    task_turns: Repository[TaskTurn]
     audit_events: Repository[AuditEvent]
 
     def _bind_repositories(self) -> None:
@@ -138,6 +144,9 @@ class RuntimeRepositoryBindingMixin:
         self.memory_items = self._repository("memory_items", MemoryItem)
         self.threads = self._repository("conversation_threads", ConversationThread)
         self.execution_jobs = self._repository("execution_jobs", ExecutionJob)
+        self.tasks = self._repository("tasks", Task)
+        self.task_messages = self._repository("task_messages", TaskMessage)
+        self.task_turns = self._repository("task_turns", TaskTurn)
         self.audit_events = self._repository("audit_events", AuditEvent)
 
     def _repository(

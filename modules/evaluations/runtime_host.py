@@ -21,6 +21,8 @@ from contracts.v1 import (
     EvaluationSuiteRecord,
     ExecutionJob,
     Permission,
+    Task,
+    TaskTurn,
     ToolInvocation,
     WorkflowRun,
 )
@@ -45,6 +47,8 @@ class EvaluationRuntimeHost(ABC):
     execution_jobs: Repository[ExecutionJob]
     runs: Repository[WorkflowRun]
     tool_invocations: Repository[ToolInvocation]
+    tasks: Repository[Task]
+    task_turns: Repository[TaskTurn]
 
     @abstractmethod
     def bootstrap(self) -> None:

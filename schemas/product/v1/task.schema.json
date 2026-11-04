@@ -1,0 +1,235 @@
+{
+  "$defs": {
+    "TaskStatus": {
+      "description": "Lifecycle state chosen by the user for a task.",
+      "enum": [
+        "open",
+        "completed",
+        "archived"
+      ],
+      "title": "TaskStatus",
+      "type": "string"
+    },
+    "TaskTurnStatus": {
+      "description": "Durable processing state for one user message and agent response.",
+      "enum": [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "title": "TaskTurnStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "User-owned task conversation pinned to one agent version.",
+  "properties": {
+    "active_turn_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Active Turn Id"
+    },
+    "active_turn_status": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TaskTurnStatus"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "agent_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Agent Id",
+      "type": "string"
+    },
+    "agent_version_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Agent Version Id",
+      "type": "string"
+    },
+    "archived_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Archived At"
+    },
+    "completed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Completed At"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_by_principal_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Created By Principal Id",
+      "type": "string"
+    },
+    "creation_message_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Creation Message Id",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "maxLength": 4000,
+      "title": "Description",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Idempotency Key"
+    },
+    "latest_response_summary": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Latest Response Summary"
+    },
+    "latest_turn_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Latest Turn Id"
+    },
+    "latest_turn_status": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TaskTurnStatus"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
+      "type": "string"
+    },
+    "requested_by_principal_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Requested By Principal Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/TaskStatus",
+      "default": "open"
+    },
+    "task_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Task Id",
+      "type": "string"
+    },
+    "thread_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Thread Id",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "workspace_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "created_at",
+    "updated_at",
+    "org_id",
+    "workspace_id",
+    "task_id",
+    "title",
+    "created_by_principal_id",
+    "requested_by_principal_id",
+    "agent_id",
+    "agent_version_id",
+    "thread_id",
+    "creation_message_id"
+  ],
+  "title": "Task",
+  "type": "object"
+}

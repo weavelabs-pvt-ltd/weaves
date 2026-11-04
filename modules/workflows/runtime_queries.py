@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-import base64
-import json
-from datetime import datetime
+from typing import Any
 
 from contracts.v1 import (
     AuditEvent,
     AuditTargetScope,
     Permission,
     WorkflowDefinition,
-    WorkflowRun,
     WorkflowStatus,
     WorkflowVersion,
 )
+from modules.workflows.graph import workflow_graph_view
 from modules.workflows.runtime_definition_host import WorkflowDefinitionRuntimeHost
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
@@ -26,7 +24,23 @@ from shared.request_context import (
 
 
 class WorkflowQueryMixin(WorkflowDefinitionRuntimeHost):
-    """Read workflow versions and execution history."""
+    """Read workflow definitions, versions, and graph projections."""
+
+    def graph_for_version(self, version: WorkflowVersion) -> dict[str, Any]:
+        """Build a graph projection from one scoped, immutable workflow version."""
+        agent_versions = tuple(
+            self.agent_versions.get_scoped(
+                version_id, version.org_id, version.workspace_id
+            )
+            for version_id in version.agent_version_ids
+        )
+        agents_by_id = {
+            agent_version.agent_id: self.agents.get_scoped(
+                agent_version.agent_id, version.org_id, version.workspace_id
+            )
+            for agent_version in agent_versions
+        }
+        return workflow_graph_view(version, agent_versions, agents_by_id)
 
     def update_workflow(
         self,
@@ -86,60 +100,6 @@ class WorkflowQueryMixin(WorkflowDefinitionRuntimeHost):
             )
         return updated
 
-    def list_workflow_runs(
-        self,
-        workflow_id: str,
-        *,
-        limit: int = 50,
-        cursor: str | None = None,
-        requested_by_principal_id: str = "local-developer",
-    ) -> tuple[WorkflowRun, ...]:
-        """Return a keyset-paginated run history for one scoped workflow."""
-        self._ensure_workflow_runtime()
-        actor = effective_principal_id(requested_by_principal_id)
-        self.authorize(actor, Permission.WORKFLOWS_RUN)
-        workflow = self.workflows.get_scoped(
-            workflow_id, effective_org_id(), effective_workspace_id()
-        )
-        if not 1 <= limit <= 101:
-            raise ValueError("workflow run limit must be between 1 and 101")
-        cursor_position: tuple[datetime, str] | None = None
-        if cursor is not None:
-            if not cursor or len(cursor) > 1024:
-                raise ValueError("workflow run cursor is invalid")
-            try:
-                encoded = cursor + "=" * (-len(cursor) % 4)
-                cursor_payload = json.loads(
-                    base64.b64decode(encoded, altchars=b"-_", validate=True)
-                )
-                if (
-                    not isinstance(cursor_payload, dict)
-                    or set(cursor_payload) != {"created_at", "run_id"}
-                    or not isinstance(cursor_payload["created_at"], str)
-                    or not isinstance(cursor_payload["run_id"], str)
-                    or not cursor_payload["run_id"]
-                ):
-                    raise ValueError
-                cursor_created_at = datetime.fromisoformat(
-                    cursor_payload["created_at"].replace("Z", "+00:00")
-                )
-                if cursor_created_at.utcoffset() is None:
-                    raise ValueError
-                cursor_position = (cursor_created_at, cursor_payload["run_id"])
-            except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
-                raise ValueError("workflow run cursor is invalid") from exc
-        runs = [
-            item
-            for item in self.runs.list_scoped(workflow.org_id, workflow.workspace_id)
-            if item.workflow_id == workflow_id
-            and (
-                cursor_position is None
-                or (item.created_at, item.run_id) < cursor_position
-            )
-        ]
-        runs.sort(key=lambda item: (item.created_at, item.run_id), reverse=True)
-        return tuple(runs[:limit])
-
     def get_workflow_version(
         self,
         workflow_id: str,
@@ -189,12 +149,3 @@ class WorkflowQueryMixin(WorkflowDefinitionRuntimeHost):
         ]
         versions.sort(key=lambda item: item.version, reverse=True)
         return tuple(versions[:limit])
-
-    @staticmethod
-    def workflow_run_cursor(run: WorkflowRun) -> str:
-        """Return an opaque continuation token for a workflow run page."""
-        payload = json.dumps(
-            {"created_at": run.created_at.isoformat(), "run_id": run.run_id},
-            separators=(",", ":"),
-        ).encode("utf-8")
-        return base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")

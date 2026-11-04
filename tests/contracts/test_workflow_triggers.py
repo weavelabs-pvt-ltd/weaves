@@ -179,17 +179,18 @@ def _create_webhook_trigger(client, admin_headers):
 def _assert_webhook_delivery_replay_and_conflicts(
     client, trigger_id, event_headers, payload
 ):
-    """Verify delivery replay returns the same job and rejects conflicting data."""
+    """Verify delivery replay stays stable without exposing queue internals."""
     url = f"/api/v0/webhooks/{trigger_id}"
     first = client.post(url, headers=event_headers, json=payload)
     replay = client.post(url, headers=event_headers, json=payload)
     assert first.status_code == 202, first.text
     assert not first.json()["replayed"]
+    assert first.json()["accepted"] is True
+    assert "job" not in first.json()
     assert replay.status_code == 202, replay.text
     assert replay.json()["replayed"]
-    assert replay.json()["job"]["job_id"] == first.json()["job"]["job_id"]
-    assert replay.json()["job"]["trigger_id"] == trigger_id
-    assert replay.json()["job"]["trigger_event_id"] == "delivery-100"
+    assert replay.json()["accepted"] is True
+    assert "job" not in replay.json()
     conflict = client.post(
         url, headers=event_headers, json={"issue": {"key": "REL-43"}}
     )
@@ -272,14 +273,14 @@ def test_disable_waits_for_an_in_flight_delivery_acceptance():
     allow_enqueue = Event()
     disable_started = Event()
     disable_finished = Event()
-    actual_enqueue = runtime.enqueue_agent_run
+    actual_enqueue = runtime.workflow_automation_service._enqueue_agent_run_impl
 
     def paused_enqueue(*args, **kwargs):
         enqueue_entered.set()
         assert allow_enqueue.wait(timeout=2)
         return actual_enqueue(*args, **kwargs)
 
-    runtime.enqueue_agent_run = paused_enqueue
+    runtime.workflow_automation_service._enqueue_agent_run_impl = paused_enqueue
 
     def disable_trigger():
         disable_started.set()

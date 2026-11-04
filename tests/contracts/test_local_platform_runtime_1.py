@@ -37,7 +37,7 @@ def test_conversation_thread_sends_bounded_prior_turns_to_model():
 
     runtime.bootstrap()
     runtime.model_adapters[ModelProviderType.LOCAL] = CapturingModel()
-    runtime.model_gateway = ModelGateway(runtime.model_adapters)
+    runtime.agent_execution_service.model_gateway = ModelGateway(runtime.model_adapters)
     thread = runtime.memory_service.create_conversation_thread(title="Follow up")
 
     runtime.run_agent("My team is called Atlas", thread_id=thread.thread_id)
@@ -66,7 +66,7 @@ def test_agent_run_persists_responses_longer_than_old_artifact_summary_limit():
             )
 
     runtime.model_adapters[ModelProviderType.LOCAL] = LongResponseModel()
-    runtime.model_gateway = ModelGateway(runtime.model_adapters)
+    runtime.agent_execution_service.model_gateway = ModelGateway(runtime.model_adapters)
 
     result = runtime.run_agent("Return a detailed working agreement")
 
@@ -114,7 +114,7 @@ def test_agent_context_is_bounded_to_model_and_artifact_contracts():
             )
 
     runtime.model_adapters[ModelProviderType.LOCAL] = CapturingModel()
-    runtime.model_gateway = ModelGateway(runtime.model_adapters)
+    runtime.agent_execution_service.model_gateway = ModelGateway(runtime.model_adapters)
 
     result = runtime.run_agent("Summarize release guidance", agent_id=agent.id)
 
@@ -156,7 +156,7 @@ def test_ten_step_workflow_bounds_prior_artifacts_in_model_requests():
             )
 
     runtime.model_adapters[ModelProviderType.LOCAL] = LongWorkflowModel()
-    runtime.model_gateway = ModelGateway(runtime.model_adapters)
+    runtime.agent_execution_service.model_gateway = ModelGateway(runtime.model_adapters)
 
     result = runtime.run_workflow(workflow.workflow_id, "Review the release")
 
@@ -246,7 +246,7 @@ def test_workflow_condition_routes_steps_from_structured_agent_output(
             )
 
     runtime.model_adapters[ModelProviderType.LOCAL] = ConditionalModel()
-    runtime.model_gateway = ModelGateway(runtime.model_adapters)
+    runtime.agent_execution_service.model_gateway = ModelGateway(runtime.model_adapters)
     result = runtime.run_workflow(workflow.workflow_id, "Review this request")
 
     _assert_conditional_workflow_result(
@@ -297,7 +297,7 @@ def test_invalid_provider_response_is_sanitized_and_fails_the_run():
             )
 
     runtime.model_adapters[ModelProviderType.LOCAL] = OversizedResponseModel()
-    runtime.model_gateway = ModelGateway(runtime.model_adapters)
+    runtime.agent_execution_service.model_gateway = ModelGateway(runtime.model_adapters)
 
     with pytest.raises(ModelGatewayError) as captured_error:
         runtime.run_agent("Summarize security basics", agent_id=agent.id)
@@ -339,7 +339,9 @@ def test_agent_runtime_budget_fails_at_safe_boundary_and_audits(monkeypatch):
         budget=AgentBudget(max_runtime_seconds=1),
     )
     ticks = iter((100.0, 102.0))
-    monkeypatch.setattr("application.platform.monotonic", lambda: next(ticks))
+    monkeypatch.setattr(
+        "modules.agents.runtime_run_lifecycle.monotonic", lambda: next(ticks)
+    )
 
     with pytest.raises(AgentRuntimeBudgetExceeded, match="safe boundary"):
         runtime.run_agent("Summarize security basics", agent_id=agent.id)
@@ -372,9 +374,15 @@ def test_runtime_timeout_after_model_completion_retains_reported_usage(monkeypat
             )
 
     runtime.model_adapters[ModelProviderType.LOCAL] = SlowModel()
-    runtime.model_gateway = ModelGateway(runtime.model_adapters)
+    runtime.agent_execution_service.model_gateway = ModelGateway(runtime.model_adapters)
     ticks = iter((100.0, 100.0, 100.0, 102.0))
-    monkeypatch.setattr("application.platform.monotonic", lambda: next(ticks))
+    monkeypatch.setattr(
+        "modules.agents.runtime_run_lifecycle.monotonic", lambda: next(ticks)
+    )
+    error_ticks = iter((100.0, 100.0, 102.0))
+    monkeypatch.setattr(
+        "modules.agents.runtime_run_errors.monotonic", lambda: next(error_ticks)
+    )
 
     with pytest.raises(AgentRuntimeBudgetExceeded):
         runtime.run_agent("Summarize security basics", agent_id=agent.id)

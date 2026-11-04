@@ -9,13 +9,11 @@ from typing import TYPE_CHECKING
 from contracts.v1 import (
     WorkflowDefinition,
     WorkflowParallelGroup,
-    WorkflowRun,
     WorkflowStatus,
     WorkflowStepCondition,
     WorkflowStepDependency,
     WorkflowVersion,
 )
-from modules.workflows.runtime_queries import WorkflowQueryMixin
 from modules.workflows.runtime_result import RuntimeResult
 
 if TYPE_CHECKING:
@@ -89,22 +87,6 @@ class RuntimeWorkflowCompatibilityMixin:
             requested_by_principal_id=requested_by_principal_id,
         )
 
-    def list_workflow_runs(
-        self,
-        workflow_id: str,
-        *,
-        limit: int = 50,
-        cursor: str | None = None,
-        requested_by_principal_id: str = "local-developer",
-    ) -> tuple[WorkflowRun, ...]:
-        """Delegate workflow run history queries to its capability service."""
-        return self.workflow_definition_service.list_workflow_runs(
-            workflow_id,
-            limit=limit,
-            cursor=cursor,
-            requested_by_principal_id=requested_by_principal_id,
-        )
-
     def get_workflow_version(
         self,
         workflow_id: str,
@@ -131,11 +113,6 @@ class RuntimeWorkflowCompatibilityMixin:
             before_version=before_version,
             requested_by_principal_id=requested_by_principal_id,
         )
-
-    @staticmethod
-    def workflow_run_cursor(run: WorkflowRun) -> str:
-        """Retain the runtime helper that encodes workflow run cursors."""
-        return WorkflowQueryMixin.workflow_run_cursor(run)
 
     def replace_workflow_agents(
         self,

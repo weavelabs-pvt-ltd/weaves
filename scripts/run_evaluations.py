@@ -8,7 +8,6 @@ import json
 import os
 import sys
 import time
-from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -33,13 +32,19 @@ def _run_case(
     case: EvaluationCase,
     evaluation_id: str,
 ) -> EvaluationCaseResult:
-    body = json.dumps({"agent_id": suite.agent_id, "task": case.task}).encode("utf-8")
+    body = json.dumps(
+        {
+            "agent_id": suite.agent_id,
+            "title": f"Evaluation {case.case_id}"[:160],
+            "initial_message": case.task,
+        }
+    ).encode("utf-8")
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     headers["Idempotency-Key"] = f"weaves-eval-{evaluation_id[:16]}-{case.case_id}"
     request = Request(
-        f"{base_url.rstrip('/')}/api/v0/runs",
+        f"{base_url.rstrip('/')}/api/v0/tasks",
         data=body,
         headers=headers,
         method="POST",
@@ -47,13 +52,43 @@ def _run_case(
     started = time.monotonic()
     try:
         with urlopen(request, timeout=180) as response:
-            payload = json.loads(response.read())
+            task = json.loads(response.read())
+        task_id = task["task_id"]
+        deadline = started + 180
+        while time.monotonic() < deadline:
+            task = _api_json_request(
+                base_url,
+                token,
+                f"/api/v0/tasks/{task_id}",
+                method="GET",
+            )
+            if task.get("latest_turn_status") in {"succeeded", "failed", "cancelled"}:
+                messages = _api_json_request(
+                    base_url,
+                    token,
+                    f"/api/v0/tasks/{task_id}/messages",
+                    method="GET",
+                )
+                return score_task_response(
+                    case,
+                    task,
+                    messages,
+                    duration_ms=int((time.monotonic() - started) * 1000),
+                )
+            time.sleep(0.5)
+        return score_evaluation_case(
+            case,
+            status="timeout",
+            run_id=task_id,
+            request_error="Task did not finish within the evaluation timeout.",
+            duration_ms=int((time.monotonic() - started) * 1000),
+        )
     except HTTPError as exc:
         return score_evaluation_case(
             case,
             status=None,
             run_id=None,
-            request_error=f"Run API returned HTTP {exc.code}.",
+            request_error=f"Task API returned HTTP {exc.code}.",
             duration_ms=int((time.monotonic() - started) * 1000),
         )
     except (URLError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError):
@@ -61,50 +96,37 @@ def _run_case(
             case,
             status=None,
             run_id=None,
-            request_error="Run API request failed or returned invalid JSON.",
+            request_error="Task API request failed or returned invalid JSON.",
             duration_ms=int((time.monotonic() - started) * 1000),
         )
 
-    return score_run_response(
-        case,
-        payload,
-        duration_ms=int((time.monotonic() - started) * 1000),
-    )
 
-
-def score_run_response(
-    case: EvaluationCase, payload: dict[str, Any], *, duration_ms: int
+def score_task_response(
+    case: EvaluationCase,
+    task: dict[str, Any],
+    messages: dict[str, Any],
+    *,
+    duration_ms: int,
 ) -> EvaluationCaseResult:
-    """Map the product run API response into the stable evaluation checks."""
-    run: dict[str, Any] = payload.get("run") or {}
-    agent_run: dict[str, Any] = payload.get("agent_run") or {}
-    artifacts = payload.get("artifacts") or []
-    summaries = tuple(
-        item["summary"]
-        for item in artifacts
-        if isinstance(item, dict) and isinstance(item.get("summary"), str)
+    """Map a task transcript into stable output and evidence checks."""
+    assistant_messages = tuple(
+        item["content"]
+        for item in messages.get("items", [])
+        if item.get("role") == "assistant" and isinstance(item.get("content"), str)
     )
+    text = "\n".join(assistant_messages)
+    source_text = text.partition("Retrieved sources:")[2]
     cited_sources = tuple(
-        provenance["source_ref"]
-        for artifact in artifacts
-        if isinstance(artifact, dict)
-        for provenance in artifact.get("provenance", [])
-        if isinstance(provenance, dict)
-        and isinstance(provenance.get("source_ref"), str)
+        token.strip(" ,;[]()")
+        for token in source_text.split()
+        if ":" in token and token.strip(" ,;[]()")
     )
-    estimated_cost = agent_run.get("estimated_cost_usd")
     return score_evaluation_case(
         case,
-        status=run.get("status"),
-        run_id=run.get("run_id"),
-        summaries=summaries,
+        status=task.get("latest_turn_status"),
+        run_id=task.get("task_id"),
+        summaries=assistant_messages,
         cited_sources=cited_sources,
-        tool_call_count=len(payload.get("tool_invocations") or []),
-        input_tokens=agent_run.get("input_tokens"),
-        output_tokens=agent_run.get("output_tokens"),
-        estimated_cost_usd=(
-            Decimal(str(estimated_cost)) if estimated_cost is not None else None
-        ),
         duration_ms=duration_ms,
     )
 
@@ -143,29 +165,27 @@ def _load_suite(
     """Load a local or saved suite, reporting input and API errors."""
     if (args.suite is None) == (args.suite_id is None):
         parser.error("provide exactly one suite file or --suite-id")
-        try:
-            if args.suite_id:
-                saved = _api_json_request(
-                    args.base_url,
-                    args.token,
-                    f"/api/v0/evaluation-suites/{args.suite_id}",
-                    method="GET",
-                )
-                suite = EvaluationSuite.model_validate_json(
-                    json.dumps(saved["definition"])
-                )
-            else:
-                suite = EvaluationSuite.model_validate_json(args.suite.read_text())
-        except (
-            OSError,
-            ValidationError,
-            HTTPError,
-            URLError,
-            TimeoutError,
-            ValueError,
-        ) as exc:
-            print(f"Could not load evaluation suite: {exc}", file=sys.stderr)
-            return 2
+    try:
+        if args.suite_id:
+            saved = _api_json_request(
+                args.base_url,
+                args.token,
+                f"/api/v0/evaluation-suites/{args.suite_id}",
+                method="GET",
+            )
+            suite = EvaluationSuite.model_validate_json(json.dumps(saved["definition"]))
+        else:
+            suite = EvaluationSuite.model_validate_json(args.suite.read_text())
+    except (
+        OSError,
+        ValidationError,
+        HTTPError,
+        URLError,
+        TimeoutError,
+        ValueError,
+    ) as exc:
+        print(f"Could not load evaluation suite: {exc}", file=sys.stderr)
+        return None
 
     return suite
 

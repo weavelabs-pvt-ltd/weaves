@@ -57,6 +57,7 @@ def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
         allow_headers=[
             "Content-Type",
             "Authorization",
+            "Idempotency-Key",
             "X-Workspace-ID",
             "X-Weaves-Onboarding-Token",
         ],

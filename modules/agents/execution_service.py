@@ -34,7 +34,6 @@ from modules.agents.runtime_run_targets import AgentRunTargetsMixin
 from modules.integrations.admin_service import IntegrationAdminService
 from modules.memory.context import MemoryContextBuilder
 from shared.clock import utc_now as _now
-from shared.request_context import effective_org_id, effective_workspace_id
 
 
 class AgentExecutionService(
@@ -135,94 +134,12 @@ class AgentExecutionService(
         """Enforce agent run permissions through the identity capability."""
         self._authorize(principal_id, permission)
 
-    def list_runs(self, *, limit: int) -> tuple[WorkflowRun, ...]:
-        """List recent workflow runs visible in the active workspace."""
-        self.authorize("local-developer", Permission.AGENTS_RUN)
-        runs = self.runs.list_scoped(effective_org_id(), effective_workspace_id())
-        return tuple(
-            sorted(runs, key=lambda item: item.created_at, reverse=True)[:limit]
-        )
-
-    def list_agent_runs(self, agent_id: str, *, limit: int) -> tuple[WorkflowRun, ...]:
-        """List recent runs that executed the selected agent in this workspace."""
-        self.authorize("local-developer", Permission.AGENTS_RUN)
-        self.agents.get_scoped(agent_id, effective_org_id(), effective_workspace_id())
-        agent_run_records = self.agent_runs.list_scoped(
-            effective_org_id(), effective_workspace_id()
-        )
-        matching_run_ids = {
-            item.run_id for item in agent_run_records if item.agent_id == agent_id
-        }
-        runs = (
-            run
-            for run in self.runs.list_scoped(
-                effective_org_id(), effective_workspace_id()
-            )
-            if run.run_id in matching_run_ids
-        )
-        return tuple(
-            sorted(runs, key=lambda item: item.created_at, reverse=True)[:limit]
-        )
-
-    def get_run(self, run_id: str) -> WorkflowRun:
-        """Load one run after enforcing the active workspace permission."""
-        self.authorize("local-developer", Permission.AGENTS_RUN)
-        return self.runs.get_scoped(
-            run_id, effective_org_id(), effective_workspace_id()
-        )
-
-    def list_artifacts(self, *, limit: int) -> tuple[Artifact, ...]:
-        """List recent workspace artifacts after checking read permission."""
-        self.authorize("local-developer", Permission.ARTIFACTS_READ)
-        artifacts = self.artifacts.list_scoped(
-            effective_org_id(), effective_workspace_id()
-        )
-        return tuple(
-            sorted(artifacts, key=lambda item: item.created_at, reverse=True)[:limit]
-        )
-
-    def list_run_artifacts(self, run_id: str) -> tuple[Artifact, ...]:
-        """List artifacts for a run after checking workspace and read access."""
-        self.authorize("local-developer", Permission.ARTIFACTS_READ)
-        self.runs.get_scoped(run_id, effective_org_id(), effective_workspace_id())
-        return tuple(
-            item
-            for item in self.artifacts.list_scoped(
-                effective_org_id(), effective_workspace_id()
-            )
-            if item.run_id == run_id
-        )
-
-    def run_projection_records(
-        self, run: WorkflowRun
-    ) -> tuple[tuple[AgentRun, ...], tuple[ToolInvocation, ...], tuple[Artifact, ...]]:
-        """Load agent, tool, and artifact records used by the run API view."""
-        return (
-            tuple(
-                item
-                for item in self.agent_runs.list_scoped(run.org_id, run.workspace_id)
-                if item.run_id == run.run_id
-            ),
-            tuple(
-                item
-                for item in self.tool_invocations.list_scoped(
-                    run.org_id, run.workspace_id
-                )
-                if item.run_id == run.run_id
-            ),
-            tuple(
-                item
-                for item in self.artifacts.list_scoped(run.org_id, run.workspace_id)
-                if item.run_id == run.run_id
-            ),
-        )
-
     def _unit_of_work(self) -> AbstractContextManager[None]:
-        """Open a transaction for agent run persistence."""
+        """Open a transaction for agent execution persistence."""
         return self._open_unit_of_work()
 
     def _default_agent_id(self) -> str:
-        """Select the seeded assistant or active workspace agent."""
+        """Resolve the configured default agent through the platform port."""
         return self._default_agent_id_impl()
 
     def _touch_run_heartbeat(self, run: WorkflowRun) -> WorkflowRun:
