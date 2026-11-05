@@ -63,7 +63,7 @@ def test_api_rejects_unknown_workflow_run():
     with client:
         response = client.post(
             "/api/v0/workflows/missing-workflow/runs",
-            json={"task": "Summarize the security basics"},
+            json={"instructions": "Summarize the security basics"},
         )
 
     assert response.status_code == 404
@@ -173,9 +173,9 @@ def _assert_archived_workflow_can_be_reactivated(client, workflow_id):
     assert archived.status_code == 200
     unavailable = client.post(
         f"/api/v0/workflows/{workflow_id}/runs",
-        json={"task": "Review the next release"},
+        json={"instructions": "Review the next release"},
     )
-    assert unavailable.status_code == 404
+    assert unavailable.status_code == 422
     reactivated = client.patch(
         f"/api/v0/workflows/{workflow_id}", json={"status": "active"}
     )

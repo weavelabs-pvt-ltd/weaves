@@ -316,28 +316,6 @@ class PostgresRepository(PostgresQueryRepositoryMixin[TContract], Generic[TContr
             )
         return int(result.rowcount) == 1
 
-    def put_if_invitation_pending(
-        self, record: TContract, *, expected_token_digest: str
-    ) -> bool:
-        """Fence invitation acceptance and management to its current token."""
-        from psycopg.types.json import Jsonb
-
-        with self._pool.connection() as connection:
-            result = connection.execute(
-                """UPDATE product_records SET payload = %s, updated_at = %s
-                   WHERE collection = %s AND record_id = %s
-                     AND payload->>'status' = 'pending'
-                     AND payload->>'token_digest' = %s""",
-                (
-                    Jsonb(record.model_dump(mode="json")),
-                    _updated_at(record),
-                    self._collection,
-                    self._record_id(record),
-                    expected_token_digest,
-                ),
-            )
-        return int(result.rowcount) == 1
-
     def _record_id(self, record: TContract) -> str:
         """Read and normalize the contract identifier configured for this repository."""
         try:

@@ -12,6 +12,18 @@
   "additionalProperties": false,
   "description": "Predecessor steps that must finish before a workflow step is eligible.",
   "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "target_agent_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Target Agent Id",
+      "type": "string"
+    },
     "depends_on_agent_ids": {
       "items": {
         "maxLength": 128,
@@ -26,18 +38,6 @@
     "join_policy": {
       "$ref": "#/$defs/WorkflowJoinPolicy",
       "default": "all"
-    },
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
-    "target_agent_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Target Agent Id",
-      "type": "string"
     }
   },
   "required": [

@@ -39,12 +39,19 @@ class ModelProfileStatus(StrEnum):
     DISABLED = "disabled"
 
 
+class ModelTrait(StrEnum):
+    BALANCED = "Balanced"
+    REASONING = "Reasoning"
+    FAST = "Fast"
+
+
 class ModelProvider(OrgScopedContract):
     id: OpaqueId
     provider_type: ModelProviderType
     display_name: DisplayName
     allowed_models: list[ModelName] = Field(min_length=1, max_length=500)
     auth_ref: OpaqueId | None = None
+    credential_last4: str | None = Field(default=None, min_length=4, max_length=4)
     base_url: str | None = Field(default=None, min_length=8, max_length=2048)
     status: ModelProviderStatus
 
@@ -91,6 +98,9 @@ class ModelProfile(MutableOrgScopedContract):
     display_name: DisplayName
     default_temperature: Annotated[float, Field(ge=0.0, le=2.0)] = 0.2
     max_output_tokens: Annotated[int, Field(ge=1, le=32768)] = 2048
+    context_window_tokens: Annotated[int, Field(ge=1)] | None = None
+    model_traits: list[ModelTrait] = Field(default_factory=list, max_length=4)
+    model_description: Annotated[str, Field(min_length=1, max_length=240)] | None = None
     cost_budget_usd: (
         Annotated[Decimal, Field(gt=Decimal("0"), le=Decimal("100000"))] | None
     ) = None

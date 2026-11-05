@@ -106,36 +106,27 @@ def test_execution_job_lease_heartbeat_is_fenced_to_current_claim():
     )
 
 
-def test_invitation_acceptance_rolls_back_all_records_when_audit_write_fails(
-    monkeypatch,
-):
+def test_member_provisioning_rolls_back_all_records_when_audit_write_fails(monkeypatch):
     runtime = LocalPlatformRuntime()
-    user, principal, _, invitation, token = runtime.create_user_invitation(
-        email="transactional-invite@example.com",
-        display_name="Transactional Invite",
-        permissions=(Permission.AGENTS_RUN,),
-    )
-    create_audit = runtime.audit_events.create
+    runtime.bootstrap()
+    before_users = runtime.users.list()
+    before_principals = runtime.principals.list()
+    before_bindings = runtime.role_bindings.list()
+    role = next(r for r in runtime.roles.list() if r.system_role_key == "user")
 
-    def fail_acceptance_audit(event):
-        if event.action == "user.invitation_accepted":
-            raise RuntimeError("simulated audit failure")
-        return create_audit(event)
+    def fail_audit(event):
+        raise RuntimeError("simulated audit failure")
 
-    monkeypatch.setattr(runtime.audit_events, "create", fail_acceptance_audit)
+    monkeypatch.setattr(runtime.audit_events, "create", fail_audit)
     with pytest.raises(RuntimeError, match="simulated audit failure"):
-        runtime.accept_user_invitation(token, "transactional-invite-password")
-
-    assert (
-        runtime.user_invitations.get(invitation.invitation_id).status.value == "pending"
-    )
-    assert runtime.users.get(user.id).status.value == "invited"
-    assert runtime.principals.get(principal.id).status.value == "disabled"
-    with pytest.raises(KeyError):
-        runtime.user_passwords.get(user.id)
-    assert not any(
-        session.principal_id == principal.id for session in runtime.user_sessions.list()
-    )
+        runtime.create_workspace_user(
+            email="transactional@example.com",
+            display_name="Transactional",
+            role_id=role.id,
+        )
+    assert runtime.users.list() == before_users
+    assert runtime.principals.list() == before_principals
+    assert runtime.role_bindings.list() == before_bindings
 
 
 def test_concurrent_workspace_archives_preserve_one_active_workspace():

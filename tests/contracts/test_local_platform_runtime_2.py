@@ -247,13 +247,13 @@ def test_worker_finishes_running_job_as_cancelled_when_requested(monkeypatch):
     runtime = LocalPlatformRuntime()
     job, _ = runtime.enqueue_agent_run("Cancel this active request")
     runtime.EXECUTION_JOB_HEARTBEAT_SECONDS = 0.005
-    original_run_agent = runtime.run_agent
+    original_run_agent = runtime.execution_worker_service._run_agent
 
     def slow_run_agent(*args, **kwargs):
         time.sleep(0.05)
         return original_run_agent(*args, **kwargs)
 
-    monkeypatch.setattr(runtime, "run_agent", slow_run_agent)
+    monkeypatch.setattr(runtime.execution_worker_service, "_run_agent", slow_run_agent)
     with ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(runtime.process_next_execution_job, "cancel-worker")
         deadline = time.monotonic() + 2

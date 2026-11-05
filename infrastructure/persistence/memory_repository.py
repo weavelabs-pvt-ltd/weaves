@@ -447,22 +447,6 @@ class InMemoryRepository(Generic[TContract]):
             self._records[record_id] = self._clone(record)
         return True
 
-    def put_if_invitation_pending(
-        self, record: TContract, *, expected_token_digest: str
-    ) -> bool:
-        """Atomically accept, rotate, or revoke a still-pending invitation."""
-        record_id = self._record_id(record)
-        with self._lock:
-            current = self._records.get(record_id)
-            if (
-                current is None
-                or getattr(getattr(current, "status", None), "value", None) != "pending"
-                or getattr(current, "token_digest", None) != expected_token_digest
-            ):
-                return False
-            self._records[record_id] = self._clone(record)
-        return True
-
     def _record_id(self, record: TContract) -> str:
         """Read and normalize the contract identifier configured for this repository."""
         try:

@@ -9,7 +9,6 @@ from apps.platform_runtime import LocalPlatformRuntime
 from modules.agents.runtime_lifecycle import AgentService
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.credential_service import CredentialService
-from modules.auth.invitation_service import InvitationService
 from modules.auth.organization_service import OrganizationService
 from modules.auth.user_administration_service import UserAdministrationService
 from modules.auth.workspace_access_service import WorkspaceAccessService
@@ -36,7 +35,6 @@ class ApiRouteServices:
     organization: OrganizationService
     workspace_access: WorkspaceAccessService
     user_administration: UserAdministrationService
-    invitation: InvitationService
     authentication: AuthenticationService
     credential: CredentialService
     models: ModelService
@@ -47,6 +45,7 @@ class ApiRouteServices:
     memory: MemoryService
     agents: AgentService
     evaluations: EvaluationService
+    workflow_studio: object
     workflow_definition: WorkflowDefinitionService
     workflow_automation: WorkflowAutomationService
     governance: GovernanceService
@@ -72,7 +71,6 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
         organization=runtime.organization_service,
         workspace_access=runtime.workspace_access_service,
         user_administration=runtime.user_administration_service,
-        invitation=runtime.invitation_service,
         authentication=runtime.authentication_service,
         credential=runtime.credential_service,
         models=runtime.model_service,
@@ -83,6 +81,7 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
         memory=runtime.memory_service,
         agents=runtime.agent_service,
         evaluations=runtime.evaluation_service,
+        workflow_studio=runtime.workflow_studio_service,
         workflow_definition=runtime.workflow_definition_service,
         workflow_automation=runtime.workflow_automation_service,
         governance=runtime.governance_service,

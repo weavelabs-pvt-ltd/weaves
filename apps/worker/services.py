@@ -26,3 +26,4 @@ class WorkerServices:
     memory: MemoryService
     workflow_automation: WorkflowAutomationService
     tasks: TaskWorkerService
+    studio: object | None = None

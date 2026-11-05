@@ -13,27 +13,20 @@
   },
   "additionalProperties": false,
   "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
     "created_at": {
       "format": "date-time",
       "title": "Created At",
       "type": "string"
     },
-    "display_name": {
-      "maxLength": 160,
-      "minLength": 1,
-      "title": "Display Name",
-      "type": "string"
-    },
-    "email": {
-      "maxLength": 320,
-      "minLength": 3,
-      "title": "Email",
-      "type": "string"
-    },
-    "id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Id",
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
       "type": "string"
     },
     "org_id": {
@@ -42,19 +35,26 @@
       "title": "Org Id",
       "type": "string"
     },
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
+    "id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "email": {
+      "maxLength": 320,
+      "minLength": 3,
+      "title": "Email",
+      "type": "string"
+    },
+    "display_name": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Display Name",
+      "type": "string"
     },
     "status": {
       "$ref": "#/$defs/UserStatus"
-    },
-    "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
     }
   },
   "required": [

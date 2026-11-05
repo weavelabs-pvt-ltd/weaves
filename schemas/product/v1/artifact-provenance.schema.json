@@ -2,16 +2,18 @@
   "additionalProperties": false,
   "description": "Source reference used to build an execution artifact.",
   "properties": {
-    "recorded_at": {
-      "format": "date-time",
-      "title": "Recorded At",
-      "type": "string"
-    },
     "schema_version": {
       "const": 1,
       "default": 1,
       "title": "Schema Version",
       "type": "integer"
+    },
+    "source_type": {
+      "maxLength": 128,
+      "minLength": 2,
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "title": "Source Type",
+      "type": "string"
     },
     "source_ref": {
       "maxLength": 256,
@@ -19,11 +21,9 @@
       "title": "Source Ref",
       "type": "string"
     },
-    "source_type": {
-      "maxLength": 128,
-      "minLength": 2,
-      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
-      "title": "Source Type",
+    "recorded_at": {
+      "format": "date-time",
+      "title": "Recorded At",
       "type": "string"
     }
   },

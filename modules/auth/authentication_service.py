@@ -5,11 +5,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 
+from application.ports.email import EmailSender
 from application.ports.repository import Repository
 from application.ports.throttling import LoginRateLimiter
 from contracts.v1 import (
     ApiCredential,
     AuditEvent,
+    EmailLoginChallenge,
     Principal,
     User,
     UserPasswordCredential,
@@ -34,6 +36,9 @@ class AuthenticationService(AuthenticationRuntimeMixin):
         *,
         api_credentials: Repository[ApiCredential],
         audit_events: Repository[AuditEvent],
+        email_login_challenges: Repository[EmailLoginChallenge],
+        email_sender: EmailSender,
+        email_login_hmac_key: str,
         principals: Repository[Principal],
         user_passwords: Repository[UserPasswordCredential],
         user_sessions: Repository[UserSession],
@@ -47,6 +52,9 @@ class AuthenticationService(AuthenticationRuntimeMixin):
         """Bind authentication repositories, throttling, and lifecycle ports."""
         self.api_credentials = api_credentials
         self.audit_events = audit_events
+        self.email_login_challenges = email_login_challenges
+        self.email_sender = email_sender
+        self.email_login_hmac_key = email_login_hmac_key
         self.principals = principals
         self.user_passwords = user_passwords
         self.user_sessions = user_sessions

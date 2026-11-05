@@ -18,6 +18,7 @@ from contracts.v1 import (
     ConversationThread,
     MemoryItem,
     ModelProfile,
+    OrganizationModelConfiguration,
     Permission,
     ToolInvocation,
     WorkflowDefinition,
@@ -78,6 +79,7 @@ class AgentExecutionService(
         audit_events: Repository[AuditEvent],
         memory_items: Repository[MemoryItem],
         model_profiles: Repository[ModelProfile],
+        model_configurations: Repository[OrganizationModelConfiguration],
         providers: Repository[ModelProviderContract],
         runs: Repository[WorkflowRun],
         threads: Repository[ConversationThread],
@@ -104,6 +106,7 @@ class AgentExecutionService(
         self.audit_events = audit_events
         self.memory_items = memory_items
         self.model_profiles = model_profiles
+        self.model_configurations = model_configurations
         self.providers = providers
         self.runs = runs
         self.threads = threads

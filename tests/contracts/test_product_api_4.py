@@ -15,6 +15,7 @@ from contracts.v1 import (
     Workspace,
     WorkspaceStatus,
 )
+from tests.support.member_login import member_token
 from tests.support.runtime import LocalPlatformRuntime
 from tests.support.task_execution import run_task
 
@@ -89,7 +90,7 @@ def _prepare_workspace_admin_scenario(client: TestClient) -> WorkspaceAdminScena
     assert admin.status_code == 201, admin.text
     return WorkspaceAdminScenario(
         workspace_id=workspace_id,
-        headers={"Authorization": f"Bearer {admin.json()['access_token']}"},
+        headers={"Authorization": f"Bearer {member_token(client, admin.json())}"},
         provider_id=provider.json()["id"],
         profile_id=profile_id,
         credential_id=credential.json()["credential"]["id"],

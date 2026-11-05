@@ -17,6 +17,7 @@ def _configure_task_services(
         tasks=dependencies.tasks,
         messages=dependencies.task_messages,
         turns=dependencies.task_turns,
+        agent_runs=dependencies.agent_runs,
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,
         authorize=dependencies.authorize,

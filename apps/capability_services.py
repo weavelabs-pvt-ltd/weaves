@@ -6,7 +6,6 @@ from modules.agents.runtime_lifecycle import AgentService
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.bootstrap import IdentityBootstrapService
 from modules.auth.credential_service import CredentialService
-from modules.auth.invitation_service import InvitationService
 from modules.auth.organization_service import OrganizationService
 from modules.auth.user_administration_service import UserAdministrationService
 from modules.auth.workspace_access_service import WorkspaceAccessService
@@ -32,6 +31,9 @@ from modules.workflows.definition_service import WorkflowDefinitionService
 from modules.workflows.execution_service import WorkflowExecutionService
 
 
+from modules.workflows.studio_service import WorkflowStudioService
+
+
 class CapabilityServiceSet:
     """Hold fully constructed capability services for one process."""
 
@@ -49,7 +51,6 @@ class CapabilityServiceSet:
     integration_admin_service: IntegrationAdminService
     integration_bootstrap_service: IntegrationBootstrapService
     integration_connection_service: IntegrationConnectionService
-    invitation_service: InvitationService
     knowledge: KnowledgeService
     knowledge_bootstrap_service: KnowledgeBootstrapService
     memory_service: MemoryService
@@ -61,6 +62,7 @@ class CapabilityServiceSet:
     user_administration_service: UserAdministrationService
     workflow_automation_service: WorkflowAutomationService
     workflow_definition_service: WorkflowDefinitionService
+    workflow_studio_service: WorkflowStudioService
     workflow_execution_service: WorkflowExecutionService
     task_service: TaskService
     task_worker_service: TaskWorkerService

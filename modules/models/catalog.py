@@ -15,6 +15,7 @@ from contracts.v1 import (
     AuditTargetScope,
     ModelProfile,
     ModelProfileStatus,
+    ModelTrait,
     ModelProviderStatus,
     ModelProviderType,
     Permission,
@@ -33,6 +34,75 @@ class ModelCatalogAdapter(ModelAdapter, Protocol):
     ) -> tuple[dict[str, str], ...]:
         """List selectable model identifiers offered by the provider."""
         ...
+
+
+def model_card_metadata(
+    provider_type: ModelProviderType, model_id: str
+) -> dict[str, object]:
+    """Return curated display metadata when the provider catalog exposes only IDs."""
+    model = model_id.lower().replace(".", "-")
+    descriptions = {
+        "gpt-4-1": "Long documents and steady general work.",
+        "o3": "Slow and careful. Multi-step analysis.",
+        "gpt-4-1-mini": "Cheap, quick triage and routing.",
+        "claude-sonnet-4-5": "Strong writing and tool use.",
+        "claude-opus-4-1": "Deepest reasoning for hard cases.",
+        "claude-haiku-4-5": "Fast extraction and summaries.",
+    }
+    description = descriptions.get(model)
+    if any(
+        token in model
+        for token in ("opus", "o1", "o3", "o4", "astra", "reason")
+    ):
+        trait = ModelTrait.REASONING
+    elif any(
+        token in model
+        for token in ("mini", "nano", "haiku", "flash", "lite", "luna")
+    ):
+        trait = ModelTrait.FAST
+    else:
+        trait = ModelTrait.BALANCED
+
+    context_window_tokens: int | None = None
+    if provider_type is ModelProviderType.OPENAI:
+        if model.startswith(("gpt-4-1", "gpt-6")):
+            context_window_tokens = (
+                1_047_576 if model.startswith("gpt-4-1") else 1_050_000
+            )
+        elif model.startswith("gpt-4o"):
+            context_window_tokens = 128_000
+        elif model.startswith(("o3", "o4")):
+            context_window_tokens = 200_000
+    elif provider_type is ModelProviderType.ANTHROPIC:
+        if any(
+            token in model
+            for token in (
+                "claude-fable-5",
+                "claude-opus-5",
+                "claude-opus-4-6",
+                "claude-opus-4-7",
+                "claude-opus-4-8",
+                "claude-sonnet-5",
+                "claude-sonnet-4-6",
+                "claude-haiku-5",
+            )
+        ):
+            context_window_tokens = 1_000_000
+        elif any(
+            token in model
+            for token in (
+                "claude-opus-4-1",
+                "claude-opus-4-5",
+                "claude-sonnet-4-5",
+                "claude-haiku-4-5",
+            )
+        ):
+            context_window_tokens = 200_000
+    return {
+        "context_window_tokens": context_window_tokens,
+        "model_traits": [trait],
+        "model_description": description,
+    }
 
 
 class ModelCatalogService:
@@ -172,14 +242,24 @@ class ModelCatalogService:
             if profile is None:
                 profile = self._new_model_profile(provider, model_id, timestamp)
                 new_profiles.append(profile)
-            elif profile.status is ModelProfileStatus.DISABLED:
-                profile = profile.model_copy(
-                    update={
-                        "status": ModelProfileStatus.ACTIVE,
-                        "updated_at": timestamp,
-                    }
-                )
-                updated_profiles.append(profile)
+            else:
+                metadata = model_card_metadata(provider.provider_type, model_id)
+                changes: dict[str, object] = {}
+                context_window = metadata["context_window_tokens"]
+                traits = metadata["model_traits"]
+                if context_window and profile.context_window_tokens != context_window:
+                    changes["context_window_tokens"] = context_window
+                if traits and profile.model_traits != traits:
+                    changes["model_traits"] = traits
+                description = metadata["model_description"]
+                if description is not None and profile.model_description != description:
+                    changes["model_description"] = description
+                if profile.status is ModelProfileStatus.DISABLED:
+                    changes["status"] = ModelProfileStatus.ACTIVE
+                if changes:
+                    changes["updated_at"] = timestamp
+                    profile = profile.model_copy(update=changes)
+                    updated_profiles.append(profile)
             profiles.append(profile)
         return updated_provider, profiles, new_profiles, updated_profiles
 
@@ -215,6 +295,7 @@ class ModelCatalogService:
             provider_id=provider.id,
             model=model_id,
             display_name=f"{provider.display_name} · {model_id}"[:160],
+            **model_card_metadata(provider.provider_type, model_id),
             status=ModelProfileStatus.ACTIVE,
             created_at=timestamp,
             updated_at=timestamp,

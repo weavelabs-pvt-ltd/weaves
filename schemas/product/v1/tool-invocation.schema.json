@@ -4,6 +4,12 @@
       "additionalProperties": false,
       "description": "Bounded user-safe error details; stack traces and provider payloads do not belong here.",
       "properties": {
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
         "code": {
           "maxLength": 128,
           "minLength": 2,
@@ -11,22 +17,16 @@
           "title": "Code",
           "type": "string"
         },
-        "retryable": {
-          "default": false,
-          "title": "Retryable",
-          "type": "boolean"
-        },
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
         "summary": {
           "maxLength": 1000,
           "minLength": 1,
           "title": "Summary",
           "type": "string"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
         }
       },
       "required": [
@@ -65,6 +65,46 @@
   "additionalProperties": false,
   "description": "One connector invocation with lifecycle, result, and approval state.",
   "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
+      "type": "string"
+    },
+    "workspace_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workspace Id",
+      "type": "string"
+    },
+    "invocation_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Invocation Id",
+      "type": "string"
+    },
+    "run_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Run Id",
+      "type": "string"
+    },
     "agent_run_id": {
       "anyOf": [
         {
@@ -78,6 +118,25 @@
       ],
       "default": null,
       "title": "Agent Run Id"
+    },
+    "plugin_installation_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Plugin Installation Id",
+      "type": "string"
+    },
+    "capability_id": {
+      "maxLength": 128,
+      "minLength": 2,
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "title": "Capability Id",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/InvocationStatus"
+    },
+    "risk_level": {
+      "$ref": "#/$defs/RiskLevel"
     },
     "approval_request_id": {
       "anyOf": [
@@ -93,17 +152,69 @@
       "default": null,
       "title": "Approval Request Id"
     },
-    "capability_id": {
-      "maxLength": 128,
-      "minLength": 2,
-      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
-      "title": "Capability Id",
-      "type": "string"
+    "input_artifact_ids": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Input Artifact Ids",
+      "type": "array"
     },
-    "created_at": {
-      "format": "date-time",
-      "title": "Created At",
-      "type": "string"
+    "output_artifact_ids": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Output Artifact Ids",
+      "type": "array"
+    },
+    "input_summary": {
+      "additionalProperties": true,
+      "title": "Input Summary",
+      "type": "object"
+    },
+    "output_summary": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Output Summary"
+    },
+    "started_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Started At"
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Finished At"
     },
     "duration_ms": {
       "anyOf": [
@@ -129,117 +240,6 @@
         }
       ],
       "default": null
-    },
-    "finished_at": {
-      "anyOf": [
-        {
-          "format": "date-time",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Finished At"
-    },
-    "input_artifact_ids": {
-      "items": {
-        "maxLength": 128,
-        "minLength": 1,
-        "type": "string"
-      },
-      "maxItems": 100,
-      "title": "Input Artifact Ids",
-      "type": "array"
-    },
-    "input_summary": {
-      "additionalProperties": true,
-      "title": "Input Summary",
-      "type": "object"
-    },
-    "invocation_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Invocation Id",
-      "type": "string"
-    },
-    "org_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Org Id",
-      "type": "string"
-    },
-    "output_artifact_ids": {
-      "items": {
-        "maxLength": 128,
-        "minLength": 1,
-        "type": "string"
-      },
-      "maxItems": 100,
-      "title": "Output Artifact Ids",
-      "type": "array"
-    },
-    "output_summary": {
-      "anyOf": [
-        {
-          "additionalProperties": true,
-          "type": "object"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Output Summary"
-    },
-    "plugin_installation_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Plugin Installation Id",
-      "type": "string"
-    },
-    "risk_level": {
-      "$ref": "#/$defs/RiskLevel"
-    },
-    "run_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Run Id",
-      "type": "string"
-    },
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
-    "started_at": {
-      "anyOf": [
-        {
-          "format": "date-time",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Started At"
-    },
-    "status": {
-      "$ref": "#/$defs/InvocationStatus"
-    },
-    "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
-    },
-    "workspace_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Workspace Id",
-      "type": "string"
     }
   },
   "required": [

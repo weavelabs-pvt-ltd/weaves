@@ -116,7 +116,7 @@ class TaskWorkerService:
                 idempotency_key=run_key,
                 agent_version_id=task.agent_version_id,
                 _cancellation_event=lease_lost,
-                _cancellation_check=lease_lost.is_set,
+                _cancellation_check=lambda: lease_lost.is_set() or self.turns.get_scoped(claimed.turn_id, task.org_id, task.workspace_id).status is TaskTurnStatus.CANCELLED,
             )
             response = result.agent_run.output_summary or {}
             content = str(response.get("response", "")).strip()

@@ -24,28 +24,20 @@
   },
   "additionalProperties": false,
   "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
     "created_at": {
       "format": "date-time",
       "title": "Created At",
       "type": "string"
     },
-    "expires_at": {
-      "anyOf": [
-        {
-          "format": "date-time",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Expires At"
-    },
-    "memory_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Memory Id",
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
       "type": "string"
     },
     "org_id": {
@@ -54,18 +46,28 @@
       "title": "Org Id",
       "type": "string"
     },
-    "retention_class": {
-      "$ref": "#/$defs/MemoryRetentionClass",
-      "default": "standard"
-    },
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
+    "memory_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Memory Id",
+      "type": "string"
     },
     "scope": {
       "$ref": "#/$defs/MemoryScope"
+    },
+    "workspace_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workspace Id"
     },
     "scope_ref": {
       "anyOf": [
@@ -81,6 +83,18 @@
       "default": null,
       "title": "Scope Ref"
     },
+    "title": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "text": {
+      "maxLength": 12000,
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    },
     "source_ref": {
       "anyOf": [
         {
@@ -94,28 +108,14 @@
       "default": null,
       "title": "Source Ref"
     },
-    "text": {
-      "maxLength": 12000,
-      "minLength": 1,
-      "title": "Text",
-      "type": "string"
+    "retention_class": {
+      "$ref": "#/$defs/MemoryRetentionClass",
+      "default": "standard"
     },
-    "title": {
-      "maxLength": 160,
-      "minLength": 1,
-      "title": "Title",
-      "type": "string"
-    },
-    "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
-    },
-    "workspace_id": {
+    "expires_at": {
       "anyOf": [
         {
-          "maxLength": 128,
-          "minLength": 1,
+          "format": "date-time",
           "type": "string"
         },
         {
@@ -123,7 +123,7 @@
         }
       ],
       "default": null,
-      "title": "Workspace Id"
+      "title": "Expires At"
     }
   },
   "required": [

@@ -11,9 +11,38 @@
   },
   "additionalProperties": false,
   "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
     "created_at": {
       "format": "date-time",
       "title": "Created At",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Name",
       "type": "string"
     },
     "environment": {
@@ -23,37 +52,8 @@
       "title": "Environment",
       "type": "string"
     },
-    "id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Id",
-      "type": "string"
-    },
-    "name": {
-      "maxLength": 160,
-      "minLength": 1,
-      "title": "Name",
-      "type": "string"
-    },
-    "org_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Org Id",
-      "type": "string"
-    },
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
     "status": {
       "$ref": "#/$defs/WorkspaceStatus"
-    },
-    "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
     }
   },
   "required": [

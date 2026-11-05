@@ -6,7 +6,6 @@ from apps.runtime_services_auth import (
     _configure_authentication_service,
     _configure_credential_service,
     _configure_identity_bootstrap_service,
-    _configure_invitation_service,
     _configure_organization_service,
     _configure_user_administration_service,
     _configure_workspace_access_service,
@@ -37,7 +36,6 @@ def configure_capability_services(
     _configure_identity_bootstrap_service(dependencies, services)
     _configure_credential_service(dependencies, services)
     _configure_authentication_service(dependencies, services)
-    _configure_invitation_service(dependencies, services)
     _configure_user_administration_service(dependencies, services)
     _configure_workspace_access_service(dependencies, services)
     _configure_organization_service(dependencies, services)
@@ -53,4 +51,11 @@ def configure_capability_services(
     _configure_evaluation_and_recovery_services(dependencies, services)
     _configure_execution_worker_service(dependencies, services)
     _configure_task_services(dependencies, services)
+    from modules.workflows.studio_service import WorkflowStudioService
+    services.workflow_studio_service = WorkflowStudioService(
+        definitions=services.workflow_definition_service, tasks=services.task_service,
+        runs=dependencies.canvas_runs, settings=dependencies.canvas_settings, artifacts=dependencies.artifacts,
+        unit_of_work=dependencies._unit_of_work, lock=dependencies._advisory_transaction_lock,
+    )
+    services.workflow_automation_service.studio = services.workflow_studio_service
     return services

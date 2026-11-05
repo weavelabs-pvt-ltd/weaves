@@ -3,6 +3,7 @@ from decimal import Decimal
 from fastapi.testclient import TestClient
 
 from apps.api.app import create_app
+from tests.support.member_login import member_token
 from tests.support.runtime import LocalPlatformRuntime
 from tests.support.task_execution import run_task
 
@@ -130,7 +131,7 @@ def _create_workspace_memory_editor(client, owner_headers, workspace_id, name, t
         },
     )
     assert response.status_code == 201
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+    return {"Authorization": f"Bearer {member_token(client, response.json())}"}
 
 
 def _create_scoped_memory_items(client, context):

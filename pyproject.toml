@@ -40,7 +40,6 @@ convention = "google"
 "contracts/v1/evaluations.py" = ["C901", "D101", "D102"]
 "contracts/v1/executions.py" = ["C901", "D101", "D102", "SIM102"]
 "contracts/v1/identity.py" = ["D100", "D101", "D102"]
-"contracts/v1/invitations.py" = ["D101", "D102"]
 "contracts/v1/knowledge.py" = ["D101"]
 "contracts/v1/memory.py" = ["D101", "D102", "SIM102"]
 "contracts/v1/model_execution.py" = ["D101", "D102"]

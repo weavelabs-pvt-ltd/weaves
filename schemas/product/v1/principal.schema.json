@@ -21,15 +21,20 @@
   },
   "additionalProperties": false,
   "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
     "created_at": {
       "format": "date-time",
       "title": "Created At",
       "type": "string"
     },
-    "id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Id",
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
       "type": "string"
     },
     "org_id": {
@@ -38,22 +43,17 @@
       "title": "Org Id",
       "type": "string"
     },
+    "id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
     "principal_type": {
       "$ref": "#/$defs/PrincipalType"
     },
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
     "status": {
       "$ref": "#/$defs/PrincipalStatus"
-    },
-    "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
     },
     "user_id": {
       "anyOf": [

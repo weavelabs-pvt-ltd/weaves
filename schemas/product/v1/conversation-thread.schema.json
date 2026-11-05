@@ -11,15 +11,20 @@
   },
   "additionalProperties": false,
   "properties": {
-    "agent_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Agent Id",
-      "type": "string"
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
     },
     "created_at": {
       "format": "date-time",
       "title": "Created At",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
       "type": "string"
     },
     "org_id": {
@@ -28,20 +33,22 @@
       "title": "Org Id",
       "type": "string"
     },
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
-    "status": {
-      "$ref": "#/$defs/ConversationThreadStatus",
-      "default": "open"
+    "workspace_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workspace Id",
+      "type": "string"
     },
     "thread_id": {
       "maxLength": 128,
       "minLength": 1,
       "title": "Thread Id",
+      "type": "string"
+    },
+    "agent_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Agent Id",
       "type": "string"
     },
     "title": {
@@ -50,16 +57,9 @@
       "title": "Title",
       "type": "string"
     },
-    "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
-    },
-    "workspace_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Workspace Id",
-      "type": "string"
+    "status": {
+      "$ref": "#/$defs/ConversationThreadStatus",
+      "default": "open"
     }
   },
   "required": [

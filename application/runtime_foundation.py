@@ -8,6 +8,7 @@ from threading import RLock
 
 import httpx
 
+from application.ports.email import EmailSender
 from application.ports.product_repositories import ProductRepositorySet
 from application.ports.runtime_adapters import RuntimeAdapterBundle
 from application.ports.secrets import SecretStore
@@ -24,6 +25,8 @@ class RuntimeFoundationMixin(RuntimeRepositoryBindingMixin, RuntimeCoordinationM
 
     model: MockModelIdentifier
     model_adapters: Mapping[ModelProviderType, ModelAdapter]
+    email_sender: EmailSender
+    email_login_hmac_key: str
 
     def __init__(
         self,
@@ -78,6 +81,8 @@ class RuntimeFoundationMixin(RuntimeRepositoryBindingMixin, RuntimeCoordinationM
         self.openai_enabled = adapters.openai_enabled
         self.openai_model_name = adapters.openai_model_name
         self.openai_base_url = adapters.openai_base_url
+        self.email_sender = adapters.email_sender
+        self.email_login_hmac_key = adapters.email_login_hmac_key
 
     def _unit_of_work(self) -> AbstractContextManager[None]:
         """Open the transaction supplied by the process composition root."""

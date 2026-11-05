@@ -19,7 +19,6 @@ def test_run_lab_and_history_routes_are_not_registered():
         "/api/v0/runs/{run_id}/actions",
         "/api/v0/agents/{agent_id}/runs",
         "/api/v0/threads/{thread_id}/runs",
-        "/api/v0/workflows/{workflow_id}/runs",
         "/api/v0/execution-jobs",
         "/api/v0/execution-jobs/{job_id}",
         "/api/v0/execution-jobs/{job_id}/workflow-progress",
@@ -29,6 +28,7 @@ def test_run_lab_and_history_routes_are_not_registered():
     }
 
     assert removed_paths.isdisjoint(paths)
+    assert "/api/v0/workflows/{workflow_id}/runs" in paths
     assert "/api/v0/agents" in paths
     assert "/api/v0/workflows" in paths
     assert "/api/v0/audit-events" in paths

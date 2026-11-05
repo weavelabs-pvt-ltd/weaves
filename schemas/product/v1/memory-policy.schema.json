@@ -15,6 +15,12 @@
   "additionalProperties": false,
   "description": "Scopes an agent may retrieve during a run; defaults to workspace memory.",
   "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
     "allowed_scopes": {
       "default": [
         "workspace"
@@ -30,12 +36,6 @@
       "maximum": 50,
       "minimum": 0,
       "title": "Max Items",
-      "type": "integer"
-    },
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
       "type": "integer"
     }
   },

@@ -50,6 +50,7 @@ def _configure_agent_execution_service(
         audit_events=dependencies.audit_events,
         memory_items=dependencies.memory_items,
         model_profiles=dependencies.model_profiles,
+        model_configurations=dependencies.model_configurations,
         providers=dependencies.providers,
         runs=dependencies.runs,
         threads=dependencies.threads,

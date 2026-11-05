@@ -115,6 +115,41 @@ class WorkflowAutomationService(
         _idempotency_lock_held: bool = False,
     ) -> tuple[ExecutionJob, bool]:
         """Enqueue trigger or schedule work using durable execution service."""
+        studio = getattr(self, "studio", None)
+        if studio is not None and workflow_id:
+            definition = studio.definitions.get_workflow(workflow_id)
+            version = studio.definitions.get_current_workflow_version(definition)
+            if dict(version.configuration).get("canvas"):
+                if trigger_id and not studio.get_settings(workflow_id).hook:
+                    raise ValueError("This workflow webhook is paused")
+                from shared.request_context import (
+                    reset_request_principal,
+                    set_request_identity,
+                )
+
+                token = set_request_identity(
+                    requested_by_principal_id,
+                    definition.org_id,
+                    definition.workspace_id,
+                )
+                try:
+                    existing = next(
+                        (
+                            r
+                            for r in studio.list_runs(workflow_id)
+                            if idempotency_key and r.idempotency_key == idempotency_key
+                        ),
+                        None,
+                    )
+                    result = studio.start(
+                        workflow_id,
+                        task,
+                        key=idempotency_key,
+                        source="webhook" if trigger_id else "schedule",
+                    )
+                    return result, existing is not None
+                finally:
+                    reset_request_principal(token)
         return self._enqueue_agent_run_impl(
             task,
             requested_by_principal_id,

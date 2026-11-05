@@ -14,7 +14,6 @@ from contracts.v1 import (
     Role,
     RoleBinding,
     User,
-    UserInvitation,
     UserSession,
 )
 from modules.auth.runtime_users import WorkspaceUserRuntimeMixin
@@ -28,7 +27,6 @@ class UserAdministrationService(WorkspaceUserRuntimeMixin):
     principals: Repository[Principal]
     role_bindings: Repository[RoleBinding]
     roles: Repository[Role]
-    user_invitations: Repository[UserInvitation]
     user_sessions: Repository[UserSession]
     users: Repository[User]
 
@@ -40,7 +38,6 @@ class UserAdministrationService(WorkspaceUserRuntimeMixin):
         principals: Repository[Principal],
         role_bindings: Repository[RoleBinding],
         roles: Repository[Role],
-        user_invitations: Repository[UserInvitation],
         user_sessions: Repository[UserSession],
         users: Repository[User],
         is_bootstrapped: Callable[[], bool],
@@ -55,7 +52,6 @@ class UserAdministrationService(WorkspaceUserRuntimeMixin):
         self.principals = principals
         self.role_bindings = role_bindings
         self.roles = roles
-        self.user_invitations = user_invitations
         self.user_sessions = user_sessions
         self.users = users
         self._bootstrapped = is_bootstrapped
@@ -75,6 +71,10 @@ class UserAdministrationService(WorkspaceUserRuntimeMixin):
     def authorize_organization(self, principal_id: str, permission: Permission) -> None:
         """Enforce organization-level user management policy."""
         self._authorize_organization(principal_id, permission)
+
+    def list_workspace_members(self) -> tuple[tuple[User, str], ...]:
+        """List visible users paired with principal IDs for access controls."""
+        return super().list_workspace_members()
 
     def _unit_of_work(self) -> AbstractContextManager[None]:
         """Open a transaction for user and credential persistence."""

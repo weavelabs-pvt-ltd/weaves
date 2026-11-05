@@ -1,3 +1,5 @@
+from tests.support.member_login import member_token
+
 """HTTP authorization tests for the v0 user-level RBAC contract."""
 
 from dataclasses import dataclass
@@ -72,7 +74,7 @@ def _create_rbac_api_scenario(client: TestClient) -> RbacApiScenario:
     )
     assert user.status_code == 201, user.text
     user_headers = {
-        "Authorization": f"Bearer {user.json()['access_token']}",
+        "Authorization": f"Bearer {member_token(client, user.json())}",
         "X-Workspace-ID": workspace_id,
     }
     return RbacApiScenario(
@@ -327,7 +329,7 @@ def _assert_custom_permission_paths_are_admin_only(
     )
     assert workspace_admin.status_code == 201, workspace_admin.text
     delegated_headers = {
-        "Authorization": f"Bearer {workspace_admin.json()['access_token']}",
+        "Authorization": f"Bearer {member_token(client, workspace_admin.json())}",
         "X-Workspace-ID": workspace_id,
     }
     before_users = client.get("/api/v0/users", headers=owner_headers).json()
@@ -350,7 +352,7 @@ def _assert_custom_permission_paths_are_admin_only(
         },
     )
     assert rejected_user.status_code == 403
-    assert rejected_invitation.status_code == 403
+    assert rejected_invitation.status_code == 404
     assert client.get("/api/v0/users", headers=owner_headers).json() == before_users
 
 

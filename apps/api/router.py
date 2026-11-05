@@ -18,6 +18,7 @@ from modules.integrations.http.routes import register_plugin_routes
 from modules.knowledge.http.routes import register_context_routes
 from modules.models.http.routes import register_model_routes
 from modules.tasks.http.routes import register_task_routes
+from modules.workflows.http.studio_routes import register_studio_routes
 from modules.workflows.http.routes import register_workflow_routes
 
 
@@ -46,7 +47,6 @@ def register_v0_routes(app: FastAPI, services: ApiRouteServices) -> None:
         services.organization,
         services.workspace_access,
         services.user_administration,
-        services.invitation,
         services.authentication,
         services.credential,
         dump,
@@ -71,6 +71,7 @@ def register_v0_routes(app: FastAPI, services: ApiRouteServices) -> None:
         services.storage_mode == "postgres",
         dump,
     )
+    register_studio_routes(app, services.workflow_studio, services.workflow_automation)
     register_task_routes(app, services.tasks, dump)
     register_audit_routes(app, services.governance, dump)
     register_governance_routes(app, services.governance, dump)

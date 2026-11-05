@@ -14,6 +14,7 @@ from contracts.v1.auth import (
     UserSessionStatus,
 )
 from contracts.v1.credentials import ApiCredential, ApiCredentialStatus
+from contracts.v1.email_login import EmailLoginChallenge
 from contracts.v1.evaluations import (
     EvaluationCase,
     EvaluationCaseResult,
@@ -62,10 +63,6 @@ from contracts.v1.identity import (
     Workspace,
     WorkspaceStatus,
 )
-from contracts.v1.invitations import (
-    UserInvitation,
-    UserInvitationStatus,
-)
 from contracts.v1.knowledge import KnowledgeDocument
 from contracts.v1.memory import (
     MemoryItem,
@@ -91,6 +88,7 @@ from contracts.v1.models import (
     ModelProvider,
     ModelProviderStatus,
     ModelProviderType,
+    ModelTrait,
 )
 from contracts.v1.oauth import OAuthAuthorizationState
 from contracts.v1.plugins import (
@@ -159,6 +157,7 @@ __all__ = [
     "CapabilitySpec",
     "ConversationThread",
     "ConversationThreadStatus",
+    "EmailLoginChallenge",
     "ErrorSummary",
     "EvaluationCase",
     "EvaluationCaseResult",
@@ -183,6 +182,7 @@ __all__ = [
     "ModelProfile",
     "ModelProfileBinding",
     "ModelProfileStatus",
+    "ModelTrait",
     "ModelProvider",
     "ModelProviderStatus",
     "ModelProviderType",
@@ -216,8 +216,6 @@ __all__ = [
     "TaskTurnStatus",
     "ToolInvocation",
     "User",
-    "UserInvitation",
-    "UserInvitationStatus",
     "UserPasswordCredential",
     "UserSession",
     "UserSessionStatus",

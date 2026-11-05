@@ -8,12 +8,11 @@ import pytest
 
 from contracts.v1 import (
     AuditEvent,
+    EmailLoginChallenge,
     ErrorSummary,
     ExecutionJob,
     ExecutionJobStatus,
     RunStatus,
-    UserInvitation,
-    UserInvitationStatus,
     WorkflowRun,
     WorkflowSchedule,
 )
@@ -72,7 +71,7 @@ def test_product_postgres_migration_adds_idempotency_unique_index():
     assert "product_records_role_binding_scope_uq" in sql
     assert "COALESCE(payload->>'workspace_id', '')" in sql
     assert "product_records_user_session_digest_uq" in sql
-    assert "product_records_user_invitation_digest_uq" in sql
+    assert "DELETE FROM product_records WHERE collection = 'user_invitations'" in sql
     assert "product_records_active_user_email_uq" in sql
     assert "product_records_workflow_trigger_secret_uq" in sql
     assert "product_records_workflow_schedule_due_idx" in sql
@@ -86,13 +85,13 @@ def test_product_postgres_migration_adds_idempotency_unique_index():
     assert "IS DISTINCT FROM" in sql
     assert "product_records_task_idempotency_uq" in sql
     assert "product_records_task_turn_claim_idx" in sql
-    assert versions == list(range(1, 15))
+    assert versions == list(range(1, 16))
     assert "CREATE TABLE IF NOT EXISTS product_login_throttle" in sql
     assert "pg_advisory_xact_lock" in sql
 
 
 def test_product_postgres_migration_skips_applied_versions():
-    connection = RecordingConnection(rows=[(version,) for version in range(1, 15)])
+    connection = RecordingConnection(rows=[(version,) for version in range(1, 16)])
     store = ProductPostgresStore.__new__(ProductPostgresStore)
     store.pool = RecordingPool(connection)
 
@@ -109,11 +108,11 @@ def test_product_postgres_migration_skips_applied_versions():
 
 
 def test_product_postgres_migration_rejects_newer_database_schema():
-    connection = RecordingConnection(rows=[(15,)])
+    connection = RecordingConnection(rows=[(16,)])
     store = ProductPostgresStore.__new__(ProductPostgresStore)
     store.pool = RecordingPool(connection)
 
-    with pytest.raises(RuntimeError, match="unsupported migration versions: 15"):
+    with pytest.raises(RuntimeError, match="unsupported migration versions: 16"):
         store._migrate()
 
 
@@ -130,7 +129,7 @@ def test_product_postgres_migration_upgrades_legacy_version_five():
         for statement, params in connection.statements
         if "INSERT INTO product_schema_migrations" in statement
     ]
-    assert versions == list(range(6, 15))
+    assert versions == list(range(6, 16))
     assert "product_records_user_session_digest_uq" in sql
     assert "product_records_workflow_schedule_due_idx" in sql
     assert "product_records_audit_event_workspace_page_idx" in sql
@@ -167,35 +166,20 @@ def test_postgres_execution_job_updates_are_fenced_by_worker_and_attempt():
     assert params[-2:] == ("worker-a", 2)
 
 
-def test_postgres_invitation_transition_is_fenced_by_pending_token():
+def test_postgres_email_challenge_consume_is_atomic_and_one_time():
     connection = RecordingConnection()
     repository = PostgresRepository(
-        RecordingPool(connection), "user_invitations", "invitation_id", UserInvitation
+        RecordingPool(connection),
+        "email_login_challenges",
+        "challenge_id",
+        EmailLoginChallenge,
     )
-    now = datetime.now(UTC)
-    invitation = UserInvitation(
-        invitation_id="invite-a",
-        org_id="org-a",
-        workspace_id="workspace-a",
-        user_id="user-a",
-        principal_id="principal-a",
-        email="person@example.com",
-        token_digest="a" * 64,
-        status=UserInvitationStatus.PENDING,
-        expires_at=now + timedelta(days=7),
-        created_at=now,
-        updated_at=now,
-    )
-
-    assert repository.put_if_invitation_pending(
-        invitation, expected_token_digest="a" * 64
-    )
+    with pytest.raises(KeyError):
+        repository.consume("already-used-challenge")
     query, params = connection.statements[-1]
-    assert "payload->>'status' = 'pending'" in query
-    assert "payload->>'token_digest' = %s" in query
-    assert params[1] == invitation.updated_at
-    assert params[2:4] == ("user_invitations", invitation.invitation_id)
-    assert params[-1] == "a" * 64
+    assert "DELETE FROM product_records" in query
+    assert "RETURNING payload" in query
+    assert params == ("email_login_challenges", "already-used-challenge")
 
 
 def test_postgres_store_reuses_one_connection_inside_unit_of_work():

@@ -71,6 +71,8 @@ def main() -> None:
                             len(scheduled_jobs),
                         )
                     last_schedule_poll = time.monotonic()
+                if services.studio is not None:
+                    services.studio.tick()
                 job = services.execution.process_next_execution_job(worker_id)
                 turn = services.tasks.process_next_turn(worker_id)
                 if turn is not None:

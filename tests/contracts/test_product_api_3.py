@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -228,165 +228,19 @@ def test_login_api_limits_repeated_failures_without_revealing_account_state():
     assert int(throttled.headers["retry-after"]) > 0
 
 
-def test_user_invitation_is_one_time_resendable_and_revocable():
-    runtime = LocalPlatformRuntime()
-    client = TestClient(create_app(runtime))
-    with client:
-        owner_headers = _onboard_invitation_owner(client)
-        first, resent = _create_and_resend_invitation(client, owner_headers)
-        _assert_invitation_acceptance_and_one_time_use(
-            client, owner_headers, first, resent
+def test_member_provisioning_does_not_expose_a_signin_credential():
+    with TestClient(create_app(LocalPlatformRuntime())) as client:
+        roles = client.get("/api/v0/roles").json()
+        role = next(r for r in roles if r["system_role_key"] == "user")
+        created = client.post(
+            "/api/v0/users",
+            json={
+                "email": "new.member@example.test",
+                "display_name": "New member",
+                "role_id": role["id"],
+            },
         )
-        _assert_invitation_revocation_and_replacement(client, owner_headers)
-        _assert_expired_invitation_rejected(client, runtime, owner_headers)
-
-
-def _onboard_invitation_owner(client):
-    """Create the organization owner used by the invitation lifecycle flow."""
-    response = client.post(
-        "/api/v0/onboarding/organizations",
-        json={
-            "name": "Invitation Org",
-            "owner_email": "owner@invitations.test",
-            "owner_display_name": "Owner",
-        },
-    )
-    assert response.status_code == 201, response.text
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
-
-
-def _create_and_resend_invitation(client, owner_headers):
-    """Create an invite, verify public fields, then rotate its one-time token."""
-    created = client.post(
-        "/api/v0/user-invitations",
-        headers=owner_headers,
-        json={
-            "email": "new.member@invitations.test",
-            "display_name": "New Member",
-            "permissions": ["agents.run"],
-        },
-    )
-    assert created.status_code == 201, created.text
-    first = created.json()
-    invitation_id = first["invitation"]["invitation_id"]
-    assert first["user"]["status"] == "invited"
-    assert first["principal"]["status"] == "disabled"
-    assert "token_digest" not in first["invitation"]
-    assert "access_token" not in first
-    visible = client.get("/api/v0/user-invitations", headers=owner_headers)
-    assert visible.status_code == 200
-    assert visible.json()[0]["invitation_id"] == invitation_id
-    assert "token_digest" not in visible.json()[0]
-    resent = client.post(
-        f"/api/v0/user-invitations/{invitation_id}/resend",
-        headers=owner_headers,
-    )
-    assert resent.status_code == 200, resent.text
-    assert resent.json()["invitation_token"] != first["invitation_token"]
-    return first, resent.json()
-
-
-def _assert_invitation_acceptance_and_one_time_use(
-    client, owner_headers, first, resent
-):
-    """Accept only the latest invite token and reject replay and resend."""
-    password = "invited-member-password-123"
-    stale = client.post(
-        "/api/v0/auth/accept-invitation",
-        json={"invitation_token": first["invitation_token"], "password": password},
-    )
-    assert stale.status_code == 400
-    accepted = client.post(
-        "/api/v0/auth/accept-invitation",
-        json={"invitation_token": resent["invitation_token"], "password": password},
-    )
-    assert accepted.status_code == 200, accepted.text
-    assert accepted.json()["user"]["status"] == "active"
-    headers = {"Authorization": f"Bearer {accepted.json()['access_token']}"}
-    assert client.get("/api/v0/workspaces", headers=headers).status_code == 200
-    login = client.post(
-        "/api/v0/auth/login",
-        json={"email": first["user"]["email"], "password": password},
-    )
-    assert login.status_code == 200, login.text
-    replay = client.post(
-        "/api/v0/auth/accept-invitation",
-        json={"invitation_token": resent["invitation_token"], "password": password},
-    )
-    assert replay.status_code == 400
-    response = client.post(
-        f"/api/v0/user-invitations/{first['invitation']['invitation_id']}/resend",
-        headers=owner_headers,
-    )
-    assert response.status_code == 409
-
-
-def _create_invitation(client, owner_headers, email, display_name):
-    """Create and return a fresh invitation with the shared run permission."""
-    response = client.post(
-        "/api/v0/user-invitations",
-        headers=owner_headers,
-        json={
-            "email": email,
-            "display_name": display_name,
-            "permissions": ["agents.run"],
-        },
-    )
-    assert response.status_code == 201, response.text
-    return response.json()
-
-
-def _assert_invitation_revocation_and_replacement(client, owner_headers):
-    """Reject a revoked invite and permit a replacement invitation to succeed."""
-    password = "invited-member-password-123"
-    revoked = _create_invitation(
-        client, owner_headers, "revoked.member@invitations.test", "Revoked Member"
-    )
-    invitation_id = revoked["invitation"]["invitation_id"]
-    response = client.delete(
-        f"/api/v0/user-invitations/{invitation_id}", headers=owner_headers
-    )
-    assert response.status_code == 204
-    invalidated = client.post(
-        "/api/v0/auth/accept-invitation",
-        json={"invitation_token": revoked["invitation_token"], "password": password},
-    )
-    assert invalidated.status_code == 400
-    replacement = _create_invitation(
-        client,
-        owner_headers,
-        "revoked.member@invitations.test",
-        "Replacement Member",
-    )
-    accepted = client.post(
-        "/api/v0/auth/accept-invitation",
-        json={
-            "invitation_token": replacement["invitation_token"],
-            "password": password,
-        },
-    )
-    assert accepted.status_code == 200
-    login = client.post(
-        "/api/v0/auth/login",
-        json={"email": "revoked.member@invitations.test", "password": password},
-    )
-    assert login.status_code == 200
-
-
-def _assert_expired_invitation_rejected(client, runtime, owner_headers):
-    """Expire an invitation record and confirm its token cannot be accepted."""
-    invite = _create_invitation(
-        client, owner_headers, "expired.member@invitations.test", "Expired Member"
-    )
-    invitation_id = invite["invitation"]["invitation_id"]
-    record = runtime.user_invitations.get(invitation_id)
-    expiry = datetime.now(UTC) - timedelta(days=1)
-    runtime.user_invitations.put(record.model_copy(update={"expires_at": expiry}))
-    response = client.post(
-        "/api/v0/auth/accept-invitation",
-        json={
-            "invitation_token": invite["invitation_token"],
-            "password": "invited-member-password-123",
-        },
-    )
-    assert response.status_code == 400
+        assert created.status_code == 201, created.text
+        assert "access_token" not in created.json()
+        assert created.json()["user"]["status"] == "active"
+        assert client.post("/api/v0/user-invitations").status_code == 404

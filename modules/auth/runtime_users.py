@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import secrets
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -22,8 +20,6 @@ from contracts.v1 import (
     Role,
     RoleBinding,
     User,
-    UserInvitation,
-    UserInvitationStatus,
     UserSession,
     UserSessionStatus,
     UserStatus,
@@ -47,7 +43,6 @@ class WorkspaceUserRuntimeHost(ABC):
     principals: Repository[Principal]
     role_bindings: Repository[RoleBinding]
     roles: Repository[Role]
-    user_invitations: Repository[UserInvitation]
     user_sessions: Repository[UserSession]
     users: Repository[User]
 
@@ -83,8 +78,8 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
         permissions: tuple[Permission, ...] = (),
         role_id: str | None = None,
         requested_by_principal_id: str = "local-developer",
-    ) -> tuple[User, Principal, Role, ApiCredential, str]:
-        """Create a human workspace principal and issue its initial API token."""
+    ) -> tuple[User, Principal, Role]:
+        """Provision a human account and workspace role for email sign-in."""
         if not self._bootstrapped():
             self.bootstrap()
         requested_by_principal_id = effective_principal_id(requested_by_principal_id)
@@ -127,19 +122,8 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
             workspace_id=effective_workspace_id(),
             created_at=timestamp,
         )
-        token = secrets.token_urlsafe(32)
-        credential = ApiCredential(
-            id=_id(),
-            token_digest=hashlib.sha256(token.encode("utf-8")).hexdigest(),
-            org_id=effective_org_id(),
-            principal_id=principal.id,
-            status=ApiCredentialStatus.ACTIVE,
-            created_at=timestamp,
-            updated_at=timestamp,
-        )
         self._persist_workspace_user(
             binding,
-            credential,
             principal,
             requested_by_principal_id,
             role,
@@ -147,7 +131,7 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
             user,
             role_id,
         )
-        return user, principal, role, credential, token
+        return user, principal, role
 
     def _ensure_user_email_available(self, normalized_email: str) -> None:
         if not normalized_email or "@" not in normalized_email:
@@ -185,7 +169,6 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
     def _persist_workspace_user(
         self,
         binding: Any,
-        credential: Any,
         principal: Any,
         requested_by_principal_id: Any,
         role: Any,
@@ -200,7 +183,6 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
             if role_id is None:
                 self.roles.create(role)
             self.role_bindings.create(binding)
-            self.api_credentials.create(credential)
             self.audit_events.create(
                 AuditEvent(
                     audit_event_id=_id(),
@@ -211,7 +193,7 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
                     action="user.created",
                     target_type="user",
                     target_id=user.id,
-                    summary="Workspace user and access credential created",
+                    summary="Workspace user and access role provisioned",
                     request_id=user.id,
                     metadata={
                         "principal_id": principal.id,
@@ -226,6 +208,10 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
 
     def list_workspace_users(self) -> tuple[User, ...]:
         """List users in the current workspace and, for org admins, org scope."""
+        return tuple(user for user, _ in self.list_workspace_members())
+
+    def list_workspace_members(self) -> tuple[tuple[User, str], ...]:
+        """List visible members with their principals for role assignment UI."""
         if not self._bootstrapped():
             self.bootstrap()
         actor = effective_principal_id("local-developer")
@@ -249,7 +235,7 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
             and (principal := principals.get(binding.principal_id)) is not None
             and principal.user_id is not None
         }
-        return tuple(
+        visible_users = tuple(
             sorted(
                 (
                     user
@@ -258,6 +244,16 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
                 ),
                 key=lambda user: user.email,
             )
+        )
+        principal_ids = {
+            principal.user_id: principal.id
+            for principal in principals.values()
+            if principal.user_id in visible_user_ids
+        }
+        return tuple(
+            (user, principal_ids[user.id])
+            for user in visible_users
+            if user.id in principal_ids
         )
 
     def suspend_workspace_user(
@@ -304,17 +300,10 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
             if session.principal_id == principal.id
             and session.status is UserSessionStatus.ACTIVE
         )
-        pending_invitations = tuple(
-            invitation
-            for invitation in self.user_invitations.list_scoped(effective_org_id())
-            if invitation.user_id == user.id
-            and invitation.status is UserInvitationStatus.PENDING
-        )
         self._suspend_workspace_user_records(
             active_credentials,
             active_sessions,
             disabled_principal,
-            pending_invitations,
             principal,
             requested_by_principal_id,
             suspended_user,
@@ -328,7 +317,6 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
         active_credentials: Any,
         active_sessions: Any,
         disabled_principal: Any,
-        pending_invitations: Any,
         principal: Any,
         requested_by_principal_id: Any,
         suspended_user: Any,
@@ -363,20 +351,6 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
                         ).model_dump()
                     )
                 )
-            for invitation in pending_invitations:
-                revoked_invitation = UserInvitation.model_validate(
-                    invitation.model_copy(
-                        update={
-                            "status": UserInvitationStatus.REVOKED,
-                            "revoked_at": timestamp,
-                            "updated_at": timestamp,
-                        }
-                    ).model_dump()
-                )
-                self.user_invitations.put_if_invitation_pending(
-                    revoked_invitation,
-                    expected_token_digest=invitation.token_digest,
-                )
             self.audit_events.create(
                 AuditEvent(
                     audit_event_id=_id(),
@@ -393,7 +367,6 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
                         "principal_id": principal.id,
                         "access_revoked_count": len(active_credentials),
                         "session_revoked_count": len(active_sessions),
-                        "invitation_revoked_count": len(pending_invitations),
                     },
                     created_at=timestamp,
                 )
@@ -404,8 +377,8 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
         user_id: str,
         *,
         requested_by_principal_id: str = "local-developer",
-    ) -> tuple[User, ApiCredential, str]:
-        """Restore a suspended user and rotate credentials with a new token."""
+    ) -> User:
+        """Restore a suspended user so they can sign in with organization email."""
         if not self._bootstrapped():
             self.bootstrap()
         requested_by_principal_id = effective_principal_id(requested_by_principal_id)
@@ -431,20 +404,9 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
                 update={"status": PrincipalStatus.ACTIVE, "updated_at": timestamp}
             ).model_dump()
         )
-        token = secrets.token_urlsafe(32)
-        credential = ApiCredential(
-            id=_id(),
-            token_digest=hashlib.sha256(token.encode("utf-8")).hexdigest(),
-            org_id=effective_org_id(),
-            principal_id=principal.id,
-            status=ApiCredentialStatus.ACTIVE,
-            created_at=timestamp,
-            updated_at=timestamp,
-        )
         with self._unit_of_work():
             self.users.put(active_user)
             self.principals.put(active_principal)
-            self.api_credentials.create(credential)
             self.audit_events.create(
                 AuditEvent(
                     audit_event_id=_id(),
@@ -455,10 +417,10 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
                     action="user.reactivated",
                     target_type="user",
                     target_id=user.id,
-                    summary="Workspace user access restored with a new credential",
+                    summary="Workspace user access restored",
                     request_id=user.id,
                     metadata={"principal_id": principal.id},
                     created_at=timestamp,
                 )
             )
-        return active_user, credential, token
+        return active_user

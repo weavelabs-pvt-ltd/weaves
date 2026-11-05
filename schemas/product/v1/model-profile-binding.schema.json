@@ -1,8 +1,113 @@
 {
   "$defs": {
+    "ModelAccessMode": {
+      "description": "Select who owns the provider credentials and model bill.",
+      "enum": [
+        "customer_managed",
+        "weaves_managed"
+      ],
+      "title": "ModelAccessMode",
+      "type": "string"
+    },
     "ModelProfile": {
       "additionalProperties": false,
       "properties": {
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "org_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Org Id",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "provider_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Provider Id",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:/-]+$",
+          "title": "Model",
+          "type": "string"
+        },
+        "display_name": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        },
+        "default_temperature": {
+          "default": 0.2,
+          "maximum": 2.0,
+          "minimum": 0.0,
+          "title": "Default Temperature",
+          "type": "number"
+        },
+        "max_output_tokens": {
+          "default": 2048,
+          "maximum": 32768,
+          "minimum": 1,
+          "title": "Max Output Tokens",
+          "type": "integer"
+        },
+        "context_window_tokens": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Window Tokens"
+        },
+        "model_traits": {
+          "items": {
+            "$ref": "#/$defs/ModelTrait"
+          },
+          "maxItems": 4,
+          "title": "Model Traits",
+          "type": "array"
+        },
+        "model_description": {
+          "anyOf": [
+            {
+              "maxLength": 240,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Description"
+        },
         "cost_budget_usd": {
           "anyOf": [
             {
@@ -19,44 +124,6 @@
           ],
           "default": null,
           "title": "Cost Budget Usd"
-        },
-        "created_at": {
-          "format": "date-time",
-          "title": "Created At",
-          "type": "string"
-        },
-        "default_temperature": {
-          "default": 0.2,
-          "maximum": 2.0,
-          "minimum": 0.0,
-          "title": "Default Temperature",
-          "type": "number"
-        },
-        "display_name": {
-          "maxLength": 160,
-          "minLength": 1,
-          "title": "Display Name",
-          "type": "string"
-        },
-        "fallback_model_profile_id": {
-          "anyOf": [
-            {
-              "maxLength": 128,
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Fallback Model Profile Id"
-        },
-        "id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Id",
-          "type": "string"
         },
         "input_cost_per_million_tokens_usd": {
           "anyOf": [
@@ -75,26 +142,6 @@
           "default": null,
           "title": "Input Cost Per Million Tokens Usd"
         },
-        "max_output_tokens": {
-          "default": 2048,
-          "maximum": 32768,
-          "minimum": 1,
-          "title": "Max Output Tokens",
-          "type": "integer"
-        },
-        "model": {
-          "maxLength": 160,
-          "minLength": 1,
-          "pattern": "^[A-Za-z0-9._:/-]+$",
-          "title": "Model",
-          "type": "string"
-        },
-        "org_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Org Id",
-          "type": "string"
-        },
         "output_cost_per_million_tokens_usd": {
           "anyOf": [
             {
@@ -112,25 +159,22 @@
           "default": null,
           "title": "Output Cost Per Million Tokens Usd"
         },
-        "provider_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Provider Id",
-          "type": "string"
-        },
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
+        "fallback_model_profile_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fallback Model Profile Id"
         },
         "status": {
           "$ref": "#/$defs/ModelProfileStatus"
-        },
-        "updated_at": {
-          "format": "date-time",
-          "title": "Updated At",
-          "type": "string"
         }
       },
       "required": [
@@ -157,6 +201,33 @@
     "ModelProvider": {
       "additionalProperties": false,
       "properties": {
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "org_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Org Id",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "provider_type": {
+          "$ref": "#/$defs/ModelProviderType"
+        },
+        "display_name": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        },
         "allowed_models": {
           "items": {
             "maxLength": 160,
@@ -183,6 +254,20 @@
           "default": null,
           "title": "Auth Ref"
         },
+        "credential_last4": {
+          "anyOf": [
+            {
+              "maxLength": 4,
+              "minLength": 4,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credential Last4"
+        },
         "base_url": {
           "anyOf": [
             {
@@ -196,33 +281,6 @@
           ],
           "default": null,
           "title": "Base Url"
-        },
-        "display_name": {
-          "maxLength": 160,
-          "minLength": 1,
-          "title": "Display Name",
-          "type": "string"
-        },
-        "id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Id",
-          "type": "string"
-        },
-        "org_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Org Id",
-          "type": "string"
-        },
-        "provider_type": {
-          "$ref": "#/$defs/ModelProviderType"
-        },
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
         },
         "status": {
           "$ref": "#/$defs/ModelProviderStatus"
@@ -259,22 +317,42 @@
       ],
       "title": "ModelProviderType",
       "type": "string"
+    },
+    "ModelTrait": {
+      "enum": [
+        "Balanced",
+        "Reasoning",
+        "Fast"
+      ],
+      "title": "ModelTrait",
+      "type": "string"
     }
   },
   "additionalProperties": false,
   "description": "A resolved profile/provider pair with cross-reference scope checked.",
   "properties": {
-    "profile": {
-      "$ref": "#/$defs/ModelProfile"
-    },
-    "provider": {
-      "$ref": "#/$defs/ModelProvider"
-    },
     "schema_version": {
       "const": 1,
       "default": 1,
       "title": "Schema Version",
       "type": "integer"
+    },
+    "provider": {
+      "$ref": "#/$defs/ModelProvider"
+    },
+    "profile": {
+      "$ref": "#/$defs/ModelProfile"
+    },
+    "access_mode": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ModelAccessMode"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

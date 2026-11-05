@@ -185,9 +185,3 @@ class Repository(Protocol[TContract]):
     ) -> bool:
         """Compare and set a task only while its lifecycle/active turn match."""
         ...
-
-    def put_if_invitation_pending(
-        self, record: TContract, *, expected_token_digest: str
-    ) -> bool:
-        """Consume an invitation only while its token digest is pending."""
-        ...

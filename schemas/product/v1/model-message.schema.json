@@ -12,20 +12,20 @@
   },
   "additionalProperties": false,
   "properties": {
-    "content": {
-      "maxLength": 100000,
-      "minLength": 1,
-      "title": "Content",
-      "type": "string"
-    },
-    "role": {
-      "$ref": "#/$defs/ModelMessageRole"
-    },
     "schema_version": {
       "const": 1,
       "default": 1,
       "title": "Schema Version",
       "type": "integer"
+    },
+    "role": {
+      "$ref": "#/$defs/ModelMessageRole"
+    },
+    "content": {
+      "maxLength": 100000,
+      "minLength": 1,
+      "title": "Content",
+      "type": "string"
     }
   },
   "required": [

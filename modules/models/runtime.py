@@ -22,7 +22,7 @@ from contracts.v1 import (
     Permission,
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
-from modules.models.catalog import ModelCatalogService
+from modules.models.catalog import ModelCatalogService, model_card_metadata
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.errors import ModelGatewayError
@@ -79,6 +79,17 @@ class ModelService:
                     self.providers.get_scoped(profile.provider_id, effective_org_id())
                 )
             )
+        enriched_profiles: list[ModelProfile] = []
+        for profile in profiles:
+            provider = self.providers.get_scoped(
+                profile.provider_id, effective_org_id()
+            )
+            metadata = model_card_metadata(provider.provider_type, profile.model)
+            updates = {
+                key: value for key, value in metadata.items() if value is not None
+            }
+            enriched_profiles.append(profile.model_copy(update=updates))
+        profiles = tuple(enriched_profiles)
         default_profile_id = (
             configuration.default_model_profile_id
             if configuration and configuration.default_model_profile_id
@@ -315,6 +326,7 @@ class ModelService:
             display_name,
             initial_model,
             provider_type,
+            api_key.strip()[-4:] if len(api_key.strip()) >= 4 else None,
         )
         return provider
 
@@ -329,6 +341,7 @@ class ModelService:
         display_name: str,
         initial_model: str | None,
         provider_type: ModelProviderType,
+        credential_last4: str | None = None,
     ) -> ModelProviderContract:
         """Persist a model provider and its initial profile."""
         try:
@@ -339,6 +352,7 @@ class ModelService:
                 display_name=display_name,
                 allowed_models=[selected_model],
                 auth_ref=secret_ref,
+                credential_last4=credential_last4,
                 base_url=(base_url.strip() if base_url else defaults[provider_type]),
                 status=ModelProviderStatus.ACTIVE,
             )
@@ -531,7 +545,12 @@ class ModelService:
         next_secret_ref = self.secret_store.put(api_key.strip())
         old_secret_ref = provider.auth_ref
         updated: ModelProviderContract = provider.model_copy(
-            update={"auth_ref": next_secret_ref}
+            update={
+                "auth_ref": next_secret_ref,
+                "credential_last4": api_key.strip()[-4:]
+                if len(api_key.strip()) >= 4
+                else None,
+            }
         )
         updated = ModelProviderContract.model_validate(updated.model_dump())
         try:

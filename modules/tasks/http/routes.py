@@ -106,6 +106,7 @@ def _register_task_collection_routes(
         status: TaskStatus | None = None,
         agent_id: str | None = None,
         created_by_principal_id: str | None = None,
+        include_execution: bool = False,
         limit: int = Query(default=50, ge=1, le=100),
         cursor: str | None = None,
     ) -> dict[str, Any]:
@@ -126,7 +127,25 @@ def _register_task_collection_routes(
             if len(page) > limit
             else None
         )
-        return {"items": [dump(item) for item in items], "next_cursor": next_cursor}
+        execution = (
+            _call(lambda: service.execution_summaries(tuple(items)))
+            if include_execution
+            else {}
+        )
+        return {
+            "items": [
+                {
+                    **dump(item),
+                    **(
+                        {"execution": execution.get(item.task_id)}
+                        if include_execution
+                        else {}
+                    ),
+                }
+                for item in items
+            ],
+            "next_cursor": next_cursor,
+        }
 
     @app.post("/api/v0/tasks", status_code=202)
     def create_task(

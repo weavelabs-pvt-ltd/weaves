@@ -13,6 +13,7 @@ from contracts.v1 import (
     Artifact,
     AuditEvent,
     ConversationThread,
+    EmailLoginChallenge,
     EvaluationExecution,
     EvaluationReportRecord,
     EvaluationSuiteRecord,
@@ -33,7 +34,6 @@ from contracts.v1 import (
     TaskTurn,
     ToolInvocation,
     User,
-    UserInvitation,
     UserPasswordCredential,
     UserSession,
     WorkflowDefinition,
@@ -45,6 +45,7 @@ from contracts.v1 import (
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
 from contracts.v1.base import ProductContract
+from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
 from infrastructure.database.store import ProductPostgresStore
 from infrastructure.persistence.memory_repository import InMemoryRepository
 from infrastructure.persistence.postgres_repository import PostgresRepository
@@ -57,7 +58,12 @@ REPOSITORY_SPECS: tuple[tuple[str, str, str, type[ProductContract]], ...] = (
     ("api_credentials", "api_credentials", "id", ApiCredential),
     ("user_passwords", "user_passwords", "id", UserPasswordCredential),
     ("user_sessions", "user_sessions", "id", UserSession),
-    ("user_invitations", "user_invitations", "invitation_id", UserInvitation),
+    (
+        "email_login_challenges",
+        "email_login_challenges",
+        "challenge_id",
+        EmailLoginChallenge,
+    ),
     ("roles", "roles", "id", Role),
     ("role_bindings", "role_bindings", "id", RoleBinding),
     ("model_providers", "model_providers", "id", ModelProviderContract),
@@ -145,6 +151,8 @@ REPOSITORY_SPECS: tuple[tuple[str, str, str, type[ProductContract]], ...] = (
         ConversationThread,
     ),
     ("execution_jobs", "execution_jobs", "job_id", ExecutionJob),
+    ("canvas_runs", "canvas_runs", "run_id", CanvasRun),
+    ("canvas_settings", "canvas_settings", "workflow_id", CanvasSettings),
     ("tasks", "tasks", "task_id", Task),
     ("task_messages", "task_messages", "message_id", TaskMessage),
     ("task_turns", "task_turns", "turn_id", TaskTurn),

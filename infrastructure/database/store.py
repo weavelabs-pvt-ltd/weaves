@@ -190,6 +190,13 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
                      AND payload->>'status' = 'running'""",
         ),
     ),
+    (
+        15,
+        (
+            "DROP INDEX IF EXISTS product_records_user_invitation_digest_uq",
+            "DELETE FROM product_records WHERE collection = 'user_invitations'",
+        ),
+    ),
 )
 
 

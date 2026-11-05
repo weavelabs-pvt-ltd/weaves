@@ -3,6 +3,12 @@
     "ModelUsage": {
       "additionalProperties": false,
       "properties": {
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
         "input_tokens": {
           "minimum": 0,
           "title": "Input Tokens",
@@ -11,12 +17,6 @@
         "output_tokens": {
           "minimum": 0,
           "title": "Output Tokens",
-          "type": "integer"
-        },
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
           "type": "integer"
         },
         "total_tokens": {
@@ -36,11 +36,32 @@
   },
   "additionalProperties": false,
   "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "provider_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Provider Id",
+      "type": "string"
+    },
+    "model_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Model Id",
+      "type": "string"
+    },
     "content": {
       "maxLength": 100000,
       "minLength": 1,
       "title": "Content",
       "type": "string"
+    },
+    "usage": {
+      "$ref": "#/$defs/ModelUsage"
     },
     "finish_reason": {
       "anyOf": [
@@ -55,24 +76,6 @@
       "default": null,
       "title": "Finish Reason"
     },
-    "model_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Model Id",
-      "type": "string"
-    },
-    "provider_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Provider Id",
-      "type": "string"
-    },
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
     "upstream_request_id": {
       "anyOf": [
         {
@@ -86,9 +89,6 @@
       ],
       "default": null,
       "title": "Upstream Request Id"
-    },
-    "usage": {
-      "$ref": "#/$defs/ModelUsage"
     }
   },
   "required": [

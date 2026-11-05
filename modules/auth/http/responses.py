@@ -23,10 +23,3 @@ def credential_view(credential: Any) -> dict[str, Any]:
         "created_at": credential.created_at.isoformat(),
         "updated_at": credential.updated_at.isoformat(),
     }
-
-
-def invitation_view(invitation: Any, dump: DumpModel) -> dict[str, Any]:
-    """Serialize invitation data without exposing its token digest."""
-    result = dump(invitation)
-    result.pop("token_digest", None)
-    return result

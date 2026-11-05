@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from contracts.v1 import (
     ApiCredential,
     ApiCredentialStatus,
+    EmailLoginChallenge,
     Organization,
     OrganizationStatus,
     Permission,
@@ -15,8 +16,6 @@ from contracts.v1 import (
     Role,
     RoleBinding,
     User,
-    UserInvitation,
-    UserInvitationStatus,
     UserSession,
     UserSessionStatus,
     Workspace,
@@ -74,17 +73,15 @@ def test_user_session_contract_requires_digest_and_consistent_revocation():
         )
 
 
-def test_user_invitation_contract_rejects_terminal_status_without_timestamp():
+def test_email_login_challenge_rejects_non_digest_codes():
     with pytest.raises(ValidationError):
-        UserInvitation(
-            invitation_id="invite-a",
+        EmailLoginChallenge(
+            challenge_id="challenge-a",
             org_id="org-a",
-            workspace_id="workspace-a",
             user_id="user-a",
             principal_id="principal-a",
             email="person@example.com",
-            token_digest="d" * 64,
-            status=UserInvitationStatus.ACCEPTED,
+            code_digest="123456",
             expires_at=NOW,
             created_at=NOW,
             updated_at=NOW,

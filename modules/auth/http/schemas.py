@@ -35,6 +35,24 @@ class UserLoginRequest(BaseModel):
     organization_id: str | None = Field(default=None, min_length=1, max_length=128)
 
 
+class EmailLoginCodeRequest(BaseModel):
+    """Request an email code for an existing, provisioned organization member."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    email: str = Field(min_length=3, max_length=320)
+    organization_id: str | None = Field(default=None, min_length=1, max_length=128)
+
+
+class EmailLoginVerifyRequest(BaseModel):
+    """Verify one email code and create a browser session."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    challenge_id: str = Field(min_length=1, max_length=128)
+    code: str = Field(pattern=r"^\d{6}$", min_length=6, max_length=6)
+
+
 class UserPasswordRequest(BaseModel):
     """Validated password change input."""
 
@@ -79,19 +97,6 @@ class WorkspaceUserCreateRequest(BaseModel):
         if (self.role_id is None) == (not self.permissions):
             raise ValueError("provide exactly one of role_id or permissions")
         return self
-
-
-class UserInvitationCreateRequest(WorkspaceUserCreateRequest):
-    """A user with either an existing organization role or explicit permissions."""
-
-
-class UserInvitationAcceptanceRequest(BaseModel):
-    """Validated invitation acceptance credentials."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    invitation_token: SecretStr = Field(min_length=20, max_length=256)
-    password: SecretStr = Field(min_length=12, max_length=1024)
 
 
 class RoleCreateRequest(BaseModel):

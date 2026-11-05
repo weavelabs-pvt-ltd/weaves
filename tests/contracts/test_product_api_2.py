@@ -4,6 +4,7 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 from apps.api.app import create_app
+from tests.support.member_login import member_token
 from tests.support.runtime import LocalPlatformRuntime
 
 
@@ -200,7 +201,7 @@ def _verify_policy_admin_access(
         },
     )
     assert admin.status_code == 201, admin.text
-    headers = {"Authorization": f"Bearer {admin.json()['access_token']}"}
+    headers = {"Authorization": f"Bearer {member_token(client, admin.json())}"}
     listing = client.get("/api/v0/approval-policies", headers=headers)
     assert listing.status_code == 200
     created = client.post(
@@ -266,7 +267,7 @@ def _create_workspace_member(
     )
     assert created.status_code == 201, created.text
     member = created.json()
-    headers = {"Authorization": f"Bearer {member['access_token']}"}
+    headers = {"Authorization": f"Bearer {member_token(client, member)}"}
     password = "member-password-123"
     password_set = client.put(
         "/api/v0/auth/password",
@@ -280,6 +281,7 @@ def _create_workspace_member(
     )
     assert login.status_code == 200, login.text
     session_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    headers = {"Authorization": f"Bearer {member_token(client, member)}"}
     return MemberSetup(
         member["user"]["id"],
         member["principal"]["id"],
@@ -375,7 +377,7 @@ def _verify_member_suspension_and_reactivation(
     )
     assert reactivated.status_code == 200, reactivated.text
     reactivated_headers = {
-        "Authorization": f"Bearer {reactivated.json()['access_token']}"
+        "Authorization": f"Bearer {member_token(client, reactivated.json())}"
     }
     assert client.get("/api/v0/workspaces", headers=member.headers).status_code == 401
     assert (

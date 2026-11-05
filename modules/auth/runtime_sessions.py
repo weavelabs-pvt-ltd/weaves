@@ -9,6 +9,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from datetime import timedelta
 
+from application.ports.email import EmailSender
 from application.ports.repository import Repository
 from application.ports.throttling import LoginRateLimiter
 from contracts.v1 import (
@@ -16,6 +17,7 @@ from contracts.v1 import (
     ApiCredentialStatus,
     AuditEvent,
     AuditTargetScope,
+    EmailLoginChallenge,
     Principal,
     PrincipalStatus,
     PrincipalType,
@@ -30,6 +32,7 @@ from modules.auth.passwords import (
     _hash_password,
     _verify_password,
 )
+from modules.auth.runtime_email_login import EmailLoginRuntimeMixin
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _auth_now
 from shared.clock import utc_now as _now
@@ -44,6 +47,9 @@ class AuthenticationRuntimeHost(ABC):
     _bootstrapped: Callable[[], bool]
     api_credentials: Repository[ApiCredential]
     audit_events: Repository[AuditEvent]
+    email_login_challenges: Repository[EmailLoginChallenge]
+    email_login_hmac_key: str
+    email_sender: EmailSender
     login_rate_limiter: LoginRateLimiter
     principals: Repository[Principal]
     user_passwords: Repository[UserPasswordCredential]
@@ -66,7 +72,7 @@ class AuthenticationRuntimeHost(ABC):
         raise NotImplementedError
 
 
-class AuthenticationRuntimeMixin(AuthenticationRuntimeHost):
+class AuthenticationRuntimeMixin(EmailLoginRuntimeMixin, AuthenticationRuntimeHost):
     """Implement credential verification and revocable user sessions."""
 
     def authenticate_api_token(self, token: str) -> str | None:

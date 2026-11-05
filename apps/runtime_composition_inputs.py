@@ -8,6 +8,7 @@ from datetime import datetime
 from threading import RLock
 from typing import Protocol
 
+from application.ports.email import EmailSender
 from application.ports.repository import Repository
 from application.ports.runtime_adapters import PluginDispatcher
 from application.ports.secrets import SecretStore
@@ -27,6 +28,7 @@ from contracts.v1 import (
     Artifact,
     AuditEvent,
     ConversationThread,
+    EmailLoginChallenge,
     EvaluationExecution,
     EvaluationReportRecord,
     EvaluationSuiteRecord,
@@ -48,7 +50,6 @@ from contracts.v1 import (
     TaskTurn,
     ToolInvocation,
     User,
-    UserInvitation,
     UserPasswordCredential,
     UserSession,
     WorkflowDefinition,
@@ -77,6 +78,8 @@ class RuntimeCompositionInputs(Protocol):
         """Open the process-configured unit of work."""
         ...
 
+    canvas_runs: Repository
+    canvas_settings: Repository
     agent_runs: Repository[AgentRun]
     agent_versions: Repository[AgentVersion]
     agents: Repository[AgentDefinition]
@@ -85,6 +88,7 @@ class RuntimeCompositionInputs(Protocol):
     approvals: Repository[ApprovalRequest]
     artifacts: Repository[Artifact]
     audit_events: Repository[AuditEvent]
+    email_login_challenges: Repository[EmailLoginChallenge]
     evaluation_executions: Repository[EvaluationExecution]
     evaluation_reports: Repository[EvaluationReportRecord]
     evaluation_suites: Repository[EvaluationSuiteRecord]
@@ -106,7 +110,6 @@ class RuntimeCompositionInputs(Protocol):
     runs: Repository[WorkflowRun]
     threads: Repository[ConversationThread]
     tool_invocations: Repository[ToolInvocation]
-    user_invitations: Repository[UserInvitation]
     user_passwords: Repository[UserPasswordCredential]
     user_sessions: Repository[UserSession]
     users: Repository[User]
@@ -123,6 +126,8 @@ class RuntimeCompositionInputs(Protocol):
     github_plugin: GitHubReadPlugin
     jira_plugin: JiraReadPlugin
     login_rate_limiter: LoginRateLimiter
+    email_sender: EmailSender
+    email_login_hmac_key: str
     mcp_plugin: McpHttpPlugin
     memory_context: MemoryContextBuilder
     model: MockModelIdentifier

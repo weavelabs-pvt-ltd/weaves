@@ -12,10 +12,11 @@
     "CapabilitySpec": {
       "additionalProperties": false,
       "properties": {
-        "approval_supported": {
-          "default": false,
-          "title": "Approval Supported",
-          "type": "boolean"
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
         },
         "capability_id": {
           "maxLength": 128,
@@ -24,34 +25,20 @@
           "title": "Capability Id",
           "type": "string"
         },
-        "description": {
-          "default": "",
-          "maxLength": 1000,
-          "title": "Description",
-          "type": "string"
-        },
-        "input_schema": {
-          "additionalProperties": {
-            "$ref": "#/$defs/JsonValue"
-          },
-          "title": "Input Schema",
-          "type": "object"
-        },
-        "kind": {
-          "$ref": "#/$defs/CapabilityKind"
-        },
         "name": {
           "maxLength": 160,
           "minLength": 1,
           "title": "Name",
           "type": "string"
         },
-        "output_schema": {
-          "additionalProperties": {
-            "$ref": "#/$defs/JsonValue"
-          },
-          "title": "Output Schema",
-          "type": "object"
+        "description": {
+          "default": "",
+          "maxLength": 1000,
+          "title": "Description",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/CapabilityKind"
         },
         "risk_level": {
           "anyOf": [
@@ -64,11 +51,19 @@
           ],
           "default": null
         },
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
+        "input_schema": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Input Schema",
+          "type": "object"
+        },
+        "output_schema": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Output Schema",
+          "type": "object"
         },
         "timeout_seconds": {
           "default": 30,
@@ -76,6 +71,11 @@
           "minimum": 1,
           "title": "Timeout Seconds",
           "type": "integer"
+        },
+        "approval_supported": {
+          "default": false,
+          "title": "Approval Supported",
+          "type": "boolean"
         }
       },
       "required": [
@@ -92,6 +92,46 @@
     "PluginDescriptor": {
       "additionalProperties": false,
       "properties": {
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "plugin_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Plugin Id",
+          "type": "string"
+        },
+        "plugin_type": {
+          "maxLength": 128,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+          "title": "Plugin Type",
+          "type": "string"
+        },
+        "display_name": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Description",
+          "type": "string"
+        },
+        "capability_manifest": {
+          "items": {
+            "$ref": "#/$defs/CapabilitySpec"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Capability Manifest",
+          "type": "array"
+        },
         "auth_schema": {
           "anyOf": [
             {
@@ -107,15 +147,6 @@
           "default": null,
           "title": "Auth Schema"
         },
-        "capability_manifest": {
-          "items": {
-            "$ref": "#/$defs/CapabilitySpec"
-          },
-          "maxItems": 200,
-          "minItems": 1,
-          "title": "Capability Manifest",
-          "type": "array"
-        },
         "configuration_schema": {
           "anyOf": [
             {
@@ -130,37 +161,6 @@
           ],
           "default": null,
           "title": "Configuration Schema"
-        },
-        "description": {
-          "default": "",
-          "maxLength": 2000,
-          "title": "Description",
-          "type": "string"
-        },
-        "display_name": {
-          "maxLength": 160,
-          "minLength": 1,
-          "title": "Display Name",
-          "type": "string"
-        },
-        "plugin_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Plugin Id",
-          "type": "string"
-        },
-        "plugin_type": {
-          "maxLength": 128,
-          "minLength": 2,
-          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
-          "title": "Plugin Type",
-          "type": "string"
-        },
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
         },
         "status": {
           "$ref": "#/$defs/PluginDescriptorStatus"
@@ -188,6 +188,52 @@
     "PluginInstallation": {
       "additionalProperties": false,
       "properties": {
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "org_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Org Id",
+          "type": "string"
+        },
+        "workspace_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Workspace Id",
+          "type": "string"
+        },
+        "plugin_installation_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Plugin Installation Id",
+          "type": "string"
+        },
+        "plugin_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Plugin Id",
+          "type": "string"
+        },
+        "display_name": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        },
         "auth_ref": {
           "anyOf": [
             {
@@ -209,17 +255,6 @@
           "title": "Configuration",
           "type": "object"
         },
-        "created_at": {
-          "format": "date-time",
-          "title": "Created At",
-          "type": "string"
-        },
-        "display_name": {
-          "maxLength": 160,
-          "minLength": 1,
-          "title": "Display Name",
-          "type": "string"
-        },
         "enabled_capability_ids": {
           "items": {
             "maxLength": 128,
@@ -230,6 +265,9 @@
           "maxItems": 200,
           "title": "Enabled Capability Ids",
           "type": "array"
+        },
+        "status": {
+          "$ref": "#/$defs/PluginInstallationStatus"
         },
         "last_healthcheck_at": {
           "anyOf": [
@@ -243,44 +281,6 @@
           ],
           "default": null,
           "title": "Last Healthcheck At"
-        },
-        "org_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Org Id",
-          "type": "string"
-        },
-        "plugin_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Plugin Id",
-          "type": "string"
-        },
-        "plugin_installation_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Plugin Installation Id",
-          "type": "string"
-        },
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
-        "status": {
-          "$ref": "#/$defs/PluginInstallationStatus"
-        },
-        "updated_at": {
-          "format": "date-time",
-          "title": "Updated At",
-          "type": "string"
-        },
-        "workspace_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Workspace Id",
-          "type": "string"
         }
       },
       "required": [
@@ -318,17 +318,17 @@
   },
   "additionalProperties": false,
   "properties": {
-    "descriptor": {
-      "$ref": "#/$defs/PluginDescriptor"
-    },
-    "installation": {
-      "$ref": "#/$defs/PluginInstallation"
-    },
     "schema_version": {
       "const": 1,
       "default": 1,
       "title": "Schema Version",
       "type": "integer"
+    },
+    "descriptor": {
+      "$ref": "#/$defs/PluginDescriptor"
+    },
+    "installation": {
+      "$ref": "#/$defs/PluginInstallation"
     }
   },
   "required": [

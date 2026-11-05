@@ -7,7 +7,6 @@ from apps.runtime_composition_inputs import RuntimeCompositionInputs
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.bootstrap import IdentityBootstrapService
 from modules.auth.credential_service import CredentialService
-from modules.auth.invitation_service import InvitationService
 from modules.auth.organization_service import OrganizationService
 from modules.auth.user_administration_service import UserAdministrationService
 from modules.auth.workspace_access_service import WorkspaceAccessService
@@ -20,6 +19,9 @@ def _configure_authentication_service(
     services.authentication_service = AuthenticationService(
         api_credentials=dependencies.api_credentials,
         audit_events=dependencies.audit_events,
+        email_login_challenges=dependencies.email_login_challenges,
+        email_sender=dependencies.email_sender,
+        email_login_hmac_key=dependencies.email_login_hmac_key,
         principals=dependencies.principals,
         user_passwords=dependencies.user_passwords,
         user_sessions=dependencies.user_sessions,
@@ -64,28 +66,6 @@ def _configure_credential_service(
     )
 
 
-def _configure_invitation_service(
-    dependencies: RuntimeCompositionInputs, services: CapabilityServiceSet
-) -> None:
-    """Compose invitation lifecycle with identity and database ports."""
-    services.invitation_service = InvitationService(
-        audit_events=dependencies.audit_events,
-        principals=dependencies.principals,
-        role_bindings=dependencies.role_bindings,
-        roles=dependencies.roles,
-        user_invitations=dependencies.user_invitations,
-        user_passwords=dependencies.user_passwords,
-        user_sessions=dependencies.user_sessions,
-        users=dependencies.users,
-        workspaces=dependencies.workspaces,
-        is_bootstrapped=lambda: dependencies._bootstrapped,
-        bootstrap=dependencies.bootstrap,
-        authorize=dependencies.authorize,
-        authorize_organization=dependencies.authorize_organization,
-        unit_of_work=dependencies._unit_of_work,
-    )
-
-
 def _configure_user_administration_service(
     dependencies: RuntimeCompositionInputs, services: CapabilityServiceSet
 ) -> None:
@@ -96,7 +76,6 @@ def _configure_user_administration_service(
         principals=dependencies.principals,
         role_bindings=dependencies.role_bindings,
         roles=dependencies.roles,
-        user_invitations=dependencies.user_invitations,
         user_sessions=dependencies.user_sessions,
         users=dependencies.users,
         is_bootstrapped=lambda: dependencies._bootstrapped,

@@ -16,6 +16,7 @@ from contracts.v1 import (
     Artifact,
     AuditEvent,
     ConversationThread,
+    EmailLoginChallenge,
     EvaluationExecution,
     EvaluationReportRecord,
     EvaluationSuiteRecord,
@@ -36,7 +37,6 @@ from contracts.v1 import (
     TaskTurn,
     ToolInvocation,
     User,
-    UserInvitation,
     UserPasswordCredential,
     UserSession,
     WorkflowDefinition,
@@ -63,7 +63,6 @@ class RuntimeRepositoryBindingMixin:
     api_credentials: Repository[ApiCredential]
     user_passwords: Repository[UserPasswordCredential]
     user_sessions: Repository[UserSession]
-    user_invitations: Repository[UserInvitation]
     roles: Repository[Role]
     role_bindings: Repository[RoleBinding]
     providers: Repository[ModelProviderContract]
@@ -95,6 +94,7 @@ class RuntimeRepositoryBindingMixin:
     task_messages: Repository[TaskMessage]
     task_turns: Repository[TaskTurn]
     audit_events: Repository[AuditEvent]
+    email_login_challenges: Repository[EmailLoginChallenge]
 
     def _bind_repositories(self) -> None:
         """Attach one repository for each product collection."""
@@ -105,7 +105,6 @@ class RuntimeRepositoryBindingMixin:
         self.api_credentials = self._repository("api_credentials", ApiCredential)
         self.user_passwords = self._repository("user_passwords", UserPasswordCredential)
         self.user_sessions = self._repository("user_sessions", UserSession)
-        self.user_invitations = self._repository("user_invitations", UserInvitation)
         self.roles = self._repository("roles", Role)
         self.role_bindings = self._repository("role_bindings", RoleBinding)
         self.providers = self._repository("model_providers", ModelProviderContract)
@@ -122,6 +121,9 @@ class RuntimeRepositoryBindingMixin:
         )
         self.agents = self._repository("agents", AgentDefinition)
         self.agent_versions = self._repository("agent_versions", AgentVersion)
+        from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
+        self.canvas_runs = self._repository("canvas_runs", CanvasRun)
+        self.canvas_settings = self._repository("canvas_settings", CanvasSettings)
         self.workflows = self._repository("workflows", WorkflowDefinition)
         self.workflow_versions = self._repository("workflow_versions", WorkflowVersion)
         self.workflow_triggers = self._repository("workflow_triggers", WorkflowTrigger)
@@ -153,6 +155,9 @@ class RuntimeRepositoryBindingMixin:
         self.task_messages = self._repository("task_messages", TaskMessage)
         self.task_turns = self._repository("task_turns", TaskTurn)
         self.audit_events = self._repository("audit_events", AuditEvent)
+        self.email_login_challenges = self._repository(
+            "email_login_challenges", EmailLoginChallenge
+        )
 
     def _repository(
         self, collection: str, record_type: type[TProduct]
