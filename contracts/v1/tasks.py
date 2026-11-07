@@ -2,6 +2,7 @@
 
 from pydantic import AwareDatetime, Field, model_validator
 
+from contracts.v1.agents import AgentSkillSnapshot
 from contracts.v1.base import (
     DisplayName,
     ImmutableWorkspaceVersionContract,
@@ -37,6 +38,13 @@ class TaskTurnStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class TaskAudience(StrEnum):
+    """Visibility boundary for a durable task conversation."""
+
+    WORKSPACE = "workspace"
+    PRIVATE = "private"
+
+
 class Task(MutableWorkspaceScopedContract):
     """User-owned task conversation pinned to one agent version."""
 
@@ -47,6 +55,11 @@ class Task(MutableWorkspaceScopedContract):
     requested_by_principal_id: OpaqueId
     agent_id: OpaqueId
     agent_version_id: OpaqueId
+    audience: TaskAudience = TaskAudience.WORKSPACE
+    audience_owner_principal_id: OpaqueId | None = None
+    private_skill_snapshots: tuple[AgentSkillSnapshot, ...] = Field(
+        default_factory=tuple, max_length=5
+    )
     thread_id: OpaqueId
     creation_message_id: OpaqueId
     status: TaskStatus = TaskStatus.OPEN
@@ -70,6 +83,16 @@ class Task(MutableWorkspaceScopedContract):
             raise ValueError("completed or archived tasks cannot have an active turn")
         if (self.active_turn_id is None) != (self.active_turn_status is None):
             raise ValueError("active turn ID and status must be set together")
+        if (self.audience is TaskAudience.PRIVATE) != (
+            self.audience_owner_principal_id is not None
+        ):
+            raise ValueError("private tasks require exactly one owner")
+        if self.audience is TaskAudience.PRIVATE and (
+            self.audience_owner_principal_id != self.created_by_principal_id
+        ):
+            raise ValueError("private task owner must be its creator")
+        if self.audience is TaskAudience.WORKSPACE and self.private_skill_snapshots:
+            raise ValueError("private skill snapshots require a private task")
         return self
 
 
@@ -174,6 +197,7 @@ class TaskTurn(MutableWorkspaceScopedContract):
 
 __all__ = [
     "Task",
+    "TaskAudience",
     "TaskMessage",
     "TaskMessageRole",
     "TaskStatus",

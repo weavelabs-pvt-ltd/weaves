@@ -16,8 +16,6 @@ from contracts.v1 import (
     AgentVersion,
     AuditEvent,
     AuditTargetScope,
-    MemoryPolicy,
-    MemoryScope,
     WorkflowDefinition,
     WorkflowVersion,
 )
@@ -56,7 +54,6 @@ class AgentVersionPublisher:
         skills: tuple[AgentSkillSnapshot, ...],
         instructions: str | None,
         capability_ids: tuple[str, ...],
-        memory_scopes: tuple[MemoryScope, ...] | None,
         budget: AgentBudget | None,
         output_schema: dict[str, JsonValue] | None,
         clear_output_schema: bool,
@@ -79,14 +76,6 @@ class AgentVersionPublisher:
             allowed_workflow_ids=old_version.allowed_workflow_ids,
             approval_policy_id=old_version.approval_policy_id,
             budget_policy_id=old_version.budget_policy_id,
-            memory_policy=(
-                old_version.memory_policy
-                if memory_scopes is None
-                else MemoryPolicy(
-                    allowed_scopes=memory_scopes,
-                    max_items=0 if memory_scopes == (MemoryScope.NONE,) else 8,
-                )
-            ),
             budget=budget or old_version.budget,
             output_schema=(
                 None

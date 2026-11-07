@@ -72,7 +72,6 @@ class RuntimeFoundationMixin(RuntimeRepositoryBindingMixin, RuntimeCoordinationM
         self.mcp_plugin = adapters.mcp_plugin
         self.oauth_token_resolver = adapters.oauth_token_resolver
         self.github_app_token_provider = adapters.github_app_token_provider
-        self.memory_context = adapters.memory_context
         self.default_model_profile_id = adapters.default_model_profile_id
         self.environment_model_provider_type = adapters.environment_model_provider_type
         self.environment_model_name = adapters.environment_model_name

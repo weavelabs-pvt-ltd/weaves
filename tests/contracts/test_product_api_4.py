@@ -442,11 +442,11 @@ def _assert_agent_task_lifecycle(client, runtime, agent, updated):
         agent_run.agent_version_id
         == updated.json()["current_version"]["agent_version_id"]
     )
-    assert artifacts[0].provenance
+    assert artifacts[0].provenance == ()
     invocations = [
         item for item in runtime.tool_invocations.list() if item.run_id == run_id
     ]
-    assert invocations[0].capability_id == "knowledge.search"
+    assert invocations == []
     assert runtime.artifacts.list()[0].run_id == run_id
     events = client.get("/api/v0/audit-events").json()
     assert any(event["target_id"] == run_id for event in events)

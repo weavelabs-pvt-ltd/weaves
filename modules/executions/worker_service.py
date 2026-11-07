@@ -8,6 +8,7 @@ from threading import Event
 
 from application.ports.repository import Repository
 from contracts.v1 import (
+    AgentSkillSnapshot,
     AuditEvent,
     ExecutionJob,
     ExecutionJobStatus,
@@ -107,6 +108,7 @@ class ExecutionWorkerService(ExecutionWorkerMixin, ExecutionCompletionMixin):
         agent_version_id: str | None = None,
         _cancellation_event: Event | None = None,
         _cancellation_check: Callable[[], bool] | None = None,
+        _runtime_skill_snapshots: tuple[AgentSkillSnapshot, ...] = (),
     ) -> RuntimeResult:
         """Run an agent through the shared agent execution capability."""
         return self._run_agent(
@@ -119,6 +121,7 @@ class ExecutionWorkerService(ExecutionWorkerMixin, ExecutionCompletionMixin):
             agent_version_id=agent_version_id,
             _cancellation_event=_cancellation_event,
             _cancellation_check=_cancellation_check,
+            _runtime_skill_snapshots=_runtime_skill_snapshots,
         )
 
     def run_workflow(

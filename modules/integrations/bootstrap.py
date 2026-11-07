@@ -1,4 +1,4 @@
-"""Seed the built-in integrations, local installation, and approval policy."""
+"""Seed built-in connector descriptors and the default approval policy."""
 
 from __future__ import annotations
 
@@ -12,12 +12,10 @@ from contracts.v1 import (
     CapabilitySpec,
     PluginDescriptor,
     PluginDescriptorStatus,
-    PluginInstallation,
-    PluginInstallationStatus,
     RiskLevel,
 )
 from contracts.v1.base import ProductContract
-from modules.knowledge.context import read_context_search
+from modules.integrations.context_search import read_context_search
 
 TProduct = TypeVar("TProduct", bound=ProductContract)
 
@@ -80,12 +78,10 @@ class IntegrationBootstrapService:
         self,
         *,
         plugins: Repository[PluginDescriptor],
-        installations: Repository[PluginInstallation],
         approval_policies: Repository[ApprovalPolicy],
     ) -> None:
         """Bind the repositories owned by integration and governance modules."""
         self.plugins = plugins
-        self.installations = installations
         self.approval_policies = approval_policies
 
     @staticmethod
@@ -126,30 +122,17 @@ class IntegrationBootstrapService:
                 return repository.get(record_id)
 
     def seed(self, now: datetime) -> None:
-        """Seed built-in connectors, local knowledge, and action policy."""
+        """Seed built-in connector descriptors and the default approval policy."""
         jira_comment, jira_search = self._seed_builtin_capabilities()
         self._seed_github_plugin()
         self._seed_slack_plugin()
         self._seed_jira_plugin(jira_comment, jira_search)
-        self._seed_local_installation_and_policy(now)
+        self._seed_default_policy(now)
 
     def _seed_builtin_capabilities(
         self,
     ) -> tuple[CapabilitySpec, CapabilitySpec]:
-        """Build the built-in knowledge and Jira capability specs."""
-        search_capability = CapabilitySpec(
-            capability_id="knowledge.search",
-            name="Search local knowledge",
-            kind=CapabilityKind.CONTEXT_READ,
-            input_schema={
-                "type": "object",
-                "properties": {"query": {"type": "string"}},
-                "required": ["query"],
-                "additionalProperties": False,
-            },
-            output_schema={"type": "object"},
-            timeout_seconds=5,
-        )
+        """Build the built-in Jira capability specs."""
         jira_comment = CapabilitySpec(
             capability_id="jira.issues.comment",
             name="Add a Jira issue comment",
@@ -184,17 +167,6 @@ class IntegrationBootstrapService:
             "jira.issues.search",
             "Search Jira issues",
             "Search Jira Cloud issues in configured projects.",
-        )
-        self._seed(
-            self.plugins,
-            "plugin_id",
-            PluginDescriptor(
-                plugin_id="local-knowledge",
-                plugin_type="knowledge_base",
-                display_name="Local knowledge",
-                capability_manifest=(search_capability,),
-                status=PluginDescriptorStatus.ACTIVE,
-            ),
         )
         return jira_comment, jira_search
 
@@ -331,23 +303,8 @@ class IntegrationBootstrapService:
             ),
         )
 
-    def _seed_local_installation_and_policy(self, now: datetime) -> None:
-        """Seed the local knowledge installation and approval policy."""
-        self._seed(
-            self.installations,
-            "plugin_installation_id",
-            PluginInstallation(
-                plugin_installation_id="local-knowledge-installation",
-                org_id="local-org",
-                workspace_id="local-workspace",
-                plugin_id="local-knowledge",
-                display_name="Local knowledge",
-                enabled_capability_ids=("knowledge.search",),
-                status=PluginInstallationStatus.ACTIVE,
-                created_at=now,
-                updated_at=now,
-            ),
-        )
+    def _seed_default_policy(self, now: datetime) -> None:
+        """Seed the default approval policy."""
         self._seed(
             self.approval_policies,
             "approval_policy_id",

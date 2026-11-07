@@ -1,5 +1,92 @@
 {
   "$defs": {
+    "AgentSkillSnapshot": {
+      "additionalProperties": false,
+      "description": "Version-pinned, trusted instructions selected from the skill catalog.",
+      "properties": {
+        "content_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content Digest"
+        },
+        "files": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "maxProperties": 50,
+          "title": "Files",
+          "type": "object"
+        },
+        "instructions": {
+          "maxLength": 12000,
+          "minLength": 1,
+          "title": "Instructions",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "skill_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Skill Id",
+          "type": "string"
+        },
+        "source_skill_version_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Skill Version Id"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "skill_id",
+        "version",
+        "name",
+        "instructions"
+      ],
+      "title": "AgentSkillSnapshot",
+      "type": "object"
+    },
+    "TaskAudience": {
+      "description": "Visibility boundary for a durable task conversation.",
+      "enum": [
+        "workspace",
+        "private"
+      ],
+      "title": "TaskAudience",
+      "type": "string"
+    },
     "TaskStatus": {
       "description": "Lifecycle state chosen by the user for a task.",
       "enum": [
@@ -75,6 +162,24 @@
       ],
       "default": null,
       "title": "Archived At"
+    },
+    "audience": {
+      "$ref": "#/$defs/TaskAudience",
+      "default": "workspace"
+    },
+    "audience_owner_principal_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Audience Owner Principal Id"
     },
     "completed_at": {
       "anyOf": [
@@ -169,6 +274,14 @@
       "minLength": 1,
       "title": "Org Id",
       "type": "string"
+    },
+    "private_skill_snapshots": {
+      "items": {
+        "$ref": "#/$defs/AgentSkillSnapshot"
+      },
+      "maxItems": 5,
+      "title": "Private Skill Snapshots",
+      "type": "array"
     },
     "requested_by_principal_id": {
       "maxLength": 128,

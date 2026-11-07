@@ -1,11 +1,10 @@
 {
   "additionalProperties": false,
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
     },
     "id": {
       "maxLength": 128,
@@ -31,6 +30,12 @@
       "title": "Role Id",
       "type": "string"
     },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
     "workspace_id": {
       "anyOf": [
         {
@@ -44,11 +49,6 @@
       ],
       "default": null,
       "title": "Workspace Id"
-    },
-    "created_at": {
-      "format": "date-time",
-      "title": "Created At",
-      "type": "string"
     }
   },
   "required": [

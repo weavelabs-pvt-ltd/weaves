@@ -15,7 +15,6 @@ class RuntimeBootstrapMixin(RuntimeCapabilityHost):
             return
         now = _now()
         self.identity_bootstrap_service.seed_local_organization(now)
-        self.knowledge_bootstrap_service.seed_local_handbook(now)
         self.identity_bootstrap_service.seed_local_developer(now)
         self.identity_bootstrap_service.seed_standard_roles()
         self.model_bootstrap_service.seed(now)

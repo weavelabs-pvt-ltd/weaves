@@ -5,7 +5,11 @@ from datetime import datetime
 
 from application.ports.repository import Repository
 from contracts.v1 import Task, TaskMessage, TaskStatus
-from shared.request_context import effective_org_id, effective_workspace_id
+from shared.request_context import (
+    effective_org_id,
+    effective_principal_id,
+    effective_workspace_id,
+)
 
 
 class TaskQueryService:
@@ -35,12 +39,14 @@ class TaskQueryService:
     ) -> tuple[Task, ...]:
         """Return newest tasks visible in the active workspace."""
         self._authorize_view()
+        principal_id = effective_principal_id("local-developer")
         return self.tasks.list_task_page(
             effective_org_id(),
             effective_workspace_id(),
             status=status.value if status else None,
             agent_id=agent_id,
             created_by_principal_id=created_by_principal_id,
+            visible_to_principal_id=principal_id,
             cursor_created_at=cursor_created_at,
             cursor_task_id=cursor_task_id,
             limit=limit,
@@ -49,9 +55,16 @@ class TaskQueryService:
     def get_task(self, task_id: str) -> Task:
         """Return a task scoped to the authenticated workspace."""
         self._authorize_view()
-        return self.tasks.get_scoped(
+        task = self.tasks.get_scoped(
             task_id, effective_org_id(), effective_workspace_id()
         )
+        principal_id = effective_principal_id("local-developer")
+        if (
+            task.audience.value == "private"
+            and task.audience_owner_principal_id != principal_id
+        ):
+            raise KeyError("task not found")
+        return task
 
     def list_messages(
         self,

@@ -1,12 +1,6 @@
 {
   "additionalProperties": false,
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
     "input_tokens": {
       "minimum": 0,
       "title": "Input Tokens",
@@ -15,6 +9,12 @@
     "output_tokens": {
       "minimum": 0,
       "title": "Output Tokens",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
       "type": "integer"
     },
     "total_tokens": {

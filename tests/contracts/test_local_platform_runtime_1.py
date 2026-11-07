@@ -8,9 +8,7 @@ from application.platform import (
 from clients.model_providers.gateway import ModelGateway, ModelGatewayError
 from contracts.v1 import (
     AgentBudget,
-    AgentVersion,
-    MemoryPolicy,
-    MemoryScope,
+    ConversationThread,
     ModelProviderType,
     ModelResponse,
     ModelUsage,
@@ -38,7 +36,14 @@ def test_conversation_thread_sends_bounded_prior_turns_to_model():
     runtime.bootstrap()
     runtime.model_adapters[ModelProviderType.LOCAL] = CapturingModel()
     runtime.agent_execution_service.model_gateway = ModelGateway(runtime.model_adapters)
-    thread = runtime.memory_service.create_conversation_thread(title="Follow up")
+    thread = runtime.threads.create(
+        ConversationThread(
+            thread_id="follow-up-thread",
+            org_id="local-org",
+            workspace_id="local-workspace",
+            title="Follow up",
+        )
+    )
 
     runtime.run_agent("My team is called Atlas", thread_id=thread.thread_id)
     runtime.run_agent("What is my team called?", thread_id=thread.thread_id)
@@ -75,60 +80,6 @@ def test_agent_run_persists_responses_longer_than_old_artifact_summary_limit():
     assert len(result.agent_run.output_summary["response"]) > 20_000
 
 
-def test_agent_context_is_bounded_to_model_and_artifact_contracts():
-    runtime = LocalPlatformRuntime()
-    agent = runtime.agent_service.create_agent(
-        name="Large context agent",
-        instructions="Use the supplied release context.",
-    )
-    version = runtime.agent_versions.get(agent.current_version_id or "")
-    runtime.agent_versions.put(
-        AgentVersion.model_validate(
-            version.model_copy(
-                update={
-                    "memory_policy": MemoryPolicy(
-                        allowed_scopes=(MemoryScope.WORKSPACE,), max_items=50
-                    )
-                }
-            ).model_dump()
-        )
-    )
-    source_ref_prefix = "external-memory-source-"
-    for index in range(50):
-        runtime.memory_service.create_memory_item(
-            title=f"Release guidance {index}",
-            text="release deployment guidance " * 350,
-            source_ref=f"{source_ref_prefix}{index}-" + "x" * 180,
-        )
-
-    captured = []
-
-    class CapturingModel:
-        def complete(self, request, binding):
-            captured.append(request)
-            return ModelResponse(
-                provider_id=binding.provider.id,
-                model_id=binding.profile.model,
-                content="Bounded context response.",
-                usage=ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2),
-            )
-
-    runtime.model_adapters[ModelProviderType.LOCAL] = CapturingModel()
-    runtime.agent_execution_service.model_gateway = ModelGateway(runtime.model_adapters)
-
-    result = runtime.run_agent("Summarize release guidance", agent_id=agent.id)
-
-    user_message = captured[0].messages[-1].content
-    context_json = user_message.split("Retrieved context records (JSON):\n", 1)[1]
-    context_records = json.loads(context_json)
-    assert len(user_message) < 100_000
-    assert len(context_records) == runtime.MAX_AGENT_CONTEXT_RECORDS
-    assert len(result.artifact.provenance) <= 50
-    assert len(result.agent_run.output_summary["omitted_context_source_ids"]) > 0
-    assert any(
-        item.source_ref.startswith(source_ref_prefix)
-        for item in result.artifact.provenance
-    )
 
 
 def test_ten_step_workflow_bounds_prior_artifacts_in_model_requests():
@@ -317,7 +268,7 @@ def test_agent_tool_call_budget_skips_excess_context_capabilities():
     agent = runtime.agent_service.create_agent(
         name="No context calls",
         instructions="Answer from the request alone.",
-        allowed_capability_ids=("knowledge.search",),
+        allowed_capability_ids=(),
         budget=AgentBudget(max_tool_calls=0),
     )
 
@@ -326,7 +277,7 @@ def test_agent_tool_call_budget_skips_excess_context_capabilities():
     assert result.tool_invocations == ()
     assert result.agent_run.output_summary is not None
     assert result.agent_run.output_summary["budget_skipped_capability_ids"] == [
-        "knowledge.search"
+        "github.issues.search"
     ]
     assert "tool-call budget was reached" in result.artifact.summary
 

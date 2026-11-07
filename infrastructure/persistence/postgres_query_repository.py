@@ -90,6 +90,7 @@ class PostgresQueryRepositoryMixin[TContract]:
         status: str | None,
         agent_id: str | None,
         created_by_principal_id: str | None,
+        visible_to_principal_id: str,
         cursor_created_at: datetime | None,
         cursor_task_id: str | None,
         limit: int,
@@ -110,6 +111,9 @@ class PostgresQueryRepositoryMixin[TContract]:
             if value is not None:
                 query += f" AND payload->>'{field}' = %s"
                 params += (value,)
+        query += " AND (COALESCE(payload->>'audience', 'workspace') <> 'private'"
+        query += " OR payload->>'audience_owner_principal_id' = %s)"
+        params += (visible_to_principal_id,)
         if cursor_created_at is not None:
             if cursor_task_id is None:
                 raise ValueError("cursor task ID is required")

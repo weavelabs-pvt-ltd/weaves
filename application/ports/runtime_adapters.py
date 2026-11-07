@@ -23,7 +23,6 @@ from contracts.v1 import (
 )
 from contracts.v1.base import OpaqueId
 from modules.auth.runtime_organizations import MockModelIdentifier
-from modules.memory.context import MemoryContextBuilder
 
 
 class PluginInvocationResult(Protocol):
@@ -104,7 +103,6 @@ class RuntimeAdapterBundle:
         mcp_plugin: McpHttpPlugin,
         oauth_token_resolver: OAuthTokenResolver,
         github_app_token_provider: GitHubAppTokenProvider,
-        memory_context: MemoryContextBuilder,
         default_model_profile_id: str,
         environment_model_provider_type: ModelProviderType,
         environment_model_name: str,
@@ -124,7 +122,6 @@ class RuntimeAdapterBundle:
         self.mcp_plugin = mcp_plugin
         self.oauth_token_resolver = oauth_token_resolver
         self.github_app_token_provider = github_app_token_provider
-        self.memory_context = memory_context
         self.default_model_profile_id = default_model_profile_id
         self.environment_model_provider_type = environment_model_provider_type
         self.environment_model_name = environment_model_name

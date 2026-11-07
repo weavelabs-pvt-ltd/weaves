@@ -18,6 +18,11 @@ def _configure_task_services(
         messages=dependencies.task_messages,
         turns=dependencies.task_turns,
         agent_runs=dependencies.agent_runs,
+        skill_definitions=dependencies.skill_definitions,
+        skill_versions=dependencies.skill_versions,
+        capability_installation=(
+            services.integration_admin_service.resolve_capability_installation
+        ),
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,
         authorize=dependencies.authorize,

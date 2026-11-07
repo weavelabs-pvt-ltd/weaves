@@ -21,8 +21,6 @@ from contracts.v1 import (
     EvaluationReportRecord,
     EvaluationSuiteRecord,
     ExecutionJob,
-    KnowledgeDocument,
-    MemoryItem,
     ModelProfile,
     OAuthAuthorizationState,
     Organization,
@@ -32,6 +30,10 @@ from contracts.v1 import (
     Principal,
     Role,
     RoleBinding,
+    SkillDefinition,
+    SkillPublication,
+    SkillRevocation,
+    SkillVersion,
     Task,
     TaskMessage,
     TaskTurn,
@@ -65,6 +67,10 @@ class RuntimeRepositoryBindingMixin:
     user_sessions: Repository[UserSession]
     roles: Repository[Role]
     role_bindings: Repository[RoleBinding]
+    skill_definitions: Repository[SkillDefinition]
+    skill_versions: Repository[SkillVersion]
+    skill_publications: Repository[SkillPublication]
+    skill_revocations: Repository[SkillRevocation]
     providers: Repository[ModelProviderContract]
     model_profiles: Repository[ModelProfile]
     model_configurations: Repository[OrganizationModelConfiguration]
@@ -86,8 +92,6 @@ class RuntimeRepositoryBindingMixin:
     agent_runs: Repository[AgentRun]
     tool_invocations: Repository[ToolInvocation]
     artifacts: Repository[Artifact]
-    knowledge_documents: Repository[KnowledgeDocument]
-    memory_items: Repository[MemoryItem]
     threads: Repository[ConversationThread]
     execution_jobs: Repository[ExecutionJob]
     tasks: Repository[Task]
@@ -107,6 +111,12 @@ class RuntimeRepositoryBindingMixin:
         self.user_sessions = self._repository("user_sessions", UserSession)
         self.roles = self._repository("roles", Role)
         self.role_bindings = self._repository("role_bindings", RoleBinding)
+        self.skill_definitions = self._repository("skill_definitions", SkillDefinition)
+        self.skill_versions = self._repository("skill_versions", SkillVersion)
+        self.skill_publications = self._repository(
+            "skill_publications", SkillPublication
+        )
+        self.skill_revocations = self._repository("skill_revocations", SkillRevocation)
         self.providers = self._repository("model_providers", ModelProviderContract)
         self.model_profiles = self._repository("model_profiles", ModelProfile)
         self.model_configurations = self._repository(
@@ -122,6 +132,7 @@ class RuntimeRepositoryBindingMixin:
         self.agents = self._repository("agents", AgentDefinition)
         self.agent_versions = self._repository("agent_versions", AgentVersion)
         from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
+
         self.canvas_runs = self._repository("canvas_runs", CanvasRun)
         self.canvas_settings = self._repository("canvas_settings", CanvasSettings)
         self.workflows = self._repository("workflows", WorkflowDefinition)
@@ -145,10 +156,6 @@ class RuntimeRepositoryBindingMixin:
         self.agent_runs = self._repository("agent_runs", AgentRun)
         self.tool_invocations = self._repository("tool_invocations", ToolInvocation)
         self.artifacts = self._repository("artifacts", Artifact)
-        self.knowledge_documents = self._repository(
-            "knowledge_documents", KnowledgeDocument
-        )
-        self.memory_items = self._repository("memory_items", MemoryItem)
         self.threads = self._repository("conversation_threads", ConversationThread)
         self.execution_jobs = self._repository("execution_jobs", ExecutionJob)
         self.tasks = self._repository("tasks", Task)

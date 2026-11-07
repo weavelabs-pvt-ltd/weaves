@@ -14,7 +14,6 @@ from contracts.v1 import (
     AuditEvent,
     CapabilityKind,
     CapabilitySpec,
-    KnowledgeDocument,
     Permission,
     PluginDescriptor,
     PluginDescriptorStatus,
@@ -39,7 +38,6 @@ class IntegrationAdminService(
     audit_events: Repository[AuditEvent]
     installations: Repository[PluginInstallation]
     plugins: Repository[PluginDescriptor]
-    knowledge_documents: Repository[KnowledgeDocument]
     secret_store: SecretStore
     github_plugin: GitHubReadPlugin
     slack_plugin: SlackReadPlugin
@@ -52,7 +50,6 @@ class IntegrationAdminService(
         audit_events: Repository[AuditEvent],
         installations: Repository[PluginInstallation],
         plugins: Repository[PluginDescriptor],
-        knowledge_documents: Repository[KnowledgeDocument],
         secret_store: SecretStore,
         github_plugin: GitHubReadPlugin,
         slack_plugin: SlackReadPlugin,
@@ -66,7 +63,6 @@ class IntegrationAdminService(
         self.audit_events = audit_events
         self.installations = installations
         self.plugins = plugins
-        self.knowledge_documents = knowledge_documents
         self.secret_store = secret_store
         self.github_plugin = github_plugin
         self.slack_plugin = slack_plugin

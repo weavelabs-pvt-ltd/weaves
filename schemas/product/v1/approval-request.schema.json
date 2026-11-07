@@ -25,32 +25,10 @@
   "additionalProperties": false,
   "description": "Human decision record for a proposed write capability.",
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
-    "created_at": {
-      "format": "date-time",
-      "title": "Created At",
-      "type": "string"
-    },
-    "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
-    },
-    "org_id": {
-      "maxLength": 128,
+    "action_summary": {
+      "maxLength": 1000,
       "minLength": 1,
-      "title": "Org Id",
-      "type": "string"
-    },
-    "workspace_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Workspace Id",
+      "title": "Action Summary",
       "type": "string"
     },
     "approval_request_id": {
@@ -59,10 +37,40 @@
       "title": "Approval Request Id",
       "type": "string"
     },
-    "run_id": {
+    "capability_id": {
+      "maxLength": 128,
+      "minLength": 2,
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "title": "Capability Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "decision_comment": {
+      "anyOf": [
+        {
+          "maxLength": 1000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decision Comment"
+    },
+    "org_id": {
       "maxLength": 128,
       "minLength": 1,
-      "title": "Run Id",
+      "title": "Org Id",
+      "type": "string"
+    },
+    "requested_at": {
+      "format": "date-time",
+      "title": "Requested At",
       "type": "string"
     },
     "requested_by_agent_run_id": {
@@ -85,29 +93,18 @@
       "title": "Requested By Principal Id",
       "type": "string"
     },
-    "capability_id": {
-      "maxLength": 128,
-      "minLength": 2,
-      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
-      "title": "Capability Id",
-      "type": "string"
-    },
-    "action_summary": {
-      "maxLength": 1000,
-      "minLength": 1,
-      "title": "Action Summary",
-      "type": "string"
-    },
-    "risk_level": {
-      "$ref": "#/$defs/RiskLevel"
-    },
-    "status": {
-      "$ref": "#/$defs/ApprovalStatus"
-    },
-    "requested_at": {
-      "format": "date-time",
-      "title": "Requested At",
-      "type": "string"
+    "resolved_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Resolved At"
     },
     "resolved_by_principal_id": {
       "anyOf": [
@@ -123,31 +120,34 @@
       "default": null,
       "title": "Resolved By Principal Id"
     },
-    "resolved_at": {
-      "anyOf": [
-        {
-          "format": "date-time",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Resolved At"
+    "risk_level": {
+      "$ref": "#/$defs/RiskLevel"
     },
-    "decision_comment": {
-      "anyOf": [
-        {
-          "maxLength": 1000,
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Decision Comment"
+    "run_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/ApprovalStatus"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "workspace_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workspace Id",
+      "type": "string"
     }
   },
   "required": [

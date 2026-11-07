@@ -1,5 +1,3 @@
-from tests.support.member_login import member_token
-
 """HTTP authorization tests for the v0 user-level RBAC contract."""
 
 from dataclasses import dataclass
@@ -7,6 +5,7 @@ from dataclasses import dataclass
 from fastapi.testclient import TestClient
 
 from apps.api.app import create_app
+from tests.support.member_login import member_token
 from tests.support.runtime import LocalPlatformRuntime
 
 
@@ -142,9 +141,7 @@ def _assert_user_can_view_metadata(
     installations = client.get("/api/v0/plugin-installations", headers=headers)
     assert installations.status_code == 200
     assert all("auth_ref" not in item for item in installations.json())
-    documents = client.get("/api/v0/knowledge-documents", headers=headers)
-    assert documents.status_code == 200
-    assert all("text" not in item for item in documents.json())
+    assert client.get("/api/v0/knowledge-documents", headers=headers).status_code == 404
 
 
 def _resource_counts(client: TestClient, headers: dict[str, str]) -> tuple[int, ...]:
@@ -153,7 +150,6 @@ def _resource_counts(client: TestClient, headers: dict[str, str]) -> tuple[int, 
         "/api/v0/agents",
         "/api/v0/workflows",
         "/api/v0/plugin-installations",
-        "/api/v0/knowledge-documents",
     )
     return tuple(len(client.get(path, headers=headers).json()) for path in paths)
 
@@ -196,11 +192,6 @@ def _assert_user_mutations_denied(
                 "read_only_tool_names": ["search_issues"],
                 "catalog_connector_id": "custom-mcp",
             },
-        ),
-        client.post(
-            "/api/v0/knowledge-documents",
-            headers=user_headers,
-            json={"title": "Denied document", "text": "Should not persist."},
         ),
         client.patch(
             f"/api/v0/agents/{scenario.agent_id}",

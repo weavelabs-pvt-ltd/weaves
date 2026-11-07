@@ -19,7 +19,12 @@
         "tasks.manage",
         "plugins.manage",
         "plugins.view",
-        "knowledge.view",
+        "skills.view",
+        "skills.use",
+        "skills.personal.manage",
+        "skills.org.publish",
+        "skills.org.manage",
+        "skills.revoke",
         "artifacts.read",
         "actions.approve",
         "approval_policies.manage",
@@ -39,22 +44,10 @@
   },
   "additionalProperties": false,
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
     "id": {
       "maxLength": 128,
       "minLength": 1,
       "title": "Id",
-      "type": "string"
-    },
-    "org_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Org Id",
       "type": "string"
     },
     "name": {
@@ -63,12 +56,24 @@
       "title": "Name",
       "type": "string"
     },
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
+      "type": "string"
+    },
     "permissions": {
       "items": {
         "$ref": "#/$defs/Permission"
       },
       "title": "Permissions",
       "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
     },
     "system_role_key": {
       "anyOf": [

@@ -24,33 +24,6 @@
   },
   "additionalProperties": false,
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
-    "org_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Org Id",
-      "type": "string"
-    },
-    "id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Id",
-      "type": "string"
-    },
-    "provider_type": {
-      "$ref": "#/$defs/ModelProviderType"
-    },
-    "display_name": {
-      "maxLength": 160,
-      "minLength": 1,
-      "title": "Display Name",
-      "type": "string"
-    },
     "allowed_models": {
       "items": {
         "maxLength": 160,
@@ -77,6 +50,20 @@
       "default": null,
       "title": "Auth Ref"
     },
+    "base_url": {
+      "anyOf": [
+        {
+          "maxLength": 2048,
+          "minLength": 8,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Base Url"
+    },
     "credential_last4": {
       "anyOf": [
         {
@@ -91,19 +78,32 @@
       "default": null,
       "title": "Credential Last4"
     },
-    "base_url": {
-      "anyOf": [
-        {
-          "maxLength": 2048,
-          "minLength": 8,
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Base Url"
+    "display_name": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Display Name",
+      "type": "string"
+    },
+    "id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
+      "type": "string"
+    },
+    "provider_type": {
+      "$ref": "#/$defs/ModelProviderType"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
     },
     "status": {
       "$ref": "#/$defs/ModelProviderStatus"

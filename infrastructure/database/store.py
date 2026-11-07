@@ -197,6 +197,100 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
             "DELETE FROM product_records WHERE collection = 'user_invitations'",
         ),
     ),
+    (
+        16,
+        (
+            """UPDATE product_records
+                   SET payload = payload - 'memory_policy'
+                   WHERE collection = 'agent_versions'
+                     AND payload ? 'memory_policy'""",
+            """UPDATE product_records
+                   SET payload = jsonb_set(
+                       payload,
+                       '{allowed_capability_ids}',
+                       COALESCE(
+                           (SELECT jsonb_agg(value)
+                              FROM jsonb_array_elements(
+                                  payload->'allowed_capability_ids'
+                              ) AS value
+                             WHERE value <> '"knowledge.search"'::jsonb),
+                           '[]'::jsonb
+                       )
+                   )
+                   WHERE collection = 'agent_versions'
+                     AND payload->'allowed_capability_ids'
+                         @> '["knowledge.search"]'::jsonb""",
+            """UPDATE product_records
+                   SET payload = jsonb_set(
+                       payload,
+                       '{required_capability_ids}',
+                       COALESCE(
+                           (SELECT jsonb_agg(value)
+                              FROM jsonb_array_elements(
+                                  payload->'required_capability_ids'
+                              ) AS value
+                             WHERE value <> '"knowledge.search"'::jsonb),
+                           '[]'::jsonb
+                       )
+                   )
+                   WHERE collection = 'workflow_versions'
+                     AND payload->'required_capability_ids'
+                         @> '["knowledge.search"]'::jsonb""",
+            """DELETE FROM product_records
+                   WHERE (collection = 'plugins'
+                          AND record_id = 'local-knowledge')
+                      OR (collection = 'plugin_installations'
+                          AND payload->>'plugin_id' = 'local-knowledge')""",
+            """UPDATE product_records
+                   SET payload = jsonb_set(
+                       payload,
+                       '{permissions}',
+                       COALESCE(
+                           (SELECT jsonb_agg(value)
+                              FROM jsonb_array_elements(payload->'permissions') AS value
+                             WHERE value <> '"knowledge.view"'::jsonb),
+                           '[]'::jsonb
+                       )
+                   )
+                   WHERE collection = 'roles'
+                     AND payload->'permissions' @> '["knowledge.view"]'::jsonb""",
+        ),
+    ),
+    (
+        17,
+        (
+            """CREATE UNIQUE INDEX IF NOT EXISTS skills_org_slug_unique_idx
+                   ON product_records (org_id, (payload->>'slug'))
+                   WHERE collection = 'skill_definitions'
+                     AND payload->>'scope' = 'organization'""",
+            """CREATE UNIQUE INDEX IF NOT EXISTS skills_personal_slug_unique_idx
+                   ON product_records (
+                       org_id,
+                       (payload->>'owner_principal_id'),
+                       (payload->>'slug')
+                   )
+                   WHERE collection = 'skill_definitions'
+                     AND payload->>'scope' = 'personal'""",
+            """CREATE UNIQUE INDEX IF NOT EXISTS skills_version_number_unique_idx
+                   ON product_records (
+                       org_id,
+                       (payload->>'skill_id'),
+                       (payload->>'version')
+                   )
+                   WHERE collection = 'skill_versions'""",
+            """CREATE UNIQUE INDEX IF NOT EXISTS skills_publication_version_unique_idx
+                   ON product_records (org_id, (payload->>'skill_version_id'))
+                   WHERE collection = 'skill_publications'""",
+        ),
+    ),
+    (
+        18,
+        (
+            """CREATE UNIQUE INDEX IF NOT EXISTS skills_revocation_version_unique_idx
+                   ON product_records (org_id, (payload->>'skill_version_id'))
+                   WHERE collection = 'skill_revocations'""",
+        ),
+    ),
 )
 
 

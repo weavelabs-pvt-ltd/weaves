@@ -11,9 +11,7 @@ from contracts.v1 import (
     ApprovalPolicy,
     AuditEvent,
     AuditTargetScope,
-    KnowledgeDocument,
     Permission,
-    PluginInstallation,
     Principal,
     PrincipalStatus,
     Role,
@@ -37,8 +35,6 @@ class MembershipRuntimeHost(ABC):
     _bootstrapped: Callable[[], bool]
     approval_policies: Repository[ApprovalPolicy]
     audit_events: Repository[AuditEvent]
-    installations: Repository[PluginInstallation]
-    knowledge_documents: Repository[KnowledgeDocument]
     principals: Repository[Principal]
     role_bindings: Repository[RoleBinding]
     roles: Repository[Role]

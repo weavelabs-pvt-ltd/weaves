@@ -27,7 +27,6 @@ def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
                 app.state.product_routes_registered = True
             app.state.authentication_services = process_services.authentication
             process_services.bootstrap()
-            process_services.purge_expired_memory()
             yield
         finally:
             process_services.close()
@@ -71,6 +70,7 @@ def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
             "Content-Type",
             "Authorization",
             "Idempotency-Key",
+            "If-Match",
             "X-Workspace-ID",
             "X-Weaves-Onboarding-Token",
         ],

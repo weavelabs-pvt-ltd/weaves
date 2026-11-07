@@ -29,9 +29,8 @@ from contracts.v1 import ModelProviderType
 from infrastructure.database.store import ProductPostgresStore
 from infrastructure.email.smtp import build_email_sender
 from infrastructure.integrations.plugin_gateway import PluginGateway
-from infrastructure.persistence.memory import (
+from infrastructure.persistence.deterministic_model import (
     DeterministicMockModel,
-    RepositoryKnowledgePlugin,
 )
 from infrastructure.secrets.store import (
     CompositeSecretResolver,
@@ -39,7 +38,6 @@ from infrastructure.secrets.store import (
     InMemorySecretStore,
     UnavailableSecretStore,
 )
-from modules.memory.context import MemoryContextBuilder
 
 
 def _email_login_hmac_key() -> str:
@@ -103,14 +101,10 @@ def build_runtime_adapters(
     slack_plugin = SlackReadPlugin(oauth_resolver, http_client)
     jira_plugin = JiraReadPlugin(oauth_resolver, http_client)
     mcp_plugin = McpHttpPlugin(oauth_resolver, http_client)
-    knowledge_plugin = RepositoryKnowledgePlugin(
-        repositories.get("knowledge_documents")
-    )
     plugin_gateway = PluginGateway(
         repositories.get("plugins"),
         repositories.get("plugin_installations"),
         {
-            "local-knowledge": knowledge_plugin,
             "github": github_plugin,
             "slack": slack_plugin,
             "jira": jira_plugin,
@@ -130,7 +124,6 @@ def build_runtime_adapters(
         mcp_plugin=mcp_plugin,
         oauth_token_resolver=oauth_resolver,
         github_app_token_provider=github_app_provider,
-        memory_context=MemoryContextBuilder(),
         default_model_profile_id=model_settings.default_model_profile_id,
         environment_model_provider_type=model_settings.provider_type,
         environment_model_name=model_settings.model_name,

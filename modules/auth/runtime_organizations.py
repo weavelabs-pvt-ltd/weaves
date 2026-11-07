@@ -19,15 +19,12 @@ from contracts.v1 import (
     ApprovalPolicy,
     AuditEvent,
     AuditTargetScope,
-    KnowledgeDocument,
     ModelProfile,
     ModelProfileStatus,
     ModelProviderStatus,
     ModelProviderType,
     Organization,
     OrganizationStatus,
-    PluginInstallation,
-    PluginInstallationStatus,
     Principal,
     PrincipalStatus,
     PrincipalType,
@@ -77,8 +74,6 @@ class OrganizationDefaults:
     provider: ModelProviderContract
     profile: ModelProfile
     policy: ApprovalPolicy
-    installation: PluginInstallation
-    document: KnowledgeDocument
 
 
 class OrganizationRuntimeHost(ABC):
@@ -88,8 +83,6 @@ class OrganizationRuntimeHost(ABC):
     api_credentials: Repository[ApiCredential]
     approval_policies: Repository[ApprovalPolicy]
     audit_events: Repository[AuditEvent]
-    installations: Repository[PluginInstallation]
-    knowledge_documents: Repository[KnowledgeDocument]
     model: MockModelIdentifier
     model_profiles: Repository[ModelProfile]
     onboarding_rate_limiter: LoginRateLimiter
@@ -259,32 +252,7 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
             created_at=timestamp,
             updated_at=timestamp,
         )
-        installation = PluginInstallation(
-            plugin_installation_id=_id(),
-            org_id=organization_id,
-            workspace_id=workspace_id,
-            plugin_id="local-knowledge",
-            display_name="Local knowledge",
-            enabled_capability_ids=("knowledge.search",),
-            status=PluginInstallationStatus.ACTIVE,
-            created_at=timestamp,
-            updated_at=timestamp,
-        )
-        document = KnowledgeDocument(
-            document_id=_id(),
-            source_id=f"onboarding:{organization_id}",
-            org_id=organization_id,
-            workspace_id=workspace_id,
-            title="Getting started",
-            text=(
-                "Add organization knowledge and connect tools to give agents useful "
-                "context."
-            ),
-            is_seeded=True,
-            created_at=timestamp,
-            updated_at=timestamp,
-        )
-        return OrganizationDefaults(provider, profile, policy, installation, document)
+        return OrganizationDefaults(provider, profile, policy)
 
     def _persist_new_organization(
         self,
@@ -307,8 +275,6 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
             self.providers.create(defaults.provider)
             self.model_profiles.create(defaults.profile)
             self.approval_policies.create(defaults.policy)
-            self.installations.create(defaults.installation)
-            self.knowledge_documents.create(defaults.document)
             self.audit_events.create(
                 AuditEvent(
                     audit_event_id=_id(),

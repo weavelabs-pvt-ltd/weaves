@@ -85,13 +85,7 @@ def _verify_owner_access_and_agent_run(
     assert [item["id"] for item in workspace_list.json()] == [organization.workspace_id]
     installations = client.get("/api/v0/plugin-installations", headers=headers)
     assert installations.status_code == 200
-    installation_id = installations.json()[0]["plugin_installation_id"]
-    health = client.post(
-        f"/api/v0/plugin-installations/{installation_id}/healthcheck",
-        headers=headers,
-    )
-    assert health.status_code == 200
-    assert health.json()["documents"] == "1"
+    assert installations.json() == []
 
     agent = client.post(
         "/api/v0/agents",

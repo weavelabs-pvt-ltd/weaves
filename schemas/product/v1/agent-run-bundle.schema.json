@@ -3,26 +3,6 @@
     "AgentBudget": {
       "additionalProperties": false,
       "properties": {
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
-        "max_runtime_seconds": {
-          "default": 300,
-          "maximum": 3600,
-          "minimum": 1,
-          "title": "Max Runtime Seconds",
-          "type": "integer"
-        },
-        "max_tool_calls": {
-          "default": 10,
-          "maximum": 100,
-          "minimum": 0,
-          "title": "Max Tool Calls",
-          "type": "integer"
-        },
         "max_output_tokens": {
           "default": 4096,
           "maximum": 32768,
@@ -46,6 +26,26 @@
           ],
           "default": null,
           "title": "Max Run Cost Usd"
+        },
+        "max_runtime_seconds": {
+          "default": 300,
+          "maximum": 3600,
+          "minimum": 1,
+          "title": "Max Runtime Seconds",
+          "type": "integer"
+        },
+        "max_tool_calls": {
+          "default": 10,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Max Tool Calls",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
         }
       },
       "title": "AgentBudget",
@@ -55,32 +55,10 @@
       "additionalProperties": false,
       "description": "One agent-level execution attempt and its metered model result.",
       "properties": {
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
-        "created_at": {
-          "format": "date-time",
-          "title": "Created At",
-          "type": "string"
-        },
-        "updated_at": {
-          "format": "date-time",
-          "title": "Updated At",
-          "type": "string"
-        },
-        "org_id": {
+        "agent_id": {
           "maxLength": 128,
           "minLength": 1,
-          "title": "Org Id",
-          "type": "string"
-        },
-        "workspace_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Workspace Id",
+          "title": "Agent Id",
           "type": "string"
         },
         "agent_run_id": {
@@ -89,88 +67,27 @@
           "title": "Agent Run Id",
           "type": "string"
         },
-        "run_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Run Id",
-          "type": "string"
-        },
-        "agent_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Agent Id",
-          "type": "string"
-        },
         "agent_version_id": {
           "maxLength": 128,
           "minLength": 1,
           "title": "Agent Version Id",
           "type": "string"
         },
-        "model_profile_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Model Profile Id",
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
           "type": "string"
         },
-        "resolved_provider_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Resolved Provider Id",
-          "type": "string"
-        },
-        "resolved_model_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Resolved Model Id",
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/$defs/RunStatus"
-        },
-        "input_summary": {
-          "additionalProperties": true,
-          "title": "Input Summary",
-          "type": "object"
-        },
-        "output_summary": {
+        "error": {
           "anyOf": [
             {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/$defs/ErrorSummary"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Output Summary"
-        },
-        "input_tokens": {
-          "anyOf": [
-            {
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Input Tokens"
-        },
-        "output_tokens": {
-          "anyOf": [
-            {
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Output Tokens"
+          "default": null
         },
         "estimated_cost_usd": {
           "anyOf": [
@@ -188,19 +105,6 @@
           "default": null,
           "title": "Estimated Cost Usd"
         },
-        "started_at": {
-          "anyOf": [
-            {
-              "format": "date-time",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Started At"
-        },
         "finished_at": {
           "anyOf": [
             {
@@ -214,16 +118,112 @@
           "default": null,
           "title": "Finished At"
         },
-        "error": {
+        "input_summary": {
+          "additionalProperties": true,
+          "title": "Input Summary",
+          "type": "object"
+        },
+        "input_tokens": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ErrorSummary"
+              "minimum": 0,
+              "type": "integer"
             },
             {
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "title": "Input Tokens"
+        },
+        "model_profile_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Model Profile Id",
+          "type": "string"
+        },
+        "org_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Org Id",
+          "type": "string"
+        },
+        "output_summary": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Summary"
+        },
+        "output_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Tokens"
+        },
+        "resolved_model_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Resolved Model Id",
+          "type": "string"
+        },
+        "resolved_provider_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Resolved Provider Id",
+          "type": "string"
+        },
+        "run_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "status": {
+          "$ref": "#/$defs/RunStatus"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "workspace_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Workspace Id",
+          "type": "string"
         }
       },
       "required": [
@@ -247,6 +247,39 @@
       "additionalProperties": false,
       "description": "Version-pinned, trusted instructions selected from the skill catalog.",
       "properties": {
+        "content_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content Digest"
+        },
+        "files": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "maxProperties": 50,
+          "title": "Files",
+          "type": "object"
+        },
+        "instructions": {
+          "maxLength": 12000,
+          "minLength": 1,
+          "title": "Instructions",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
         "schema_version": {
           "const": 1,
           "default": 1,
@@ -259,22 +292,24 @@
           "title": "Skill Id",
           "type": "string"
         },
+        "source_skill_version_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Skill Version Id"
+        },
         "version": {
           "minimum": 1,
           "title": "Version",
           "type": "integer"
-        },
-        "name": {
-          "maxLength": 160,
-          "minLength": 1,
-          "title": "Name",
-          "type": "string"
-        },
-        "instructions": {
-          "maxLength": 12000,
-          "minLength": 1,
-          "title": "Instructions",
-          "type": "string"
         }
       },
       "required": [
@@ -289,27 +324,10 @@
     "AgentVersion": {
       "additionalProperties": false,
       "properties": {
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
-        "created_at": {
-          "format": "date-time",
-          "title": "Created At",
-          "type": "string"
-        },
-        "org_id": {
+        "agent_id": {
           "maxLength": 128,
           "minLength": 1,
-          "title": "Org Id",
-          "type": "string"
-        },
-        "workspace_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Workspace Id",
+          "title": "Agent Id",
           "type": "string"
         },
         "agent_version_id": {
@@ -317,43 +335,6 @@
           "minLength": 1,
           "title": "Agent Version Id",
           "type": "string"
-        },
-        "agent_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Agent Id",
-          "type": "string"
-        },
-        "version": {
-          "minimum": 1,
-          "title": "Version",
-          "type": "integer"
-        },
-        "persona": {
-          "maxLength": 2000,
-          "minLength": 1,
-          "title": "Persona",
-          "type": "string"
-        },
-        "instructions": {
-          "maxLength": 12000,
-          "minLength": 1,
-          "title": "Instructions",
-          "type": "string"
-        },
-        "model_profile_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Model Profile Id",
-          "type": "string"
-        },
-        "skills": {
-          "items": {
-            "$ref": "#/$defs/AgentSkillSnapshot"
-          },
-          "maxItems": 50,
-          "title": "Skills",
-          "type": "array"
         },
         "allowed_capability_ids": {
           "items": {
@@ -389,6 +370,9 @@
           "default": null,
           "title": "Approval Policy Id"
         },
+        "budget": {
+          "$ref": "#/$defs/AgentBudget"
+        },
         "budget_policy_id": {
           "anyOf": [
             {
@@ -403,11 +387,28 @@
           "default": null,
           "title": "Budget Policy Id"
         },
-        "memory_policy": {
-          "$ref": "#/$defs/MemoryPolicy"
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
         },
-        "budget": {
-          "$ref": "#/$defs/AgentBudget"
+        "instructions": {
+          "maxLength": 12000,
+          "minLength": 1,
+          "title": "Instructions",
+          "type": "string"
+        },
+        "model_profile_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Model Profile Id",
+          "type": "string"
+        },
+        "org_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Org Id",
+          "type": "string"
         },
         "output_schema": {
           "anyOf": [
@@ -423,6 +424,37 @@
           ],
           "default": null,
           "title": "Output Schema"
+        },
+        "persona": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Persona",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "skills": {
+          "items": {
+            "$ref": "#/$defs/AgentSkillSnapshot"
+          },
+          "maxItems": 50,
+          "title": "Skills",
+          "type": "array"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "workspace_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Workspace Id",
+          "type": "string"
         }
       },
       "required": [
@@ -443,12 +475,6 @@
       "additionalProperties": false,
       "description": "Bounded user-safe error details; stack traces and provider payloads do not belong here.",
       "properties": {
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
         "code": {
           "maxLength": 128,
           "minLength": 2,
@@ -456,16 +482,22 @@
           "title": "Code",
           "type": "string"
         },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
         "summary": {
           "maxLength": 1000,
           "minLength": 1,
           "title": "Summary",
           "type": "string"
-        },
-        "retryable": {
-          "default": false,
-          "title": "Retryable",
-          "type": "boolean"
         }
       },
       "required": [
@@ -476,48 +508,6 @@
       "type": "object"
     },
     "JsonValue": {},
-    "MemoryPolicy": {
-      "additionalProperties": false,
-      "description": "Scopes an agent may retrieve during a run; defaults to workspace memory.",
-      "properties": {
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
-        "allowed_scopes": {
-          "default": [
-            "workspace"
-          ],
-          "items": {
-            "$ref": "#/$defs/MemoryScope"
-          },
-          "title": "Allowed Scopes",
-          "type": "array"
-        },
-        "max_items": {
-          "default": 8,
-          "maximum": 50,
-          "minimum": 0,
-          "title": "Max Items",
-          "type": "integer"
-        }
-      },
-      "title": "MemoryPolicy",
-      "type": "object"
-    },
-    "MemoryScope": {
-      "enum": [
-        "none",
-        "thread",
-        "workflow",
-        "workspace",
-        "organization"
-      ],
-      "title": "MemoryScope",
-      "type": "string"
-    },
     "RunStatus": {
       "enum": [
         "queued",
@@ -533,17 +523,17 @@
   "additionalProperties": false,
   "description": "An agent run pinned to the exact published agent version.",
   "properties": {
+    "agent_version": {
+      "$ref": "#/$defs/AgentVersion"
+    },
+    "run": {
+      "$ref": "#/$defs/AgentRun"
+    },
     "schema_version": {
       "const": 1,
       "default": 1,
       "title": "Schema Version",
       "type": "integer"
-    },
-    "run": {
-      "$ref": "#/$defs/AgentRun"
-    },
-    "agent_version": {
-      "$ref": "#/$defs/AgentVersion"
     }
   },
   "required": [

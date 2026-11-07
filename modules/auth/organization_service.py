@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 
@@ -12,10 +11,8 @@ from contracts.v1 import (
     ApiCredential,
     ApprovalPolicy,
     AuditEvent,
-    KnowledgeDocument,
     ModelProfile,
     Organization,
-    PluginInstallation,
     Principal,
     Role,
     RoleBinding,
@@ -36,8 +33,6 @@ class OrganizationService(OrganizationRuntimeMixin):
     api_credentials: Repository[ApiCredential]
     approval_policies: Repository[ApprovalPolicy]
     audit_events: Repository[AuditEvent]
-    installations: Repository[PluginInstallation]
-    knowledge_documents: Repository[KnowledgeDocument]
     model_profiles: Repository[ModelProfile]
     organizations: Repository[Organization]
     principals: Repository[Principal]
@@ -53,8 +48,6 @@ class OrganizationService(OrganizationRuntimeMixin):
         api_credentials: Repository[ApiCredential],
         approval_policies: Repository[ApprovalPolicy],
         audit_events: Repository[AuditEvent],
-        installations: Repository[PluginInstallation],
-        knowledge_documents: Repository[KnowledgeDocument],
         model_profiles: Repository[ModelProfile],
         organizations: Repository[Organization],
         principals: Repository[Principal],
@@ -74,8 +67,6 @@ class OrganizationService(OrganizationRuntimeMixin):
         self.api_credentials = api_credentials
         self.approval_policies = approval_policies
         self.audit_events = audit_events
-        self.installations = installations
-        self.knowledge_documents = knowledge_documents
         self.model_profiles = model_profiles
         self.organizations = organizations
         self.principals = principals

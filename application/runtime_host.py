@@ -13,6 +13,7 @@ from clients.model_providers.gateway import ModelGateway
 from contracts.v1 import (
     AgentDefinition,
     AgentRun,
+    AgentSkillSnapshot,
     AgentVersion,
     ApprovalPolicy,
     ApprovalRequest,
@@ -48,9 +49,6 @@ if TYPE_CHECKING:
     from modules.integrations.admin_service import IntegrationAdminService
     from modules.integrations.bootstrap import IntegrationBootstrapService
     from modules.integrations.connection_service import IntegrationConnectionService
-    from modules.knowledge.bootstrap import KnowledgeBootstrapService
-    from modules.knowledge.runtime import KnowledgeService
-    from modules.memory.runtime import MemoryService
     from modules.models.bootstrap import ModelBootstrapService
     from modules.models.catalog import ModelCatalogService
     from modules.models.runtime import ModelService
@@ -67,8 +65,6 @@ class RuntimeCapabilityHost:
     evaluation_service: EvaluationService
     recovery_service: ExecutionRecoveryService
     action_recovery_service: ActionRecoveryService
-    knowledge: KnowledgeService
-    memory_service: MemoryService
     model_service: ModelService
     model_catalog_service: ModelCatalogService
     authentication_service: AuthenticationService
@@ -90,7 +86,6 @@ class RuntimeCapabilityHost:
     integration_bootstrap_service: IntegrationBootstrapService
     identity_bootstrap_service: IdentityBootstrapService
     model_bootstrap_service: ModelBootstrapService
-    knowledge_bootstrap_service: KnowledgeBootstrapService
     _advisory_transaction_lock: Callable[[str], None] | None
     MAX_AGENT_CONTEXT_RECORDS: int
     MAX_AGENT_CONTEXT_SERIALIZED_CHARS: int
@@ -196,6 +191,7 @@ class RuntimeCapabilityHost:
         agent_version_id: str | None = None,
         _cancellation_event: Event | None = None,
         _cancellation_check: Callable[[], bool] | None = None,
+        _runtime_skill_snapshots: tuple[AgentSkillSnapshot, ...] = (),
     ) -> RuntimeResult:
         """Execute one agent run synchronously."""
         raise NotImplementedError
@@ -218,6 +214,7 @@ class RuntimeCapabilityHost:
         previous_step_artifacts: tuple[Any, ...] = (),
         _cancellation_event: Event | None = None,
         _cancellation_check: Callable[[], bool] | None = None,
+        _runtime_skill_snapshots: tuple[AgentSkillSnapshot, ...] = (),
     ) -> RuntimeResult:
         """Execute one agent step inside a workflow run context."""
         raise NotImplementedError

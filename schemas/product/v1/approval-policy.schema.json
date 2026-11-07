@@ -14,33 +14,10 @@
   "additionalProperties": false,
   "description": "Workspace policy deciding which capability risks require human review.",
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
-    "created_at": {
-      "format": "date-time",
-      "title": "Created At",
-      "type": "string"
-    },
-    "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
-    },
-    "org_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Org Id",
-      "type": "string"
-    },
-    "workspace_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Workspace Id",
-      "type": "string"
+    "allow_self_approval": {
+      "default": false,
+      "title": "Allow Self Approval",
+      "type": "boolean"
     },
     "approval_policy_id": {
       "maxLength": 128,
@@ -48,10 +25,26 @@
       "title": "Approval Policy Id",
       "type": "string"
     },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "enabled": {
+      "default": true,
+      "title": "Enabled",
+      "type": "boolean"
+    },
     "name": {
       "maxLength": 160,
       "minLength": 1,
       "title": "Name",
+      "type": "string"
+    },
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
       "type": "string"
     },
     "required_risk_levels": {
@@ -67,15 +60,22 @@
       "title": "Required Risk Levels",
       "type": "array"
     },
-    "allow_self_approval": {
-      "default": false,
-      "title": "Allow Self Approval",
-      "type": "boolean"
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
     },
-    "enabled": {
-      "default": true,
-      "title": "Enabled",
-      "type": "boolean"
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "workspace_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workspace Id",
+      "type": "string"
     }
   },
   "required": [

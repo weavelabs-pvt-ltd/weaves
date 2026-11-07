@@ -84,6 +84,7 @@ class Repository(Protocol[TContract]):
         status: str | None,
         agent_id: str | None,
         created_by_principal_id: str | None,
+        visible_to_principal_id: str,
         cursor_created_at: datetime | None,
         cursor_task_id: str | None,
         limit: int,

@@ -4,12 +4,6 @@
       "additionalProperties": false,
       "description": "Bounded user-safe error details; stack traces and provider payloads do not belong here.",
       "properties": {
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
         "code": {
           "maxLength": 128,
           "minLength": 2,
@@ -17,16 +11,22 @@
           "title": "Code",
           "type": "string"
         },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
         "summary": {
           "maxLength": 1000,
           "minLength": 1,
           "title": "Summary",
           "type": "string"
-        },
-        "retryable": {
-          "default": false,
-          "title": "Retryable",
-          "type": "boolean"
         }
       },
       "required": [
@@ -50,70 +50,26 @@
   },
   "additionalProperties": false,
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
     "created_at": {
       "format": "date-time",
       "title": "Created At",
       "type": "string"
     },
-    "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
-    },
-    "org_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Org Id",
-      "type": "string"
-    },
-    "workspace_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Workspace Id",
-      "type": "string"
-    },
-    "run_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Run Id",
-      "type": "string"
-    },
-    "workflow_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Workflow Id",
-      "type": "string"
-    },
-    "workflow_version_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Workflow Version Id",
-      "type": "string"
-    },
-    "requested_by_principal_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Requested By Principal Id",
-      "type": "string"
-    },
-    "trigger_type": {
-      "maxLength": 128,
-      "minLength": 2,
-      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
-      "title": "Trigger Type",
-      "type": "string"
-    },
-    "trigger_ref": {
+    "error": {
       "anyOf": [
         {
-          "maxLength": 128,
-          "minLength": 1,
+          "$ref": "#/$defs/ErrorSummary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
           "type": "string"
         },
         {
@@ -121,7 +77,7 @@
         }
       ],
       "default": null,
-      "title": "Trigger Ref"
+      "title": "Finished At"
     },
     "idempotency_key": {
       "anyOf": [
@@ -137,8 +93,29 @@
       "default": null,
       "title": "Idempotency Key"
     },
-    "status": {
-      "$ref": "#/$defs/RunStatus"
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
+      "type": "string"
+    },
+    "requested_by_principal_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Requested By Principal Id",
+      "type": "string"
+    },
+    "run_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
     },
     "started_at": {
       "anyOf": [
@@ -153,10 +130,14 @@
       "default": null,
       "title": "Started At"
     },
-    "finished_at": {
+    "status": {
+      "$ref": "#/$defs/RunStatus"
+    },
+    "trigger_ref": {
       "anyOf": [
         {
-          "format": "date-time",
+          "maxLength": 128,
+          "minLength": 1,
           "type": "string"
         },
         {
@@ -164,18 +145,37 @@
         }
       ],
       "default": null,
-      "title": "Finished At"
+      "title": "Trigger Ref"
     },
-    "error": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/ErrorSummary"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null
+    "trigger_type": {
+      "maxLength": 128,
+      "minLength": 2,
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "title": "Trigger Type",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "workflow_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workflow Id",
+      "type": "string"
+    },
+    "workflow_version_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workflow Version Id",
+      "type": "string"
+    },
+    "workspace_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workspace Id",
+      "type": "string"
     }
   },
   "required": [

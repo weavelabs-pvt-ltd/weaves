@@ -77,7 +77,7 @@ def agent_version(**overrides):
         "persona": "A concise support assistant",
         "instructions": "Answer using approved company sources and cite them.",
         "model_profile_id": "profile-a",
-        "allowed_capability_ids": ("knowledge.search",),
+        "allowed_capability_ids": ("github.issues.search",),
         "allowed_workflow_ids": ("support.triage",),
         "budget": AgentBudget(),
         "output_schema": {
@@ -182,7 +182,7 @@ def test_agent_version_scope_matches_its_definition():
 @pytest.mark.parametrize(
     "field,value",
     [
-        ("allowed_capability_ids", ("knowledge.search", "knowledge.search")),
+        ("allowed_capability_ids", ("github.issues.search", "github.issues.search")),
         ("allowed_workflow_ids", ("support.triage", "support.triage")),
         ("persona", "  "),
         ("instructions", "  "),

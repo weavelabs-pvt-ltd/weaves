@@ -2,6 +2,27 @@
   "additionalProperties": false,
   "description": "Version-pinned, trusted instructions selected from the skill catalog.",
   "properties": {
+    "content_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Content Digest"
+    },
+    "files": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "maxProperties": 50,
+      "title": "Files",
+      "type": "object"
+    },
     "instructions": {
       "maxLength": 12000,
       "minLength": 1,
@@ -25,6 +46,20 @@
       "minLength": 1,
       "title": "Skill Id",
       "type": "string"
+    },
+    "source_skill_version_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Skill Version Id"
     },
     "version": {
       "minimum": 1,

@@ -26,7 +26,10 @@ def role_preset_permissions(key: SystemRoleKey) -> tuple[Permission, ...]:
         Permission.TASKS_CREATE,
         Permission.MODELS_VIEW,
         Permission.PLUGINS_VIEW,
-        Permission.KNOWLEDGE_VIEW,
+        Permission.SKILLS_VIEW,
+        Permission.SKILLS_USE,
+        Permission.SKILLS_PERSONAL_MANAGE,
+        Permission.SKILLS_ORG_PUBLISH,
         Permission.ARTIFACTS_READ,
     )
     if key == "user":

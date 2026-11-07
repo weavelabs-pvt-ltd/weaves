@@ -10,7 +10,6 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from contracts.v1 import (
     AgentBudget,
     AgentStatus,
-    MemoryScope,
     PluginDescriptorStatus,
     PluginInstallationStatus,
 )
@@ -28,9 +27,9 @@ class AgentCreateRequest(BaseModel):
     )
     instructions: str = Field(min_length=1, max_length=12000)
     model_profile_id: str | None = None
-    allowed_capability_ids: tuple[str, ...] = ("knowledge.search",)
+    allowed_capability_ids: tuple[str, ...] = ()
     skill_ids: tuple[str, ...] = Field(default=(), max_length=50)
-    memory_scopes: tuple[MemoryScope, ...] = (MemoryScope.WORKSPACE,)
+    skill_version_ids: tuple[str, ...] = Field(default=(), max_length=5)
     max_runtime_seconds: int = Field(default=300, ge=1, le=3600)
     max_tool_calls: int = Field(default=10, ge=0, le=100)
     max_output_tokens: int = Field(default=4096, ge=1, le=32768)
@@ -45,9 +44,9 @@ class AgentTemplateCreateRequest(BaseModel):
 
     name: str | None = Field(default=None, min_length=2, max_length=160)
     model_profile_id: str | None = None
-    allowed_capability_ids: tuple[str, ...] = Field(min_length=1, max_length=100)
+    allowed_capability_ids: tuple[str, ...] = Field(default=(), max_length=100)
     skill_ids: tuple[str, ...] | None = Field(default=None, max_length=50)
-    memory_scopes: tuple[MemoryScope, ...] = (MemoryScope.WORKSPACE,)
+    skill_version_ids: tuple[str, ...] | None = Field(default=None, max_length=5)
     max_runtime_seconds: int = Field(default=300, ge=1, le=3600)
     max_tool_calls: int = Field(default=10, ge=0, le=100)
     max_output_tokens: int = Field(default=4096, ge=1, le=32768)
@@ -67,7 +66,7 @@ class AgentPatchRequest(BaseModel):
     model_profile_id: str | None = None
     allowed_capability_ids: tuple[str, ...] | None = None
     skill_ids: tuple[str, ...] | None = Field(default=None, max_length=50)
-    memory_scopes: tuple[MemoryScope, ...] | None = None
+    skill_version_ids: tuple[str, ...] | None = Field(default=None, max_length=5)
     budget: AgentBudget | None = None
     output_schema: dict[str, JsonValue] | None = None
 
@@ -193,7 +192,7 @@ def _register_agent_routes_group_2(
                 model_profile_id=request.model_profile_id,
                 allowed_capability_ids=request.allowed_capability_ids,
                 skill_ids=request.skill_ids,
-                memory_scopes=request.memory_scopes,
+                skill_version_ids=request.skill_version_ids,
                 budget=AgentBudget(
                     max_runtime_seconds=request.max_runtime_seconds,
                     max_tool_calls=request.max_tool_calls,
@@ -223,7 +222,7 @@ def _register_agent_routes_group_2(
                 model_profile_id=request.model_profile_id,
                 allowed_capability_ids=request.allowed_capability_ids,
                 skill_ids=request.skill_ids,
-                memory_scopes=request.memory_scopes,
+                skill_version_ids=request.skill_version_ids,
                 budget=AgentBudget(
                     max_runtime_seconds=request.max_runtime_seconds,
                     max_tool_calls=request.max_tool_calls,

@@ -12,10 +12,7 @@ from contracts.v1 import (
     ApprovalPolicy,
     AuditEvent,
     AuditTargetScope,
-    KnowledgeDocument,
     Permission,
-    PluginInstallation,
-    PluginInstallationStatus,
     RiskLevel,
     Workspace,
     WorkspaceStatus,
@@ -32,8 +29,6 @@ class WorkspaceRuntimeHost(ABC):
     _advisory_transaction_lock: Callable[[str], None] | None
     approval_policies: Repository[ApprovalPolicy]
     audit_events: Repository[AuditEvent]
-    installations: Repository[PluginInstallation]
-    knowledge_documents: Repository[KnowledgeDocument]
     workspaces: Repository[Workspace]
 
     @abstractmethod
@@ -79,7 +74,7 @@ class WorkspaceRuntimeMixin(WorkspaceRuntimeHost):
         environment: str = "default",
         requested_by_principal_id: str = "local-developer",
     ) -> Workspace:
-        """Create a workspace with the default policy and knowledge capability."""
+        """Create a workspace with its default approval policy."""
         if not self._bootstrapped():
             self.bootstrap()
         requested_by_principal_id = effective_principal_id(requested_by_principal_id)
@@ -96,14 +91,10 @@ class WorkspaceRuntimeMixin(WorkspaceRuntimeHost):
             created_at=timestamp,
             updated_at=timestamp,
         )
-        policy, installation, starter_document = self._build_workspace_defaults(
-            workspace, timestamp
-        )
+        policy = self._build_workspace_defaults(workspace, timestamp)
         with self._unit_of_work():
             self.workspaces.create(workspace)
             self.approval_policies.create(policy)
-            self.installations.create(installation)
-            self.knowledge_documents.create(starter_document)
             self.audit_events.create(
                 AuditEvent(
                     audit_event_id=_id(),
@@ -125,7 +116,7 @@ class WorkspaceRuntimeMixin(WorkspaceRuntimeHost):
     @staticmethod
     def _build_workspace_defaults(
         workspace: Workspace, timestamp: Any
-    ) -> tuple[ApprovalPolicy, PluginInstallation, KnowledgeDocument]:
+    ) -> ApprovalPolicy:
         policy = ApprovalPolicy(
             approval_policy_id=_id(),
             org_id=workspace.org_id,
@@ -137,32 +128,7 @@ class WorkspaceRuntimeMixin(WorkspaceRuntimeHost):
             created_at=timestamp,
             updated_at=timestamp,
         )
-        installation = PluginInstallation(
-            plugin_installation_id=_id(),
-            org_id=workspace.org_id,
-            workspace_id=workspace.id,
-            plugin_id="local-knowledge",
-            display_name="Local knowledge",
-            enabled_capability_ids=("knowledge.search",),
-            status=PluginInstallationStatus.ACTIVE,
-            created_at=timestamp,
-            updated_at=timestamp,
-        )
-        starter_document = KnowledgeDocument(
-            document_id=_id(),
-            source_id=f"workspace-onboarding:{workspace.id}",
-            org_id=workspace.org_id,
-            workspace_id=workspace.id,
-            title="Getting started",
-            text=(
-                "Add organization knowledge and connect tools to give agents "
-                "useful context."
-            ),
-            is_seeded=True,
-            created_at=timestamp,
-            updated_at=timestamp,
-        )
-        return policy, installation, starter_document
+        return policy
 
     def update_workspace(
         self,

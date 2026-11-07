@@ -149,7 +149,7 @@ def _assert_mcp_tool_runs_and_redacts_secrets(client, runtime, imported):
         json={
             "name": "MCP context agent",
             "instructions": "Use approved documentation search.",
-            "allowed_capability_ids": ["knowledge.search", imported["capability_id"]],
+            "allowed_capability_ids": [imported["capability_id"]],
         },
     )
     assert agent.status_code == 201

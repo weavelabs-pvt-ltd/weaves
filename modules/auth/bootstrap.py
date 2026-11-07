@@ -237,10 +237,10 @@ class IdentityBootstrapService:
             Permission.WORKFLOWS_RUN: (Permission.WORKFLOWS_VIEW,),
             Permission.TASKS_MANAGE: (Permission.TASKS_VIEW, Permission.TASKS_CREATE),
             Permission.MODELS_MANAGE: (Permission.MODELS_VIEW,),
-            Permission.PLUGINS_MANAGE: (
-                Permission.PLUGINS_VIEW,
-                Permission.KNOWLEDGE_VIEW,
-            ),
+            Permission.PLUGINS_MANAGE: (Permission.PLUGINS_VIEW,),
+            Permission.SKILLS_PERSONAL_MANAGE: (Permission.SKILLS_VIEW,),
+            Permission.SKILLS_ORG_PUBLISH: (Permission.SKILLS_VIEW,),
+            Permission.SKILLS_ORG_MANAGE: (Permission.SKILLS_VIEW,),
         }
         for role in roles:
             permissions = set(role.permissions)

@@ -15,11 +15,11 @@ from modules.governance.http.audit_routes import register_audit_routes
 from modules.governance.http.routes import register_governance_routes
 from modules.integrations.http.oauth import register_oauth_routes
 from modules.integrations.http.routes import register_plugin_routes
-from modules.knowledge.http.routes import register_context_routes
 from modules.models.http.routes import register_model_routes
+from modules.skills.http.routes import register_skill_routes
 from modules.tasks.http.routes import register_task_routes
-from modules.workflows.http.studio_routes import register_studio_routes
 from modules.workflows.http.routes import register_workflow_routes
+from modules.workflows.http.studio_routes import register_studio_routes
 
 
 def _dump(model: BaseModel) -> dict[str, Any]:
@@ -59,7 +59,6 @@ def register_v0_routes(app: FastAPI, services: ApiRouteServices) -> None:
         dump,
     )
     register_oauth_routes(app, services.oauth)
-    register_context_routes(app, services.knowledge, services.memory, dump)
     register_agent_routes(app, services.agents, services.integration_admin, dump)
     register_evaluation_routes(
         app, services.evaluations, services.storage_mode == "postgres", dump
@@ -73,5 +72,6 @@ def register_v0_routes(app: FastAPI, services: ApiRouteServices) -> None:
     )
     register_studio_routes(app, services.workflow_studio, services.workflow_automation)
     register_task_routes(app, services.tasks, dump)
+    register_skill_routes(app, services.skills, dump)
     register_audit_routes(app, services.governance, dump)
     register_governance_routes(app, services.governance, dump)

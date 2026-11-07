@@ -9,9 +9,7 @@ from application.ports.repository import Repository
 from contracts.v1 import (
     ApprovalPolicy,
     AuditEvent,
-    KnowledgeDocument,
     Permission,
-    PluginInstallation,
     Principal,
     PrincipalStatus,
     Role,
@@ -28,8 +26,6 @@ class WorkspaceAccessService(WorkspaceRuntimeMixin, MembershipRuntimeMixin):
 
     approval_policies: Repository[ApprovalPolicy]
     audit_events: Repository[AuditEvent]
-    installations: Repository[PluginInstallation]
-    knowledge_documents: Repository[KnowledgeDocument]
     principals: Repository[Principal]
     role_bindings: Repository[RoleBinding]
     roles: Repository[Role]
@@ -40,8 +36,6 @@ class WorkspaceAccessService(WorkspaceRuntimeMixin, MembershipRuntimeMixin):
         *,
         approval_policies: Repository[ApprovalPolicy],
         audit_events: Repository[AuditEvent],
-        installations: Repository[PluginInstallation],
-        knowledge_documents: Repository[KnowledgeDocument],
         principals: Repository[Principal],
         role_bindings: Repository[RoleBinding],
         roles: Repository[Role],
@@ -56,8 +50,6 @@ class WorkspaceAccessService(WorkspaceRuntimeMixin, MembershipRuntimeMixin):
         """Bind workspace repositories and identity lifecycle operations."""
         self.approval_policies = approval_policies
         self.audit_events = audit_events
-        self.installations = installations
-        self.knowledge_documents = knowledge_documents
         self.principals = principals
         self.role_bindings = role_bindings
         self.roles = roles

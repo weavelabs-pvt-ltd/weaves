@@ -104,21 +104,10 @@ class IntegrationInstallationHealthMixin(RuntimeCapabilityHost):
     ) -> dict[str, str]:
         """Record the result of a plugin health check."""
         try:
-            if descriptor.plugin_type == "knowledge_base":
-                documents = self.knowledge_documents.list_scoped(
-                    installation.org_id, installation.workspace_id
-                )
-                details = {
-                    "documents": str(len(documents)),
-                    "enabled_capabilities": str(
-                        len(installation.enabled_capability_ids)
-                    ),
-                }
-            else:
-                plugin = plugins.get(descriptor.plugin_type)
-                if plugin is None:
-                    raise ValueError("health checks are not supported for this plugin")
-                details = plugin.healthcheck(installation)
+            plugin = plugins.get(descriptor.plugin_type)
+            if plugin is None:
+                raise ValueError("health checks are not supported for this plugin")
+            details = plugin.healthcheck(installation)
         except PluginGatewayError:
             now = _now()
             failed = installation.model_copy(

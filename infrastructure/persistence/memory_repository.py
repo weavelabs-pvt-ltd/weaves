@@ -189,6 +189,7 @@ class InMemoryRepository(Generic[TContract]):
         status: str | None,
         agent_id: str | None,
         created_by_principal_id: str | None,
+        visible_to_principal_id: str,
         cursor_created_at: datetime | None,
         cursor_task_id: str | None,
         limit: int,
@@ -207,6 +208,11 @@ class InMemoryRepository(Generic[TContract]):
             and getattr(record, "workspace_id", None) == workspace_id
             and (status is None or _record_value(record, "status").value == status)
             and (agent_id is None or getattr(record, "agent_id", None) == agent_id)
+            and (
+                getattr(record, "audience", "workspace") != "private"
+                or getattr(record, "audience_owner_principal_id", None)
+                == visible_to_principal_id
+            )
             and (
                 created_by_principal_id is None
                 or getattr(record, "created_by_principal_id", None)

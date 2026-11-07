@@ -69,7 +69,7 @@ class AgentBootstrapService:
             ),
             model_profile_id=self.default_model_profile_id,
             approval_policy_id="local-approval-policy",
-            allowed_capability_ids=("knowledge.search",),
+            allowed_capability_ids=(),
             allowed_workflow_ids=("local-assistant-workflow",),
             created_at=now,
         )
@@ -101,7 +101,7 @@ class AgentBootstrapService:
             version=1,
             handler_key="agent.execute",
             agent_version_ids=(version.agent_version_id,),
-            required_capability_ids=("knowledge.search",),
+            required_capability_ids=(),
             input_schema={"type": "object"},
             output_schema={"type": "object"},
             created_at=now,

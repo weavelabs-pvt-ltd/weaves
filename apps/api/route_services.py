@@ -18,9 +18,8 @@ from modules.integrations.admin_service import IntegrationAdminService
 from modules.integrations.connection_service import IntegrationConnectionService
 from modules.integrations.http.oauth_context import OAuthRouteDependencies
 from modules.integrations.oauth_state_service import OAuthStateService
-from modules.knowledge.runtime import KnowledgeService
-from modules.memory.runtime import MemoryService
 from modules.models.runtime import ModelService
+from modules.skills.service import SkillsService
 from modules.tasks.service import TaskService
 from modules.workflows.automation_service import WorkflowAutomationService
 from modules.workflows.definition_service import WorkflowDefinitionService
@@ -41,8 +40,6 @@ class ApiRouteServices:
     integration_admin: IntegrationAdminService
     integration_connection: IntegrationConnectionService
     oauth: OAuthRouteDependencies
-    knowledge: KnowledgeService
-    memory: MemoryService
     agents: AgentService
     evaluations: EvaluationService
     workflow_studio: object
@@ -50,6 +47,7 @@ class ApiRouteServices:
     workflow_automation: WorkflowAutomationService
     governance: GovernanceService
     tasks: TaskService
+    skills: SkillsService
 
 
 def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
@@ -77,8 +75,6 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
         integration_admin=runtime.integration_admin_service,
         integration_connection=runtime.integration_connection_service,
         oauth=oauth,
-        knowledge=runtime.knowledge,
-        memory=runtime.memory_service,
         agents=runtime.agent_service,
         evaluations=runtime.evaluation_service,
         workflow_studio=runtime.workflow_studio_service,
@@ -86,4 +82,5 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
         workflow_automation=runtime.workflow_automation_service,
         governance=runtime.governance_service,
         tasks=runtime.task_service,
+        skills=runtime.skills_service,
     )

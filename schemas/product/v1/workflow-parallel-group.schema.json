@@ -2,12 +2,6 @@
   "additionalProperties": false,
   "description": "A bounded set of adjacent workflow agents that can execute together.",
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
     "agent_ids": {
       "items": {
         "maxLength": 128,
@@ -18,6 +12,12 @@
       "minItems": 2,
       "title": "Agent Ids",
       "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
     }
   },
   "required": [

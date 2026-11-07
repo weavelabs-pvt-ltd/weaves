@@ -18,19 +18,15 @@ from modules.governance.service import GovernanceService
 from modules.integrations.admin_service import IntegrationAdminService
 from modules.integrations.bootstrap import IntegrationBootstrapService
 from modules.integrations.connection_service import IntegrationConnectionService
-from modules.knowledge.bootstrap import KnowledgeBootstrapService
-from modules.knowledge.runtime import KnowledgeService
-from modules.memory.runtime import MemoryService
 from modules.models.bootstrap import ModelBootstrapService
 from modules.models.catalog import ModelCatalogService
 from modules.models.runtime import ModelService
+from modules.skills.service import SkillsService
 from modules.tasks.service import TaskService
 from modules.tasks.worker_service import TaskWorkerService
 from modules.workflows.automation_service import WorkflowAutomationService
 from modules.workflows.definition_service import WorkflowDefinitionService
 from modules.workflows.execution_service import WorkflowExecutionService
-
-
 from modules.workflows.studio_service import WorkflowStudioService
 
 
@@ -51,9 +47,6 @@ class CapabilityServiceSet:
     integration_admin_service: IntegrationAdminService
     integration_bootstrap_service: IntegrationBootstrapService
     integration_connection_service: IntegrationConnectionService
-    knowledge: KnowledgeService
-    knowledge_bootstrap_service: KnowledgeBootstrapService
-    memory_service: MemoryService
     model_bootstrap_service: ModelBootstrapService
     model_catalog_service: ModelCatalogService
     model_service: ModelService
@@ -67,3 +60,4 @@ class CapabilityServiceSet:
     task_service: TaskService
     task_worker_service: TaskWorkerService
     workspace_access_service: WorkspaceAccessService
+    skills_service: SkillsService

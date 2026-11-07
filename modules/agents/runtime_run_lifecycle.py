@@ -9,6 +9,8 @@ from time import monotonic
 
 from application.runtime_host import RuntimeCapabilityHost
 from contracts.v1 import (
+    AgentSkillSnapshot,
+    AgentVersion,
     Artifact,
     ArtifactSensitivity,
     ArtifactStatus,
@@ -51,6 +53,7 @@ class AgentRunLifecycleMixin(RuntimeCapabilityHost):
         previous_step_artifacts: tuple[Artifact, ...] = (),
         _cancellation_event: Event | None = None,
         _cancellation_check: Callable[[], bool] | None = None,
+        _runtime_skill_snapshots: tuple[AgentSkillSnapshot, ...] = (),
     ) -> RuntimeResult:
         """Execute one agent step, optionally inside an existing workflow run."""
         state = AgentRunState(
@@ -71,8 +74,18 @@ class AgentRunLifecycleMixin(RuntimeCapabilityHost):
             cancellation_check=_cancellation_check,
         )
         self._prepare_agent_run_records(state)
+        if _runtime_skill_snapshots:
+            state.agent_version = state.agent_version.model_copy(
+                update={
+                    "skills": (
+                        *state.agent_version.skills,
+                        *_runtime_skill_snapshots,
+                    )
+                }
+            )
         self._collect_agent_run_model_inputs(state)
         self._invoke_agent_model(state)
+        self._cancel_agent_run_if_requested(state)
         return self._store_completed_agent_run(state)
 
     def _prepare_agent_run_records(self, state: AgentRunState) -> None:
@@ -203,6 +216,7 @@ class AgentRunLifecycleMixin(RuntimeCapabilityHost):
         requested = (
             state.cancellation_event is not None and state.cancellation_event.is_set()
         ) or (state.cancellation_check is not None and state.cancellation_check())
+        requested = requested or self._has_revoked_skill(state.agent_version)
         if requested:
             self._record_run_cancellation(
                 state.run,
@@ -212,19 +226,23 @@ class AgentRunLifecycleMixin(RuntimeCapabilityHost):
             )
             raise ExecutionCancelled("Execution cancellation was requested")
 
-    def _collect_agent_run_model_inputs(self, state: AgentRunState) -> None:
-        """Gather memory and capability context, then bound it for the model."""
-        state.contexts = list(
-            self.memory_context.build(
-                items=self.memory_items.list_scoped(effective_org_id()),
-                policy=state.agent_version.memory_policy,
-                org_id=effective_org_id(),
-                workspace_id=effective_workspace_id(),
-                query=state.task,
-                workflow_id=state.workflow.workflow_id,
-                thread_id=state.thread_id,
-            )
+    def _has_revoked_skill(self, agent_version: AgentVersion) -> bool:
+        """Block pinned agent releases that reference an explicitly revoked skill."""
+        source_ids = {
+            skill.source_skill_version_id
+            for skill in agent_version.skills
+            if skill.source_skill_version_id is not None
+        }
+        if not source_ids:
+            return False
+        return any(
+            item.skill_version_id in source_ids
+            for item in self.skill_revocations.list_scoped(effective_org_id())
         )
+
+    def _collect_agent_run_model_inputs(self, state: AgentRunState) -> None:
+        """Gather connected-capability context, then bound it for the model."""
+        state.contexts = []
         (
             state.context_invocation_count,
             state.run,

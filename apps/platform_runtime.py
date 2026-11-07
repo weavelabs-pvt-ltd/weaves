@@ -28,8 +28,6 @@ from modules.agents.runtime_state import (
     RunCostBudgetExceeded as RunCostBudgetExceeded,
 )
 from modules.evaluations.service import EvaluationService
-from modules.knowledge.runtime import KnowledgeService
-from modules.memory.runtime import MemoryService
 from modules.models.runtime import ModelService
 from modules.workflows.runtime_result import RuntimeResult as RuntimeResult
 
@@ -42,8 +40,6 @@ class LocalPlatformRuntime(
 ):
     """Run the modular local platform path with a mock default model."""
 
-    knowledge: KnowledgeService
-    memory_service: MemoryService
     model_service: ModelService
     agent_service: AgentService
     evaluation_service: EvaluationService

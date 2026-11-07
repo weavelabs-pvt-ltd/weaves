@@ -48,9 +48,6 @@ def _normalize_context_record(record: dict[str, Any]) -> dict[str, Any] | None:
         "title": (title if isinstance(title, str) else "Retrieved context")[:160],
         "text": (text if isinstance(text, str) else "")[:2_000],
     }
-    for key in ("memory_id", "scope"):
-        if isinstance(record.get(key), str):
-            normalized[key] = record[key]
     return normalized
 
 

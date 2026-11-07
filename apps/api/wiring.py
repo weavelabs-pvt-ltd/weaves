@@ -27,9 +27,6 @@ def build_api_process_services(
                 bearer_required=active_runtime.storage_mode == "postgres",
             ),
             bootstrap=active_runtime.bootstrap,
-            purge_expired_memory=(
-                active_runtime.memory_service.purge_expired_memory_items
-            ),
             close=active_runtime.close,
         )
     except Exception:

@@ -36,6 +36,9 @@ class TaskCreationPersistence:
         title: str,
         description: str,
         initial_message: str,
+        *,
+        private: bool,
+        skill_version_ids: tuple[str, ...],
     ) -> Task | None:
         """Return an idempotent replay or reject a conflicting request."""
         if not key:
@@ -46,7 +49,13 @@ class TaskCreationPersistence:
         if existing is None:
             return None
         return self._validate_replay(
-            existing, agent_id, title, description, initial_message
+            existing,
+            agent_id,
+            title,
+            description,
+            initial_message,
+            private=private,
+            skill_version_ids=skill_version_ids,
         )
 
     def persist(
@@ -60,6 +69,8 @@ class TaskCreationPersistence:
         title: str,
         description: str,
         initial_message: str,
+        *,
+        private: bool,
     ) -> Task:
         """Persist the aggregate and resolve a concurrent idempotent winner."""
         try:
@@ -80,7 +91,17 @@ class TaskCreationPersistence:
                 raise
             try:
                 return self._validate_replay(
-                    existing, agent_id, title, description, initial_message
+                    existing,
+                    agent_id,
+                    title,
+                    description,
+                    initial_message,
+                    private=private,
+                    skill_version_ids=tuple(
+                        item.source_skill_version_id
+                        for item in task.private_skill_snapshots
+                        if item.source_skill_version_id is not None
+                    ),
                 )
             except IdempotencyConflict as conflict:
                 raise conflict from exc
@@ -92,6 +113,9 @@ class TaskCreationPersistence:
         title: str,
         description: str,
         initial_message: str,
+        *,
+        private: bool,
+        skill_version_ids: tuple[str, ...],
     ) -> Task:
         """Reject reusing an idempotency key for different task data."""
         original = self.messages.get_scoped(
@@ -102,6 +126,13 @@ class TaskCreationPersistence:
             or task.title != title
             or task.description != description
             or original.content != initial_message.strip()
+            or (task.audience.value == "private") != private
+            or tuple(
+                item.source_skill_version_id
+                for item in task.private_skill_snapshots
+                if item.source_skill_version_id is not None
+            )
+            != skill_version_ids
         ):
             raise IdempotencyConflict(
                 "Idempotency-Key was already used for a different task"

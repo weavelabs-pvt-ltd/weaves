@@ -33,8 +33,6 @@ from contracts.v1 import (
     EvaluationReportRecord,
     EvaluationSuiteRecord,
     ExecutionJob,
-    KnowledgeDocument,
-    MemoryItem,
     ModelProfile,
     ModelProviderType,
     Organization,
@@ -45,6 +43,10 @@ from contracts.v1 import (
     Principal,
     Role,
     RoleBinding,
+    SkillDefinition,
+    SkillPublication,
+    SkillRevocation,
+    SkillVersion,
     Task,
     TaskMessage,
     TaskTurn,
@@ -61,7 +63,6 @@ from contracts.v1 import (
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
 from modules.auth.runtime_organizations import MockModelIdentifier
-from modules.memory.context import MemoryContextBuilder
 
 
 class RuntimeCompositionInputs(Protocol):
@@ -97,8 +98,6 @@ class RuntimeCompositionInputs(Protocol):
     task_messages: Repository[TaskMessage]
     task_turns: Repository[TaskTurn]
     installations: Repository[PluginInstallation]
-    knowledge_documents: Repository[KnowledgeDocument]
-    memory_items: Repository[MemoryItem]
     model_profiles: Repository[ModelProfile]
     model_configurations: Repository[OrganizationModelConfiguration]
     organizations: Repository[Organization]
@@ -106,6 +105,10 @@ class RuntimeCompositionInputs(Protocol):
     principals: Repository[Principal]
     providers: Repository[ModelProviderContract]
     role_bindings: Repository[RoleBinding]
+    skill_definitions: Repository[SkillDefinition]
+    skill_versions: Repository[SkillVersion]
+    skill_publications: Repository[SkillPublication]
+    skill_revocations: Repository[SkillRevocation]
     roles: Repository[Role]
     runs: Repository[WorkflowRun]
     threads: Repository[ConversationThread]
@@ -129,7 +132,6 @@ class RuntimeCompositionInputs(Protocol):
     email_sender: EmailSender
     email_login_hmac_key: str
     mcp_plugin: McpHttpPlugin
-    memory_context: MemoryContextBuilder
     model: MockModelIdentifier
     model_adapters: Mapping[ModelProviderType, ModelAdapter]
     model_gateway: ModelGateway

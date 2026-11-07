@@ -16,10 +16,10 @@ from contracts.v1 import (
     Artifact,
     AuditEvent,
     ConversationThread,
-    MemoryItem,
     ModelProfile,
     OrganizationModelConfiguration,
     Permission,
+    SkillRevocation,
     ToolInvocation,
     WorkflowDefinition,
     WorkflowRun,
@@ -33,7 +33,6 @@ from modules.agents.runtime_run_lifecycle import AgentRunLifecycleMixin
 from modules.agents.runtime_run_model import AgentRunModelMixin
 from modules.agents.runtime_run_targets import AgentRunTargetsMixin
 from modules.integrations.admin_service import IntegrationAdminService
-from modules.memory.context import MemoryContextBuilder
 from shared.clock import utc_now as _now
 
 
@@ -52,18 +51,17 @@ class AgentExecutionService(
     agent_versions: Repository[AgentVersion]
     artifacts: Repository[Artifact]
     audit_events: Repository[AuditEvent]
-    memory_items: Repository[MemoryItem]
     model_profiles: Repository[ModelProfile]
     providers: Repository[ModelProviderContract]
     model_gateway: ModelGateway
     plugin_gateway: PluginDispatcher
-    memory_context: MemoryContextBuilder
     integration_admin_service: IntegrationAdminService
     runs: Repository[WorkflowRun]
     threads: Repository[ConversationThread]
     tool_invocations: Repository[ToolInvocation]
     workflow_versions: Repository[WorkflowVersion]
     workflows: Repository[WorkflowDefinition]
+    skill_revocations: Repository[SkillRevocation]
 
     MAX_AGENT_CONTEXT_RECORDS = 32
     MAX_AGENT_CONTEXT_SERIALIZED_CHARS = 48_000
@@ -77,7 +75,6 @@ class AgentExecutionService(
         agent_versions: Repository[AgentVersion],
         artifacts: Repository[Artifact],
         audit_events: Repository[AuditEvent],
-        memory_items: Repository[MemoryItem],
         model_profiles: Repository[ModelProfile],
         model_configurations: Repository[OrganizationModelConfiguration],
         providers: Repository[ModelProviderContract],
@@ -86,9 +83,9 @@ class AgentExecutionService(
         tool_invocations: Repository[ToolInvocation],
         workflow_versions: Repository[WorkflowVersion],
         workflows: Repository[WorkflowDefinition],
+        skill_revocations: Repository[SkillRevocation],
         model_gateway: ModelGateway,
         plugin_gateway: PluginDispatcher,
-        memory_context: MemoryContextBuilder,
         integration_admin_service: IntegrationAdminService,
         is_bootstrapped: Callable[[], bool],
         bootstrap: Callable[[], None],
@@ -104,7 +101,6 @@ class AgentExecutionService(
         self.agent_versions = agent_versions
         self.artifacts = artifacts
         self.audit_events = audit_events
-        self.memory_items = memory_items
         self.model_profiles = model_profiles
         self.model_configurations = model_configurations
         self.providers = providers
@@ -113,9 +109,9 @@ class AgentExecutionService(
         self.tool_invocations = tool_invocations
         self.workflow_versions = workflow_versions
         self.workflows = workflows
+        self.skill_revocations = skill_revocations
         self.model_gateway = model_gateway
         self.plugin_gateway = plugin_gateway
-        self.memory_context = memory_context
         self.integration_admin_service = integration_admin_service
         self._is_bootstrapped = is_bootstrapped
         self._bootstrap = bootstrap

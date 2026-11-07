@@ -24,7 +24,6 @@ def _configure_integration_bootstrap_service(
     """Compose built-in integration seeds from module-owned repositories."""
     services.integration_bootstrap_service = IntegrationBootstrapService(
         plugins=dependencies.plugins,
-        installations=dependencies.installations,
         approval_policies=dependencies.approval_policies,
     )
 
@@ -37,7 +36,6 @@ def _configure_integration_admin_service(
         audit_events=dependencies.audit_events,
         installations=dependencies.installations,
         plugins=dependencies.plugins,
-        knowledge_documents=dependencies.knowledge_documents,
         secret_store=dependencies.secret_store,
         github_plugin=dependencies.github_plugin,
         slack_plugin=dependencies.slack_plugin,

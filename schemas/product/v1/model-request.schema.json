@@ -3,20 +3,20 @@
     "ModelMessage": {
       "additionalProperties": false,
       "properties": {
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
-        "role": {
-          "$ref": "#/$defs/ModelMessageRole"
-        },
         "content": {
           "maxLength": 100000,
           "minLength": 1,
           "title": "Content",
           "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/ModelMessageRole"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
         }
       },
       "required": [
@@ -38,10 +38,11 @@
   },
   "additionalProperties": false,
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
+    "max_output_tokens": {
+      "default": 2048,
+      "maximum": 32768,
+      "minimum": 1,
+      "title": "Max Output Tokens",
       "type": "integer"
     },
     "messages": {
@@ -52,20 +53,6 @@
       "minItems": 1,
       "title": "Messages",
       "type": "array"
-    },
-    "temperature": {
-      "default": 0.2,
-      "maximum": 2.0,
-      "minimum": 0.0,
-      "title": "Temperature",
-      "type": "number"
-    },
-    "max_output_tokens": {
-      "default": 2048,
-      "maximum": 32768,
-      "minimum": 1,
-      "title": "Max Output Tokens",
-      "type": "integer"
     },
     "request_id": {
       "anyOf": [
@@ -80,6 +67,19 @@
       ],
       "default": null,
       "title": "Request Id"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "temperature": {
+      "default": 0.2,
+      "maximum": 2.0,
+      "minimum": 0.0,
+      "title": "Temperature",
+      "type": "number"
     }
   },
   "required": [

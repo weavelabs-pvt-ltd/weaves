@@ -93,8 +93,6 @@ def _configure_workspace_access_service(
     services.workspace_access_service = WorkspaceAccessService(
         approval_policies=dependencies.approval_policies,
         audit_events=dependencies.audit_events,
-        installations=dependencies.installations,
-        knowledge_documents=dependencies.knowledge_documents,
         principals=dependencies.principals,
         role_bindings=dependencies.role_bindings,
         roles=dependencies.roles,
@@ -116,8 +114,6 @@ def _configure_organization_service(
         api_credentials=dependencies.api_credentials,
         approval_policies=dependencies.approval_policies,
         audit_events=dependencies.audit_events,
-        installations=dependencies.installations,
-        knowledge_documents=dependencies.knowledge_documents,
         model_profiles=dependencies.model_profiles,
         organizations=dependencies.organizations,
         principals=dependencies.principals,

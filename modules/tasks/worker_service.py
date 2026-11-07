@@ -108,27 +108,52 @@ class TaskWorkerService:
         )
         heartbeat.start()
         try:
-            result = self.agent_execution.run_agent(
-                user_message.content,
-                requested_by_principal_id=claimed.requested_by_principal_id,
-                agent_id=task.agent_id,
-                thread_id=task.thread_id,
-                idempotency_key=run_key,
-                agent_version_id=task.agent_version_id,
-                _cancellation_event=lease_lost,
-                _cancellation_check=lambda: lease_lost.is_set() or self.turns.get_scoped(claimed.turn_id, task.org_id, task.workspace_id).status is TaskTurnStatus.CANCELLED,
+            return self._execute_turn(
+                claimed, task, user_message.content, run_key, lease_lost
             )
-            response = result.agent_run.output_summary or {}
-            content = str(response.get("response", "")).strip()
-            if not content:
-                raise RuntimeError("agent returned an empty response")
-            return self._finish_success(claimed, task, result.agent_run, content)
         except Exception as exc:
             return self._finish_failure(claimed, task, run_key, exc)
         finally:
             heartbeat_stop.set()
             heartbeat.join(timeout=self.heartbeat_interval_seconds + 1)
             reset_request_principal(context)
+
+    def _execute_turn(
+        self,
+        turn: TaskTurn,
+        task: Task,
+        message: str,
+        run_key: str,
+        lease_lost: Event,
+    ) -> TaskTurn:
+        """Run the agent with private snapshots and finish a successful turn."""
+        result = self.agent_execution.run_agent(
+            message,
+            requested_by_principal_id=turn.requested_by_principal_id,
+            agent_id=task.agent_id,
+            thread_id=task.thread_id,
+            idempotency_key=run_key,
+            agent_version_id=task.agent_version_id,
+            _runtime_skill_snapshots=task.private_skill_snapshots,
+            _cancellation_event=lease_lost,
+            _cancellation_check=lambda: self._cancellation_requested(
+                turn, task, lease_lost
+            ),
+        )
+        response = result.agent_run.output_summary or {}
+        content = str(response.get("response", "")).strip()
+        if not content:
+            raise RuntimeError("agent returned an empty response")
+        return self._finish_success(turn, task, result.agent_run, content)
+
+    def _cancellation_requested(
+        self, turn: TaskTurn, task: Task, lease_lost: Event
+    ) -> bool:
+        """Check local lease loss and durable cancellation state."""
+        return lease_lost.is_set() or (
+            self.turns.get_scoped(turn.turn_id, task.org_id, task.workspace_id).status
+            is TaskTurnStatus.CANCELLED
+        )
 
     def _heartbeat_loop(self, turn: TaskTurn, stop: Event, lease_lost: Event) -> None:
         """Renew the claimed turn lease until work ends or ownership is lost."""

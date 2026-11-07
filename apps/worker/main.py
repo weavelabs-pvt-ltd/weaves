@@ -20,7 +20,7 @@ def configure_logging() -> None:
 
 
 def _recover_worker_state(services: WorkerServices) -> None:
-    """Recover stale task turns, action calls, and expired memory."""
+    """Recover stale task turns, action calls, and execution records."""
     recovered_task_turns = services.tasks.recover_stale_turns()
     if recovered_task_turns:
         logger.warning("recovered stale task turns count=%d", len(recovered_task_turns))
@@ -34,9 +34,6 @@ def _recover_worker_state(services: WorkerServices) -> None:
         logger.warning(
             "recovered stale action invocations count=%d", len(recovered_actions)
         )
-    expired_memory = services.memory.purge_expired_memory_items()
-    if expired_memory:
-        logger.info("purged expired memory items count=%d", len(expired_memory))
 
 
 def main() -> None:

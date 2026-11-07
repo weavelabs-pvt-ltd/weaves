@@ -48,6 +48,31 @@ class AgentCatalogMixin:
         self._authorize("local-developer", Permission.AGENTS_VIEW)
         return list_agent_skills()
 
+    def list_agents(self) -> tuple[AgentDefinition, ...]:
+        """List agents visible in the active workspace."""
+        if not self._is_bootstrapped():
+            self._bootstrap()
+        self._authorize("local-developer", Permission.AGENTS_VIEW)
+        return self.agents.list_scoped(effective_org_id(), effective_workspace_id())
+
+    def get_agent(self, agent_id: str) -> AgentDefinition:
+        """Load one agent after enforcing workspace view access."""
+        if not self._is_bootstrapped():
+            self._bootstrap()
+        self._authorize("local-developer", Permission.AGENTS_VIEW)
+        return self.agents.get_scoped(
+            agent_id, effective_org_id(), effective_workspace_id()
+        )
+
+    def get_agent_version(self, version_id: str) -> AgentVersion:
+        """Load a version visible to the active organization and workspace."""
+        if not self._is_bootstrapped():
+            self._bootstrap()
+        self._authorize("local-developer", Permission.AGENTS_VIEW)
+        return self.agent_versions.get_scoped(
+            version_id, effective_org_id(), effective_workspace_id()
+        )
+
     def list_agent_versions(self, agent_id: str) -> tuple[AgentVersion, ...]:
         """List immutable versions for a visible agent, newest first."""
         if not self._is_bootstrapped():

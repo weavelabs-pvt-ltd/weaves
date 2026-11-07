@@ -41,14 +41,13 @@ def _configure_execution_service(
 def _configure_agent_execution_service(
     dependencies: RuntimeCompositionInputs, services: CapabilityServiceSet
 ) -> None:
-    """Compose agent execution with model, memory, and integration ports."""
+    """Compose agent execution with model and integration ports."""
     services.agent_execution_service = AgentExecutionService(
         agents=dependencies.agents,
         agent_runs=dependencies.agent_runs,
         agent_versions=dependencies.agent_versions,
         artifacts=dependencies.artifacts,
         audit_events=dependencies.audit_events,
-        memory_items=dependencies.memory_items,
         model_profiles=dependencies.model_profiles,
         model_configurations=dependencies.model_configurations,
         providers=dependencies.providers,
@@ -57,9 +56,9 @@ def _configure_agent_execution_service(
         tool_invocations=dependencies.tool_invocations,
         workflow_versions=dependencies.workflow_versions,
         workflows=dependencies.workflows,
+        skill_revocations=dependencies.skill_revocations,
         model_gateway=dependencies.model_gateway,
         plugin_gateway=dependencies.plugin_gateway,
-        memory_context=dependencies.memory_context,
         integration_admin_service=services.integration_admin_service,
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,

@@ -20,10 +20,10 @@ from contracts.v1.base import (
     StrEnum,
 )
 from contracts.v1.json_data import (
+    freeze_json_value,
     thaw_json_value,
     validate_json_schema,
 )
-from contracts.v1.memory import MemoryPolicy
 
 InstructionText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=12000)
@@ -56,6 +56,29 @@ class AgentSkillSnapshot(FrozenProductContract):
     version: PositiveVersion
     name: DisplayName
     instructions: InstructionText
+    source_skill_version_id: OpaqueId | None = None
+    content_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    files: dict[str, str] = Field(default_factory=dict, max_length=50)
+
+    @field_validator("files")
+    @classmethod
+    def files_are_immutable(cls, value: dict[str, str]) -> Any:
+        """Freeze package resources inside this immutable agent release."""
+        return freeze_json_value(value, "files")
+
+    @field_serializer("files")
+    def serialize_files(self, value: Any) -> Any:
+        """Serialize immutable package resources as JSON objects."""
+        return thaw_json_value(value)
+
+    @model_validator(mode="after")
+    def published_snapshot_is_complete(self) -> "AgentSkillSnapshot":
+        """Require exact release metadata and the root package for platform skills."""
+        if (self.source_skill_version_id is None) != (self.content_digest is None):
+            raise ValueError("platform skill snapshots require a version ID and digest")
+        if self.source_skill_version_id is not None and "SKILL.md" not in self.files:
+            raise ValueError("platform skill snapshots must include SKILL.md")
+        return self
 
 
 class AgentDefinition(MutableWorkspaceScopedContract):
@@ -90,7 +113,6 @@ class AgentVersion(ImmutableWorkspaceVersionContract):
     )
     approval_policy_id: OpaqueId | None = None
     budget_policy_id: OpaqueId | None = None
-    memory_policy: MemoryPolicy = Field(default_factory=MemoryPolicy)
     budget: AgentBudget = Field(default_factory=AgentBudget)
     output_schema: dict[str, JsonValue] | None = None
 
@@ -116,6 +138,19 @@ class AgentVersion(ImmutableWorkspaceVersionContract):
         skill_ids = [skill.skill_id for skill in self.skills]
         if len(skill_ids) != len(set(skill_ids)):
             raise ValueError("agent skills must be unique")
+        if len(self.skills) > 5:
+            raise ValueError("agents may select at most five skills")
+        context_size = sum(
+            len(skill.instructions.encode("utf-8"))
+            + sum(
+                len(content.encode("utf-8"))
+                for path, content in skill.files.items()
+                if path != "SKILL.md"
+            )
+            for skill in self.skills
+        )
+        if context_size > 131_072:
+            raise ValueError("selected skill context exceeds 128 KiB")
         return self
 
 

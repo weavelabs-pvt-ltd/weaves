@@ -29,9 +29,9 @@ OBJECT_SCHEMA = {"type": "object", "properties": {}}
 
 def capability(**overrides):
     values = {
-        "capability_id": "handbook.search",
-        "name": "Search handbook",
-        "description": "Find relevant approved handbook material.",
+        "capability_id": "custom.search",
+        "name": "Search a connected service",
+        "description": "Find relevant content from a connected service.",
         "kind": CapabilityKind.CONTEXT_READ,
         "risk_level": RiskLevel.LOW,
         "input_schema": {
@@ -49,9 +49,9 @@ def capability(**overrides):
 
 def descriptor(**overrides):
     values = {
-        "plugin_id": "company-handbook",
-        "plugin_type": "knowledge_base",
-        "display_name": "Company handbook",
+        "plugin_id": "custom-mcp",
+        "plugin_type": "mcp",
+        "display_name": "Custom MCP",
         "description": "Approved company policy and process documents.",
         "capability_manifest": (capability(),),
         "auth_schema": {
@@ -69,11 +69,11 @@ def installation(**overrides):
         "plugin_installation_id": "installation-a",
         "org_id": "org-a",
         "workspace_id": "workspace-a",
-        "plugin_id": "company-handbook",
-        "display_name": "People handbook",
+        "plugin_id": "custom-mcp",
+        "display_name": "Company MCP",
         "auth_ref": "vault-ref-a",
-        "configuration": {"collection": "employee-handbook"},
-        "enabled_capability_ids": ("handbook.search",),
+        "configuration": {"endpoint_url": "https://mcp.example.test"},
+        "enabled_capability_ids": ("custom.search",),
         "status": PluginInstallationStatus.ACTIVE,
         "created_at": NOW,
         "updated_at": NOW,
@@ -106,7 +106,7 @@ def workflow_version(**overrides):
         "version": 1,
         "handler_key": "support.triage",
         "agent_version_ids": ("support-agent-v3",),
-        "required_capability_ids": ("handbook.search",),
+        "required_capability_ids": ("custom.search",),
         "input_schema": {
             "type": "object",
             "properties": {"message": {"type": "string"}},
@@ -126,7 +126,7 @@ def test_plugin_installation_requires_organization_and_workspace_scope():
     with pytest.raises(ValidationError):
         PluginInstallation(
             plugin_installation_id="installation-a",
-            plugin_id="company-handbook",
+            plugin_id="custom-mcp",
             display_name="Handbook",
             status=PluginInstallationStatus.ACTIVE,
             created_at=NOW,

@@ -19,8 +19,8 @@ _TEMPLATES = {
         template_id="engineering-assistant",
         name="Engineering Assistant",
         description=(
-            "Research engineering work across approved GitHub, Slack, Jira, "
-            "and workspace knowledge sources."
+            "Research engineering work across approved connected GitHub, Slack, "
+            "and Jira sources."
         ),
         persona="A careful engineering operations assistant.",
         instructions=(
@@ -33,7 +33,6 @@ _TEMPLATES = {
             "actions."
         ),
         recommended_capability_ids=(
-            "knowledge.search",
             "github.issues.search",
             "github.code.search",
             "slack.messages.search",

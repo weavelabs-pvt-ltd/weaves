@@ -12,47 +12,6 @@
   "additionalProperties": false,
   "description": "Immutable audit event scoped to an organization or workspace.",
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
-    "audit_event_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Audit Event Id",
-      "type": "string"
-    },
-    "org_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Org Id",
-      "type": "string"
-    },
-    "target_scope": {
-      "$ref": "#/$defs/AuditTargetScope"
-    },
-    "workspace_id": {
-      "anyOf": [
-        {
-          "maxLength": 128,
-          "minLength": 1,
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Workspace Id"
-    },
-    "actor_principal_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Actor Principal Id",
-      "type": "string"
-    },
     "action": {
       "maxLength": 128,
       "minLength": 2,
@@ -60,29 +19,16 @@
       "title": "Action",
       "type": "string"
     },
-    "target_type": {
-      "maxLength": 128,
-      "minLength": 2,
-      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
-      "title": "Target Type",
-      "type": "string"
-    },
-    "target_id": {
+    "actor_principal_id": {
       "maxLength": 128,
       "minLength": 1,
-      "title": "Target Id",
+      "title": "Actor Principal Id",
       "type": "string"
     },
-    "summary": {
-      "default": "",
-      "maxLength": 1000,
-      "title": "Summary",
-      "type": "string"
-    },
-    "request_id": {
+    "audit_event_id": {
       "maxLength": 128,
       "minLength": 1,
-      "title": "Request Id",
+      "title": "Audit Event Id",
       "type": "string"
     },
     "correlation_id": {
@@ -99,15 +45,69 @@
       "default": null,
       "title": "Correlation Id"
     },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
     "metadata": {
       "additionalProperties": true,
       "title": "Metadata",
       "type": "object"
     },
-    "created_at": {
-      "format": "date-time",
-      "title": "Created At",
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
       "type": "string"
+    },
+    "request_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Request Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "summary": {
+      "default": "",
+      "maxLength": 1000,
+      "title": "Summary",
+      "type": "string"
+    },
+    "target_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Target Id",
+      "type": "string"
+    },
+    "target_scope": {
+      "$ref": "#/$defs/AuditTargetScope"
+    },
+    "target_type": {
+      "maxLength": 128,
+      "minLength": 2,
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "title": "Target Type",
+      "type": "string"
+    },
+    "workspace_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workspace Id"
     }
   },
   "required": [

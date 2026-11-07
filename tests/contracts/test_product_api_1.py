@@ -134,7 +134,7 @@ def test_engineering_agent_template_creates_a_scoped_runnable_agent(monkeypatch)
             "/api/v0/agent-templates/engineering-assistant/agents",
             headers=headers,
             json={
-                "allowed_capability_ids": ["knowledge.search"],
+                "allowed_capability_ids": [],
                 "max_runtime_seconds": 120,
                 "max_tool_calls": 2,
                 "max_output_tokens": 600,
@@ -217,7 +217,7 @@ def _assert_created_engineering_agent(created):
     assert agent["current_version"]["skills"][0]["skill_id"] == (
         "evidence-based-research"
     )
-    assert agent["current_version"]["allowed_capability_ids"] == ["knowledge.search"]
+    assert agent["current_version"]["allowed_capability_ids"] == []
     budget = agent["current_version"]["budget"]
     assert budget["max_runtime_seconds"] == 120
     assert budget["max_tool_calls"] == 2
@@ -262,7 +262,7 @@ def test_agent_output_schema_can_be_configured_and_returned_through_api(monkeypa
             json={
                 "name": "Structured responder",
                 "instructions": "Answer using the configured response shape.",
-                "allowed_capability_ids": ["knowledge.search"],
+                "allowed_capability_ids": [],
                 "output_schema": schema,
             },
         )
@@ -308,7 +308,7 @@ def _assert_invalid_output_schema_rejected(client, headers):
         json={
             "name": "Invalid schema agent",
             "instructions": "Return JSON.",
-            "allowed_capability_ids": ["knowledge.search"],
+            "allowed_capability_ids": [],
             "output_schema": {"type": "unknown"},
         },
     )

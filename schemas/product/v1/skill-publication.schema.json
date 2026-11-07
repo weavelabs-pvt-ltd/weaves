@@ -1,0 +1,69 @@
+{
+  "additionalProperties": false,
+  "description": "Self-review attestation and publication record for one exact version.",
+  "properties": {
+    "content_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
+      "type": "string"
+    },
+    "publication_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Publication Id",
+      "type": "string"
+    },
+    "publisher_principal_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Publisher Principal Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "self_review_confirmed": {
+      "const": true,
+      "title": "Self Review Confirmed",
+      "type": "boolean"
+    },
+    "skill_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Skill Id",
+      "type": "string"
+    },
+    "skill_version_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Skill Version Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "created_at",
+    "org_id",
+    "publication_id",
+    "skill_id",
+    "skill_version_id",
+    "content_digest",
+    "publisher_principal_id",
+    "self_review_confirmed"
+  ],
+  "title": "SkillPublication",
+  "type": "object"
+}

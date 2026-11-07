@@ -22,12 +22,6 @@
       "additionalProperties": false,
       "description": "A bounded set of adjacent workflow agents that can execute together.",
       "properties": {
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
         "agent_ids": {
           "items": {
             "maxLength": 128,
@@ -38,6 +32,12 @@
           "minItems": 2,
           "title": "Agent Ids",
           "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
         }
       },
       "required": [
@@ -50,6 +50,17 @@
       "additionalProperties": false,
       "description": "Allow a workflow step only when a prior structured result matches.",
       "properties": {
+        "expected_value": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "json_pointer": {
+          "maxLength": 512,
+          "title": "Json Pointer",
+          "type": "string"
+        },
+        "operator": {
+          "$ref": "#/$defs/WorkflowConditionOperator"
+        },
         "schema_version": {
           "const": 1,
           "default": 1,
@@ -67,17 +78,6 @@
           "minLength": 1,
           "title": "Target Agent Id",
           "type": "string"
-        },
-        "json_pointer": {
-          "maxLength": 512,
-          "title": "Json Pointer",
-          "type": "string"
-        },
-        "operator": {
-          "$ref": "#/$defs/WorkflowConditionOperator"
-        },
-        "expected_value": {
-          "$ref": "#/$defs/JsonValue"
         }
       },
       "required": [
@@ -94,18 +94,6 @@
       "additionalProperties": false,
       "description": "Predecessor steps that must finish before a workflow step is eligible.",
       "properties": {
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
-        "target_agent_id": {
-          "maxLength": 128,
-          "minLength": 1,
-          "title": "Target Agent Id",
-          "type": "string"
-        },
         "depends_on_agent_ids": {
           "items": {
             "maxLength": 128,
@@ -120,6 +108,18 @@
         "join_policy": {
           "$ref": "#/$defs/WorkflowJoinPolicy",
           "default": "all"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "target_agent_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Target Agent Id",
+          "type": "string"
         }
       },
       "required": [
@@ -132,53 +132,6 @@
   },
   "additionalProperties": false,
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
-    "created_at": {
-      "format": "date-time",
-      "title": "Created At",
-      "type": "string"
-    },
-    "org_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Org Id",
-      "type": "string"
-    },
-    "workspace_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Workspace Id",
-      "type": "string"
-    },
-    "workflow_version_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Workflow Version Id",
-      "type": "string"
-    },
-    "workflow_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Workflow Id",
-      "type": "string"
-    },
-    "version": {
-      "minimum": 1,
-      "title": "Version",
-      "type": "integer"
-    },
-    "handler_key": {
-      "maxLength": 128,
-      "minLength": 2,
-      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
-      "title": "Handler Key",
-      "type": "string"
-    },
     "agent_version_ids": {
       "items": {
         "maxLength": 128,
@@ -188,6 +141,53 @@
       "maxItems": 50,
       "minItems": 1,
       "title": "Agent Version Ids",
+      "type": "array"
+    },
+    "configuration": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Configuration",
+      "type": "object"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "handler_key": {
+      "maxLength": 128,
+      "minLength": 2,
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "title": "Handler Key",
+      "type": "string"
+    },
+    "input_schema": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Input Schema",
+      "type": "object"
+    },
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
+      "type": "string"
+    },
+    "output_schema": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Output Schema",
+      "type": "object"
+    },
+    "parallel_groups": {
+      "items": {
+        "$ref": "#/$defs/WorkflowParallelGroup"
+      },
+      "maxItems": 5,
+      "title": "Parallel Groups",
       "type": "array"
     },
     "required_capability_ids": {
@@ -201,20 +201,18 @@
       "title": "Required Capability Ids",
       "type": "array"
     },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
     "step_conditions": {
       "items": {
         "$ref": "#/$defs/WorkflowStepCondition"
       },
       "maxItems": 10,
       "title": "Step Conditions",
-      "type": "array"
-    },
-    "parallel_groups": {
-      "items": {
-        "$ref": "#/$defs/WorkflowParallelGroup"
-      },
-      "maxItems": 5,
-      "title": "Parallel Groups",
       "type": "array"
     },
     "step_dependencies": {
@@ -225,26 +223,28 @@
       "title": "Step Dependencies",
       "type": "array"
     },
-    "input_schema": {
-      "additionalProperties": {
-        "$ref": "#/$defs/JsonValue"
-      },
-      "title": "Input Schema",
-      "type": "object"
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
     },
-    "output_schema": {
-      "additionalProperties": {
-        "$ref": "#/$defs/JsonValue"
-      },
-      "title": "Output Schema",
-      "type": "object"
+    "workflow_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workflow Id",
+      "type": "string"
     },
-    "configuration": {
-      "additionalProperties": {
-        "$ref": "#/$defs/JsonValue"
-      },
-      "title": "Configuration",
-      "type": "object"
+    "workflow_version_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workflow Version Id",
+      "type": "string"
+    },
+    "workspace_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workspace Id",
+      "type": "string"
     }
   },
   "required": [

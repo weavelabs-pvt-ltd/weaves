@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
-from contracts.v1 import TaskStatus
+from contracts.v1 import TaskAudience, TaskStatus
 from modules.tasks.http.cursors import decode_cursor, encode_cursor
 from modules.tasks.service import TaskService
 
@@ -20,6 +20,8 @@ class TaskCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=160)
     description: str = Field(default="", max_length=4000)
     initial_message: str = Field(min_length=1, max_length=12_000)
+    audience: TaskAudience = TaskAudience.WORKSPACE
+    skill_version_ids: tuple[str, ...] = Field(default=(), max_length=5)
 
 
 class TaskMessageRequest(BaseModel):
@@ -159,6 +161,8 @@ def _register_task_collection_routes(
                 description=request.description,
                 initial_message=request.initial_message,
                 idempotency_key=idempotency_key,
+                audience=request.audience,
+                skill_version_ids=request.skill_version_ids,
             )
         )
         return dump(task)

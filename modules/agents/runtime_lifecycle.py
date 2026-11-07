@@ -18,14 +18,16 @@ from contracts.v1 import (
     AuditEvent,
     AuditTargetScope,
     CapabilityKind,
-    MemoryPolicy,
-    MemoryScope,
     ModelProfile,
     ModelProfileBinding,
     ModelProfileStatus,
     OrganizationModelConfiguration,
     Permission,
     PluginInstallation,
+    SkillDefinition,
+    SkillPublication,
+    SkillRevocation,
+    SkillVersion,
     WorkflowDefinition,
     WorkflowStatus,
     WorkflowVersion,
@@ -33,7 +35,7 @@ from contracts.v1 import (
 from contracts.v1 import ModelProvider as ModelProviderContract
 from modules.agents.runtime_catalog import AgentCatalogMixin
 from modules.agents.runtime_versioning import AgentVersionPublisher
-from modules.agents.skills import snapshot_agent_skills
+from modules.agents.skill_bindings import AgentSkillBindings
 from modules.agents.templates import (
     AgentTemplate,
     get_agent_template,
@@ -62,6 +64,10 @@ class AgentService(AgentCatalogMixin):
         providers: Repository[ModelProviderContract],
         workflows: Repository[WorkflowDefinition],
         workflow_versions: Repository[WorkflowVersion],
+        skill_definitions: Repository[SkillDefinition],
+        skill_versions: Repository[SkillVersion],
+        skill_publications: Repository[SkillPublication],
+        skill_revocations: Repository[SkillRevocation],
         is_bootstrapped: Callable[[], bool],
         bootstrap: Callable[[], None],
         authorize: Callable[[str, Permission], None],
@@ -79,6 +85,17 @@ class AgentService(AgentCatalogMixin):
         self.providers = providers
         self.workflows = workflows
         self.workflow_versions = workflow_versions
+        self.skill_definitions = skill_definitions
+        self.skill_versions = skill_versions
+        self.skill_publications = skill_publications
+        self.skill_revocations = skill_revocations
+        self.skill_bindings = AgentSkillBindings(
+            definitions=skill_definitions,
+            versions=skill_versions,
+            publications=skill_publications,
+            revocations=skill_revocations,
+            authorize=authorize,
+        )
         self._is_bootstrapped = is_bootstrapped
         self._bootstrap = bootstrap
         self._authorize = authorize
@@ -95,40 +112,15 @@ class AgentService(AgentCatalogMixin):
             unit_of_work=unit_of_work,
         )
 
-    def list_agents(self) -> tuple[AgentDefinition, ...]:
-        """List agents visible in the active workspace."""
-        if not self._is_bootstrapped():
-            self._bootstrap()
-        self._authorize("local-developer", Permission.AGENTS_VIEW)
-        return self.agents.list_scoped(effective_org_id(), effective_workspace_id())
-
-    def get_agent(self, agent_id: str) -> AgentDefinition:
-        """Load one agent after enforcing workspace view access."""
-        if not self._is_bootstrapped():
-            self._bootstrap()
-        self._authorize("local-developer", Permission.AGENTS_VIEW)
-        return self.agents.get_scoped(
-            agent_id, effective_org_id(), effective_workspace_id()
-        )
-
-    def get_agent_version(self, version_id: str) -> AgentVersion:
-        """Load a version visible to the active organization and workspace."""
-        if not self._is_bootstrapped():
-            self._bootstrap()
-        self._authorize("local-developer", Permission.AGENTS_VIEW)
-        return self.agent_versions.get_scoped(
-            version_id, effective_org_id(), effective_workspace_id()
-        )
-
     def create_agent_from_template(
         self,
         template_id: str,
         *,
         allowed_capability_ids: tuple[str, ...],
         skill_ids: tuple[str, ...] | None = None,
+        skill_version_ids: tuple[str, ...] | None = None,
         name: str | None = None,
         model_profile_id: str | None = None,
-        memory_scopes: tuple[MemoryScope, ...] = (MemoryScope.WORKSPACE,),
         budget: AgentBudget | None = None,
         output_schema: dict[str, JsonValue] | None = None,
         requested_by_principal_id: str = "local-developer",
@@ -144,9 +136,13 @@ class AgentService(AgentCatalogMixin):
             model_profile_id=model_profile_id,
             allowed_capability_ids=allowed_capability_ids,
             skill_ids=(
-                template.recommended_skill_ids if skill_ids is None else skill_ids
+                ()
+                if skill_version_ids is not None
+                else template.recommended_skill_ids
+                if skill_ids is None
+                else skill_ids
             ),
-            memory_scopes=memory_scopes,
+            skill_version_ids=skill_version_ids or (),
             budget=budget,
             output_schema=output_schema,
             requested_by_principal_id=requested_by_principal_id,
@@ -157,8 +153,6 @@ class AgentService(AgentCatalogMixin):
         template: AgentTemplate, capability_ids: tuple[str, ...]
     ) -> None:
         """Reject missing, duplicate, or unsupported template tools."""
-        if not capability_ids:
-            raise ValueError("select at least one installed capability")
         if len(capability_ids) != len(set(capability_ids)):
             raise ValueError("allowed capabilities must be unique")
         unsupported = set(capability_ids) - set(template.recommended_capability_ids)
@@ -173,11 +167,11 @@ class AgentService(AgentCatalogMixin):
         persona: str = "A helpful work assistant.",
         description: str = "",
         model_profile_id: str | None = None,
-        allowed_capability_ids: tuple[str, ...] = ("knowledge.search",),
-        memory_scopes: tuple[MemoryScope, ...] = (MemoryScope.WORKSPACE,),
+        allowed_capability_ids: tuple[str, ...] = (),
         budget: AgentBudget | None = None,
         output_schema: dict[str, JsonValue] | None = None,
         skill_ids: tuple[str, ...] = (),
+        skill_version_ids: tuple[str, ...] = (),
         requested_by_principal_id: str = "local-developer",
     ) -> AgentDefinition:
         """Create an agent and immutable executable/workflow versions."""
@@ -186,7 +180,10 @@ class AgentService(AgentCatalogMixin):
         requested_by_principal_id = effective_principal_id(requested_by_principal_id)
         self._authorize(requested_by_principal_id, Permission.AGENTS_MANAGE)
         profile, skills = self._validate_new_agent_configuration(
-            model_profile_id, allowed_capability_ids, skill_ids
+            model_profile_id,
+            allowed_capability_ids,
+            skill_ids,
+            skill_version_ids,
         )
         definition, agent_version, workflow, workflow_version = (
             self._build_new_agent_records(
@@ -196,7 +193,6 @@ class AgentService(AgentCatalogMixin):
                 persona,
                 profile,
                 allowed_capability_ids,
-                memory_scopes,
                 budget,
                 output_schema,
                 skills,
@@ -216,6 +212,7 @@ class AgentService(AgentCatalogMixin):
         model_profile_id: str | None,
         capability_ids: tuple[str, ...],
         skill_ids: tuple[str, ...],
+        skill_version_ids: tuple[str, ...],
     ) -> tuple[ModelProfile, tuple[AgentSkillSnapshot, ...]]:
         """Validate model and capability bindings before agent creation."""
         profile = self.model_profiles.get_scoped(
@@ -242,7 +239,10 @@ class AgentService(AgentCatalogMixin):
                     CapabilityKind.ACTION_WRITE,
                 ),
             )
-        return profile, snapshot_agent_skills(skill_ids)
+        snapshots = self.skill_bindings.resolve_new(
+            skill_ids, skill_version_ids, capability_ids
+        )
+        return profile, snapshots
 
     def _build_new_agent_records(
         self,
@@ -252,7 +252,6 @@ class AgentService(AgentCatalogMixin):
         persona: str,
         profile: ModelProfile,
         capability_ids: tuple[str, ...],
-        memory_scopes: tuple[MemoryScope, ...],
         budget: AgentBudget | None,
         output_schema: dict[str, JsonValue] | None,
         skills: tuple[AgentSkillSnapshot, ...],
@@ -274,10 +273,6 @@ class AgentService(AgentCatalogMixin):
             allowed_capability_ids=capability_ids,
             allowed_workflow_ids=(workflow_id,),
             approval_policy_id=self._default_approval_policy_id(),
-            memory_policy=MemoryPolicy(
-                allowed_scopes=memory_scopes,
-                max_items=0 if memory_scopes == (MemoryScope.NONE,) else 8,
-            ),
             budget=budget or AgentBudget(),
             output_schema=output_schema,
             created_at=now,
@@ -358,12 +353,12 @@ class AgentService(AgentCatalogMixin):
         instructions: str | None = None,
         model_profile_id: str | None = None,
         allowed_capability_ids: tuple[str, ...] | None = None,
-        memory_scopes: tuple[MemoryScope, ...] | None = None,
         budget: AgentBudget | None = None,
         output_schema: dict[str, JsonValue] | None = None,
         clear_output_schema: bool = False,
         persona: str | None = None,
         skill_ids: tuple[str, ...] | None = None,
+        skill_version_ids: tuple[str, ...] | None = None,
         requested_by_principal_id: str = "local-developer",
     ) -> AgentDefinition:
         """Update editable metadata and publish a new immutable agent version."""
@@ -391,14 +386,11 @@ class AgentService(AgentCatalogMixin):
             old_version,
             profile_id=profile.id,
             persona=persona,
-            skills=(
-                old_version.skills
-                if skill_ids is None
-                else snapshot_agent_skills(skill_ids)
+            skills=self.skill_bindings.resolve_update(
+                old_version, skill_ids, skill_version_ids, capability_ids
             ),
             instructions=instructions,
             capability_ids=capability_ids,
-            memory_scopes=memory_scopes,
             budget=budget,
             output_schema=output_schema,
             clear_output_schema=clear_output_schema,

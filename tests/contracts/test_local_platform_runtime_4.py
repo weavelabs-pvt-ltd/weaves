@@ -3,13 +3,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from application import PluginGatewayError
 from contracts.v1 import (
     ExecutionJob,
     ExecutionJobStatus,
-    MemoryRetentionClass,
-    Permission,
-    PluginInstallationStatus,
     Principal,
     PrincipalStatus,
     PrincipalType,
@@ -166,9 +162,9 @@ def test_local_runtime_bootstraps_and_completes_a_scoped_mock_run():
     assert result.run.status is RunStatus.SUCCEEDED
     assert result.agent_run.agent_version_id == "local-assistant-v1"
     assert result.agent_run.resolved_provider_id == "local-mock-provider"
-    assert result.tool_invocation.capability_id == "knowledge.search"
-    assert result.artifact.provenance
-    assert "least privilege" in result.artifact.summary
+    assert result.tool_invocation is None
+    assert result.artifact.provenance == ()
+    assert "Local assistant response" in result.artifact.summary
     assert result.audit_event.workspace_id == result.run.workspace_id
     assert runtime.runs.get(result.run.run_id) == result.run
     assert runtime.artifacts.get(result.artifact.artifact_id) == result.artifact
@@ -220,86 +216,10 @@ def test_in_memory_unit_of_work_rolls_back_all_repository_changes():
     assert runtime.roles.get("local-developer-role") == role
 
 
-def test_memory_changes_roll_back_when_the_audit_write_fails(monkeypatch):
-    runtime = LocalPlatformRuntime()
-    original_audit_create = runtime.audit_events.create
-    prior_memory_ids = {
-        item.memory_id for item in runtime.memory_items.list_scoped("local-org")
-    }
-
-    def fail_audit_create(_record):
-        raise RuntimeError("simulated audit store failure")
-
-    monkeypatch.setattr(runtime.audit_events, "create", fail_audit_create)
-    with pytest.raises(RuntimeError, match="simulated audit store failure"):
-        runtime.memory_service.create_memory_item(
-            title="Atomic create", text="Keep the record audited."
-        )
-    assert {
-        item.memory_id for item in runtime.memory_items.list_scoped("local-org")
-    } == prior_memory_ids
-
-    monkeypatch.setattr(runtime.audit_events, "create", original_audit_create)
-    created = runtime.memory_service.create_memory_item(
-        title="Atomic delete", text="Keep the deletion audited."
-    )
-    monkeypatch.setattr(runtime.audit_events, "create", fail_audit_create)
-    with pytest.raises(RuntimeError, match="simulated audit store failure"):
-        runtime.memory_service.delete_memory_item(created.memory_id)
-    assert runtime.memory_items.get(created.memory_id) == created
 
 
-def test_expired_memory_is_deleted_and_audited():
-    runtime = LocalPlatformRuntime()
-    expiry = datetime.now(UTC) + timedelta(seconds=1)
-    item = runtime.memory_service.create_memory_item(
-        title="Temporary context",
-        text="This should be removed when it expires.",
-        retention_class=MemoryRetentionClass.EPHEMERAL,
-        expires_at=expiry,
-    )
-
-    assert runtime.memory_service.purge_expired_memory_items(now=expiry) == (
-        item.memory_id,
-    )
-    with pytest.raises(KeyError):
-        runtime.memory_items.get(item.memory_id)
-    events = [
-        event
-        for event in runtime.audit_events.list()
-        if event.action == "memory_item.expired" and event.target_id == item.memory_id
-    ]
-    assert len(events) == 1
-    assert events[0].actor_principal_id == "system:memory-retention"
-    assert runtime.memory_service.purge_expired_memory_items(now=expiry) == ()
 
 
-def test_concurrent_memory_purge_audits_an_expired_item_once():
-    runtime = LocalPlatformRuntime()
-    expiry = datetime.now(UTC) + timedelta(seconds=1)
-    item = runtime.memory_service.create_memory_item(
-        title="Concurrent expiry",
-        text="Only one maintenance worker should remove this.",
-        retention_class=MemoryRetentionClass.EPHEMERAL,
-        expires_at=expiry,
-    )
-
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        results = list(
-            executor.map(
-                lambda _: runtime.memory_service.purge_expired_memory_items(now=expiry),
-                range(2),
-            )
-        )
-
-    assert [memory_id for result in results for memory_id in result] == [item.memory_id]
-    assert (
-        sum(
-            event.action == "memory_item.expired" and event.target_id == item.memory_id
-            for event in runtime.audit_events.list()
-        )
-        == 1
-    )
 
 
 def test_repository_does_not_expose_mutable_internal_records():
@@ -315,13 +235,7 @@ def test_repository_reads_enforce_organization_and_workspace_scope():
     runtime = LocalPlatformRuntime()
     runtime.bootstrap()
 
-    with pytest.raises(KeyError, match="organization scope"):
-        runtime.installations.get_scoped(
-            "local-knowledge-installation", "another-org", "local-workspace"
-        )
-    assert runtime.installations.list_scoped("local-org", "local-workspace") == (
-        runtime.installations.get("local-knowledge-installation"),
-    )
+    assert runtime.installations.list_scoped("local-org", "local-workspace") == ()
     assert runtime.installations.list_scoped("another-org") == ()
 
 
@@ -346,26 +260,3 @@ def test_local_runtime_requires_run_permission():
         )
 
     assert runtime.runs.list() == ()
-
-
-def test_plugin_denial_fails_run_and_records_invocation_and_audit():
-    runtime = LocalPlatformRuntime()
-    agent = runtime.agent_service.create_agent(
-        name="No context agent",
-        instructions="Answer without using external context.",
-        allowed_capability_ids=("knowledge.search",),
-    )
-    runtime.integration_admin_service.update_plugin_installation(
-        "local-knowledge-installation",
-        status=PluginInstallationStatus.DISABLED,
-    )
-
-    with pytest.raises(PluginGatewayError, match="disabled"):
-        runtime.run_agent("Read the handbook", agent_id=agent.id)
-
-    run = runtime.runs.list()[0]
-    invocation = runtime.tool_invocations.list()[0]
-    assert run.status is RunStatus.FAILED
-    assert invocation.status.value == "failed"
-    assert invocation.error is not None
-    assert runtime.audit_events.list()[-1].action == "agent.run.failed"

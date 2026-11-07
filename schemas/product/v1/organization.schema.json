@@ -12,20 +12,9 @@
   },
   "additionalProperties": false,
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
     "created_at": {
       "format": "date-time",
       "title": "Created At",
-      "type": "string"
-    },
-    "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
       "type": "string"
     },
     "id": {
@@ -40,8 +29,19 @@
       "title": "Name",
       "type": "string"
     },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
     "status": {
       "$ref": "#/$defs/OrganizationStatus"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
     }
   },
   "required": [

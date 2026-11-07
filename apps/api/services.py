@@ -16,5 +16,4 @@ class ApiProcessServices:
     routes: ApiRouteServices
     authentication: AuthenticationServices
     bootstrap: Callable[[], None]
-    purge_expired_memory: Callable[[], tuple[str, ...]]
     close: Callable[[], None]

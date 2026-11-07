@@ -4,12 +4,6 @@
       "additionalProperties": false,
       "description": "Bounded user-safe error details; stack traces and provider payloads do not belong here.",
       "properties": {
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
         "code": {
           "maxLength": 128,
           "minLength": 2,
@@ -17,16 +11,22 @@
           "title": "Code",
           "type": "string"
         },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
         "summary": {
           "maxLength": 1000,
           "minLength": 1,
           "title": "Summary",
           "type": "string"
-        },
-        "retryable": {
-          "default": false,
-          "title": "Retryable",
-          "type": "boolean"
         }
       },
       "required": [
@@ -52,52 +52,6 @@
   "additionalProperties": false,
   "description": "Durable request envelope for work processed by a separate worker.",
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
-    "created_at": {
-      "format": "date-time",
-      "title": "Created At",
-      "type": "string"
-    },
-    "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
-    },
-    "org_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Org Id",
-      "type": "string"
-    },
-    "workspace_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Workspace Id",
-      "type": "string"
-    },
-    "job_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Job Id",
-      "type": "string"
-    },
-    "requested_by_principal_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Requested By Principal Id",
-      "type": "string"
-    },
-    "task": {
-      "maxLength": 12000,
-      "minLength": 1,
-      "title": "Task",
-      "type": "string"
-    },
     "agent_id": {
       "anyOf": [
         {
@@ -112,102 +66,28 @@
       "default": null,
       "title": "Agent Id"
     },
-    "workflow_id": {
-      "anyOf": [
-        {
-          "maxLength": 128,
-          "minLength": 1,
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Workflow Id"
+    "attempts": {
+      "default": 0,
+      "maximum": 100,
+      "minimum": 0,
+      "title": "Attempts",
+      "type": "integer"
     },
-    "workflow_version_id": {
-      "anyOf": [
-        {
-          "maxLength": 128,
-          "minLength": 1,
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Workflow Version Id"
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
     },
-    "thread_id": {
+    "error": {
       "anyOf": [
         {
-          "maxLength": 128,
-          "minLength": 1,
-          "type": "string"
+          "$ref": "#/$defs/ErrorSummary"
         },
         {
           "type": "null"
         }
       ],
-      "default": null,
-      "title": "Thread Id"
-    },
-    "trigger_id": {
-      "anyOf": [
-        {
-          "maxLength": 128,
-          "minLength": 1,
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Trigger Id"
-    },
-    "trigger_event_id": {
-      "anyOf": [
-        {
-          "maxLength": 128,
-          "minLength": 1,
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Trigger Event Id"
-    },
-    "schedule_id": {
-      "anyOf": [
-        {
-          "maxLength": 128,
-          "minLength": 1,
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Schedule Id"
-    },
-    "schedule_occurrence_at": {
-      "anyOf": [
-        {
-          "format": "date-time",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Schedule Occurrence At"
+      "default": null
     },
     "evaluation_id": {
       "anyOf": [
@@ -237,11 +117,10 @@
       "default": null,
       "title": "Evaluation Suite Id"
     },
-    "retry_of_job_id": {
+    "finished_at": {
       "anyOf": [
         {
-          "maxLength": 128,
-          "minLength": 1,
+          "format": "date-time",
           "type": "string"
         },
         {
@@ -249,7 +128,7 @@
         }
       ],
       "default": null,
-      "title": "Retry Of Job Id"
+      "title": "Finished At"
     },
     "idempotency_key": {
       "anyOf": [
@@ -265,17 +144,25 @@
       "default": null,
       "title": "Idempotency Key"
     },
-    "status": {
-      "$ref": "#/$defs/ExecutionJobStatus"
+    "job_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Job Id",
+      "type": "string"
     },
-    "attempts": {
-      "default": 0,
-      "maximum": 100,
-      "minimum": 0,
-      "title": "Attempts",
-      "type": "integer"
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
+      "type": "string"
     },
-    "worker_id": {
+    "requested_by_principal_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Requested By Principal Id",
+      "type": "string"
+    },
+    "retry_of_job_id": {
       "anyOf": [
         {
           "maxLength": 128,
@@ -287,7 +174,7 @@
         }
       ],
       "default": null,
-      "title": "Worker Id"
+      "title": "Retry Of Job Id"
     },
     "run_id": {
       "anyOf": [
@@ -303,6 +190,39 @@
       "default": null,
       "title": "Run Id"
     },
+    "schedule_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Schedule Id"
+    },
+    "schedule_occurrence_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Schedule Occurrence At"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
     "started_at": {
       "anyOf": [
         {
@@ -316,10 +236,20 @@
       "default": null,
       "title": "Started At"
     },
-    "finished_at": {
+    "status": {
+      "$ref": "#/$defs/ExecutionJobStatus"
+    },
+    "task": {
+      "maxLength": 12000,
+      "minLength": 1,
+      "title": "Task",
+      "type": "string"
+    },
+    "thread_id": {
       "anyOf": [
         {
-          "format": "date-time",
+          "maxLength": 128,
+          "minLength": 1,
           "type": "string"
         },
         {
@@ -327,18 +257,88 @@
         }
       ],
       "default": null,
-      "title": "Finished At"
+      "title": "Thread Id"
     },
-    "error": {
+    "trigger_event_id": {
       "anyOf": [
         {
-          "$ref": "#/$defs/ErrorSummary"
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
         },
         {
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "title": "Trigger Event Id"
+    },
+    "trigger_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Trigger Id"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "worker_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Worker Id"
+    },
+    "workflow_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workflow Id"
+    },
+    "workflow_version_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workflow Version Id"
+    },
+    "workspace_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workspace Id",
+      "type": "string"
     }
   },
   "required": [

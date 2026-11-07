@@ -1,0 +1,101 @@
+{
+  "additionalProperties": false,
+  "description": "Immutable, validated skill bundle version.",
+  "properties": {
+    "author_principal_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Author Principal Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "description": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "files": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "maxProperties": 50,
+      "title": "Files",
+      "type": "object"
+    },
+    "instructions": {
+      "maxLength": 32768,
+      "minLength": 1,
+      "title": "Instructions",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
+      "type": "string"
+    },
+    "required_capability_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Required Capability Ids",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "skill_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Skill Id",
+      "type": "string"
+    },
+    "skill_version_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Skill Version Id",
+      "type": "string"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "created_at",
+    "org_id",
+    "skill_version_id",
+    "skill_id",
+    "version",
+    "name",
+    "description",
+    "instructions",
+    "files",
+    "content_digest",
+    "author_principal_id"
+  ],
+  "title": "SkillVersion",
+  "type": "object"
+}

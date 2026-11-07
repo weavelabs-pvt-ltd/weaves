@@ -6,7 +6,13 @@ from collections.abc import Callable
 from threading import Event, RLock
 
 from application.runtime_host import RuntimeCapabilityHost
-from contracts.v1 import AgentRun, Permission, RunStatus, WorkflowRun
+from contracts.v1 import (
+    AgentRun,
+    AgentSkillSnapshot,
+    Permission,
+    RunStatus,
+    WorkflowRun,
+)
 from modules.workflows.runtime_result import RuntimeResult
 from shared.errors import IdempotencyConflict, IdempotencyKeyAlreadyExists
 from shared.request_context import (
@@ -31,6 +37,7 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
         agent_version_id: str | None = None,
         _cancellation_event: Event | None = None,
         _cancellation_check: Callable[[], bool] | None = None,
+        _runtime_skill_snapshots: tuple[AgentSkillSnapshot, ...] = (),
     ) -> RuntimeResult:
         """Execute once per principal/key and replay completed successful runs."""
         requested_by_principal_id = effective_principal_id(requested_by_principal_id)
@@ -44,6 +51,7 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
                 agent_version_id=agent_version_id,
                 _cancellation_event=_cancellation_event,
                 _cancellation_check=_cancellation_check,
+                _runtime_skill_snapshots=_runtime_skill_snapshots,
             )
         key = idempotency_key.strip()
         if not key or len(key) > 128:
@@ -63,6 +71,7 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
             agent_version_id,
             _cancellation_event,
             _cancellation_check,
+            _runtime_skill_snapshots,
         )
 
     def _run_agent_with_key(
@@ -76,6 +85,7 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
         agent_version_id: str | None,
         cancellation_event: Event | None,
         cancellation_check: Callable[[], bool] | None,
+        runtime_skill_snapshots: tuple[AgentSkillSnapshot, ...],
     ) -> RuntimeResult:
         """Serialize idempotent requests and replay only matching runs."""
         lock_key = (requested_by_principal_id, key)
@@ -108,6 +118,7 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
                     agent_version_id=agent_version_id,
                     _cancellation_event=cancellation_event,
                     _cancellation_check=cancellation_check,
+                    _runtime_skill_snapshots=runtime_skill_snapshots,
                 )
             except IdempotencyKeyAlreadyExists:
                 # Another API process won the unique-index race. The losing

@@ -4,18 +4,16 @@
       "additionalProperties": false,
       "description": "Source reference used to build an execution artifact.",
       "properties": {
+        "recorded_at": {
+          "format": "date-time",
+          "title": "Recorded At",
+          "type": "string"
+        },
         "schema_version": {
           "const": 1,
           "default": 1,
           "title": "Schema Version",
           "type": "integer"
-        },
-        "source_type": {
-          "maxLength": 128,
-          "minLength": 2,
-          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
-          "title": "Source Type",
-          "type": "string"
         },
         "source_ref": {
           "maxLength": 256,
@@ -23,9 +21,11 @@
           "title": "Source Ref",
           "type": "string"
         },
-        "recorded_at": {
-          "format": "date-time",
-          "title": "Recorded At",
+        "source_type": {
+          "maxLength": 128,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+          "title": "Source Type",
           "type": "string"
         }
       },
@@ -69,46 +69,6 @@
   "additionalProperties": false,
   "description": "Durable output and bounded provenance from an execution.",
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
-    "created_at": {
-      "format": "date-time",
-      "title": "Created At",
-      "type": "string"
-    },
-    "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
-    },
-    "org_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Org Id",
-      "type": "string"
-    },
-    "workspace_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Workspace Id",
-      "type": "string"
-    },
-    "artifact_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Artifact Id",
-      "type": "string"
-    },
-    "run_id": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Run Id",
-      "type": "string"
-    },
     "agent_run_id": {
       "anyOf": [
         {
@@ -123,36 +83,17 @@
       "default": null,
       "title": "Agent Run Id"
     },
+    "artifact_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
     "artifact_type": {
       "maxLength": 128,
       "minLength": 2,
       "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
       "title": "Artifact Type",
-      "type": "string"
-    },
-    "title": {
-      "maxLength": 160,
-      "minLength": 1,
-      "title": "Title",
-      "type": "string"
-    },
-    "summary": {
-      "default": "",
-      "maxLength": 120000,
-      "title": "Summary",
-      "type": "string"
-    },
-    "content_ref": {
-      "maxLength": 128,
-      "minLength": 1,
-      "title": "Content Ref",
-      "type": "string"
-    },
-    "content_type": {
-      "maxLength": 128,
-      "minLength": 2,
-      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
-      "title": "Content Type",
       "type": "string"
     },
     "checksum": {
@@ -168,23 +109,23 @@
       "default": null,
       "title": "Checksum"
     },
-    "provenance": {
-      "items": {
-        "$ref": "#/$defs/ArtifactProvenance"
-      },
-      "maxItems": 50,
-      "minItems": 1,
-      "title": "Provenance",
-      "type": "array"
+    "content_ref": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Content Ref",
+      "type": "string"
     },
-    "sensitivity": {
-      "$ref": "#/$defs/ArtifactSensitivity"
+    "content_type": {
+      "maxLength": 128,
+      "minLength": 2,
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "title": "Content Type",
+      "type": "string"
     },
-    "retention_class": {
-      "$ref": "#/$defs/RetentionClass"
-    },
-    "status": {
-      "$ref": "#/$defs/ArtifactStatus"
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
     },
     "created_by_agent_run_id": {
       "anyOf": [
@@ -212,6 +153,65 @@
       ],
       "default": null,
       "title": "Deleted At"
+    },
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
+      "type": "string"
+    },
+    "provenance": {
+      "items": {
+        "$ref": "#/$defs/ArtifactProvenance"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Provenance",
+      "type": "array"
+    },
+    "retention_class": {
+      "$ref": "#/$defs/RetentionClass"
+    },
+    "run_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "sensitivity": {
+      "$ref": "#/$defs/ArtifactSensitivity"
+    },
+    "status": {
+      "$ref": "#/$defs/ArtifactStatus"
+    },
+    "summary": {
+      "default": "",
+      "maxLength": 120000,
+      "title": "Summary",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "workspace_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workspace Id",
+      "type": "string"
     }
   },
   "required": [

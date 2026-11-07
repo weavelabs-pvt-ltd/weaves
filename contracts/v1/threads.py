@@ -1,4 +1,4 @@
-"""Conversation thread contracts for scoped agent runs and memory."""
+"""Conversation thread contracts for task and agent-run history."""
 
 from contracts.v1.base import (
     DisplayName,

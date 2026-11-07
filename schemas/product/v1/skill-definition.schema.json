@@ -1,0 +1,109 @@
+{
+  "$defs": {
+    "SkillScope": {
+      "description": "Visibility namespace for a skill definition.",
+      "enum": [
+        "personal",
+        "organization"
+      ],
+      "title": "SkillScope",
+      "type": "string"
+    },
+    "SkillStatus": {
+      "description": "Lifecycle state for a mutable skill definition.",
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "title": "SkillStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Tenant-bound skill identity with an owner-private or org-visible scope.",
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "current_version_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Current Version Id",
+      "type": "string"
+    },
+    "maintainer_principal_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Maintainer Principal Ids",
+      "type": "array"
+    },
+    "org_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Org Id",
+      "type": "string"
+    },
+    "owner_principal_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Owner Principal Id"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope": {
+      "$ref": "#/$defs/SkillScope"
+    },
+    "skill_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Skill Id",
+      "type": "string"
+    },
+    "slug": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "title": "Slug",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/SkillStatus",
+      "default": "active"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "created_at",
+    "updated_at",
+    "org_id",
+    "skill_id",
+    "scope",
+    "slug",
+    "current_version_id"
+  ],
+  "title": "SkillDefinition",
+  "type": "object"
+}

@@ -25,9 +25,6 @@ from contracts.v1 import (
     EvaluationSuite,
     EvaluationSuiteRecord,
     ExecutionJob,
-    KnowledgeDocument,
-    MemoryItem,
-    MemoryPolicy,
     ModelMessage,
     ModelProfile,
     ModelProfileBinding,
@@ -42,6 +39,10 @@ from contracts.v1 import (
     Principal,
     Role,
     RoleBinding,
+    SkillDefinition,
+    SkillPublication,
+    SkillRevocation,
+    SkillVersion,
     Task,
     TaskMessage,
     TaskTurn,
@@ -77,6 +78,10 @@ CONTRACTS = {
     "principal": Principal,
     "role": Role,
     "role-binding": RoleBinding,
+    "skill-definition": SkillDefinition,
+    "skill-version": SkillVersion,
+    "skill-publication": SkillPublication,
+    "skill-revocation": SkillRevocation,
     "model-provider": ModelProvider,
     "model-profile": ModelProfile,
     "model-profile-binding": ModelProfileBinding,
@@ -84,9 +89,6 @@ CONTRACTS = {
     "model-request": ModelRequest,
     "model-response": ModelResponse,
     "model-usage": ModelUsage,
-    "knowledge-document": KnowledgeDocument,
-    "memory-item": MemoryItem,
-    "memory-policy": MemoryPolicy,
     "agent-definition": AgentDefinition,
     "agent-version": AgentVersion,
     "agent-skill-snapshot": AgentSkillSnapshot,
@@ -122,6 +124,10 @@ CONTRACTS = {
 
 def main() -> None:
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    expected_paths = {OUTPUT / f"{name}.schema.json" for name in CONTRACTS}
+    for stale_path in OUTPUT.glob("*.schema.json"):
+        if stale_path not in expected_paths:
+            stale_path.unlink()
     for name, contract in CONTRACTS.items():
         path = OUTPUT / f"{name}.schema.json"
         path.write_text(
