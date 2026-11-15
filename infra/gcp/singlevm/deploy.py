@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -36,6 +37,8 @@ def main() -> None:
     parser.add_argument("--zone", default="asia-south1-a")
     parser.add_argument("--vm", default="weaves-personal")
     args = parser.parse_args()
+    if not re.fullmatch(r"[0-9a-f]{40}", args.revision):
+        raise ValueError("Expected a full commit SHA")
     flags = [
         f"--project={args.project}",
         f"--account={args.account}",
@@ -67,6 +70,7 @@ def main() -> None:
         [
             "sudo",
             "python3",
+            "-B",
             script,
             "--component",
             args.component,
@@ -90,7 +94,9 @@ def main() -> None:
         print(invoke([*ssh, "--command=" + command], token), flush=True)
     finally:
         if bundle:
-            invoke([*ssh, "--command=" + shlex.join(["rm", "-rf", stage])])
+            invoke(
+                [*ssh, "--command=" + shlex.join(["sudo", "rm", "-rf", "--", stage])]
+            )
 
 
 if __name__ == "__main__":
