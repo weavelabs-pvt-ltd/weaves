@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from modules.workflows.studio_service import WorkflowStudioService
+
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from datetime import datetime
@@ -54,6 +59,8 @@ class WorkflowAutomationService(
     workflow_schedules: Repository[WorkflowSchedule]
     workflow_versions: Repository[WorkflowVersion]
     workflows: Repository[WorkflowDefinition]
+
+    studio: WorkflowStudioService | None = None
 
     def __init__(
         self,

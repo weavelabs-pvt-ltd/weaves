@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import hashlib
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from contextlib import AbstractContextManager
-from datetime import datetime
 from decimal import Decimal
 
 from application.ports.repository import Repository
@@ -23,6 +21,7 @@ from contracts.v1 import (
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
 from modules.models.catalog import ModelCatalogService, model_card_metadata
+from modules.models.provider_registration import store_model_provider
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.errors import ModelGatewayError
@@ -176,16 +175,7 @@ class ModelService:
             selected_provider = self.providers.get_scoped(
                 provider_id, effective_org_id()
             )
-        if selected_provider is None:
-            raise ValueError(
-                "configure an organization provider before selecting this mode"
-            )
-        if not self._is_customer_managed_provider(selected_provider):
-            raise ValueError(
-                "customer-managed mode requires an organization-owned provider key"
-            )
-        if selected_provider.status is not ModelProviderStatus.ACTIVE:
-            raise ValueError("default model provider must be active")
+        self._validate_customer_managed_provider(selected_provider)
         config = OrganizationModelConfiguration(
             org_id=effective_org_id(),
             mode=mode,
@@ -212,6 +202,21 @@ class ModelService:
                 )
             )
         return config
+
+    def _validate_customer_managed_provider(
+        self, provider: ModelProviderContract | None
+    ) -> None:
+        """Require an active customer-owned provider before selecting BYOK mode."""
+        if provider is None:
+            raise ValueError(
+                "configure an organization provider before selecting this mode"
+            )
+        if not self._is_customer_managed_provider(provider):
+            raise ValueError(
+                "customer-managed mode requires an organization-owned provider key"
+            )
+        if provider.status is not ModelProviderStatus.ACTIVE:
+            raise ValueError("default model provider must be active")
 
     def validate_provider_credential(
         self,
@@ -316,7 +321,8 @@ class ModelService:
         except Exception:
             self.secret_store.delete(secret_ref)
             raise
-        provider = self._store_model_provider(
+        provider = store_model_provider(
+            self,
             defaults,
             provider_id,
             requested_by_principal_id,
@@ -329,112 +335,6 @@ class ModelService:
             api_key.strip()[-4:] if len(api_key.strip()) >= 4 else None,
         )
         return provider
-
-    def _store_model_provider(
-        self,
-        defaults: Mapping[ModelProviderType, str],
-        provider_id: str,
-        requested_by_principal_id: str,
-        secret_ref: str,
-        selected_model: str,
-        base_url: str | None,
-        display_name: str,
-        initial_model: str | None,
-        provider_type: ModelProviderType,
-        credential_last4: str | None = None,
-    ) -> ModelProviderContract:
-        """Persist a model provider and its initial profile."""
-        try:
-            provider = ModelProviderContract(
-                id=provider_id,
-                org_id=effective_org_id(),
-                provider_type=provider_type,
-                display_name=display_name,
-                allowed_models=[selected_model],
-                auth_ref=secret_ref,
-                credential_last4=credential_last4,
-                base_url=(base_url.strip() if base_url else defaults[provider_type]),
-                status=ModelProviderStatus.ACTIVE,
-            )
-            timestamp = _now()
-            profile = self._build_initial_profile(
-                provider, initial_model, selected_model, timestamp
-            )
-            with self._open_unit_of_work():
-                self.providers.create(provider)
-                if profile is not None:
-                    self.model_profiles.create(profile)
-                existing_config = self._configuration_or_none()
-                config = OrganizationModelConfiguration(
-                    org_id=effective_org_id(),
-                    mode=ModelAccessMode.CUSTOMER_MANAGED,
-                    default_provider_id=(
-                        provider.id
-                        if profile is not None
-                        else (
-                            existing_config.default_provider_id
-                            if existing_config
-                            and existing_config.mode is ModelAccessMode.CUSTOMER_MANAGED
-                            else provider.id
-                        )
-                    ),
-                    default_model_profile_id=(
-                        profile.id
-                        if profile is not None
-                        else (
-                            existing_config.default_model_profile_id
-                            if existing_config
-                            and existing_config.mode is ModelAccessMode.CUSTOMER_MANAGED
-                            else None
-                        )
-                    ),
-                    created_at=(
-                        existing_config.created_at if existing_config else timestamp
-                    ),
-                    updated_at=timestamp,
-                )
-                self.model_configurations.put(config)
-                self.audit_events.create(
-                    AuditEvent(
-                        audit_event_id=_id(),
-                        org_id=effective_org_id(),
-                        target_scope=AuditTargetScope.ORGANIZATION,
-                        actor_principal_id=requested_by_principal_id,
-                        action="model_provider.created",
-                        target_type="model_provider",
-                        target_id=provider_id,
-                        summary="Model provider configured",
-                        request_id=provider_id,
-                        metadata={"provider_type": provider_type.value},
-                        created_at=timestamp,
-                    )
-                )
-        except Exception:
-            self.secret_store.delete(secret_ref)
-            raise
-        return provider
-
-    @staticmethod
-    def _build_initial_profile(
-        provider: ModelProviderContract,
-        initial_model: str | None,
-        selected_model: str,
-        timestamp: datetime,
-    ) -> ModelProfile | None:
-        """Create a profile for an explicitly selected model, if supplied."""
-        if not initial_model:
-            return None
-        model_hash = hashlib.sha256((provider.id + selected_model).encode("utf-8"))
-        return ModelProfile(
-            id="model-" + model_hash.hexdigest()[:24],
-            org_id=effective_org_id(),
-            provider_id=provider.id,
-            model=selected_model,
-            display_name=f"{provider.display_name} · {selected_model}"[:160],
-            status=ModelProfileStatus.ACTIVE,
-            created_at=timestamp,
-            updated_at=timestamp,
-        )
 
     def _configuration_or_none(self) -> OrganizationModelConfiguration | None:
         """Load the current organization model settings when already configured."""
@@ -450,7 +350,8 @@ class ModelService:
         """Return whether provider credentials are owned by the organization."""
         return (
             provider.provider_type is not ModelProviderType.LOCAL
-            and bool(provider.auth_ref)
+            and provider.auth_ref is not None
+            and provider.auth_ref != ""
             and not provider.auth_ref.startswith("env:")
         )
 

@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from fastapi.testclient import TestClient
 
 from apps.api.app import create_app
+from contracts.v1 import PluginInstallation, PluginInstallationStatus
+from shared.clock import utc_now
 from tests.support.member_login import member_token
 from tests.support.runtime import LocalPlatformRuntime
 
@@ -25,7 +27,7 @@ class RbacApiScenario:
     builder_role_id: str
 
 
-def _create_rbac_api_scenario(client: TestClient) -> RbacApiScenario:
+def _create_rbac_api_scenario(client: TestClient, runtime) -> RbacApiScenario:
     """Create an owner, test data, and a user assigned the User preset."""
     response = client.post(
         "/api/v0/onboarding/organizations",
@@ -57,6 +59,21 @@ def _create_rbac_api_scenario(client: TestClient) -> RbacApiScenario:
     )
     assert workflow.status_code == 201, workflow.text
     _create_sensitive_test_resources(client, owner_headers)
+    runtime.installations.create(
+        PluginInstallation(
+            plugin_installation_id="rbac-test-installation",
+            org_id=response.json()["organization"]["id"],
+            workspace_id=workspace_id,
+            plugin_id="slack",
+            display_name="Test Slack",
+            configuration={"channels": ["testing"]},
+            auth_ref="fixture-only",
+            enabled_capability_ids=(),
+            status=PluginInstallationStatus.ACTIVE,
+            created_at=utc_now(),
+            updated_at=utc_now(),
+        )
+    )
     provider = client.get("/api/v0/model-providers", headers=owner_headers).json()[0]
     profile = client.get("/api/v0/model-profiles", headers=owner_headers).json()[0]
     installation = client.get(
@@ -263,7 +280,7 @@ def test_user_can_browse_and_run_but_cannot_mutate_workspace_configuration():
     runtime = LocalPlatformRuntime(postgres_store=None)
     client = TestClient(create_app(runtime))
     with client:
-        scenario = _create_rbac_api_scenario(client)
+        scenario = _create_rbac_api_scenario(client, runtime)
         identity = client.get("/api/v0/auth/me", headers=scenario.user_headers)
         assert identity.status_code == 200
         assert identity.json()["workspace_id"] == scenario.workspace_id
@@ -291,7 +308,7 @@ def test_user_mutations_are_denied_and_builder_replacement_is_atomic():
     runtime = LocalPlatformRuntime(postgres_store=None)
     client = TestClient(create_app(runtime))
     with client:
-        scenario = _create_rbac_api_scenario(client)
+        scenario = _create_rbac_api_scenario(client, runtime)
         _assert_user_mutations_denied(client, scenario)
         _replace_user_with_builder(client, scenario)
 

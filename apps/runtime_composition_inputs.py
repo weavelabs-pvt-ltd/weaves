@@ -62,6 +62,7 @@ from contracts.v1 import (
     Workspace,
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
+from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
 from modules.auth.runtime_organizations import MockModelIdentifier
 
 
@@ -79,8 +80,8 @@ class RuntimeCompositionInputs(Protocol):
         """Open the process-configured unit of work."""
         ...
 
-    canvas_runs: Repository
-    canvas_settings: Repository
+    canvas_runs: Repository[CanvasRun]
+    canvas_settings: Repository[CanvasSettings]
     agent_runs: Repository[AgentRun]
     agent_versions: Repository[AgentVersion]
     agents: Repository[AgentDefinition]

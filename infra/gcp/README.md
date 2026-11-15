@@ -1,9 +1,17 @@
 # GCP deployment
 
-Production runs in `asia-south1` with a Cloud Run API, a one-instance Cloud Run
-worker pool, a public static frontend, and a regional high-availability Cloud
-SQL PostgreSQL instance with dedicated CPU, automated backups, and point-in-time
-recovery. Runtime passwords, the database URL, encryption key, one-time
+The personal public project `weaves-510819` now uses the
+[single-VM deployment](singlevm/README.md): PostgreSQL, API, worker, frontend and
+Caddy run on one `e2-medium` VM. [Current public URLs and DNS](PUBLIC.md).
+Cloud SQL, Cloud Run and the load balancer were retired for this project.
+
+## Legacy managed profile
+
+The managed profile below uses `asia-south1` with a Cloud Run API, a one-instance
+Cloud Run worker pool, and a Cloud Run frontend. The bootstrap profile below
+provisions regional high-availability PostgreSQL. It is retained for other
+projects and must not be used to redeploy the personal public environment.
+Runtime passwords, the database URL, encryption key, one-time
 onboarding token, and owner credentials are generated directly into Secret
 Manager. They do not belong in repository files or GitHub settings.
 
@@ -38,13 +46,10 @@ the background worker, and runs the API smoke test. Owner credentials stay in
 Secret Manager and are loaded into the current process only when the workflows
 run their end-to-end checks.
 
-The first run can take several minutes while Cloud SQL is created. Backend and
-frontend CI run on pull requests and pushes to `main`; production deployments
-are started manually with `workflow_dispatch` after CI passes. Backend CI runs the
-Python test, lint, type checks and container build; frontend CI runs the
-JavaScript check and container build. Successful main-branch builds deploy the
-service and worker or frontend, then run the API smoke test or Playwright
-browser test.
+The managed bootstrap history below is retained for reference only. Current
+GitHub workflows deploy automatically to the personal single VM after quality
+checks pass on every push to main. See [current CI/CD](singlevm/README.md#automatic-deployment).
+They do not deploy Cloud Run or use the old CI owner secrets.
 
 ## URLs and domains
 

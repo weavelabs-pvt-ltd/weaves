@@ -8,7 +8,8 @@ from uuid import uuid4
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import FastAPI, HTTPException, Request
-from starlette.responses import HTMLResponse
+from pydantic import JsonValue
+from starlette.responses import HTMLResponse, Response
 
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.organization_service import OrganizationService
@@ -30,7 +31,7 @@ def _metadata(provider: str) -> str | None:
     return None
 
 
-def _verified_email(provider: str, claims: dict) -> str:
+def _verified_email(provider: str, claims: dict[str, JsonValue]) -> str:
     """Never link an account through an unverified or arbitrary email claim."""
     if provider == "microsoft":
         # A Microsoft email claim alone is not proof of mailbox ownership.
@@ -45,7 +46,12 @@ def _verified_email(provider: str, claims: dict) -> str:
     return email.strip().casefold()
 
 
-def _complete_signin(auth, organizations, provider, claims):
+def _complete_signin(
+    auth: AuthenticationService,
+    organizations: OrganizationService,
+    provider: str,
+    claims: dict[str, JsonValue],
+) -> dict[str, JsonValue]:
     """Reuse provisioned-user eligibility and normal revocable bearer sessions."""
     email = _verified_email(provider, claims)
     matches = auth._matching_email_users(email, None)
@@ -53,7 +59,7 @@ def _complete_signin(auth, organizations, provider, claims):
         raise PermissionError("Ask an Admin to provision workspace access")
     user = matches[0]
     principal = auth.principals.find_by_field("user_id", user.id)
-    if not auth._eligible_for_email_login(user, principal):
+    if principal is None or not auth._eligible_for_email_login(user, principal):
         raise PermissionError("Account access is disabled")
     organizations.resolve_principal_scope(principal.id)
     session, token = auth.create_user_session(principal)
@@ -64,7 +70,7 @@ def _complete_signin(auth, organizations, provider, claims):
     }
 
 
-def _popup_response(payload):
+def _popup_response(payload: dict[str, JsonValue]) -> HTMLResponse:
     """Return credentials only to the configured frontend opener, never in URLs."""
     frontend = urlsplit(
         os.getenv("WEAVES_PUBLIC_FRONTEND_URL", "http://localhost:8080")
@@ -118,11 +124,11 @@ def register_sso_routes(
     app.state.signin_oauth = oauth
 
     @app.get("/api/v0/auth/sso/providers")
-    def providers():
+    def providers() -> list[dict[str, str | bool]]:
         return [{"provider": p, "configured": p in configured} for p in PROVIDERS]
 
     @app.get("/api/v0/auth/sso/{provider}/start")
-    async def start(provider: str, request: Request):
+    async def start(provider: str, request: Request) -> Response:
         if provider not in configured:
             return _popup_response(
                 {"status": "failed", "provider": provider, "code": "SSO-NOT-CONFIGURED"}
@@ -131,11 +137,10 @@ def register_sso_routes(
             "/"
         )
         callback = f"{base}/api/v0/auth/sso/{provider}/callback"
-        client = oauth.create_client(provider)
-        return await client.authorize_redirect(request, callback)
+        return await _authorization_redirect(oauth, provider, request, callback)
 
     @app.get("/api/v0/auth/sso/{provider}/callback")
-    async def callback(provider: str, request: Request):
+    async def callback(provider: str, request: Request) -> HTMLResponse:
         if provider not in configured:
             raise HTTPException(404, "Sign-in provider not configured")
         try:
@@ -157,3 +162,14 @@ def register_sso_routes(
                     "code": "SSO-" + uuid4().hex[:8].upper(),
                 }
             )
+
+
+async def _authorization_redirect(
+    oauth: OAuth, provider: str, request: Request, callback: str
+) -> Response:
+    """Validate the third-party client response at the OAuth boundary."""
+    client = oauth.create_client(provider)
+    response = await client.authorize_redirect(request, callback)
+    if not isinstance(response, Response):
+        raise RuntimeError("Sign-in provider returned an invalid redirect")
+    return response

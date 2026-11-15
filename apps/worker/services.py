@@ -10,6 +10,7 @@ from modules.executions.worker_service import ExecutionWorkerService
 from modules.governance.action_recovery_service import ActionRecoveryService
 from modules.tasks.worker_service import TaskWorkerService
 from modules.workflows.automation_service import WorkflowAutomationService
+from modules.workflows.studio_service import WorkflowStudioService
 
 
 @dataclass(frozen=True)
@@ -24,4 +25,4 @@ class WorkerServices:
     action_recovery: ActionRecoveryService
     workflow_automation: WorkflowAutomationService
     tasks: TaskWorkerService
-    studio: object | None = None
+    studio: WorkflowStudioService | None = None

@@ -14,7 +14,7 @@ def test_builder_can_manage_definitions_but_not_org_admin_settings():
     runtime = LocalPlatformRuntime(postgres_store=None)
     client = TestClient(create_app(runtime))
     with client:
-        scenario = _create_rbac_api_scenario(client)
+        scenario = _create_rbac_api_scenario(client, runtime)
         _replace_user_with_builder(client, scenario)
         builder_headers = scenario.user_headers
         permissions = client.get("/api/v0/auth/me", headers=builder_headers).json()[
@@ -62,7 +62,7 @@ def test_auth_me_resolves_permissions_for_the_selected_workspace():
     runtime = LocalPlatformRuntime(postgres_store=None)
     client = TestClient(create_app(runtime))
     with client:
-        scenario = _create_rbac_api_scenario(client)
+        scenario = _create_rbac_api_scenario(client, runtime)
         second_workspace = client.post(
             "/api/v0/workspaces",
             headers=scenario.owner_headers,

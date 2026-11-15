@@ -222,25 +222,6 @@ def _register_model_routes_group_2(
             "models": list(models),
         }
 
-    def list_supported_provider_types() -> dict[str, Any]:
-        """Describe provider choices exposed by the current settings flow."""
-        return {
-            "providers": [
-                {
-                    "provider_type": ModelProviderType.OPENAI.value,
-                    "display_name": "OpenAI",
-                    "credential_type": "api_key",
-                    "supports_model_discovery": True,
-                },
-                {
-                    "provider_type": ModelProviderType.ANTHROPIC.value,
-                    "display_name": "Anthropic",
-                    "credential_type": "api_key",
-                    "supports_model_discovery": True,
-                },
-            ]
-        }
-
     app.post("/api/v0/model-providers/{provider_id}/refresh-models")(
         refresh_provider_models
     )
@@ -350,3 +331,23 @@ def _register_model_configuration_routes(
 
     app.get("/api/v0/model-configuration")(get_model_configuration)
     app.put("/api/v0/model-configuration")(update_model_configuration)
+
+
+def list_supported_provider_types() -> dict[str, Any]:
+    """Describe provider choices exposed by the current settings flow."""
+    return {
+        "providers": [
+            {
+                "provider_type": ModelProviderType.OPENAI.value,
+                "display_name": "OpenAI",
+                "credential_type": "api_key",
+                "supports_model_discovery": True,
+            },
+            {
+                "provider_type": ModelProviderType.ANTHROPIC.value,
+                "display_name": "Anthropic",
+                "credential_type": "api_key",
+                "supports_model_discovery": True,
+            },
+        ]
+    }

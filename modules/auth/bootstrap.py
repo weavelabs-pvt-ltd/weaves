@@ -179,14 +179,6 @@ class IdentityBootstrapService:
         matches = [item for item in roles if item.system_role_key == "admin"]
         if len(matches) > 1:
             raise RuntimeError(f"organization {org_id} has duplicate admin roles")
-        if matches:
-            current = matches[0]
-            canonical = build_role_preset(org_id, "admin").model_copy(
-                update={"id": current.id}
-            )
-            self.roles.put(canonical)
-            return canonical
-
         legacy_permissions = {
             Permission.ORGANIZATIONS_ADMIN,
             Permission.WORKSPACES_ADMIN,
@@ -197,9 +189,6 @@ class IdentityBootstrapService:
             Permission.AGENTS_RUN,
             Permission.WORKFLOWS_MANAGE,
             Permission.WORKFLOWS_RUN,
-            Permission.TASKS_VIEW,
-            Permission.TASKS_CREATE,
-            Permission.TASKS_MANAGE,
             Permission.PLUGINS_MANAGE,
             Permission.ARTIFACTS_READ,
             Permission.ACTIONS_APPROVE,
@@ -218,6 +207,21 @@ class IdentityBootstrapService:
         ]
         if len(candidates) > 1:
             raise RuntimeError(f"organization {org_id} has ambiguous owner roles")
+        if matches:
+            current = matches[0]
+            canonical = build_role_preset(org_id, "admin").model_copy(
+                update={"id": current.id}
+            )
+            self.roles.put(canonical)
+            # A previous upgrade may have created an unbound Admin preset.
+            # Move only recognized, organization-wide owner bindings to it.
+            legacy_ids = {role.id for role in candidates}
+            for binding in bindings:
+                if binding.workspace_id is None and binding.role_id in legacy_ids:
+                    self.role_bindings.put(
+                        binding.model_copy(update={"role_id": canonical.id})
+                    )
+            return canonical
         if candidates:
             current = candidates[0]
             canonical = build_role_preset(org_id, "admin").model_copy(

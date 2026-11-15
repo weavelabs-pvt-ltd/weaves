@@ -1,4 +1,4 @@
-"""Exercise the deployed login → agent → model → artifact path.
+"""Exercise the deployed login → agent → task worker → transcript path.
 
 Credentials are read from environment variables populated from Secret Manager
 by the deployment workflow. This script never prints tokens or passwords.
@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from typing import Any
@@ -49,7 +50,7 @@ def main() -> int:
     profile = _active_local_profile(api_base, token)
     agent_id = _smoke_agent(api_base, token, str(profile["id"]))
     _verify_smoke_run(api_base, token, agent_id)
-    print("PASS API health, password login, agent creation, model completion, artifact")
+    print("PASS health, owner login, agent, task worker and transcript")
     return 0
 
 
@@ -102,7 +103,7 @@ def _smoke_agent(api_base: str, token: str, profile_id: str) -> str:
     if not isinstance(agents, list):
         raise RuntimeError("Agent list endpoint returned an invalid response")
     agent = next(
-        (item for item in agents if item.get("name") == "Production E2E smoke"),
+        (item for item in agents if item.get("name") == "deployment-smoke"),
         None,
     )
     if agent is None:
@@ -112,7 +113,7 @@ def _smoke_agent(api_base: str, token: str, profile_id: str) -> str:
             method="POST",
             token=token,
             payload={
-                "name": "Production E2E smoke",
+                "name": "deployment-smoke",
                 "description": "Automated deployment smoke agent",
                 "instructions": (
                     "Complete the requested task using the configured model."
@@ -128,25 +129,57 @@ def _smoke_agent(api_base: str, token: str, profile_id: str) -> str:
 
 
 def _verify_smoke_run(api_base: str, token: str, agent_id: str) -> None:
-    """Run the smoke agent and require a successful run with an artifact."""
-    result = request(
+    """Queue a real task and verify the deployed worker, transcript and artifact."""
+    task = request(
         api_base,
-        "/runs",
+        "/tasks",
         method="POST",
         token=token,
         payload={
             "agent_id": agent_id,
-            "task": "Confirm the end-to-end production run completed successfully.",
+            "title": "Deployment verification",
+            "initial_message": "Confirm this deployment can execute a task.",
         },
     )
-    if not isinstance(result, dict):
-        raise RuntimeError("Run endpoint returned an invalid response")
-    run = result.get("run", {})
-    artifacts = result.get("artifacts", [])
-    if run.get("status") != "succeeded" or not artifacts:
-        raise RuntimeError(
-            f"Production run did not succeed or create an artifact: {run.get('status')}"
-        )
+    if not isinstance(task, dict) or not task.get("task_id"):
+        raise RuntimeError("Task creation did not return a task ID")
+    task_id = task["task_id"]
+    deadline = time.monotonic() + 120
+    while time.monotonic() < deadline:
+        current = request(api_base, f"/tasks/{task_id}", token=token)
+        if not isinstance(current, dict):
+            raise RuntimeError("Task detail returned an invalid response")
+        status = current.get("latest_turn_status")
+        if status == "succeeded":
+            _verify_task_evidence(api_base, token, agent_id, task_id)
+            return
+        if status in {"failed", "cancelled"}:
+            raise RuntimeError(f"Deployment task ended with status={status}")
+        time.sleep(2)
+    raise RuntimeError("Worker did not finish the deployment task within 120 seconds")
+
+
+def _verify_task_evidence(
+    api_base: str, token: str, agent_id: str, task_id: str
+) -> None:
+    """Require a persisted assistant message and execution ID for the exact task."""
+    messages = request(api_base, f"/tasks/{task_id}/messages", token=token)
+    if not isinstance(messages, dict) or not any(
+        item.get("role") == "assistant" and item.get("content")
+        for item in messages.get("items", [])
+    ):
+        raise RuntimeError("Completed task has no persisted assistant message")
+    tasks = request(
+        api_base,
+        f"/tasks?agent_id={agent_id}&include_execution=true&limit=100",
+        token=token,
+    )
+    if not isinstance(tasks, dict):
+        raise RuntimeError("Task execution summary returned an invalid response")
+    row = next(item for item in tasks["items"] if item["task_id"] == task_id)
+    run_id = row.get("execution", {}).get("agent_run_id")
+    if not run_id:
+        raise RuntimeError("Completed task has no persisted execution ID")
 
 
 if __name__ == "__main__":

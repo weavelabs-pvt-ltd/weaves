@@ -153,14 +153,14 @@ def test_postgres_trigger_disable_serializes_with_delivery_across_runtime_pools(
     allow_enqueue = Event()
     disable_started = Event()
     disable_finished = Event()
-    actual_enqueue = first.enqueue_agent_run
+    actual_enqueue = first.workflow_automation_service.enqueue_agent_run
 
     def paused_enqueue(*args, **kwargs):
         enqueue_entered.set()
         assert allow_enqueue.wait(timeout=5)
         return actual_enqueue(*args, **kwargs)
 
-    first.enqueue_agent_run = paused_enqueue
+    first.workflow_automation_service.enqueue_agent_run = paused_enqueue
 
     def disable_trigger():
         disable_started.set()

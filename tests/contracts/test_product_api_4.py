@@ -442,7 +442,9 @@ def _assert_agent_task_lifecycle(client, runtime, agent, updated):
         agent_run.agent_version_id
         == updated.json()["current_version"]["agent_version_id"]
     )
-    assert artifacts[0].provenance == ()
+    assert len(artifacts[0].provenance) == 1
+    assert artifacts[0].provenance[0].source_type == "agent.run"
+    assert artifacts[0].provenance[0].source_ref == agent_run.agent_run_id
     invocations = [
         item for item in runtime.tool_invocations.list() if item.run_id == run_id
     ]

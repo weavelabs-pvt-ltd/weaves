@@ -42,9 +42,11 @@ class RuntimeFoundationMixin(RuntimeRepositoryBindingMixin, RuntimeCoordinationM
         advisory_transaction_lock: Callable[[str], None] | None,
         close_storage: Callable[[], None],
         check_storage: Callable[[], None],
+        seed_local_defaults: bool = True,
     ) -> None:
         """Bind application ports and adapters built by a process composition root."""
         self.storage_mode = storage_mode
+        self.seed_local_defaults = seed_local_defaults
         self.secret_store = secret_store
         self.login_rate_limiter = login_rate_limiter
         self.onboarding_rate_limiter = onboarding_rate_limiter

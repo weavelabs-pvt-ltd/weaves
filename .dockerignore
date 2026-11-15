@@ -9,3 +9,12 @@ tests
 scripts
 examples
 requirements-dev.txt
+
+.env
+.env.*
+.local
+.cache
+infra
+docs
+preview.py
+gha-creds-*.json

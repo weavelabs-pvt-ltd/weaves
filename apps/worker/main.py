@@ -2,8 +2,10 @@
 
 import logging
 import os
+import signal
 import socket
 import time
+from threading import Event
 from uuid import uuid4
 
 from apps.worker.services import WorkerServices
@@ -45,6 +47,8 @@ def main() -> None:
         raise ValueError("WEAVES_SCHEDULE_POLL_SECONDS must be between 0.5 and 60")
     worker_id = os.environ.get("WEAVES_WORKER_ID", "").strip()
     worker_id = worker_id or f"{socket.gethostname()}-{uuid4().hex[:12]}"
+    stopping = Event()
+    signal.signal(signal.SIGTERM, lambda *_: stopping.set())
     services = build_worker_services()
     try:
         if services.storage_mode != "postgres":
@@ -53,7 +57,7 @@ def main() -> None:
         logger.info("product execution worker started worker_id=%s", worker_id)
         last_recovery = time.monotonic()
         last_schedule_poll = 0.0
-        while True:
+        while not stopping.is_set():
             try:
                 if time.monotonic() - last_recovery >= 30:
                     _recover_worker_state(services)
@@ -71,7 +75,11 @@ def main() -> None:
                 if services.studio is not None:
                     services.studio.tick()
                 job = services.execution.process_next_execution_job(worker_id)
-                turn = services.tasks.process_next_turn(worker_id)
+                turn = (
+                    None
+                    if stopping.is_set()
+                    else services.tasks.process_next_turn(worker_id)
+                )
                 if turn is not None:
                     logger.info(
                         "task turn finished turn_id=%s status=%s",
@@ -79,7 +87,7 @@ def main() -> None:
                         turn.status.value,
                     )
                 if job is None and turn is None:
-                    time.sleep(interval)
+                    stopping.wait(interval)
                     continue
                 if job is not None:
                     logger.info(
@@ -92,7 +100,7 @@ def main() -> None:
                 raise
             except Exception:
                 logger.exception("product execution worker iteration failed")
-                time.sleep(interval)
+                stopping.wait(interval)
     except KeyboardInterrupt:
         logger.info("product execution worker stopped worker_id=%s", worker_id)
     finally:

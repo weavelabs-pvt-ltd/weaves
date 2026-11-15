@@ -16,6 +16,8 @@ from contracts.v1 import (
     WorkflowConditionOperator,
     WorkflowStepCondition,
 )
+from shared.clock import utc_now
+from tests.support.connected_context import connect_slack
 from tests.support.runtime import LocalPlatformRuntime
 
 
@@ -42,6 +44,9 @@ def test_conversation_thread_sends_bounded_prior_turns_to_model():
             org_id="local-org",
             workspace_id="local-workspace",
             title="Follow up",
+            agent_id="local-assistant",
+            created_at=utc_now(),
+            updated_at=utc_now(),
         )
     )
 
@@ -78,8 +83,6 @@ def test_agent_run_persists_responses_longer_than_old_artifact_summary_limit():
     assert len(result.artifact.summary) > 20_000
     assert result.agent_run.output_summary is not None
     assert len(result.agent_run.output_summary["response"]) > 20_000
-
-
 
 
 def test_ten_step_workflow_bounds_prior_artifacts_in_model_requests():
@@ -265,10 +268,11 @@ def test_invalid_provider_response_is_sanitized_and_fails_the_run():
 
 def test_agent_tool_call_budget_skips_excess_context_capabilities():
     runtime = LocalPlatformRuntime()
+    capability = connect_slack(runtime)
     agent = runtime.agent_service.create_agent(
         name="No context calls",
         instructions="Answer from the request alone.",
-        allowed_capability_ids=(),
+        allowed_capability_ids=(capability,),
         budget=AgentBudget(max_tool_calls=0),
     )
 
@@ -277,7 +281,7 @@ def test_agent_tool_call_budget_skips_excess_context_capabilities():
     assert result.tool_invocations == ()
     assert result.agent_run.output_summary is not None
     assert result.agent_run.output_summary["budget_skipped_capability_ids"] == [
-        "github.issues.search"
+        "slack.messages.search"
     ]
     assert "tool-call budget was reached" in result.artifact.summary
 
@@ -315,8 +319,11 @@ def test_runtime_timeout_after_model_completion_retains_reported_usage(monkeypat
         budget=AgentBudget(max_runtime_seconds=1),
     )
 
+    clock = {"now": 100.0}
+
     class SlowModel:
         def complete(self, request, binding):
+            clock["now"] = 102.0
             return ModelResponse(
                 provider_id=binding.provider.id,
                 model_id=binding.profile.model,
@@ -326,13 +333,11 @@ def test_runtime_timeout_after_model_completion_retains_reported_usage(monkeypat
 
     runtime.model_adapters[ModelProviderType.LOCAL] = SlowModel()
     runtime.agent_execution_service.model_gateway = ModelGateway(runtime.model_adapters)
-    ticks = iter((100.0, 100.0, 100.0, 102.0))
     monkeypatch.setattr(
-        "modules.agents.runtime_run_lifecycle.monotonic", lambda: next(ticks)
+        "modules.agents.runtime_run_lifecycle.monotonic", lambda: clock["now"]
     )
-    error_ticks = iter((100.0, 100.0, 102.0))
     monkeypatch.setattr(
-        "modules.agents.runtime_run_errors.monotonic", lambda: next(error_ticks)
+        "modules.agents.runtime_run_errors.monotonic", lambda: clock["now"]
     )
 
     with pytest.raises(AgentRuntimeBudgetExceeded):

@@ -11,6 +11,7 @@ from contracts.v1 import (
     RunStatus,
     TaskTurnStatus,
 )
+from tests.support.connected_context import connect_slack
 from tests.support.runtime import LocalPlatformRuntime
 
 
@@ -333,6 +334,10 @@ def test_worker_preserves_success_if_cancel_races_after_run_completion(monkeypat
 
 def test_agent_job_cancellation_stops_before_model_after_context_call(monkeypatch):
     runtime = LocalPlatformRuntime()
+    capability = connect_slack(runtime)
+    runtime.agent_service.update_agent(
+        "local-assistant", allowed_capability_ids=(capability,)
+    )
     job, _ = runtime.enqueue_agent_run("Cancel after collecting context")
     original_invoke = runtime.plugin_gateway.invoke
     original_complete = runtime.model_gateway.complete
@@ -363,7 +368,7 @@ def test_agent_job_cancellation_stops_before_model_after_context_call(monkeypatc
     )
 
 
-def test_agent_job_finishes_successfully_if_cancel_arrives_during_final_model_call(
+def test_agent_job_cancellation_after_model_prevents_result_publication(
     monkeypatch,
 ):
     runtime = LocalPlatformRuntime()
@@ -379,6 +384,6 @@ def test_agent_job_finishes_successfully_if_cancel_arrives_during_final_model_ca
     completed = runtime.process_next_execution_job("agent-late-cancel-worker")
 
     assert completed is not None
-    assert completed.status is ExecutionJobStatus.SUCCEEDED
+    assert completed.status is ExecutionJobStatus.CANCELLED
     assert completed.run_id is not None
-    assert runtime.runs.get(completed.run_id).status is RunStatus.SUCCEEDED
+    assert runtime.runs.get(completed.run_id).status is RunStatus.CANCELLED

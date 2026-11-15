@@ -6,7 +6,7 @@ import hashlib
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
 from datetime import datetime
-from typing import Protocol, cast
+from typing import Protocol, TypedDict, cast
 
 from application.ports.repository import Repository
 from clients.model_providers.gateway import ModelAdapter, ModelGatewayError
@@ -15,9 +15,9 @@ from contracts.v1 import (
     AuditTargetScope,
     ModelProfile,
     ModelProfileStatus,
-    ModelTrait,
     ModelProviderStatus,
     ModelProviderType,
+    ModelTrait,
     Permission,
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
@@ -36,9 +36,17 @@ class ModelCatalogAdapter(ModelAdapter, Protocol):
         ...
 
 
+class ModelCardMetadata(TypedDict):
+    """Display-only fields derived from a provider's model identifier."""
+
+    context_window_tokens: int | None
+    model_traits: list[ModelTrait]
+    model_description: str | None
+
+
 def model_card_metadata(
     provider_type: ModelProviderType, model_id: str
-) -> dict[str, object]:
+) -> ModelCardMetadata:
     """Return curated display metadata when the provider catalog exposes only IDs."""
     model = model_id.lower().replace(".", "-")
     descriptions = {
@@ -50,14 +58,10 @@ def model_card_metadata(
         "claude-haiku-4-5": "Fast extraction and summaries.",
     }
     description = descriptions.get(model)
-    if any(
-        token in model
-        for token in ("opus", "o1", "o3", "o4", "astra", "reason")
-    ):
+    if any(token in model for token in ("opus", "o1", "o3", "o4", "astra", "reason")):
         trait = ModelTrait.REASONING
     elif any(
-        token in model
-        for token in ("mini", "nano", "haiku", "flash", "lite", "luna")
+        token in model for token in ("mini", "nano", "haiku", "flash", "lite", "luna")
     ):
         trait = ModelTrait.FAST
     else:

@@ -31,20 +31,6 @@ def test_product_api_bounds_requests_and_rejects_unknown_agents():
         assert client.get("/api/v0/memory-items").status_code == 404
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def test_model_profile_rates_produce_per_run_cost_estimates():
     runtime = LocalPlatformRuntime()
     client = TestClient(create_app(runtime))

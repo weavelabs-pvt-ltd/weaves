@@ -45,7 +45,10 @@ def test_standard_role_bundles_and_legacy_role_payload_compatibility():
         Permission.TASKS_CREATE,
         Permission.MODELS_VIEW,
         Permission.PLUGINS_VIEW,
-        Permission.KNOWLEDGE_VIEW,
+        Permission.SKILLS_VIEW,
+        Permission.SKILLS_USE,
+        Permission.SKILLS_PERSONAL_MANAGE,
+        Permission.SKILLS_ORG_PUBLISH,
         Permission.ARTIFACTS_READ,
     }
     assert Permission.AGENTS_MANAGE in builder.permissions
@@ -102,7 +105,13 @@ def test_legacy_owner_role_is_adopted_without_changing_its_binding():
             Permission.WORKFLOWS_VIEW,
             Permission.MODELS_VIEW,
             Permission.PLUGINS_VIEW,
-            Permission.KNOWLEDGE_VIEW,
+            Permission.SKILLS_VIEW,
+            Permission.SKILLS_USE,
+            Permission.SKILLS_PERSONAL_MANAGE,
+            Permission.SKILLS_ORG_PUBLISH,
+            Permission.TASKS_VIEW,
+            Permission.TASKS_CREATE,
+            Permission.TASKS_MANAGE,
         }
     ]
     legacy_role = Role(
@@ -126,6 +135,7 @@ def test_legacy_owner_role_is_adopted_without_changing_its_binding():
 
     adopted = runtime.roles.get(legacy_role.id)
     assert adopted.system_role_key == "admin"
+    assert set(adopted.permissions) == set(Permission)
     assert adopted.id == legacy_role.id
     assert runtime.role_bindings.get(legacy_binding.id) == legacy_binding
     assert (
@@ -138,6 +148,49 @@ def test_legacy_owner_role_is_adopted_without_changing_its_binding():
         )
         == 1
     )
+
+
+def test_existing_admin_adopts_only_org_wide_legacy_owner_bindings():
+    runtime = LocalPlatformRuntime(postgres_store=None)
+    runtime.bootstrap()
+    legacy = Role(
+        id="old-owner-role",
+        org_id="local-org",
+        name="Organization owner",
+        permissions=[
+            permission
+            for permission in Permission
+            if not permission.value.startswith(("tasks.", "skills."))
+        ],
+    )
+    runtime.roles.create(legacy)
+    owner_binding = RoleBinding(
+        id="old-owner-binding",
+        org_id="local-org",
+        principal_id="existing-owner",
+        role_id=legacy.id,
+        workspace_id=None,
+        created_at=utc_now(),
+    )
+    scoped_binding = owner_binding.model_copy(
+        update={"id": "scoped-owner-binding", "workspace_id": "local-workspace"}
+    )
+    runtime.role_bindings.create(owner_binding)
+    runtime.role_bindings.create(scoped_binding)
+
+    runtime.identity_bootstrap_service.seed_standard_roles()
+    runtime.identity_bootstrap_service.seed_standard_roles()
+
+    admin = next(
+        role
+        for role in runtime.roles.list_scoped("local-org")
+        if role.system_role_key == "admin"
+    )
+    assert runtime.role_bindings.get(owner_binding.id) == owner_binding.model_copy(
+        update={"role_id": admin.id}
+    )
+    assert runtime.role_bindings.get(scoped_binding.id) == scoped_binding
+    assert runtime.roles.get(legacy.id) == legacy
 
 
 def test_legacy_manage_permissions_backfill_views_without_widening_run_only_roles():
@@ -173,7 +226,7 @@ def test_legacy_manage_permissions_backfill_views_without_widening_run_only_role
     assert Permission.AGENTS_VIEW not in repaired_runner.permissions
     assert Permission.WORKFLOWS_VIEW in repaired_workflow_runner.permissions
     assert Permission.PLUGINS_VIEW in repaired_plugin_manager.permissions
-    assert Permission.KNOWLEDGE_VIEW in repaired_plugin_manager.permissions
+    assert Permission.SKILLS_PERSONAL_MANAGE not in repaired_plugin_manager.permissions
 
 
 def test_concurrent_role_replacements_leave_one_workspace_binding():

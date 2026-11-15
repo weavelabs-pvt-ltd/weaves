@@ -1,0 +1,91 @@
+name: weaves-single
+x-runtime: &runtime
+  DATABASE_URL: postgresql://weaves:${POSTGRES_PASSWORD:?required}@postgres:5432/weaves
+  WEAVES_SECRET_ENCRYPTION_KEY: ${WEAVES_SECRET_ENCRYPTION_KEY:?required}
+  WEAVES_DB_POOL_MAX_SIZE: "4"
+  WEAVES_SEED_LOCAL_DEFAULTS: "false"
+  WEAVES_HTTP_MAX_CONNECTIONS: "20"
+  WEAVES_HTTP_MAX_KEEPALIVE_CONNECTIONS: "10"
+x-defaults: &defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+services:
+  postgres:
+    <<: *defaults
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: weaves
+      POSTGRES_USER: weaves
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U weaves -d weaves"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  product-api:
+    <<: *defaults
+    image: ${BACKEND_IMAGE:?required}
+    command: uvicorn apps.api.app:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*
+    environment:
+      <<: *runtime
+      WEAVES_ALLOW_ORGANIZATION_ONBOARDING: "false"
+      WEAVES_SSO_SESSION_SECRET: ${WEAVES_SSO_SESSION_SECRET:?required}
+      WEAVES_PUBLIC_FRONTEND_URL: https://app.weave-studio.in
+      WEAVES_PUBLIC_API_BASE_URL: https://api.weave-studio.in
+      CORS_ORIGINS: https://app.weave-studio.in
+    ports:
+      - 127.0.0.1:8001:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://localhost:8000/api/v0/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+  product-worker:
+    <<: *defaults
+    image: ${BACKEND_IMAGE:?required}
+    command: python -m apps.worker.main
+    environment:
+      <<: *runtime
+      WEAVES_WORKER_POLL_SECONDS: "3"
+    depends_on:
+      product-api:
+        condition: service_healthy
+  frontend:
+    <<: *defaults
+    image: ${FRONTEND_IMAGE:?required}
+    environment:
+      WEAVES_API_BASE: https://api.weave-studio.in/api/v0
+      WEAVES_PUBLIC_REGISTRATION: "false"
+      WEAVES_APP_ORIGIN: https://app.weave-studio.in
+      WEAVES_WEBSITE_ORIGIN: https://weave-studio.in
+    ports:
+      - 127.0.0.1:8080:8080
+    depends_on:
+      product-api:
+        condition: service_healthy
+  gateway:
+    <<: *defaults
+    image: caddy:2-alpine
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - certificates:/data
+      - gateway_config:/config
+    depends_on:
+      - frontend
+volumes:
+  database:
+  certificates:
+  gateway_config:

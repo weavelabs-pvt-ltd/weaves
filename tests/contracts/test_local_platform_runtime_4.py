@@ -163,7 +163,9 @@ def test_local_runtime_bootstraps_and_completes_a_scoped_mock_run():
     assert result.agent_run.agent_version_id == "local-assistant-v1"
     assert result.agent_run.resolved_provider_id == "local-mock-provider"
     assert result.tool_invocation is None
-    assert result.artifact.provenance == ()
+    assert len(result.artifact.provenance) == 1
+    assert result.artifact.provenance[0].source_type == "agent.run"
+    assert result.artifact.provenance[0].source_ref == result.agent_run.agent_run_id
     assert "Local assistant response" in result.artifact.summary
     assert result.audit_event.workspace_id == result.run.workspace_id
     assert runtime.runs.get(result.run.run_id) == result.run
@@ -214,12 +216,6 @@ def test_in_memory_unit_of_work_rolls_back_all_repository_changes():
 
     assert runtime.workspaces.get("local-workspace").name == "Default workspace"
     assert runtime.roles.get("local-developer-role") == role
-
-
-
-
-
-
 
 
 def test_repository_does_not_expose_mutable_internal_records():

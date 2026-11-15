@@ -1,7 +1,7 @@
 """Versioned workflow canvas plans and durable execution progress."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, NotRequired, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
@@ -57,6 +57,20 @@ class CanvasSettings(MutableWorkspaceScopedContract):
     last_error: str | None = None
 
 
+class CanvasStepState(TypedDict):
+    """Persisted progress for one step, preserving the existing JSON shape."""
+
+    id: str
+    status: str
+    tasks: list[str]
+    attempt: int
+    output: str
+    started_at: NotRequired[str]
+    finished_at: NotRequired[str]
+    decision_by: NotRequired[str]
+    matched: NotRequired[bool]
+
+
 class CanvasRun(MutableWorkspaceScopedContract):
     """Durable workflow execution; each child task uses the existing task queue."""
 
@@ -71,7 +85,7 @@ class CanvasRun(MutableWorkspaceScopedContract):
     idempotency_key: str | None = None
     status: str = "queued"
     plan: dict[str, JsonValue]
-    states: list[dict[str, JsonValue]]
+    states: list[CanvasStepState]
     started_at: datetime | None = None
     finished_at: datetime | None = None
     summary: str = ""

@@ -10,16 +10,21 @@ class RuntimeBootstrapMixin(RuntimeCapabilityHost):
     """Own runtime initialization and built-in seed records."""
 
     def bootstrap(self) -> None:
-        """Create a deterministic local org, workspace, model, plugin, and agent."""
+        """Initialize catalogs and optionally create local development examples."""
         if self._bootstrapped:
             return
         now = _now()
-        self.identity_bootstrap_service.seed_local_organization(now)
-        self.identity_bootstrap_service.seed_local_developer(now)
+        if self.seed_local_defaults:
+            self.identity_bootstrap_service.seed_local_organization(now)
+            self.identity_bootstrap_service.seed_local_developer(now)
         self.identity_bootstrap_service.seed_standard_roles()
-        self.model_bootstrap_service.seed(now)
-        self.integration_bootstrap_service.seed(now)
-        self.agent_bootstrap_service.seed_local_assistant(now)
+        if self.seed_local_defaults:
+            self.model_bootstrap_service.seed(now)
+        self.integration_bootstrap_service.seed(
+            now, seed_local_policy=self.seed_local_defaults
+        )
+        if self.seed_local_defaults:
+            self.agent_bootstrap_service.seed_local_assistant(now)
         self.model_bootstrap_service.repair_profile_allowlists()
         self.recover_stale_runs()
         self.recover_stale_execution_jobs()

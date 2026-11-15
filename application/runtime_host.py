@@ -62,6 +62,7 @@ class RuntimeCapabilityHost:
     """Composition boundary for capability use cases on the local runtime."""
 
     _bootstrapped: bool
+    seed_local_defaults: bool
     evaluation_service: EvaluationService
     recovery_service: ExecutionRecoveryService
     action_recovery_service: ActionRecoveryService

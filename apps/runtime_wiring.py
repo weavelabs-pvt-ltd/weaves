@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import Literal, cast
@@ -33,11 +34,18 @@ def open_process_runtime(
 ) -> LocalPlatformRuntime:
     """Open process-scoped pools and compose the application runtime."""
     settings = load_pool_settings(process=process)
+    local_seeds = os.environ.get("WEAVES_SEED_LOCAL_DEFAULTS", "true").strip().lower()
+    if local_seeds not in {"true", "false", "1", "0", "yes", "no"}:
+        raise ValueError("WEAVES_SEED_LOCAL_DEFAULTS must be true or false")
     http_client = open_http_client(settings)
     store: ProductPostgresStore | None = None
     try:
         store = _open_store(settings)
-        return compose_platform_runtime(http_client=http_client, store=store)
+        return compose_platform_runtime(
+            http_client=http_client,
+            store=store,
+            seed_local_defaults=local_seeds in {"true", "1", "yes"},
+        )
     except Exception:
         http_client.close()
         if store is not None:
@@ -59,7 +67,10 @@ def _open_store(settings: PoolSettings) -> ProductPostgresStore | None:
 
 
 def compose_platform_runtime(
-    *, http_client: httpx.Client, store: ProductPostgresStore | None
+    *,
+    http_client: httpx.Client,
+    store: ProductPostgresStore | None,
+    seed_local_defaults: bool = True,
 ) -> LocalPlatformRuntime:
     """Build persistence, adapter, and lifecycle dependencies for one process."""
     repositories = create_product_repository_set(store)
@@ -74,6 +85,7 @@ def compose_platform_runtime(
     runtime = LocalPlatformRuntime(
         http_client=http_client,
         storage_mode="postgres" if store is not None else "memory",
+        seed_local_defaults=seed_local_defaults,
         repository_set=repositories,
         secret_store=secret_store,
         login_rate_limiter=login_limiter,

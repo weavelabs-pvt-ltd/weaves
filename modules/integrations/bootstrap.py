@@ -121,13 +121,14 @@ class IntegrationBootstrapService:
             except ValueError:
                 return repository.get(record_id)
 
-    def seed(self, now: datetime) -> None:
+    def seed(self, now: datetime, *, seed_local_policy: bool = True) -> None:
         """Seed built-in connector descriptors and the default approval policy."""
         jira_comment, jira_search = self._seed_builtin_capabilities()
         self._seed_github_plugin()
         self._seed_slack_plugin()
         self._seed_jira_plugin(jira_comment, jira_search)
-        self._seed_default_policy(now)
+        if seed_local_policy:
+            self._seed_default_policy(now)
 
     def _seed_builtin_capabilities(
         self,

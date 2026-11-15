@@ -23,6 +23,7 @@ from modules.skills.service import SkillsService
 from modules.tasks.service import TaskService
 from modules.workflows.automation_service import WorkflowAutomationService
 from modules.workflows.definition_service import WorkflowDefinitionService
+from modules.workflows.studio_service import WorkflowStudioService
 
 
 @dataclass(frozen=True)
@@ -42,7 +43,7 @@ class ApiRouteServices:
     oauth: OAuthRouteDependencies
     agents: AgentService
     evaluations: EvaluationService
-    workflow_studio: object
+    workflow_studio: WorkflowStudioService
     workflow_definition: WorkflowDefinitionService
     workflow_automation: WorkflowAutomationService
     governance: GovernanceService

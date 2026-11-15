@@ -6,7 +6,15 @@ from collections.abc import Callable
 from threading import Event
 from typing import TYPE_CHECKING
 
-from contracts.v1 import ApiCredential, Permission, Principal, Role, User, UserSession
+from contracts.v1 import (
+    AgentSkillSnapshot,
+    ApiCredential,
+    Permission,
+    Principal,
+    Role,
+    User,
+    UserSession,
+)
 from modules.workflows.runtime_result import RuntimeResult
 
 if TYPE_CHECKING:
@@ -34,6 +42,7 @@ class RuntimeAuthExecutionCompatibilityMixin:
         agent_version_id: str | None = None,
         _cancellation_event: Event | None = None,
         _cancellation_check: Callable[[], bool] | None = None,
+        _runtime_skill_snapshots: tuple[AgentSkillSnapshot, ...] = (),
     ) -> RuntimeResult:
         """Delegate agent execution while preserving runtime callers."""
         return self.agent_execution_service.run_agent(
@@ -46,6 +55,7 @@ class RuntimeAuthExecutionCompatibilityMixin:
             agent_version_id=agent_version_id,
             _cancellation_event=_cancellation_event,
             _cancellation_check=_cancellation_check,
+            _runtime_skill_snapshots=_runtime_skill_snapshots,
         )
 
     def create_service_account(

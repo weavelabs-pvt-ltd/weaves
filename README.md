@@ -8,6 +8,10 @@ storage adapter.
 The dashboard is maintained separately in
 [`weavelabs-pvt-ltd/weaves-app`](https://github.com/weavelabs-pvt-ltd/weaves-app).
 
+The personal public environment runs on one VM; see
+[current deployment operations](infra/gcp/singlevm/README.md). Production sets
+`WEAVES_SEED_LOCAL_DEFAULTS=false` so local demo accounts and work are not seeded.
+
 ## Run the backend
 
 Requirements: Docker Compose.
@@ -197,3 +201,5 @@ production deployment hardening remain follow-up work. See
 [`docs/product-execution-queue.md`](docs/product-execution-queue.md), and
 [`docs/product-workflows-v0.md`](docs/product-workflows-v0.md) for detailed
 boundaries.
+
+Code quality commands and verification scope are documented in [QUALITY.md](QUALITY.md).

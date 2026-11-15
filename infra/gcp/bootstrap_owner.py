@@ -59,9 +59,9 @@ def main() -> int:
     created = request(
         f"{api_base}/onboarding/organizations",
         payload={
-            "name": "Weaves Production",
+            "name": os.environ.get("WEAVES_OWNER_ORGANIZATION", "Weaves Production"),
             "owner_email": email,
-            "owner_display_name": "Weaves Admin",
+            "owner_display_name": os.environ.get("WEAVES_OWNER_NAME", "Weaves Admin"),
         },
         onboarding_token=onboarding_token,
     )

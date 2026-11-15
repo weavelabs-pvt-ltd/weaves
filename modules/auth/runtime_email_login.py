@@ -82,7 +82,7 @@ class EmailLoginRuntimeMixin(ABC):
             return _id()
         user = matches[0]
         principal = self.principals.find_by_field("user_id", user.id)
-        if not self._eligible_for_email_login(user, principal):
+        if principal is None or not self._eligible_for_email_login(user, principal):
             return _id()
         challenge, code = self._new_email_login_challenge(user, principal)
         with self._unit_of_work():

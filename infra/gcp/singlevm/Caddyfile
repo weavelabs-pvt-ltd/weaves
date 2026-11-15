@@ -1,0 +1,18 @@
+(public_tls) {
+	tls {
+		issuer acme {
+			disable_tlsalpn_challenge
+		}
+	}
+}
+
+weave-studio.in, www.weave-studio.in, app.weave-studio.in {
+	import public_tls
+	encode zstd gzip
+	reverse_proxy frontend:8080
+}
+
+api.weave-studio.in {
+	import public_tls
+	reverse_proxy product-api:8000
+}
