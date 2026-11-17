@@ -110,6 +110,17 @@ def test_product_postgres_migration_skips_applied_versions():
     )
 
 
+def test_compatibility_release_reads_schema_19_without_applying_it():
+    connection = RecordingConnection(rows=[(version,) for version in range(1, 20)])
+    store = ProductPostgresStore.__new__(ProductPostgresStore)
+    store.pool = RecordingPool(connection)
+    store._migrate()
+    assert not any(
+        "INSERT INTO product_schema_migrations" in sql
+        for sql, _ in connection.statements
+    )
+
+
 def test_product_postgres_migration_rejects_newer_database_schema():
     connection = RecordingConnection(rows=[(20,)])
     store = ProductPostgresStore.__new__(ProductPostgresStore)
