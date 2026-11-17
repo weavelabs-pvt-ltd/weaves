@@ -81,9 +81,17 @@ Pushing/merging to `main` automatically deploys the backend to the single VM aft
 - [ ] Frontend cookie session, CSRF header, success handling, and same-origin `/api/v0` integration.
 - [ ] Organization sign-in policy, password/email-code enforcement, session policy and connection-disable revocation, audited recovery and domain verification.
 - [ ] Secure production credential injection and provider callback registration.
-- [ ] Establish a rollback-compatible release before applying migration 19: the current previous image rejects ledger versions above 18, so ordinary image rollback cannot start it after this migration.
-- [ ] Staging browser tests with real Google/Microsoft/Zoho accounts; CI on Python 3.12; backup/rollback rehearsal.
+- [x] Deployed compatibility baseline `a2d0b0e`; production remained on schema 18 before the foundation cutover. The actual baseline image passed the isolated schema-19/session rollback rehearsal.
+- [x] Python 3.12 CI and PostgreSQL coverage; isolated rollback rehearsal with the deployed baseline image.
+- [ ] Staging browser tests with real Google/Microsoft/Zoho accounts.
 - [ ] Pilot one organization before broader SSO enforcement.
 - [ ] Subsequent customer-required SCIM, group mapping/JIT policy, and SAML delivery.
 
-Before releasing the foundation, first prepare and test a rollback target that can start with migration 19 applied. The current previous application image rejects unknown schema versions above 18; restoring its image/configuration after this migration would fail startup. This blocks deployment until a compatible baseline release or a separately reviewed recovery strategy is available. Do not assume the existing automatic image rollback is sufficient, and never reset the production database to undo an application release. Once that gate is met, release with browser SSO inactive and cut over after the pending first-release items pass. The current single VM has restart downtime and no high availability.
+Release the foundation with browser SSO inactive, using the verified compatibility
+baseline as the previous image. The baseline reads schema 19 and new session
+channels; ordinary bearer writes retain the legacy shape. See the
+[rollout and rehearsal record](infra/gcp/singlevm/SSO_ROLLOUT.md). Do not roll back
+to older pre-baseline images, reset the database, or restore a stale data dump to
+undo an application release. Provider/browser cutover remains gated on the
+pending first-release items above. The single VM has restart downtime and no
+high availability.
