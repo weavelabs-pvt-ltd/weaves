@@ -8,6 +8,7 @@ from modules.auth.authentication_service import AuthenticationService
 from modules.auth.bootstrap import IdentityBootstrapService
 from modules.auth.credential_service import CredentialService
 from modules.auth.organization_service import OrganizationService
+from modules.auth.sso_identity_service import SsoIdentityService
 from modules.auth.user_administration_service import UserAdministrationService
 from modules.auth.workspace_access_service import WorkspaceAccessService
 
@@ -30,6 +31,21 @@ def _configure_authentication_service(
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,
         authenticate_principal=dependencies.authenticate_principal,
+        unit_of_work=dependencies._unit_of_work,
+    )
+
+
+def _configure_sso_identity_service(
+    dependencies: RuntimeCompositionInputs, services: CapabilityServiceSet
+) -> None:
+    """Compose tenant-scoped external subject bindings."""
+    services.sso_identity_service = SsoIdentityService(
+        connections=dependencies.sso_connections,
+        identities=dependencies.sso_external_identities,
+        users=dependencies.users,
+        principals=dependencies.principals,
+        audit_events=dependencies.audit_events,
+        authorize_organization=dependencies.authorize_organization,
         unit_of_work=dependencies._unit_of_work,
     )
 

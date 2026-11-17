@@ -31,6 +31,8 @@ from contracts.v1 import (
     SkillPublication,
     SkillRevocation,
     SkillVersion,
+    SsoConnection,
+    SsoExternalIdentity,
     Task,
     TaskMessage,
     TaskTurn,
@@ -60,6 +62,8 @@ REPOSITORY_SPECS: tuple[tuple[str, str, str, type[ProductContract]], ...] = (
     ("api_credentials", "api_credentials", "id", ApiCredential),
     ("user_passwords", "user_passwords", "id", UserPasswordCredential),
     ("user_sessions", "user_sessions", "id", UserSession),
+    ("sso_connections", "sso_connections", "id", SsoConnection),
+    ("sso_external_identities", "sso_external_identities", "id", SsoExternalIdentity),
     (
         "email_login_challenges",
         "email_login_challenges",

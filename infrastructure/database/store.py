@@ -291,6 +291,35 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
                    WHERE collection = 'skill_revocations'""",
         ),
     ),
+    (
+        19,
+        (
+            """CREATE UNIQUE INDEX IF NOT EXISTS sso_identity_subject_uq
+                   ON product_records
+                     (org_id, (payload->>'connection_id'),
+                      (payload->>'issuer'), (payload->>'subject'))
+                   WHERE collection = 'sso_external_identities'""",
+            """CREATE UNIQUE INDEX IF NOT EXISTS sso_identity_user_connection_uq
+                   ON product_records
+                     (org_id, (payload->>'connection_id'),
+                      (payload->>'user_id'))
+                   WHERE collection = 'sso_external_identities'""",
+            """CREATE INDEX IF NOT EXISTS sso_connections_org_provider_idx
+                   ON product_records (org_id, (payload->>'provider'))
+                   WHERE collection = 'sso_connections'""",
+            """CREATE OR REPLACE FUNCTION reject_sso_identity_rewrite()
+                   RETURNS trigger LANGUAGE plpgsql AS $$
+                   BEGIN
+                     IF OLD.collection = 'sso_external_identities' THEN
+                       RAISE EXCEPTION 'SSO identity bindings are immutable';
+                     END IF;
+                     RETURN NEW;
+                   END $$""",
+            """CREATE TRIGGER sso_identity_immutable
+                   BEFORE UPDATE ON product_records
+                   FOR EACH ROW EXECUTE FUNCTION reject_sso_identity_rewrite()""",
+        ),
+    ),
 )
 
 

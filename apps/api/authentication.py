@@ -6,12 +6,20 @@ import json
 import os
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from starlette.responses import JSONResponse
 
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.credential_service import CredentialService
+from modules.auth.http.browser_sessions import (
+    COOKIE_NAME,
+    CSRF_HEADER,
+    browser_origin,
+    browser_sessions_configured,
+    csrf_valid,
+)
 from modules.auth.organization_service import OrganizationService
 from shared.request_context import reset_request_principal, set_request_identity
 
@@ -78,6 +86,80 @@ def _load_api_tokens() -> dict[str, str]:
     return api_tokens
 
 
+def _cookie_principal(
+    request: Request, services: AuthenticationServices, token: str
+) -> str | JSONResponse:
+    """Validate same-origin cookie traffic before resolving its principal."""
+    expected_origin = browser_origin()
+    if (
+        not browser_sessions_configured()
+        or request.headers.get("host", "") != urlsplit(expected_origin).netloc
+        or request.url.scheme != urlsplit(expected_origin).scheme
+    ):
+        return JSONResponse(
+            content={"detail": "Browser session unavailable"}, status_code=401
+        )
+    if request.headers.get(
+        "origin", expected_origin
+    ) != expected_origin or request.headers.get(
+        "sec-fetch-site", "same-origin"
+    ) not in {"same-origin", "none"}:
+        return JSONResponse(
+            content={"detail": "Cross-origin request rejected"}, status_code=403
+        )
+    if request.method not in {"GET", "HEAD"} and (
+        request.headers.get("origin") != expected_origin
+        or request.headers.get("sec-fetch-site", "same-origin") != "same-origin"
+        or not csrf_valid(token, request.headers.get(CSRF_HEADER, ""))
+    ):
+        return JSONResponse(content={"detail": "CSRF check failed"}, status_code=403)
+    principal_id = services.authentication.authenticate_user_session(
+        token, channel="browser"
+    )
+    if not principal_id:
+        return JSONResponse(
+            content={"detail": "Browser session invalid"}, status_code=401
+        )
+    return principal_id
+
+
+def _bearer_principal(
+    authorization: str, services: AuthenticationServices, api_tokens: dict[str, str]
+) -> str | JSONResponse:
+    """Preserve the existing static-token, API-token, and bearer-session path."""
+    scheme, separator, supplied_token = authorization.partition(" ")
+    if not separator or scheme.casefold() != "bearer":
+        return JSONResponse(
+            content={"detail": "Invalid or missing bearer token"},
+            status_code=401,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    digest = hashlib.sha256(supplied_token.encode("utf-8")).hexdigest()
+    mapped_principal = next(
+        (
+            candidate
+            for configured_digest, candidate in api_tokens.items()
+            if hmac.compare_digest(digest, configured_digest)
+        ),
+        None,
+    )
+    try:
+        if mapped_principal is not None:
+            return services.credentials.authenticate_principal(mapped_principal)
+        principal_id = services.authentication.authenticate_api_token(
+            supplied_token
+        ) or services.authentication.authenticate_user_session(supplied_token)
+        if not principal_id:
+            raise PermissionError("unknown or revoked token")
+        return principal_id
+    except (KeyError, PermissionError):
+        return JSONResponse(
+            content={"detail": "Invalid or disabled bearer token subject"},
+            status_code=401,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 def install_authentication(app: FastAPI) -> None:
     """Require a bearer token on product routes and bind request identity."""
     api_tokens = _load_api_tokens()
@@ -93,52 +175,31 @@ def install_authentication(app: FastAPI) -> None:
         ):
             return await call_next(request)
         services: AuthenticationServices = request.app.state.authentication_services
-        principal_id = "local-developer"
         authorization = request.headers.get("authorization", "")
-        if services.bearer_required and not authorization.strip():
+        cookie_token = request.cookies.get(COOKIE_NAME, "")
+        browser_only = request.url.path.startswith("/api/v0/auth/browser/")
+        using_cookie = bool(cookie_token) and not authorization.strip()
+        if browser_only and not using_cookie:
+            return JSONResponse(
+                content={"detail": "Browser session required"}, status_code=401
+            )
+        if using_cookie:
+            principal = _cookie_principal(request, services, cookie_token)
+        elif services.bearer_required and not authorization.strip():
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Invalid or missing bearer token"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        if api_tokens or authorization:
-            scheme, separator, supplied_token = authorization.partition(" ")
-            digest = hashlib.sha256(supplied_token.encode("utf-8")).hexdigest()
-            mapped_principal = next(
-                (
-                    candidate
-                    for configured_digest, candidate in api_tokens.items()
-                    if hmac.compare_digest(digest, configured_digest)
-                ),
-                None,
+        else:
+            principal = (
+                _bearer_principal(authorization, services, api_tokens)
+                if api_tokens or authorization
+                else "local-developer"
             )
-            if not separator or scheme.casefold() != "bearer":
-                return JSONResponse(
-                    status_code=401,
-                    content={"detail": "Invalid or missing bearer token"},
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-            try:
-                if mapped_principal is not None:
-                    principal_id = services.credentials.authenticate_principal(
-                        mapped_principal
-                    )
-                else:
-                    principal_id = (
-                        services.authentication.authenticate_api_token(supplied_token)
-                        or services.authentication.authenticate_user_session(
-                            supplied_token
-                        )
-                        or ""
-                    )
-                if not principal_id:
-                    raise PermissionError("unknown or revoked token")
-            except (KeyError, PermissionError):
-                return JSONResponse(
-                    status_code=401,
-                    content={"detail": "Invalid or disabled bearer token subject"},
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
+        if isinstance(principal, JSONResponse):
+            return principal
+        principal_id = principal
         try:
             org_id, workspace_id = services.organizations.resolve_principal_scope(
                 principal_id, request.headers.get("x-workspace-id")
@@ -150,6 +211,9 @@ def install_authentication(app: FastAPI) -> None:
             )
         identity_token = set_request_identity(principal_id, org_id, workspace_id)
         try:
-            return await call_next(request)
+            response = await call_next(request)
+            if using_cookie:
+                response.headers["Cache-Control"] = "no-store"
+            return response
         finally:
             reset_request_principal(identity_token)

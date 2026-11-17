@@ -37,3 +37,25 @@ continue to work; malformed or unknown session channels are not accepted.
 This release deploys the PR's foundation. Provider callbacks, cookie issuance
 from OIDC, frontend cookie adoption and organization SSO enforcement remain
 separate work described in `ENTERPRISE_SSO_PLAN.md` and `SSO_CONFIGURATION.md`.
+
+## Verified compatibility baseline
+
+Baseline revision: `a2d0b0e6dddfacc6b9484e30c4f29451b7c1367c`.
+Image: `asia-south1-docker.pkg.dev/weaves-510819/weaves/backend@sha256:1f3f40efc545db34e4c97f2efd7033e5f98168e1295f7065a88ccac5ce930c61`.
+[Baseline CI/deployment](https://github.com/weavelabs-pvt-ltd/weaves/actions/runs/44169542182)
+passed, production stayed on schema 18, and owner login/read-only app checks
+passed before the foundation cutover.
+
+`verify_sso_rollback.py` ran inside that actual image on an isolated temporary
+PostgreSQL 16 container with the PR's exact migration and contract source files.
+Schema 19, two sessions and one external identity survived baseline restart;
+bearer authentication/revocation and browser-token rejection passed, with
+non-audit collection counts preserved. The temporary container/network were
+removed. The rehearsal never received the production database URL or credentials.
+The host retains its root-only proof at
+`/opt/weaves/singlevm/sso-rollback-verification.json`.
+
+The script requires `WEAVES_ROLLBACK_TEST_DATABASE_URL` and rejects every database
+name except `weaves_rollback_test` before connecting. Supply the future source
+files as `store.py`, `auth.py` and `sso.py` in `--future-source`; execute it inside
+the baseline image, not the future release. Never point this test at production.

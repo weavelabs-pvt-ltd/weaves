@@ -297,6 +297,10 @@ def test_agent_runtime_budget_fails_at_safe_boundary_and_audits(monkeypatch):
     monkeypatch.setattr(
         "modules.agents.runtime_run_lifecycle.monotonic", lambda: next(ticks)
     )
+    # Both modules import monotonic directly; start and deadline need one clock.
+    monkeypatch.setattr(
+        "modules.agents.runtime_run_errors.monotonic", lambda: next(ticks)
+    )
 
     with pytest.raises(AgentRuntimeBudgetExceeded, match="safe boundary"):
         runtime.run_agent("Summarize security basics", agent_id=agent.id)
@@ -305,10 +309,13 @@ def test_agent_runtime_budget_fails_at_safe_boundary_and_audits(monkeypatch):
     assert failed_run.status is RunStatus.FAILED
     assert failed_run.error is not None
     assert failed_run.error.code == "agent.runtime_budget_exceeded"
-    assert any(
-        event.action == "agent.run.failed" and event.target_id == failed_run.run_id
+    failure_event = next(
+        event
         for event in runtime.audit_events.list()
+        if event.action == "agent.run.failed" and event.target_id == failed_run.run_id
     )
+    assert failure_event.metadata["runtime_seconds"] == 2.0
+    assert failure_event.metadata["runtime_limit_seconds"] == 1
 
 
 def test_runtime_timeout_after_model_completion_retains_reported_usage(monkeypatch):

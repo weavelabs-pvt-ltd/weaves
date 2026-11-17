@@ -85,13 +85,16 @@ def test_product_postgres_migration_adds_idempotency_unique_index():
     assert "IS DISTINCT FROM" in sql
     assert "product_records_task_idempotency_uq" in sql
     assert "product_records_task_turn_claim_idx" in sql
-    assert versions == list(range(1, 19))
+    assert versions == list(range(1, 20))
+    assert "sso_identity_subject_uq" in sql
+    assert "sso_identity_user_connection_uq" in sql
+    assert "sso_identity_immutable" in sql
     assert "CREATE TABLE IF NOT EXISTS product_login_throttle" in sql
     assert "pg_advisory_xact_lock" in sql
 
 
 def test_product_postgres_migration_skips_applied_versions():
-    connection = RecordingConnection(rows=[(version,) for version in range(1, 19)])
+    connection = RecordingConnection(rows=[(version,) for version in range(1, 20)])
     store = ProductPostgresStore.__new__(ProductPostgresStore)
     store.pool = RecordingPool(connection)
 
@@ -140,7 +143,7 @@ def test_product_postgres_migration_upgrades_legacy_version_five():
         for statement, params in connection.statements
         if "INSERT INTO product_schema_migrations" in statement
     ]
-    assert versions == list(range(6, 19))
+    assert versions == list(range(6, 20))
     assert "product_records_user_session_digest_uq" in sql
     assert "product_records_workflow_schedule_due_idx" in sql
     assert "product_records_audit_event_workspace_page_idx" in sql
