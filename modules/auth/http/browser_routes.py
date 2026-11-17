@@ -33,5 +33,7 @@ def register_browser_session_routes(
             requested_by_principal_id=effective_principal_id("local-developer"),
         )
         response = Response(status_code=204, headers={"Cache-Control": "no-store"})
-        response.delete_cookie(COOKIE_NAME, path="/")
+        response.delete_cookie(
+            COOKIE_NAME, path="/", secure=True, httponly=True, samesite="strict"
+        )
         return response

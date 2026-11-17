@@ -49,6 +49,8 @@ def csrf_token(session_token: str) -> str:
 
 def csrf_valid(session_token: str, supplied: str) -> bool:
     """Compare the submitted token in constant time."""
+    if not supplied.isascii() or len(supplied) != 64:
+        return False
     return hmac.compare_digest(csrf_token(session_token), supplied)
 
 

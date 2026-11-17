@@ -76,6 +76,8 @@ The login page should offer Google, Microsoft, and Zoho where configured, plus o
 
 Phase 1 is the minimum release for an enterprise customer using OIDC. Customers requiring automated provisioning or SAML are ready only after the respective phases. Roll out with feature flags by organization: import existing users, invite/approve identity links, test all admins, monitor sign-ins, then enforce SSO. Keep old environment-based SSO only as a temporary migration route and remove it after all connections are moved; do not let it bypass a customer's organization policy.
 
+Before deploying migration 19, verify a rollback target that accepts the new ledger version. The previous application image rejects versions above 18, so the existing automatic image rollback cannot recover it after the migration. Prepare and test a compatible baseline release or a separately reviewed recovery strategy first; this PR must not deploy until that gate passes.
+
 ## Implementation order in this repository
 
 1. Add contracts under `contracts/v1`, repositories in `application/runtime_repositories.py` and `infrastructure/persistence/product_repositories.py`, migration/indexes in `infrastructure/database/store.py`.

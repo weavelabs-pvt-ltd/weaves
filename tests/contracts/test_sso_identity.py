@@ -1,6 +1,5 @@
 """Tenant isolation and explicit subject binding for enterprise SSO."""
 
-from contextlib import nullcontext
 from datetime import UTC, datetime
 
 import pytest
@@ -16,6 +15,7 @@ from contracts.v1 import (
     UserStatus,
 )
 from infrastructure.persistence.memory_repository import InMemoryRepository
+from infrastructure.persistence.unit_of_work import InMemoryUnitOfWork
 from modules.auth.sso_identity_service import SsoIdentityService
 
 
@@ -69,7 +69,9 @@ def _fixture():
         principals=principals,
         audit_events=audits,
         authorize_organization=lambda actor, permission: None,
-        unit_of_work=nullcontext,
+        unit_of_work=lambda: InMemoryUnitOfWork(
+            [connections, identities, users, principals, audits]
+        ),
     )
     return service, users, principals, audits
 
@@ -135,8 +137,8 @@ def test_binding_rejects_duplicate_subject_user_and_cross_tenant_actor():
         )
 
 
-def test_binding_and_resolution_reject_wrong_issuer_and_disabled_user():
-    service, users, _, _ = _fixture()
+def test_binding_and_resolution_reject_wrong_issuer():
+    service, _, _, _ = _fixture()
     with pytest.raises(PermissionError, match="does not match"):
         service.bind_existing_user(
             org_id="org-a",
@@ -154,8 +156,68 @@ def test_binding_and_resolution_reject_wrong_issuer_and_disabled_user():
             issuer="https://attacker.example",
             subject="provider-subject",
         )
+
+
+def test_resolution_rejects_suspended_user():
+    service, users, _, _ = _fixture()
+    _bind(service)
     user = users.get("user-org-a")
     users.put(user.model_copy(update={"status": UserStatus.SUSPENDED}))
+    with pytest.raises(PermissionError, match="disabled"):
+        service.resolve_user(
+            org_id="org-a",
+            connection_id="connection-org-a",
+            issuer="https://accounts.google.com",
+            subject="provider-subject",
+        )
+
+
+def test_binding_rolls_back_when_audit_write_fails(monkeypatch):
+    service, _, _, audits = _fixture()
+
+    def fail_audit(record):
+        raise RuntimeError("audit storage unavailable")
+
+    monkeypatch.setattr(audits, "create", fail_audit)
+    with pytest.raises(RuntimeError, match="audit storage unavailable"):
+        _bind(service)
+    assert not service.identities.list()
+    assert not audits.list()
+
+
+def test_binding_requires_authorization_and_active_admin_account():
+    service, users, _, audits = _fixture()
+
+    def deny(actor, permission):
+        raise PermissionError("organization admin permission required")
+
+    service.authorize_organization = deny
+    with pytest.raises(PermissionError, match="permission required"):
+        _bind(service)
+    assert not service.identities.list()
+    assert not audits.list()
+    service.authorize_organization = lambda actor, permission: None
+    admin = users.get("user-org-a")
+    users.put(admin.model_copy(update={"status": UserStatus.SUSPENDED}))
+    with pytest.raises(PermissionError, match="disabled"):
+        _bind(service)
+    assert not service.identities.list()
+
+
+@pytest.mark.parametrize("disabled", ["connection", "principal"])
+def test_resolution_rechecks_connection_and_principal_status(disabled):
+    service, _, principals, _ = _fixture()
+    _bind(service)
+    if disabled == "connection":
+        connection = service.connections.get("connection-org-a")
+        service.connections.put(
+            connection.model_copy(update={"status": SsoConnectionStatus.DISABLED})
+        )
+    else:
+        principal = principals.get("principal-org-a")
+        principals.put(
+            principal.model_copy(update={"status": PrincipalStatus.DISABLED})
+        )
     with pytest.raises(PermissionError, match="disabled"):
         service.resolve_user(
             org_id="org-a",

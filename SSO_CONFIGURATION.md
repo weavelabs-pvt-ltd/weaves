@@ -74,15 +74,16 @@ Pushing/merging to `main` automatically deploys the backend to the single VM aft
 - [x] Admin-controlled identity binding service and runtime composition.
 - [x] Browser session channel, cookie helper, CSRF validation, inspection/logout routes.
 - [x] Single-VM app-origin API routing configuration and optional browser-secret injection.
-- [x] Local tests: 302 passed with real PostgreSQL; lint, format, mypy, architecture and size checks passed. Local environment used Python 3.14; CI must verify Python 3.12.
+- [x] Local tests: 311 passed with real PostgreSQL after review; lint, format, mypy, architecture and size checks passed. Local environment used Python 3.14; CI verifies Python 3.12 for each PR revision.
 - [ ] Connection create/test/enable/disable APIs, secret storage integration, and admin UI.
 - [ ] Server-side one-use SSO transactions, organization-scoped start/callback routes, and strict issuer/tenant checks for all three providers, including Zoho regional handling.
 - [ ] Connect validated callbacks to approved external identities and issue browser cookies without returning bearer credentials.
 - [ ] Frontend cookie session, CSRF header, success handling, and same-origin `/api/v0` integration.
 - [ ] Organization sign-in policy, password/email-code enforcement, session policy and connection-disable revocation, audited recovery and domain verification.
 - [ ] Secure production credential injection and provider callback registration.
+- [ ] Establish a rollback-compatible release before applying migration 19: the current previous image rejects ledger versions above 18, so ordinary image rollback cannot start it after this migration.
 - [ ] Staging browser tests with real Google/Microsoft/Zoho accounts; CI on Python 3.12; backup/rollback rehearsal.
 - [ ] Pilot one organization before broader SSO enforcement.
 - [ ] Subsequent customer-required SCIM, group mapping/JIT policy, and SAML delivery.
 
-Release the foundation with browser SSO inactive, then cut over after the pending first-release items pass. The backend deployment backs up PostgreSQL and can restore previous images/configuration. Migration 19 remains applied on rollback; never reset the production database to undo an application release. The current single VM has restart downtime and no high availability.
+Before releasing the foundation, first prepare and test a rollback target that can start with migration 19 applied. The current previous application image rejects unknown schema versions above 18; restoring its image/configuration after this migration would fail startup. This blocks deployment until a compatible baseline release or a separately reviewed recovery strategy is available. Do not assume the existing automatic image rollback is sufficient, and never reset the production database to undo an application release. Once that gate is met, release with browser SSO inactive and cut over after the pending first-release items pass. The current single VM has restart downtime and no high availability.

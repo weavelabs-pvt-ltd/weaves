@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from starlette.responses import JSONResponse
 
 from modules.auth.authentication_service import AuthenticationService
@@ -87,16 +87,25 @@ def _load_api_tokens() -> dict[str, str]:
 
 
 def _cookie_principal(
-    request: Any, services: AuthenticationServices, token: str
+    request: Request, services: AuthenticationServices, token: str
 ) -> str | JSONResponse:
     """Validate same-origin cookie traffic before resolving its principal."""
     expected_origin = browser_origin()
     if (
         not browser_sessions_configured()
         or request.headers.get("host", "") != urlsplit(expected_origin).netloc
+        or request.url.scheme != urlsplit(expected_origin).scheme
     ):
         return JSONResponse(
             content={"detail": "Browser session unavailable"}, status_code=401
+        )
+    if request.headers.get(
+        "origin", expected_origin
+    ) != expected_origin or request.headers.get(
+        "sec-fetch-site", "same-origin"
+    ) not in {"same-origin", "none"}:
+        return JSONResponse(
+            content={"detail": "Cross-origin request rejected"}, status_code=403
         )
     if request.method not in {"GET", "HEAD"} and (
         request.headers.get("origin") != expected_origin
@@ -202,6 +211,9 @@ def install_authentication(app: FastAPI) -> None:
             )
         identity_token = set_request_identity(principal_id, org_id, workspace_id)
         try:
-            return await call_next(request)
+            response = await call_next(request)
+            if using_cookie:
+                response.headers["Cache-Control"] = "no-store"
+            return response
         finally:
             reset_request_principal(identity_token)
