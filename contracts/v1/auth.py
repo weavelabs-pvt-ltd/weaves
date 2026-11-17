@@ -1,8 +1,14 @@
 """Human authentication credentials and revocable bearer sessions."""
 
-from typing import Annotated
+from typing import Annotated, Any, Literal
 
-from pydantic import AwareDatetime, StringConstraints, model_validator
+from pydantic import (
+    AwareDatetime,
+    SerializerFunctionWrapHandler,
+    StringConstraints,
+    model_serializer,
+    model_validator,
+)
 
 from contracts.v1.base import MutableOrgScopedContract, OpaqueId, StrEnum
 
@@ -29,8 +35,23 @@ class UserSession(MutableOrgScopedContract):
         str, StringConstraints(pattern=r"^[0-9a-f]{64}$", min_length=64, max_length=64)
     ]
     status: UserSessionStatus
+    channel: Literal["bearer", "browser"] = "bearer"
     expires_at: AwareDatetime
     revoked_at: AwareDatetime | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize_session(
+        self, handler: SerializerFunctionWrapHandler
+    ) -> dict[str, Any]:
+        """Keep bearer writes readable by the pre-browser release.
+
+        Browser sessions retain their explicit channel across repository cloning;
+        omitting that value would incorrectly downgrade them into bearer tokens.
+        """
+        payload: dict[str, Any] = dict(handler(self))
+        if self.channel == "bearer":
+            payload.pop("channel", None)
+        return payload
 
     @model_validator(mode="after")
     def revocation_matches_status(self) -> "UserSession":

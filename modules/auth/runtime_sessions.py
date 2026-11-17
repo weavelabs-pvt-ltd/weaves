@@ -286,6 +286,7 @@ class AuthenticationRuntimeMixin(EmailLoginRuntimeMixin, AuthenticationRuntimeHo
         if (
             session is None
             or session.status is not UserSessionStatus.ACTIVE
+            or session.channel != "bearer"
             or session.expires_at <= _now()
         ):
             return None

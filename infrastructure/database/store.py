@@ -294,6 +294,12 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
 )
 
 
+# Migration 19 only adds indexes and an update guard for the new SSO collection.
+# The compatibility release can read it, but must not apply it before it becomes
+# the healthy rollback target. Unknown later migrations remain rejected.
+_READ_COMPATIBLE_MIGRATIONS = frozenset({19})
+
+
 def _schema_migrations() -> tuple[tuple[int, tuple[str, ...]], ...]:
     """Return ordered migrations, retaining the versions used by older releases.
 
@@ -357,7 +363,9 @@ class ProductPostgresStore:
                 ).fetchall()
             }
             migrations = _schema_migrations()
-            unknown_versions = applied.difference(version for version, _ in migrations)
+            unknown_versions = applied.difference(
+                {version for version, _ in migrations} | _READ_COMPATIBLE_MIGRATIONS
+            )
             if unknown_versions:
                 raise RuntimeError(
                     "Database schema contains unsupported migration versions: "
