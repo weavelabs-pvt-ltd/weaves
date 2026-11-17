@@ -34,6 +34,8 @@ from contracts.v1 import (
     SkillPublication,
     SkillRevocation,
     SkillVersion,
+    SsoConnection,
+    SsoExternalIdentity,
     Task,
     TaskMessage,
     TaskTurn,
@@ -65,6 +67,8 @@ class RuntimeRepositoryBindingMixin:
     api_credentials: Repository[ApiCredential]
     user_passwords: Repository[UserPasswordCredential]
     user_sessions: Repository[UserSession]
+    sso_connections: Repository[SsoConnection]
+    sso_external_identities: Repository[SsoExternalIdentity]
     roles: Repository[Role]
     role_bindings: Repository[RoleBinding]
     skill_definitions: Repository[SkillDefinition]
@@ -109,6 +113,10 @@ class RuntimeRepositoryBindingMixin:
         self.api_credentials = self._repository("api_credentials", ApiCredential)
         self.user_passwords = self._repository("user_passwords", UserPasswordCredential)
         self.user_sessions = self._repository("user_sessions", UserSession)
+        self.sso_connections = self._repository("sso_connections", SsoConnection)
+        self.sso_external_identities = self._repository(
+            "sso_external_identities", SsoExternalIdentity
+        )
         self.roles = self._repository("roles", Role)
         self.role_bindings = self._repository("role_bindings", RoleBinding)
         self.skill_definitions = self._repository("skill_definitions", SkillDefinition)

@@ -47,6 +47,8 @@ from contracts.v1 import (
     SkillPublication,
     SkillRevocation,
     SkillVersion,
+    SsoConnection,
+    SsoExternalIdentity,
     Task,
     TaskMessage,
     TaskTurn,
@@ -104,6 +106,8 @@ class RuntimeCompositionInputs(Protocol):
     organizations: Repository[Organization]
     plugins: Repository[PluginDescriptor]
     principals: Repository[Principal]
+    sso_connections: Repository[SsoConnection]
+    sso_external_identities: Repository[SsoExternalIdentity]
     providers: Repository[ModelProviderContract]
     role_bindings: Repository[RoleBinding]
     skill_definitions: Repository[SkillDefinition]

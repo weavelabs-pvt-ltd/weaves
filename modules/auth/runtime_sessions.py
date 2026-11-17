@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from datetime import timedelta
+from typing import Literal
 
 from application.ports.email import EmailSender
 from application.ports.repository import Repository
@@ -237,13 +238,17 @@ class AuthenticationRuntimeMixin(EmailLoginRuntimeMixin, AuthenticationRuntimeHo
             self.login_rate_limiter.clear(bucket_key)
         return user, principal
 
-    def create_user_session(self, principal: Principal) -> tuple[UserSession, str]:
+    def create_user_session(
+        self, principal: Principal, *, channel: Literal["bearer", "browser"] = "bearer"
+    ) -> tuple[UserSession, str]:
         """Create a short-lived bearer session for an active human principal."""
         self.authenticate_principal(principal.id)
         if principal.principal_type is not PrincipalType.USER:
             raise PermissionError("sessions are only available to human users")
         if principal.user_id is None:
             raise PermissionError("user principal is missing its user account")
+        if channel not in {"bearer", "browser"}:
+            raise ValueError("unsupported session channel")
         user = self.users.get_scoped(principal.user_id, principal.org_id)
         if user.status is not UserStatus.ACTIVE:
             raise PermissionError("user account is not active")
@@ -255,6 +260,7 @@ class AuthenticationRuntimeMixin(EmailLoginRuntimeMixin, AuthenticationRuntimeHo
             principal_id=principal.id,
             token_digest=hashlib.sha256(token.encode("utf-8")).hexdigest(),
             status=UserSessionStatus.ACTIVE,
+            channel=channel,
             expires_at=timestamp + timedelta(hours=12),
             created_at=timestamp,
             updated_at=timestamp,
@@ -277,7 +283,9 @@ class AuthenticationRuntimeMixin(EmailLoginRuntimeMixin, AuthenticationRuntimeHo
             )
         return session, token
 
-    def authenticate_user_session(self, token: str) -> str | None:
+    def authenticate_user_session(
+        self, token: str, *, channel: str = "bearer"
+    ) -> str | None:
         """Resolve an active, non-expired user session token."""
         if not self._bootstrapped():
             self.bootstrap()
@@ -286,6 +294,7 @@ class AuthenticationRuntimeMixin(EmailLoginRuntimeMixin, AuthenticationRuntimeHo
         if (
             session is None
             or session.status is not UserSessionStatus.ACTIVE
+            or session.channel != channel
             or session.expires_at <= _now()
         ):
             return None

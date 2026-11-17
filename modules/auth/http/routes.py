@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.credential_service import CredentialService
+from modules.auth.http.browser_routes import register_browser_session_routes
 from modules.auth.http.credential_routes import register_credential_routes
 from modules.auth.http.session_routes import register_session_routes
 from modules.auth.http.sso_routes import register_sso_routes
@@ -38,4 +39,5 @@ def register_identity_routes(
         dump,
     )
     register_credential_routes(app, credential_service, dump)
+    register_browser_session_routes(app, authentication_service)
     register_sso_routes(app, authentication_service, organization_service)

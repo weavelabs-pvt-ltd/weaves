@@ -1,6 +1,6 @@
 """Human authentication credentials and revocable bearer sessions."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, StringConstraints, model_validator
 
@@ -29,6 +29,7 @@ class UserSession(MutableOrgScopedContract):
         str, StringConstraints(pattern=r"^[0-9a-f]{64}$", min_length=64, max_length=64)
     ]
     status: UserSessionStatus
+    channel: Literal["bearer", "browser"] = "bearer"
     expires_at: AwareDatetime
     revoked_at: AwareDatetime | None = None
 

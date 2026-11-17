@@ -106,6 +106,12 @@ from contracts.v1.skills import (
     SkillStatus,
     SkillVersion,
 )
+from contracts.v1.sso import (
+    SsoConnection,
+    SsoConnectionStatus,
+    SsoExternalIdentity,
+    SsoProvider,
+)
 from contracts.v1.tasks import (
     Task,
     TaskAudience,
@@ -210,6 +216,10 @@ __all__ = [
     "SkillScope",
     "SkillStatus",
     "SkillVersion",
+    "SsoConnection",
+    "SsoConnectionStatus",
+    "SsoExternalIdentity",
+    "SsoProvider",
     "SystemRoleKey",
     "Task",
     "TaskAudience",
