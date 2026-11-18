@@ -313,3 +313,20 @@ def test_disable_waits_for_an_in_flight_delivery_acceptance():
         runtime.enqueue_workflow_trigger_event(
             trigger.trigger_id, token, "delivery-after-disable", {"issue": "REL-42"}
         )
+
+
+def test_empty_trigger_patch_is_rejected_as_unprocessable(monkeypatch):
+    monkeypatch.setenv("WEAVES_API_TOKEN", "workflow-trigger-admin-token")
+    runtime = LocalPlatformRuntime()
+    runtime.storage_mode = "postgres"
+    client = TestClient(create_app(runtime), raise_server_exceptions=False)
+    headers = {"Authorization": "Bearer workflow-trigger-admin-token"}
+
+    with client:
+        trigger_id, _, _ = _create_webhook_trigger(client, headers)
+        response = client.patch(
+            f"/api/v0/workflow-triggers/{trigger_id}", headers=headers, json={}
+        )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"] == "No trigger changes supplied"
