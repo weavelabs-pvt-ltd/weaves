@@ -64,7 +64,7 @@ def test_additive_sso_schema_and_new_sessions_survive_application_rollback(
                 connection.execute(
                     "SELECT max(version) FROM product_schema_migrations"
                 ).fetchone()[0]
-                == 19
+                == 21
             )
             assert (
                 connection.execute(

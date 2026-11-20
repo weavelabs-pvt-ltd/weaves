@@ -17,6 +17,7 @@ from clients.integrations.github_app_auth import GitHubAppTokenProvider
 from contracts.v1 import OAuthAuthorizationState
 from modules.integrations.connection_service import IntegrationConnectionService
 from modules.integrations.oauth_state_service import OAuthStateService
+from shared.request_context import system_scoped
 
 
 def _now() -> datetime:
@@ -114,6 +115,7 @@ class OAuthContextBase:
             provider, configuration, step=step, secret_ref=secret_ref
         )
 
+    @system_scoped("oauth")
     def take_state(
         self,
         value: str,

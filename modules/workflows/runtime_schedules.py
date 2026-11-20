@@ -33,6 +33,7 @@ from shared.request_context import (
     effective_workspace_id,
     reset_request_principal,
     set_request_identity,
+    system_scoped,
 )
 
 
@@ -268,6 +269,7 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
             )
         )
 
+    @system_scoped("dispatch")
     def dispatch_due_workflow_schedules(
         self, *, now: datetime | None = None, limit: int = 100
     ) -> tuple[ExecutionJob, ...]:

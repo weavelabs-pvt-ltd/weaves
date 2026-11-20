@@ -195,6 +195,10 @@ def run(args, harness):
         report = summarize(raw, pair, sources, digest, fixture)
         complete_checks(args, compose, frontend, harness, private, port, report, live)
     finally:
+        # Service logs stay in the private run directory (never uploaded) so a
+        # failing control can be diagnosed after the disposable stack is removed.
+        with (private / "service.log").open("w") as log:
+            compose.run("logs", "--no-color", "api", "worker", stdout=log, check=False)
         compose.run("down", "--volumes", "--remove-orphans")
 
 

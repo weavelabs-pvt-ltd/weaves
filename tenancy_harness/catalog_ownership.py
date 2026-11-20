@@ -9,6 +9,7 @@ from psycopg.errors import CheckViolation
 from apps.runtime_wiring import open_process_runtime
 from infrastructure.database.plugin_ownership import activate_ownership
 from infrastructure.database.store import ProductPostgresStore
+from shared.request_context import enter_system_scope, exit_system_scope
 from tenancy_harness.client import PROVIDER, call
 from tenancy_harness.seed import require_disposable_database
 
@@ -18,6 +19,7 @@ def migrate_catalog(fixtures):
     require_disposable_database()
     a, b = fixtures["tenants"].values()
     runtime = open_process_runtime(process="cli")
+    operator = enter_system_scope("bootstrap")
     try:
         original = runtime.plugins.get(a["installation"]["plugin_id"])
         conflict_id, orphan_id = "mcp-migration-conflict", "mcp-migration-orphan"
@@ -50,9 +52,10 @@ def migrate_catalog(fixtures):
                 )
             )
     finally:
+        exit_system_scope(operator)
         runtime.close()
     legacy_scoped = _legacy_catalog_is_scoped(fixtures)
-    store = ProductPostgresStore(os.environ["DATABASE_URL"])
+    store = ProductPostgresStore(os.environ["DATABASE_URL"], app_role="")
     try:
         with store.connection() as connection:
             report = activate_ownership(
@@ -99,6 +102,7 @@ def _legacy_catalog_is_scoped(fixtures):
 def _foreign_reference_is_denied(a, b):
     """Verify the actual database guard and absence of a forbidden side effect."""
     runtime = open_process_runtime(process="cli")
+    operator = enter_system_scope("bootstrap")
     denied = False
     try:
         original = runtime.installations.get(
@@ -121,6 +125,7 @@ def _foreign_reference_is_denied(a, b):
             return denied
         raise AssertionError("Forbidden descriptor reference was persisted")
     finally:
+        exit_system_scope(operator)
         runtime.close()
 
 
@@ -129,7 +134,7 @@ def verify():
     require_disposable_database()
     fixture = json.loads(Path(os.environ["TENANCY_FIXTURE_FILE"]).read_text())
     migration = fixture["catalog_ownership"]
-    store = ProductPostgresStore(os.environ["DATABASE_URL"])
+    store = ProductPostgresStore(os.environ["DATABASE_URL"], app_role="")
     try:
         with store.connection() as connection:
             reader = connection.execute(

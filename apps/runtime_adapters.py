@@ -61,7 +61,7 @@ def build_secret_store(store: ProductPostgresStore | None) -> SecretStore:
         return InMemorySecretStore()
     if not encryption_key:
         return UnavailableSecretStore()
-    return EncryptedPostgresSecretStore(store.pool, encryption_key)
+    return EncryptedPostgresSecretStore(store, encryption_key)
 
 
 def build_login_rate_limiters(

@@ -21,7 +21,12 @@ from contracts.v1 import (
 )
 from modules.agents.execution_service import AgentExecutionService
 from shared.clock import new_id, utc_now
-from shared.request_context import reset_request_principal, set_request_identity
+from shared.request_context import (
+    reset_request_principal,
+    set_request_identity,
+    system_scope,
+    system_scoped,
+)
 
 
 class TaskWorkerService:
@@ -51,9 +56,20 @@ class TaskWorkerService:
 
     def process_next_turn(self, worker_id: str) -> TaskTurn | None:
         """Claim and process the oldest queued turn from any workspace."""
-        claimed = self.turns.claim_next_queued(worker_id, utc_now(), None, None)
+        with system_scope("queue"):
+            claimed = self.turns.claim_next_queued(worker_id, utc_now(), None, None)
         if claimed is None:
             return None
+        context = set_request_identity(
+            claimed.requested_by_principal_id, claimed.org_id, claimed.workspace_id
+        )
+        try:
+            return self._process_claimed_turn(claimed, worker_id)
+        finally:
+            reset_request_principal(context)
+
+    def _process_claimed_turn(self, claimed: TaskTurn, worker_id: str) -> TaskTurn:
+        """Run one claimed turn under the claiming tenant's own scope."""
         task = self.tasks.get_scoped(
             claimed.task_id, claimed.org_id, claimed.workspace_id
         )
@@ -96,9 +112,6 @@ class TaskWorkerService:
         user_message = self.messages.get_scoped(
             claimed.user_message_id, claimed.org_id, claimed.workspace_id
         )
-        context = set_request_identity(
-            claimed.requested_by_principal_id, claimed.org_id, claimed.workspace_id
-        )
         heartbeat_stop = Event()
         lease_lost = Event()
         heartbeat = Thread(
@@ -116,7 +129,6 @@ class TaskWorkerService:
         finally:
             heartbeat_stop.set()
             heartbeat.join(timeout=self.heartbeat_interval_seconds + 1)
-            reset_request_principal(context)
 
     def _execute_turn(
         self,
@@ -169,6 +181,7 @@ class TaskWorkerService:
                 lease_lost.set()
                 return
 
+    @system_scoped("recovery")
     def recover_stale_turns(self, *, stale_after_seconds: int = 300) -> tuple[str, ...]:
         """Requeue expired worker leases or fail after three attempts."""
         now = utc_now()

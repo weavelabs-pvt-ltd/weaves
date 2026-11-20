@@ -5,7 +5,7 @@ from collections import Counter
 from typing import Any
 
 from infrastructure.database.plugin_ownership_sql import CLASSIFY, GUARDS, TABLES
-from infrastructure.database.store import _MIGRATION_LOCK_NAME
+from infrastructure.database.store import _MIGRATION_LOCK_NAME, APP_ROLE_GRANTS
 
 
 def ownership_report(connection: Any) -> dict[str, Any]:
@@ -91,7 +91,7 @@ def activate_ownership(
                 "SELECT version FROM product_schema_migrations"
             ).fetchall()
         }
-        if not set(range(1, 20)) <= versions or versions - set(range(1, 21)):
+        if not set(range(1, 20)) <= versions or versions - set(range(1, 22)):
             raise RuntimeError(
                 "Catalog activation requires a supported schema 19 reader"
             )
@@ -164,6 +164,7 @@ def _backfill(connection: Any, report: dict[str, Any], reader_image: str) -> Non
     """Write the reviewed plan and enable guards in one transaction."""
     for statement in TABLES:
         connection.execute(statement)
+    connection.execute(APP_ROLE_GRANTS)
     for item in report["descriptors"]:
         connection.execute(
             """INSERT INTO product_plugin_ownership

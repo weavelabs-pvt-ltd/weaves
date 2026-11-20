@@ -75,8 +75,10 @@ def lifecycle_fixture():
     # Organization suspension has no public API yet. This is fixture setup only.
     from apps.runtime_wiring import open_process_runtime
     from contracts.v1 import OrganizationStatus
+    from shared.request_context import reset_request_principal, set_request_identity
 
     runtime = open_process_runtime(process="cli")
+    scope = set_request_identity("tenancy-fixture", t["org_id"], t["workspace_id"])
     try:
         runtime.bootstrap()
         org = runtime.organizations.get(t["org_id"])
@@ -84,6 +86,7 @@ def lifecycle_fixture():
             org.model_copy(update={"status": OrganizationStatus.SUSPENDED})
         )
     finally:
+        reset_request_principal(scope)
         runtime.close()
     webhook = httpx.post(
         API + trigger["webhook_url"].removeprefix("/api/v0"),

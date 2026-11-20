@@ -19,7 +19,8 @@ def execute(args, **kwargs):
         )
     }
     clean.update(kwargs.pop("env", {}))
-    return subprocess.run(args, check=True, env=clean, **kwargs)
+    kwargs.setdefault("check", True)
+    return subprocess.run(args, env=clean, **kwargs)
 
 
 def revision(path):

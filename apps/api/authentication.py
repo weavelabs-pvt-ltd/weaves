@@ -21,7 +21,11 @@ from modules.auth.http.browser_sessions import (
     csrf_valid,
 )
 from modules.auth.organization_service import OrganizationService
-from shared.request_context import reset_request_principal, set_request_identity
+from shared.request_context import (
+    reset_request_principal,
+    set_request_identity,
+    system_scope,
+)
 
 _PUBLIC_EXACT_PATHS = {
     "/api/v0/health",
@@ -184,7 +188,8 @@ def install_authentication(app: FastAPI) -> None:
                 content={"detail": "Browser session required"}, status_code=401
             )
         if using_cookie:
-            principal = _cookie_principal(request, services, cookie_token)
+            with system_scope("auth"):
+                principal = _cookie_principal(request, services, cookie_token)
         elif services.bearer_required and not authorization.strip():
             return JSONResponse(
                 status_code=401,
@@ -192,18 +197,20 @@ def install_authentication(app: FastAPI) -> None:
                 headers={"WWW-Authenticate": "Bearer"},
             )
         else:
-            principal = (
-                _bearer_principal(authorization, services, api_tokens)
-                if api_tokens or authorization
-                else "local-developer"
-            )
+            with system_scope("auth"):
+                principal = (
+                    _bearer_principal(authorization, services, api_tokens)
+                    if api_tokens or authorization
+                    else "local-developer"
+                )
         if isinstance(principal, JSONResponse):
             return principal
         principal_id = principal
         try:
-            org_id, workspace_id = services.organizations.resolve_principal_scope(
-                principal_id, request.headers.get("x-workspace-id")
-            )
+            with system_scope("auth"):
+                org_id, workspace_id = services.organizations.resolve_principal_scope(
+                    principal_id, request.headers.get("x-workspace-id")
+                )
         except (KeyError, PermissionError):
             return JSONResponse(
                 status_code=403,

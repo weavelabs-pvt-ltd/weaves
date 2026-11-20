@@ -87,18 +87,15 @@ def legacy_task(tenant):
 
     require_disposable_database()
     runtime = open_process_runtime(process="cli")
+    identity = set_request_identity(
+        "tenancy-fixture", tenant["org_id"], tenant["workspace_id"]
+    )
     try:
         runtime.bootstrap()
         provider = runtime.providers.get_scoped(tenant["provider_id"], tenant["org_id"])
-        identity = set_request_identity(
-            "tenancy-fixture", tenant["org_id"], tenant["workspace_id"]
+        auth_ref = runtime.secret_store.put(
+            "fixture-legacy-egress-key", purpose="model_provider"
         )
-        try:
-            auth_ref = runtime.secret_store.put(
-                "fixture-legacy-egress-key", purpose="model_provider"
-            )
-        finally:
-            reset_request_principal(identity)
         legacy = provider.model_copy(
             update={
                 "id": str(uuid4()),
@@ -117,6 +114,7 @@ def legacy_task(tenant):
         )
         runtime.model_profiles.create(profile)
     finally:
+        reset_request_principal(identity)
         runtime.close()
     call(
         "POST",

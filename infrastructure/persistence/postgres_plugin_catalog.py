@@ -5,6 +5,7 @@ from typing import Any
 from contracts.v1 import PluginDescriptor
 from contracts.v1.plugin_visibility import BUILTIN_PLUGIN_TYPES
 from infrastructure.persistence.postgres_repository import PostgresRepository
+from shared.request_context import system_scope
 
 _BUILTIN = """((p.record_id='github' AND p.payload->>'plugin_type'='github')
  OR (p.record_id='slack' AND p.payload->>'plugin_type'='slack')
@@ -106,7 +107,8 @@ class PostgresPluginCatalog(PostgresRepository[PluginDescriptor]):
 
     def visible_descriptors(self, org_id: str) -> tuple[PluginDescriptor, ...]:
         """Read only public or owned rows, excluding persisted quarantine."""
-        with self._pool.connection() as connection:
+        # Legacy ambiguity detection must see every organization's references.
+        with system_scope("catalog"), self._pool.connection() as connection:
             query, parameters = self._visible_query(connection, org_id)
             rows = connection.execute(
                 query + " ORDER BY p.record_id", parameters
@@ -115,7 +117,7 @@ class PostgresPluginCatalog(PostgresRepository[PluginDescriptor]):
 
     def visible_descriptor(self, plugin_id: str, org_id: str) -> PluginDescriptor:
         """Load one visible definition at the database boundary."""
-        with self._pool.connection() as connection:
+        with system_scope("catalog"), self._pool.connection() as connection:
             query, parameters = self._visible_query(connection, org_id)
             row = connection.execute(
                 query + " AND p.record_id=%s", (*parameters, plugin_id)

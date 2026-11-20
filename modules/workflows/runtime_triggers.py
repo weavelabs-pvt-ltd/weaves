@@ -34,6 +34,7 @@ from shared.request_context import (
     effective_workspace_id,
     reset_request_principal,
     set_request_identity,
+    system_scoped,
 )
 
 
@@ -278,6 +279,7 @@ class WorkflowTriggerRuntimeMixin(WorkflowTriggerRuntimeHost):
         with lock:
             yield
 
+    @system_scoped("dispatch")
     def enqueue_workflow_trigger_event(
         self,
         trigger_id: str,

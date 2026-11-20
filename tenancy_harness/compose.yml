@@ -31,6 +31,7 @@ services:
     environment: &runtime
       DATABASE_URL: postgresql://tenancy_test:${TEST_DB_PASSWORD:?}@postgres:5432/weaves_tenancy_test
       WEAVES_SEED_LOCAL_DEFAULTS: "false"
+      WEAVES_DB_APP_ROLE: weaves_app
       WEAVES_SECRET_ENCRYPTION_KEY: ${TEST_ENCRYPTION_KEY:?}
       WEAVES_EMAIL_LOGIN_HMAC_KEY: ${TEST_EMAIL_KEY:?}
       WEAVES_ALLOW_ORGANIZATION_ONBOARDING: "true"
