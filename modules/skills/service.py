@@ -236,7 +236,11 @@ class SkillsService(SkillLifecycleMixin):
         if personal.status is not SkillStatus.ACTIVE:
             raise ValueError("restore the archived skill before publishing it")
         candidate = self._versions.get_scoped(version_id, effective_org_id())
-        if candidate.skill_id != skill_id or candidate.content_digest != digest:
+        if candidate.skill_id != skill_id:
+            # A version of another skill, such as a colleague's private draft,
+            # must look exactly like a version that does not exist.
+            raise KeyError("skill version not found")
+        if candidate.content_digest != digest:
             raise ValueError("reviewed skill version or content digest does not match")
         if candidate.skill_version_id != personal.current_version_id:
             raise ValueError(
