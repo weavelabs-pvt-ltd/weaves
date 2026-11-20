@@ -2,7 +2,17 @@
 
 Planning baseline: 2026-11-20. Based on [the tenancy audit](MULTI_TENANCY_AUDIT.md), backend `d70176dfbe3c328e6e3070fa2f79f5c123a23db2`, and frontend `6f6ed9888b398921e2d567e0671b954df64185e8`.
 
-Status: Phase 0 is implemented and locally validated. Its CI jobs are wired in both repositories; backend CI activation requires the private frontend read credential described below. A workflow deep-link workspace race found by live testing is fixed locally. Production data and deployment remain unchanged.
+Status: Phase 0 is implemented and published in backend PR #3 and frontend PR #15. Local validation and frontend CI passed; backend CI activation requires the private frontend read credential described below. The frontend branch fixes a workflow deep-link workspace race found by live testing. Phase 1 is in progress with the descriptor containment slice below. These branches have not changed production data or deployment; the separately reviewed PR #2 has merged and deployed successfully.
+
+### Phase 1 progress
+
+The first containment slice restricts legacy imported connector descriptors and tool schemas to the one organization established by their installation references. Only the three built-in connector identities are public. Multiple same-org workspaces and disabled references preserve ownership; orphaned and cross-org conflicting definitions are hidden. Capability resolution, tool dispatch, health checks, credential replacement, updates, and disconnects enforce the same visibility rule. Conflicting references cannot be deleted through ordinary disconnects, which could otherwise silently assign the schema to the remaining organization; operator resolution is required.
+
+This slice preserves schema version 19 and the existing descriptor JSON shape. It does not claim the ownership migration is complete: explicit persisted ownership, operator quarantine reporting/backfill, and bounded scoped catalog queries still require their compatibility release and migration. The other open Phase 1 boundaries are model egress, lifecycle eligibility, browser teardown/drafts, and tenant-specific authentication/throttling.
+
+The original leak was reproduced by a failing two-org HTTP regression before the fix. Backend tests, native PostgreSQL restart/ambiguous-owner cases, and the real-stack Chromium/API control `T1-I01` verify the containment. `T0-D01` is removed from diagnostic observations and mapped to that required passing isolation control. Four unresolved diagnostics remain; `saas_ready` stays false.
+
+Validation: 370 backend tests passed, strict mypy passed on 279 source files, and all 16 real-stack cases passed. A three-call real Anthropic run passed the stricter agent-reply, approval/continuation, and cross-tenant browser checks, with verified skills/citations/tool provenance. An earlier live attempt completed its workflow but failed the required response-marker assertion; it was counted as failed and charged to the ledger. The harness now retains scoped synthetic model responses privately before assertions/cleanup and never accepts a marker found only in the user's message. Total lifetime conservative usage is USD 0.0433764 across 11 requests, with USD 99.9566236 available and no unresolved holds. This testing does not establish Phase 1 completion or SaaS readiness.
 
 ### Phase 0 implementation evidence
 

@@ -77,7 +77,11 @@ def complete_checks(args, compose, frontend, harness, private, port, report, liv
         report["live_ai"] = {"passed": False, "stage": "preparing"}
         try:
             prepare_flow(compose)
+            report["live_ai"]["stage"] = "browser"
             raw = browser(frontend, harness, private, port, live=True)
+            report["live_ai"].update(
+                {"stage": "provenance", "browser_cases": browser_outcomes(raw)}
+            )
             report["live_ai"] = verify_flow(compose, private, raw)
         finally:
             report["testing_budget"] = Ledger(

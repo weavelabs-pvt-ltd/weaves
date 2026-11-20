@@ -12,7 +12,7 @@ async function open(page, hash) {
 }
 test('LIVE-I01 real Anthropic response appears in its task transcript', async ({ page }) => {
   await open(page, 'tasks/' + fixture.live.task_id);
-  await expect(page.locator('.task-transcript')).toContainText(fixture.live.marker);
+  await expect(page.locator('.task-message-agent')).toContainText(fixture.live.marker);
   await expect(page.locator('.task-transcript')).toContainText('Succeeded');
 });
 test('LIVE-I02 browser approval releases the second live agent', async ({ page }) => {

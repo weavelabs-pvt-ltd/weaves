@@ -124,3 +124,36 @@ test('T0-I11 independent native worker completes tenant-labelled transcripts', a
     expect(content).not.toContain(tenant === a ? b.marker : a.marker);
   }
 });
+
+test('T1-I01 custom connector metadata belongs only to its organization', async ({ request, page, browser }) => {
+  for (const [own, foreign] of [[a, b], [b, a]]) {
+    for (const endpoint of ['/plugin-descriptors', '/capabilities']) {
+      const response = await get(request, endpoint, own.admin);
+      expect(response.status()).toBe(200);
+      const text = JSON.stringify(await response.json());
+      expect(text).toContain(own.marker);
+      expect(text).not.toContain(foreign.marker);
+      expect(text).not.toContain(foreign.installation.plugin_id);
+    }
+    const descriptors = await (await get(request, '/plugin-descriptors', own.admin)).json();
+    expect(descriptors.map(item => item.plugin_id)).toEqual(expect.arrayContaining(['github', 'slack', 'jira', own.installation.plugin_id]));
+    const foreignPath = '/api/v0/plugin-installations/' + foreign.installation.plugin_installation_id;
+    const before = await (await get(request, '/plugin-installations', foreign.admin)).json();
+    const denied = await request.patch(foreignPath, { headers: own.admin.headers, data: { status: 'disabled' } });
+    expect(denied.status()).toBe(404);
+    expect((await request.post(foreignPath + '/healthcheck', { headers: own.admin.headers })).status()).toBe(404);
+    expect(await (await get(request, '/plugin-installations', foreign.admin)).json()).toEqual(before);
+    const health = await request.post('/api/v0/plugin-installations/' + own.installation.plugin_installation_id + '/healthcheck', { headers: own.admin.headers });
+    expect(health.status()).toBe(200);
+  }
+  await open(page, a, '#connections');
+  await expect(page.getByText(a.marker + ' connector', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(b.marker + ' connector', { exact: true })).toHaveCount(0);
+  const context = await browser.newContext();
+  try {
+    const other = await context.newPage();
+    await open(other, b, '#connections');
+    await expect(other.getByText(b.marker + ' connector', { exact: true }).first()).toBeVisible();
+    await expect(other.getByText(a.marker + ' connector', { exact: true })).toHaveCount(0);
+  } finally { await context.close(); }
+});

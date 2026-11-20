@@ -26,6 +26,7 @@ from contracts.v1.json_data import (
     reject_credential_fields,
     thaw_json_value,
 )
+from contracts.v1.plugin_visibility import descriptor_owners, descriptor_visible
 from infrastructure.persistence.repositories import Repository
 from shared.errors import PluginGatewayError as PluginGatewayError
 
@@ -116,6 +117,10 @@ class PluginGateway:
             )
         try:
             descriptor = self._descriptors.get(installation.plugin_id)
+            if not descriptor_visible(
+                descriptor, org_id, descriptor_owners(self._installations.list())
+            ):
+                raise KeyError("Plugin descriptor not found in organization scope")
         except KeyError as exc:
             raise PluginGatewayError(
                 "plugin.descriptor_not_found", "Plugin descriptor was not found"

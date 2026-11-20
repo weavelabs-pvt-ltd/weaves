@@ -213,11 +213,11 @@
     "plugins": {
       "scope": "mixed_catalog",
       "contract": "PluginDescriptor",
-      "privacy": "role permission within declared scope",
+      "privacy": "Built-ins public; legacy imported descriptors require installation references from exactly one organization. Orphans/conflicts are hidden and cannot be dispatched.",
       "system_access": "explicit bounded dispatcher/recovery or migration; not customer Admin bypass",
       "lifecycle": "deny new tenant work when suspended/deleted or workspace archived; allow audited cleanup",
       "scope_keys": [],
-      "current_gap": "custom descriptors currently global; Phase 1 adds imported ownership"
+      "current_gap": "Containment infers legacy ownership from references; explicit persistent ownership/backfill and bounded scoped queries remain required before Phase 1 completion."
     },
     "plugin_installations": {
       "scope": "workspace",

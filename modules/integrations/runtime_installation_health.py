@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Protocol
 
+from application.descriptor_catalog import scoped_descriptor
 from application.runtime_host import RuntimeCapabilityHost
 from contracts.v1 import (
     AuditEvent,
@@ -55,7 +56,12 @@ class IntegrationInstallationHealthMixin(RuntimeCapabilityHost):
             "jira": self.jira_plugin,
             "mcp": self.mcp_plugin,
         }
-        descriptor = self.plugins.get(installation.plugin_id)
+        descriptor = scoped_descriptor(
+            self.plugins,
+            self.installations,
+            installation.plugin_id,
+            installation.org_id,
+        )
         details = self._record_plugin_healthcheck(
             descriptor,
             installation,

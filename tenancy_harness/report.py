@@ -43,7 +43,7 @@ def summarize(raw, pair, sources, bundle_digest, fixture):
     required = set(pair["required_controls"]) | set(pair["known_defects"])
     observed = {}
     for item in items:
-        match = re.match(r"(T0-[ID]\d{2})\b", item["title"])
+        match = re.match(r"(T\d+-[ID]\d{2})\b", item["title"])
         if not match or match[1] in observed:
             raise RuntimeError("Unidentified or duplicate tenancy test ID")
         results = [r for test in item["tests"] for r in test.get("results", [])]
@@ -62,7 +62,7 @@ def summarize(raw, pair, sources, bundle_digest, fixture):
     known["T0-D04"] = {"observed": observed.get("T0-D04", False), "resolution_phase": 1}
     complete = complete and all(value["observed"] for value in known.values())
     return {
-        "phase": 0,
+        "phase": pair["phase"],
         "foundation_passed": complete,
         "saas_ready": False,
         "sources": sources,
@@ -70,6 +70,7 @@ def summarize(raw, pair, sources, bundle_digest, fixture):
         "required_cases": sorted(required),
         "case_results": observed,
         "known_defects": known,
+        "resolved_defects": pair.get("resolved_defects", {}),
         "storage": "postgres",
         "worker": "apps.worker.main",
         "schema_version": fixture.get("schema_version"),
