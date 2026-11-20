@@ -54,7 +54,9 @@ class OAuthGitHubMixin(OAuthContextBase):
         if not isinstance(user_token, str):
             return self.finish("github", "failed", "provider_response")
 
-        secret_ref = self.dependencies.secret_store.put(user_token)
+        secret_ref = self.dependencies.secret_store.put(
+            user_token, purpose="oauth_token"
+        )
 
         try:
             install_state = self.state_record(

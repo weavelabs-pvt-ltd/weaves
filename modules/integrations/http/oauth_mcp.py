@@ -65,7 +65,7 @@ class McpOAuthMixin(OAuthContextBase):
             "authorization_endpoint": metadata["authorization_endpoint"],
         }
         secret_ref = self.dependencies.secret_store.put(
-            json.dumps(temporary, separators=(",", ":"))
+            json.dumps(temporary, separators=(",", ":")), purpose="oauth_setup"
         )
         try:
             state = self.state_record(
@@ -129,7 +129,7 @@ class McpOAuthMixin(OAuthContextBase):
                 raise ValueError("MCP authorization did not return an access token")
             bundle = self._token_bundle(token_data, temporary)
             token_ref = self.dependencies.secret_store.put(
-                json.dumps(bundle, separators=(",", ":"))
+                json.dumps(bundle, separators=(",", ":")), purpose="oauth_token"
             )
             endpoint = _state_text(record.configuration, "endpoint")
             tools = self.dependencies.connection_service.mcp_plugin.discover_tools(

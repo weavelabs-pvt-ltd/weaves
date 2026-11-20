@@ -82,6 +82,7 @@ def seed_model_egress(fixtures):
 def legacy_task(tenant):
     """Seed only a disposable legacy record; execution uses the actual worker."""
     from apps.runtime_wiring import open_process_runtime
+    from shared.request_context import reset_request_principal, set_request_identity
     from tenancy_harness.seed import require_disposable_database
 
     require_disposable_database()
@@ -89,11 +90,20 @@ def legacy_task(tenant):
     try:
         runtime.bootstrap()
         provider = runtime.providers.get_scoped(tenant["provider_id"], tenant["org_id"])
+        identity = set_request_identity(
+            "tenancy-fixture", tenant["org_id"], tenant["workspace_id"]
+        )
+        try:
+            auth_ref = runtime.secret_store.put(
+                "fixture-legacy-egress-key", purpose="model_provider"
+            )
+        finally:
+            reset_request_principal(identity)
         legacy = provider.model_copy(
             update={
                 "id": str(uuid4()),
                 "base_url": "https://blocked-models.tenancy.test/v1",
-                "auth_ref": runtime.secret_store.put("fixture-legacy-egress-key"),
+                "auth_ref": auth_ref,
             }
         )
         runtime.providers.create(legacy)

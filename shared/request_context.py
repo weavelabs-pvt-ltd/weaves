@@ -1,5 +1,7 @@
 """Authenticated tenant identity for one API request or worker call."""
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
 
@@ -79,3 +81,27 @@ def effective_workspace_id(default: str = "local-workspace") -> str:
     if identity is None and _require_context:
         raise TenantContextRequired("tenant context is required in this process")
     return identity.workspace_id if identity is not None else default
+
+
+_system_purpose: ContextVar[str | None] = ContextVar(
+    "weaves_system_purpose", default=None
+)
+
+
+@contextmanager
+def system_scope(purpose: str) -> Iterator[None]:
+    """Mark a narrow, named cross-tenant operation (auth discovery, queue claim).
+
+    System scope is not a tenant identity: it only names why code is allowed to
+    touch rows without a tenant, so storage can permit exactly that operation.
+    """
+    token = _system_purpose.set(purpose)
+    try:
+        yield
+    finally:
+        _system_purpose.reset(token)
+
+
+def current_system_purpose() -> str | None:
+    """Return the active system purpose, or None for ordinary tenant work."""
+    return _system_purpose.get()

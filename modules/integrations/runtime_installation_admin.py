@@ -132,7 +132,7 @@ class IntegrationInstallationAdminMixin(RuntimeCapabilityHost):
         scoped_descriptor(
             self.plugins, self.installations, current.plugin_id, current.org_id
         )
-        next_secret_ref = self.secret_store.put(api_token.strip())
+        next_secret_ref = self.secret_store.put(api_token.strip(), purpose="connector")
         updated = current.model_copy(
             update={"auth_ref": next_secret_ref, "updated_at": _now()}
         )

@@ -6,8 +6,14 @@ from typing import Protocol
 class SecretStore(Protocol):
     """Store opaque references while keeping secret values inside adapters."""
 
-    def put(self, secret: str) -> str:
-        """Persist a secret and return its opaque reference."""
+    def put(
+        self, secret: str, *, purpose: str = "unspecified", owner_ref: str | None = None
+    ) -> str:
+        """Persist a secret for the current tenant and return its opaque reference.
+
+        ``purpose`` and ``owner_ref`` record what the secret is for and which
+        resource owns it, so it can be audited, rotated and cleaned up.
+        """
         ...
 
     def replace(self, secret_ref: str, secret: str) -> None:
