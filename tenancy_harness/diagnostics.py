@@ -2,6 +2,11 @@
 
 import httpx
 
+from tenancy_harness.account_checks import (
+    linking_checks,
+    selection_checks,
+    sign_in_checks,
+)
 from tenancy_harness.client import API, call, mailbox
 from tenancy_harness.resources import tenant
 
@@ -17,114 +22,13 @@ def seed_diagnostics(fixtures):
 
 
 def account_fixture(fixtures, foreign_org_id):
-    """Sign in as an account with real email proof and read its memberships."""
+    """Run the account sign-in, selection and email-linking controls."""
     a, b = fixtures["tenants"]["a"], fixtures["tenants"]["b"]
-    email = a["shared_person"]["email"]
-    source = {"X-Forwarded-For": "198.20.0.77"}
-    before = mailbox(email)["count"]
-    started = httpx.post(
-        API + "/account/email-code", headers=source, json={"email": email}, timeout=30
-    )
-    proof = mailbox(email)
-    code_sent = started.status_code == 202 and proof["count"] == before + 1
-    verified = httpx.post(
-        API + "/account/email-verify",
-        headers=source,
-        json={"challenge_id": started.json()["challenge_id"], "code": proof["code"]},
-        timeout=30,
-    )
-    token = verified.json().get("access_token", "")
-    bearer = {"Authorization": "Bearer " + token}
-    me = httpx.get(API + "/account/me", headers=bearer, timeout=30)
-    organizations = {
-        item["organization_id"]
-        for item in (me.json().get("memberships", []) if me.status_code == 200 else [])
-    }
-    stranger = httpx.post(
-        API + "/account/email-code",
-        headers=source,
-        json={"email": "nobody.at.all@tenancy.test"},
-        timeout=30,
-    )
-
-    def names(org_id, actor_headers=None, workspace=None):
-        headers = dict(actor_headers or bearer)
-        headers["X-Organization-Id"] = org_id
-        if workspace:
-            headers["X-Workspace-ID"] = workspace
-        response = httpx.get(API + "/agents", headers=headers, timeout=30)
-        body = response.json() if response.status_code == 200 else None
-        return response, {item["name"] for item in body or []}
-
-    _, names_a = names(a["org_id"])
-    _, names_b = names(b["org_id"])
-    unknown, _ = names("no-such-organization")
-    foreign, _ = names(foreign_org_id)
-    ignored, names_ignored = names(b["org_id"], a["admin"]["headers"])
-    cross_workspace, _ = names(a["org_id"], workspace=b["workspace_id"])
-
-    def prove(path, email, extra_headers=None, challenge_id=None):
-        headers = {**source, **(extra_headers or {})}
-        if challenge_id is None:
-            before_count = mailbox(email)["count"]
-            started = httpx.post(
-                API + path + "email-code",
-                headers=headers,
-                json={"email": email},
-                timeout=30,
-            )
-            challenge_id = started.json()["challenge_id"]
-            assert mailbox(email)["count"] == before_count + 1
-        return httpx.post(
-            API + path + "email-verify",
-            headers=headers,
-            json={"challenge_id": challenge_id, "code": mailbox(email)["code"]},
-            timeout=30,
-        )
-
-    other_email = b["admin"]["email"]
-    other_account = prove("/account/", other_email, {"X-Forwarded-For": "198.20.0.78"})
-    attach_email = a["builder"]["email"]
-    attached = prove("/account/identities/", attach_email, bearer)
-    conflict = prove("/account/identities/", other_email, bearer)
-    me_after = httpx.get(API + "/account/me", headers=bearer, timeout=30)
-    other_me = httpx.get(
-        API + "/account/me",
-        headers={"Authorization": "Bearer " + other_account.json()["access_token"]},
-        timeout=30,
-    )
+    bearer, signed_in = sign_in_checks(a, b)
     return {
-        "email_attached_after_proof": attached.status_code == 200
-        and len(attached.json()["identities"]) == 2,
-        "email_of_another_account_refused": conflict.status_code == 409,
-        "refusal_changed_nothing": me_after.status_code == 200
-        and len(me_after.json()["identities"]) == 2
-        and other_me.status_code == 200
-        and len(other_me.json()["identities"]) == 1,
-        "selects_each_organization": a["agent"]["name"] in names_a
-        and b["agent"]["name"] in names_b
-        and a["agent"]["name"] not in names_b
-        and b["agent"]["name"] not in names_a,
-        "foreign_and_unknown_indistinguishable": unknown.status_code == 403
-        and (foreign.status_code, foreign.json())
-        == (unknown.status_code, unknown.json()),
-        "tenant_token_ignores_header": ignored.status_code == 200
-        and a["agent"]["name"] in names_ignored
-        and b["agent"]["name"] not in names_ignored,
-        "workspace_checked_inside_organization": cross_workspace.status_code == 403,
-        "code_sent": code_sent,
-        "signed_in": verified.status_code == 200 and token.startswith("wvs_acct_"),
-        "one_account_two_organizations": organizations == {a["org_id"], b["org_id"]},
-        "account_token_denied_on_tenant_routes": all(
-            httpx.get(API + path, headers=bearer, timeout=30).status_code == 401
-            for path in ("/agents", "/workspaces", "/model-providers")
-        ),
-        "tenant_token_denied_on_account_routes": httpx.get(
-            API + "/account/me", headers=a["admin"]["headers"], timeout=30
-        ).status_code
-        == 401,
-        "unknown_email_indistinguishable": stranger.status_code == started.status_code
-        and set(stranger.json()) == set(started.json()),
+        **signed_in,
+        **selection_checks(a, b, bearer, foreign_org_id),
+        **linking_checks(a, b, bearer),
     }
 
 
