@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from decimal import ROUND_CEILING, Decimal
 
 NANOS = 1_000_000_000
+MAX_OUTPUT_TOKENS = 1024
 
 
 class BudgetExhausted(RuntimeError):
@@ -42,7 +43,9 @@ class Ledger:
         reserve = self.config["request_reservation_nanos"]
         limit = self.config["lifetime_limit_nanos"]
         maximum_cost = usage_cost(
-            self.config, model, {"input_tokens": 64000, "output_tokens": 256}
+            self.config,
+            model,
+            {"input_tokens": 64000, "output_tokens": MAX_OUTPUT_TOKENS},
         )
         if type(reserve) is not int or reserve <= 0 or maximum_cost > reserve:
             raise ValueError("Request hold cannot cover its maximum possible cost")
@@ -153,7 +156,7 @@ def usage_cost(config, model, usage):
         or min(incoming, outgoing) < 0
     ):
         raise ValueError("Missing/invalid provider usage; retain its reservation")
-    if incoming > 64000 or outgoing > 256:
+    if incoming > 64000 or outgoing > MAX_OUTPUT_TOKENS:
         raise ValueError("Usage exceeds the bounded live smoke envelope")
     rate = config["rates"][model]
     amounts = [

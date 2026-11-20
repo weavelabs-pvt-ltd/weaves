@@ -9,7 +9,7 @@ import httpx
 from fastapi import HTTPException, Request
 from starlette.responses import Response
 
-from tenancy_harness.budget import BudgetExhausted, Ledger
+from tenancy_harness.budget import MAX_OUTPUT_TOKENS, BudgetExhausted, Ledger
 
 
 def credentials(request):
@@ -24,7 +24,7 @@ def credentials(request):
 def validate(body):
     """Reject costly/unpriced features before reserving or dispatching a request."""
     allowed = {"model", "system", "messages", "max_tokens", "temperature"}
-    if set(body) - allowed or not 1 <= body.get("max_tokens", 0) <= 256:
+    if set(body) - allowed or not 1 <= body.get("max_tokens", 0) <= MAX_OUTPUT_TOKENS:
         raise HTTPException(400, "Live smoke only permits bounded text messages")
     encoded = json.dumps(body)
     if (

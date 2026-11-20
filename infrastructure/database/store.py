@@ -323,10 +323,10 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
 )
 
 
-# Migration 19 only adds indexes and an update guard for the new SSO collection.
-# The compatibility release can read it, but must not apply it before it becomes
-# the healthy rollback target. Unknown later migrations remain rejected.
-_READ_COMPATIBLE_MIGRATIONS = frozenset({19})
+# Migration 20 keeps descriptor JSON unchanged and is explicitly activated by
+# the operator after this compatible API/worker image is healthy. Startup must
+# never apply it automatically. Unknown later migrations remain rejected.
+_READ_COMPATIBLE_MIGRATIONS = frozenset({19, 20})
 
 
 def _schema_migrations() -> tuple[tuple[int, tuple[str, ...]], ...]:
@@ -400,6 +400,10 @@ class ProductPostgresStore:
                     "Database schema contains unsupported migration versions: "
                     + ", ".join(str(version) for version in sorted(unknown_versions))
                 )
+            if 20 in applied:
+                from infrastructure.database.plugin_ownership import validate_schema
+
+                validate_schema(connection)
             for version, statements in migrations:
                 if version in applied:
                     continue

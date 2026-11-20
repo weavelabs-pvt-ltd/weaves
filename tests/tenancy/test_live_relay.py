@@ -67,3 +67,17 @@ def test_wrong_key_is_rejected_without_provider_or_budget_use(
     response = client.get("/v1/models", headers={"x-api-key": "wrong"})
     assert response.status_code == 401
     assert ledger.snapshot()["requests"] == 0
+
+
+def test_larger_thinking_envelope_still_blocks_over_limit_before_dispatch(
+    relay_client, monkeypatch
+):
+    client, ledger = relay_client
+    monkeypatch.setattr(httpx, "AsyncClient", forbid_upstream)
+    response = client.post(
+        "/v1/messages",
+        headers={"x-api-key": "fixture-only"},
+        json={"model": "model", "max_tokens": 1025, "messages": []},
+    )
+    assert response.status_code == 400
+    assert ledger.snapshot()["requests"] == 0

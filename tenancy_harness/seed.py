@@ -41,6 +41,10 @@ def main():
         secondary(t)
         fixtures["tenants"][label] = t
     fixtures["diagnostics"] = seed_diagnostics(fixtures)
+    if os.environ.get("TENANCY_CATALOG_READER_IMAGE"):
+        from tenancy_harness.catalog_ownership import migrate_catalog
+
+        fixtures["catalog_ownership"] = migrate_catalog(fixtures)
     path = Path(os.environ["TENANCY_FIXTURE_FILE"])
     path.write_text(json.dumps(fixtures))
     path.chmod(0o600)

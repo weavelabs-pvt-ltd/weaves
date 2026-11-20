@@ -34,6 +34,23 @@ Preserve current data, resource IDs, immutable version history, tenant-local ide
 
 Shared PostgreSQL/application infrastructure is retained. Phase 2 introduces scoped storage, secret ownership, and staged RLS with separate application/migration/system privileges. Phase 5 adds measured resource admission/fairness; Phase 6 proves recovery. No new hosting resources are created by Phase 0.
 
+### Connector ownership activation (migration 20)
+
+The compatible API/worker keeps `PluginDescriptor` JSON unchanged. New connectors write their organization into the existing record scope column. Before activation, readers safely resolve legacy references in SQL. Migration 20 adds `product_plugin_ownership` and a rollout record, backfills one proven organization, quarantines ownerless/conflicting/invalid legacy definitions, and protects owner identity and installation references with database guards. Disabled references still count. Persisted quarantine survives removing every connection and cannot silently become another organization's descriptor.
+
+Application startup recognizes migration 20 but never applies it. Deploy the same compatible immutable image to API and worker first, validate both, and retain that image as the minimum rollback target. Then run the operator command from that image with its operator-selected `DATABASE_URL` already supplied through the environment:
+
+```sh
+python -m apps.cli.plugin_catalog_ownership
+python -m apps.cli.plugin_catalog_ownership --apply --reader-image "$VERIFIED_READER_IMAGE"
+```
+
+The first command is read-only and returns IDs/classification/reasons, never tool schemas or credentials. `VERIFIED_READER_IMAGE` must be an immutable image digest (`registry/image@sha256:...`; local rehearsals record the actual image content ID). The tool records the supplied verified image; it does not itself prove which image is deployed. Do not activate while any API/worker process still uses an incompatible image. The integration suite starts API on schema 19, explicitly activates 20, starts the native worker, and verifies scoped tools and browser cleanup on the migrated store.
+
+Activation is one atomic transaction under the shared migration lock. Schedule a brief maintenance window: it takes an exclusive table lock that blocks record reads and writes, with a 10-second lock timeout and a 30-second statement timeout. Catalog readers hold a shared table lock across the version check and scoped query, preventing a query chosen under schema 19 from reading post-activation data. Activation bounds the entire record store to 10,000 rows, including work needed by the partial index build; larger stores are refused and require a separately rehearsed concurrent-index/batched migration. Failure leaves schema 19 and business payloads intact; a retry after success reads immutable ownership rather than reclassifying from changed references. Startup rejects a recorded activation with missing tables, guards, or rollout evidence. Unknown later migration versions remain rejected.
+
+After activation, an organization can disconnect its own quarantined connections and destroy those credentials; the descriptor remains quarantined for operator investigation. A replacement must be created through the normal scoped connection flow rather than assigning ambiguous historical metadata to an organization. Descriptor deletion and new installation creation serialize on the ownership row, preventing dangling references. Separate operator resolution/purge policy and organization deletion remain lifecycle work. Database reset or rollback to a pre-compatible image is not a recovery mechanism.
+
 ## Evidence policy
 
 Passing isolation controls and observed known defects are separate report categories. Phase 0's required job validates a reproducible foundation, not SaaS readiness: `saas_ready` is explicitly false. The five documented diagnostics are not xfails/skips or a security certification. Unexpected outcomes fail the baseline; Phase 1 replaces each diagnostic with an actual passing security regression and removes its open-defect entry.

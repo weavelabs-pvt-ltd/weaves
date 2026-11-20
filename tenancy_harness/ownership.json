@@ -213,11 +213,11 @@
     "plugins": {
       "scope": "mixed_catalog",
       "contract": "PluginDescriptor",
-      "privacy": "Built-ins public; legacy imported descriptors require installation references from exactly one organization. Orphans/conflicts are hidden and cannot be dispatched.",
+      "privacy": "Only three built-in definitions are public. Custom ownership persists independently of installation references; orphan/conflicting legacy definitions remain quarantined.",
       "system_access": "explicit bounded dispatcher/recovery or migration; not customer Admin bypass",
       "lifecycle": "deny new tenant work when suspended/deleted or workspace archived; allow audited cleanup",
       "scope_keys": [],
-      "current_gap": "Containment infers legacy ownership from references; explicit persistent ownership/backfill and bounded scoped queries remain required before Phase 1 completion."
+      "current_gap": "Schema 19 retains safe legacy inference until explicit activation of migration 20; activation requires the compatible reader image."
     },
     "plugin_installations": {
       "scope": "workspace",
@@ -531,6 +531,14 @@
     "product_schema_migrations": {
       "current": "deployment migration bookkeeping",
       "target": "migration role only; not customer accessible"
+    },
+    "product_plugin_ownership": {
+      "scope": "organization or explicit global built-in; immutable quarantine otherwise",
+      "purpose": "Persist descriptor ownership independently of references without changing descriptor JSON; enforce immutable owner and installation scope."
+    },
+    "product_plugin_ownership_rollout": {
+      "scope": "operator only",
+      "purpose": "Immutable compatible reader image and activation counts for migration 20; never exposed through tenant APIs."
     }
   },
   "routes": [

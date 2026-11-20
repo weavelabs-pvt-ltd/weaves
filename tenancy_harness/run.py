@@ -73,6 +73,17 @@ def complete_checks(args, compose, frontend, harness, private, port, report, liv
         report["fake_canvas_browser"] = browser_outcomes(
             browser(frontend, harness, private, port, live=True)
         )
+        compose.run(
+            "run",
+            "--rm",
+            "--no-deps",
+            "seed",
+            "python",
+            "-m",
+            "tenancy_harness.canvas_probe",
+            "verify",
+        )
+        report["fake_canvas_provenance"] = True
     if live and report["foundation_passed"]:
         report["live_ai"] = {"passed": False, "stage": "preparing"}
         try:
@@ -149,6 +160,13 @@ def run(args, harness):
                 capture_output=True,
                 text=True,
             ).stdout.strip()
+        if 20 in pair.get("fixture_migrations", []):
+            with envfile.open("a") as output:
+                output.write(
+                    "\nTEST_CATALOG_READER_IMAGE="
+                    + json.dumps(sources["backend"]["image_id"])
+                    + "\n"
+                )
         compose.run("up", "-d", "postgres", "provider", "api", "frontend")
         compose.run("run", "--rm", "--no-deps", "seed")
         compose.run("up", "-d", "worker")
@@ -162,6 +180,17 @@ def run(args, harness):
             "tenancy_harness.observe",
         )
         raw = browser(frontend, harness, private, port)
+        if 20 in pair.get("fixture_migrations", []):
+            compose.run(
+                "run",
+                "--rm",
+                "--no-deps",
+                "seed",
+                "python",
+                "-m",
+                "tenancy_harness.catalog_ownership",
+                "verify",
+            )
         fixture = json.loads((private / "fixtures.json").read_text())
         report = summarize(raw, pair, sources, digest, fixture)
         complete_checks(args, compose, frontend, harness, private, port, report, live)

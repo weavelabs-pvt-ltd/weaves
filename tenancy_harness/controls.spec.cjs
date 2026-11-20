@@ -157,3 +157,30 @@ test('T1-I01 custom connector metadata belongs only to its organization', async 
     await expect(other.getByText(a.marker + ' connector', { exact: true })).toHaveCount(0);
   } finally { await context.close(); }
 });
+
+test('T1-I02 explicit ownership and quarantine survive migration and cleanup', async ({ request }) => {
+  const migration = fixture.catalog_ownership;
+  expect(migration.version).toBe(20);
+  expect(migration.applied).toBe(true);
+  expect(migration.legacy_scoped).toBe(true);
+  expect(migration.foreign_ref_denied).toBe(true);
+  for (const tenant of [a, b]) {
+    const descriptors = await (await get(request, '/plugin-descriptors', tenant.admin)).json();
+    expect(JSON.stringify(descriptors)).not.toContain('MIGRATION_QUARANTINE_SENTINEL');
+    expect(descriptors.some(item => item.plugin_id === migration.new_installation.plugin_id)).toBe(tenant === a);
+    const id = migration.conflict_inst_ids[tenant.label];
+    const removed = await request.delete('/api/v0/plugin-installations/' + id, { headers: tenant.admin.headers });
+    expect(removed.status()).toBe(204);
+    for (const actor of [a.admin, b.admin]) {
+      const result = await get(request, '/plugin-descriptors', actor);
+      const text = JSON.stringify(await result.json());
+      expect(text).not.toContain(migration.conflict_id);
+      expect(text).not.toContain(migration.orphan_id);
+    }
+  }
+  const path = '/api/v0/plugin-installations/' + migration.new_installation.plugin_installation_id + '/healthcheck';
+  expect((await request.post(path, { headers: a.admin.headers })).status()).toBe(200);
+  expect((await request.post(path, { headers: b.admin.headers })).status()).toBe(404);
+  const removed = await request.delete('/api/v0/plugin-installations/' + migration.new_installation.plugin_installation_id, { headers: a.admin.headers });
+  expect(removed.status()).toBe(204);
+});

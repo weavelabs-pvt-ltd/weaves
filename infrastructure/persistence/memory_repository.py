@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from threading import RLock
-from typing import Any, Generic
+from typing import Any, Generic, cast
 
 from application.ports.repository import TContract
 from contracts.v1.base import OpaqueId
@@ -23,6 +23,14 @@ class InMemoryRepository(Generic[TContract]):
         self._id_field = id_field
         self._records: dict[str, TContract] = {}
         self._lock = RLock()
+
+    def snapshot_state(self) -> object:
+        """Capture adapter state for an already-locked local unit of work."""
+        return {key: self._clone(record) for key, record in self._records.items()}
+
+    def restore_state(self, snapshot: object) -> None:
+        """Restore an adapter's rollback snapshot while its lock is held."""
+        self._records = cast(dict[str, TContract], snapshot)
 
     def create(self, record: TContract) -> TContract:
         """Insert a new record and reject an existing identifier."""

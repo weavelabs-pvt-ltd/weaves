@@ -29,10 +29,7 @@ class InMemoryUnitOfWork:
                 repository._lock.acquire()
                 acquired.append(repository)
             self._snapshots = {
-                id(repository): {
-                    key: repository._clone(record)
-                    for key, record in repository._records.items()
-                }
+                id(repository): repository.snapshot_state()
                 for repository in self._repositories
             }
         except Exception:
@@ -46,7 +43,7 @@ class InMemoryUnitOfWork:
         try:
             if exc_type is not None:
                 for repository in self._repositories:
-                    repository._records = self._snapshots[id(repository)]
+                    repository.restore_state(self._snapshots[id(repository)])
         finally:
             for repository in reversed(self._repositories):
                 repository._lock.release()

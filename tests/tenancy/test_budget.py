@@ -5,7 +5,13 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from tenancy_harness.budget import BudgetExhausted, Ledger, initialize
+from tenancy_harness.budget import (
+    MAX_OUTPUT_TOKENS,
+    BudgetExhausted,
+    Ledger,
+    initialize,
+    usage_cost,
+)
 
 
 def config(limit=100_000_000_000):
@@ -112,3 +118,20 @@ def test_invalid_prices_or_discounting_margin_cannot_bypass_the_cap(tmp_path):
     with pytest.raises(ValueError, match="margin"):
         ledger.reserve("model", "run", 3)
     assert ledger.snapshot()["requests"] == 0
+
+
+def test_thinking_and_text_maximum_still_fits_the_unchanged_reservation(tmp_path):
+    assert MAX_OUTPUT_TOKENS == 1024
+    settings = config()
+    cost = usage_cost(
+        settings, "model", {"input_tokens": 64000, "output_tokens": MAX_OUTPUT_TOKENS}
+    )
+    assert cost == 276_480_000
+    assert cost < settings["request_reservation_nanos"]
+    initialize(tmp_path, settings)
+    ledger = Ledger(tmp_path)
+    request = ledger.reserve("model", "bounded-thinking", 3)
+    ledger.settle(
+        request, "model", {"input_tokens": 64000, "output_tokens": MAX_OUTPUT_TOKENS}
+    )
+    assert ledger.snapshot()["lifetime_limit_usd"] == "100"

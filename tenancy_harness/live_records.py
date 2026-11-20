@@ -30,32 +30,37 @@ def _record(connection, task_id, tenant):
         "AND org_id=%s AND payload->>'task_id'=%s",
         (org_id, task_id),
     ).fetchone()[0]
-    run = connection.execute(
+    run_row = connection.execute(
         "SELECT payload FROM product_records WHERE collection='agent_runs' "
         "AND org_id=%s AND record_id=%s",
         (org_id, turn["agent_run_id"]),
-    ).fetchone()[0]
-    version = connection.execute(
+    ).fetchone()
+    run = run_row[0] if run_row else {}
+    version_row = connection.execute(
         "SELECT payload FROM product_records WHERE collection='agent_versions' "
         "AND org_id=%s AND record_id=%s",
-        (org_id, run["agent_version_id"]),
-    ).fetchone()[0]
+        (org_id, run.get("agent_version_id")),
+    ).fetchone()
+    version = version_row[0] if version_row else {}
     tools = connection.execute(
         "SELECT payload->>'status' FROM product_records "
         "WHERE collection='tool_invocations' AND org_id=%s "
         "AND payload->>'agent_run_id'=%s",
-        (org_id, run["agent_run_id"]),
+        (org_id, run.get("agent_run_id")),
     ).fetchall()
     return {
         "task_id": task_id,
         "status": task["latest_turn_status"],
-        "model": run["resolved_model_id"],
-        "provider_id": run["resolved_provider_id"],
+        "model": run.get("resolved_model_id"),
+        "provider_id": run.get("resolved_provider_id"),
         "summary": run.get("output_summary") or {},
         "input_tokens": run.get("input_tokens"),
         "output_tokens": run.get("output_tokens"),
-        "skill_pins": [s.get("source_skill_version_id") for s in version["skills"]],
+        "skill_pins": [
+            s.get("source_skill_version_id") for s in version.get("skills", [])
+        ],
         "tool_statuses": [row[0] for row in tools],
+        "error": {"turn": turn.get("error"), "run": run.get("error")},
     }
 
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from application.ports.product_repositories import ProductRepositorySet
 from contracts.v1 import (
     AgentDefinition,
@@ -51,7 +53,9 @@ from contracts.v1 import ModelProvider as ModelProviderContract
 from contracts.v1.base import ProductContract
 from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
 from infrastructure.database.store import ProductPostgresStore
+from infrastructure.persistence.memory_plugin_catalog import InMemoryPluginCatalog
 from infrastructure.persistence.memory_repository import InMemoryRepository
+from infrastructure.persistence.postgres_plugin_catalog import PostgresPluginCatalog
 from infrastructure.persistence.postgres_repository import PostgresRepository
 
 REPOSITORY_SPECS: tuple[tuple[str, str, str, type[ProductContract]], ...] = (
@@ -171,6 +175,16 @@ def create_product_repository_set(
         name: _create_repository(store, collection, id_field, record_type)
         for name, collection, id_field, record_type in REPOSITORY_SPECS
     }
+    repositories["plugins"] = (
+        PostgresPluginCatalog(store)
+        if store is not None
+        else InMemoryPluginCatalog(
+            cast(
+                InMemoryRepository[PluginInstallation],
+                repositories["plugin_installations"],
+            )
+        )
+    )
     return ProductRepositorySet(repositories)
 
 
