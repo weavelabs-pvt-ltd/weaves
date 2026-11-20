@@ -56,8 +56,8 @@ def account_fixture(fixtures, foreign_org_id):
         body = response.json() if response.status_code == 200 else None
         return response, {item["name"] for item in body or []}
 
-    in_a, names_a = names(a["org_id"])
-    in_b, names_b = names(b["org_id"])
+    _, names_a = names(a["org_id"])
+    _, names_b = names(b["org_id"])
     unknown, _ = names("no-such-organization")
     foreign, _ = names(foreign_org_id)
     ignored, names_ignored = names(b["org_id"], a["admin"]["headers"])

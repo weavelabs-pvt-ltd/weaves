@@ -39,7 +39,7 @@ def world():
             name="Org B", email=SHARED, display_name="Shared B"
         )
     )
-    org_c, _, _, _, owner_c = runtime.organization_service.create_organization(
+    org_c, _, _, _, _ = runtime.organization_service.create_organization(
         name="Org C", email="stranger@example.test", display_name="Stranger"
     )
     challenge = service.start_email_login(SHARED, "198.51.100.1")
@@ -69,7 +69,7 @@ def _get(world, path="/api/v0/agents", *, org=None, workspace=None, token=None):
 def test_one_account_works_in_each_member_organization_as_its_local_principal(world):
     runtime = world["runtime"]
     a, b = world["a"], world["b"]
-    for org, _ws, _user, principal, _owner in (a, b):
+    for org, *_ in (a, b):
         agent_name = f"Agent in {org.name}"
         owner_token = world["a"][4] if org is a[0] else world["b"][4]
         created = world["client"].post(

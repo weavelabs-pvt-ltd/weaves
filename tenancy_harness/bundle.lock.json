@@ -9,7 +9,7 @@
     "client.py": "bbdced3dcdd2e0355f26053523d4ed5adc6d22ed41b3ce12fcbe8f577598e568",
     "compose.yml": "6422ecea972746a2a98d406ed22c3bcbb6501712beb39116b32398502b93e744",
     "controls.spec.cjs": "b819b04b0b1680529945364844ab3eb22f298b4da301db71767bbaa2647826cf",
-    "diagnostics.py": "3deb8aa34093f2bf309ff5ed3e32edfbe79a2a286db3d13708bded2c558bec49",
+    "diagnostics.py": "9d8b58ab1980c450bdc60d1bddf12c5982b2e1c876b479c20696665353d38fdb",
     "fakes.py": "2d78433604c726fdec5449bd75c46724c989cf818a82d572d35032baac108ade",
     "gateway.conf": "3b0b943c424ddcca82f58869993999781964292d45e22c4156df0fc99026337b",
     "live.compose.yml": "9c5a1050ba91ee834e53ccc0c9cfa9d6d9b08cf8f4aa1d13a07ce2e02929bc4f",
