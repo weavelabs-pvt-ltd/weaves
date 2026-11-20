@@ -91,7 +91,7 @@ def activate_ownership(
                 "SELECT version FROM product_schema_migrations"
             ).fetchall()
         }
-        if not set(range(1, 20)) <= versions or versions - set(range(1, 21)):
+        if not set(range(1, 20)) <= versions or versions - set(range(1, 22)):
             raise RuntimeError(
                 "Catalog activation requires a supported schema 19 reader"
             )

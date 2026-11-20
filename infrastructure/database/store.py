@@ -326,7 +326,7 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
 # Migration 20 keeps descriptor JSON unchanged and is explicitly activated by
 # the operator after this compatible API/worker image is healthy. Startup must
 # never apply it automatically. Unknown later migrations remain rejected.
-_READ_COMPATIBLE_MIGRATIONS = frozenset({19, 20})
+_READ_COMPATIBLE_MIGRATIONS = frozenset({19, 20, 21})
 
 
 def _schema_migrations() -> tuple[tuple[int, tuple[str, ...]], ...]:
