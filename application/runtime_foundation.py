@@ -32,6 +32,7 @@ class RuntimeFoundationMixin(RuntimeRepositoryBindingMixin, RuntimeCoordinationM
         self,
         *,
         http_client: httpx.Client,
+        provider_http_client: httpx.Client,
         storage_mode: str,
         repository_set: ProductRepositorySet,
         secret_store: SecretStore,
@@ -55,6 +56,7 @@ class RuntimeFoundationMixin(RuntimeRepositoryBindingMixin, RuntimeCoordinationM
         self._close_storage = close_storage
         self._check_storage = check_storage
         self._model_http_client: httpx.Client | None = http_client
+        self._provider_http_client: httpx.Client | None = provider_http_client
         self._repository_set = repository_set
         self._bind_repositories()
         self._configure_coordination()

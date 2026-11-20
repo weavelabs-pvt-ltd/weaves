@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request
 
 MAIL: dict[str, list[str]] = {}
 EGRESS: list[str] = []
+MODEL_EVENTS: list[dict[str, str]] = []
 
 
 async def smtp(reader, writer):
@@ -65,16 +66,37 @@ async def lifespan(app):
 app = FastAPI(lifespan=lifespan)
 
 
-@app.api_route("/live/anthropic/v1/{endpoint}", methods=["GET", "POST"])
-async def live_anthropic(request: Request):
-    """Enable real model access only with the explicit budgeted live overlay."""
-    if "TENANCY_LIVE_CONFIG" not in os.environ:
-        from fastapi import HTTPException
+@app.api_route("/v1/messages", methods=["POST"])
+async def live_messages(request: Request):
+    """Relay only on the explicit overlay, through its separate budget service."""
+    return await forward_live(request, "messages")
 
+
+async def forward_live(request, endpoint):
+    """The relay's network has no fake canonical-host aliases."""
+    import httpx
+    from fastapi import HTTPException
+    from starlette.responses import Response
+
+    relay_url = os.environ.get("TENANCY_LIVE_RELAY_URL")
+    if not relay_url:
         raise HTTPException(404, "Live testing is not enabled")
-    from tenancy_harness.live_relay import relay
-
-    return await relay(request)
+    async with httpx.AsyncClient(timeout=45, trust_env=False) as client:
+        response = await client.request(
+            request.method,
+            relay_url + "/v1/" + endpoint,
+            content=await request.body(),
+            headers={
+                "x-api-key": request.headers.get("x-api-key", ""),
+                "content-type": "application/json",
+            },
+        )
+    return Response(
+        response.content,
+        status_code=response.status_code,
+        media_type="application/json",
+        headers={"request-id": response.headers.get("request-id", "")},
+    )
 
 
 @app.get("/health")
@@ -93,10 +115,38 @@ def mail(recipient: str):
 
 @app.get("/v1/models")
 @app.get("/egress-probe/v1/models")
-def models(request: Request):
+async def models(request: Request):
     """Record isolated outbound dispatch and advertise one synthetic model."""
+    if request.headers.get("host") == "api.anthropic.com" and os.environ.get(
+        "TENANCY_LIVE_RELAY_URL"
+    ):
+        return await forward_live(request, "models")
     EGRESS.append(request.url.path)
+    MODEL_EVENTS.append(
+        {
+            "path": request.url.path,
+            "host": request.headers.get("host", ""),
+            "credential_sha256": hashlib.sha256(
+                request.headers.get("authorization", "").encode()
+            ).hexdigest(),
+        }
+    )
     return {"data": [{"id": "tenancy-fixture-model", "owned_by": "fixture"}]}
+
+
+@app.get("/redirect/v1/models")
+def redirect_models():
+    """Redirect to a private probe; clients must never follow it."""
+    from starlette.responses import RedirectResponse
+
+    EGRESS.append("/redirect/v1/models")
+    return RedirectResponse("https://provider/egress-probe/v1/models", status_code=307)
+
+
+@app.get("/model-events")
+def model_events():
+    """Expose synthetic authentication fingerprints only on the private fixture."""
+    return {"events": MODEL_EVENTS}
 
 
 @app.get("/egress")
@@ -109,6 +159,15 @@ def egress():
 async def completion(request: Request):
     """Return recognizable tenant content through the actual model adapter."""
     body = await request.json()
+    MODEL_EVENTS.append(
+        {
+            "path": request.url.path,
+            "host": request.headers.get("host", ""),
+            "credential_sha256": hashlib.sha256(
+                request.headers.get("authorization", "").encode()
+            ).hexdigest(),
+        }
+    )
     prompt = body["messages"][-1]["content"]
     return {
         "id": "fixture-completion",

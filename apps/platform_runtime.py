@@ -348,6 +348,9 @@ class LocalPlatformRuntime(
 
     def close(self) -> None:
         """Release clients owned by this runtime and its composition root."""
+        if self._provider_http_client is not None:
+            self._provider_http_client.close()
+            self._provider_http_client = None
         if self._model_http_client is not None:
             self._model_http_client.close()
             self._model_http_client = None

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import psycopg
 
+from tenancy_harness.model_egress import observe_model_egress
 from tenancy_harness.seed import require_disposable_database
 
 
@@ -35,6 +36,7 @@ def main():
                 and lifecycle["webhook_accepted_after_suspension"]
                 and row[0]["latest_turn_status"] == "succeeded"
             )
+            observe_model_egress(fixtures)
             path.write_text(json.dumps(fixtures))
             path.chmod(0o600)
             print("Independent worker durable outcome recorded.")

@@ -184,3 +184,11 @@ test('T1-I02 explicit ownership and quarantine survive migration and cleanup', a
   const removed = await request.delete('/api/v0/plugin-installations/' + migration.new_installation.plugin_installation_id, { headers: a.admin.headers });
   expect(removed.status()).toBe(204);
 });
+
+
+test('T1-I03 provider egress and tenant credentials are contained in API and worker', async () => {
+  expect(fixture.model_egress.api_denials).toBe(true);
+  expect(fixture.model_egress.tenant_credentials).toBe(true);
+  expect(fixture.model_egress.worker_denied).toBe(true);
+  expect(fixture.model_egress.zero_probe_requests).toBe(true);
+});

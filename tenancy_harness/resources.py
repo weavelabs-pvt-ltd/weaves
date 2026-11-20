@@ -57,7 +57,7 @@ def definitions(t):
             "provider_type": "openai_compatible",
             "display_name": marker,
             "api_key": "fixture-model-" + t["label"],
-            "base_url": PROVIDER + "/v1",
+            "base_url": "https://models.tenancy.test/v1",
             "initial_model": "tenancy-fixture-model",
         },
     )

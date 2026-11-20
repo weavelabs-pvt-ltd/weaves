@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from application.ports.repository import Repository
 from application.ports.secrets import SecretStore
+from clients.model_providers.egress_policy import ModelEgressPolicy
 from contracts.v1 import (
     AuditEvent,
     AuditTargetScope,
@@ -300,6 +301,9 @@ class ModelService:
         }
         if provider_type is ModelProviderType.OPENAI_COMPATIBLE and not base_url:
             raise ValueError("base_url is required for OpenAI-compatible providers")
+        base_url = ModelEgressPolicy.from_environment().base_url(
+            provider_type, base_url
+        )
         selected_model = initial_model.strip() if initial_model else "catalog-pending"
         secret_ref = self.secret_store.put(api_key.strip())
         provider_id = _id()

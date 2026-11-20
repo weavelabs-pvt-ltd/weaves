@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import httpx
 
+from clients.model_providers.egress_policy import ModelEgressPolicy
 from clients.model_providers.gateway_base import SecretResolver
 from clients.model_providers.gateway_http import raise_upstream_error
 from contracts.v1 import (
@@ -25,6 +26,7 @@ class OpenAICompatibleAdapter:
         timeout_seconds: float = 30.0,
     ) -> None:
         """Create the adapter over a reusable HTTP client and secret resolver."""
+        self._egress = ModelEgressPolicy.from_environment()
         self._secret_resolver = secret_resolver
         self._client = client
         self._timeout_seconds = timeout_seconds
@@ -44,13 +46,14 @@ class OpenAICompatibleAdapter:
                 "model.auth_ref_missing",
                 "Provider has no configured credential reference",
             )
-        base_url = provider.base_url or "https://api.openai.com/v1"
+        base_url = self._egress.base_url(provider.provider_type, provider.base_url)
         secret = self._resolve_secret(provider.auth_ref)
         try:
             response = self._client.get(
                 f"{base_url.rstrip('/')}/models",
                 headers={"Authorization": f"Bearer {secret}"},
                 timeout=self._timeout_seconds,
+                follow_redirects=False,
             )
         except httpx.TimeoutException as exc:
             raise ModelGatewayError(
@@ -60,7 +63,7 @@ class OpenAICompatibleAdapter:
             raise ModelGatewayError(
                 "model.transport_error", "Model provider request failed", retryable=True
             ) from exc
-        if response.is_error:
+        if response.status_code >= 300:
             raise_upstream_error(response)
         try:
             data = response.json()["data"]
@@ -88,7 +91,7 @@ class OpenAICompatibleAdapter:
                 "model.auth_ref_missing",
                 "Provider has no configured credential reference",
             )
-        base_url = provider.base_url or "https://api.openai.com/v1"
+        base_url = self._egress.base_url(provider.provider_type, provider.base_url)
         secret = self._resolve_secret(provider.auth_ref)
 
         body = {
@@ -106,6 +109,7 @@ class OpenAICompatibleAdapter:
                 json=body,
                 headers={"Authorization": f"Bearer {secret}"},
                 timeout=self._timeout_seconds,
+                follow_redirects=False,
             )
         except httpx.TimeoutException as exc:
             raise ModelGatewayError(
@@ -116,7 +120,7 @@ class OpenAICompatibleAdapter:
                 "model.transport_error", "Model provider request failed", retryable=True
             ) from exc
 
-        if response.is_error:
+        if response.status_code >= 300:
             raise_upstream_error(response)
         return self._parse_response(response, binding, provider.id)
 
