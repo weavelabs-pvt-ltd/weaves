@@ -51,13 +51,15 @@ def calls() -> Calls:
 @pytest.fixture(scope="module", params=["memory", "postgres"])
 def world(request: pytest.FixtureRequest, calls: Calls) -> Iterator[World]:
     patch = pytest.MonkeyPatch()
-    _count_external_calls(patch, calls)
-    with _backend(request.param) as store:
-        runtime = LocalPlatformRuntime(postgres_store=store)
-        client = TestClient(create_app(runtime))
-        with client:
-            yield build_world(client, runtime)
-    patch.undo()
+    try:
+        _count_external_calls(patch, calls)
+        with _backend(request.param) as store:
+            runtime = LocalPlatformRuntime(postgres_store=store)
+            client = TestClient(create_app(runtime))
+            with client:
+                yield build_world(client, runtime)
+    finally:
+        patch.undo()
 
 
 @contextmanager
