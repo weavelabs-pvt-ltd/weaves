@@ -12,7 +12,11 @@ from contracts.v1 import (
     AuditEvent,
     ExecutionJob,
     ExecutionJobStatus,
+    Organization,
+    OrganizationStatus,
     WorkflowRun,
+    Workspace,
+    WorkspaceStatus,
 )
 from modules.evaluations.service import EvaluationService
 from modules.executions.runtime_completion import ExecutionCompletionMixin
@@ -26,14 +30,18 @@ class ExecutionWorkerService(ExecutionWorkerMixin, ExecutionCompletionMixin):
 
     audit_events: Repository[AuditEvent]
     execution_jobs: Repository[ExecutionJob]
+    organizations: Repository[Organization]
     runs: Repository[WorkflowRun]
+    workspaces: Repository[Workspace]
 
     def __init__(
         self,
         *,
         audit_events: Repository[AuditEvent],
         execution_jobs: Repository[ExecutionJob],
+        organizations: Repository[Organization],
         runs: Repository[WorkflowRun],
+        workspaces: Repository[Workspace],
         evaluation_service: EvaluationService,
         is_bootstrapped: Callable[[], bool],
         bootstrap: Callable[[], None],
@@ -46,7 +54,9 @@ class ExecutionWorkerService(ExecutionWorkerMixin, ExecutionCompletionMixin):
         """Bind worker persistence and execution callbacks from app composition."""
         self.audit_events = audit_events
         self.execution_jobs = execution_jobs
+        self.organizations = organizations
         self.runs = runs
+        self.workspaces = workspaces
         self.evaluation_service = evaluation_service
         self._is_bootstrapped = is_bootstrapped
         self._bootstrap = bootstrap
@@ -83,6 +93,9 @@ class ExecutionWorkerService(ExecutionWorkerMixin, ExecutionCompletionMixin):
         """Refresh cooperative cancellation from the durable job record."""
         if cancellation_requested.is_set():
             return True
+        if not self._tenant_is_active():
+            cancellation_requested.set()
+            return True
         try:
             latest = self.execution_jobs.get_scoped(
                 job_id, effective_org_id(), effective_workspace_id()
@@ -95,6 +108,17 @@ class ExecutionWorkerService(ExecutionWorkerMixin, ExecutionCompletionMixin):
         }:
             cancellation_requested.set()
         return cancellation_requested.is_set()
+
+    def _tenant_is_active(self) -> bool:
+        """Report whether the running job's organization and workspace may continue."""
+        org_id = effective_org_id()
+        try:
+            if self.organizations.get(org_id).status is not OrganizationStatus.ACTIVE:
+                return False
+            workspace = self.workspaces.get_scoped(effective_workspace_id(), org_id)
+        except KeyError:
+            return False
+        return workspace.status is WorkspaceStatus.ACTIVE
 
     def run_agent(
         self,

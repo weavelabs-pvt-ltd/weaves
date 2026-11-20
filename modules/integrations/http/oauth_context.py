@@ -142,8 +142,11 @@ class OAuthContextBase:
             return
 
     def request_as(self, record: OAuthAuthorizationState) -> None:
-        """Handle the request as step of the OAuth flow."""
-        self.dependencies.state_service.authorize_state_principal(record)
+        """Restore the state owner's scope; inactive tenants cannot continue."""
+        try:
+            self.dependencies.state_service.authorize_state_principal(record)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail="not permitted") from exc
 
     def finish(
         self, provider: str, status: str, error: str | None = None

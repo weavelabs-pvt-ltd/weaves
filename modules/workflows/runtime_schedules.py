@@ -26,6 +26,7 @@ from contracts.v1 import (
 )
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
+from shared.errors import TenantInactive
 from shared.request_context import (
     effective_org_id,
     effective_principal_id,
@@ -377,6 +378,8 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
                 schedule_occurrence_at=schedule.next_run_at,
             )
             return job
+        except TenantInactive:
+            self._skip_inactive_schedule_occurrence(schedule, timestamp)
         except PermissionError:
             self._fail_workflow_schedule(
                 schedule,
@@ -407,6 +410,33 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
                 summary="The scheduled workflow is no longer eligible to run.",
             )
         return None
+
+    def _skip_inactive_schedule_occurrence(
+        self, schedule: WorkflowSchedule, timestamp: datetime
+    ) -> None:
+        """Skip one occurrence while the tenant is inactive and keep the schedule.
+
+        The schedule is not marked as failed, so it resumes after restoration, and
+        it leaves the due list so inactive tenants cannot starve other schedules.
+        """
+        updated = WorkflowSchedule.model_validate(
+            schedule.model_copy(
+                update={
+                    "next_run_at": timestamp
+                    + timedelta(seconds=schedule.interval_seconds),
+                    "updated_at": timestamp,
+                }
+            ).model_dump()
+        )
+        with self._unit_of_work():
+            self.workflow_schedules.put(updated)
+            self._record_workflow_schedule_audit(
+                updated,
+                schedule.created_by_principal_id,
+                "workflow.schedule.skipped",
+                "Scheduled occurrence skipped because the tenant is not active",
+                metadata={"occurrence_at": schedule.next_run_at.isoformat()},
+            )
 
     def _fail_workflow_schedule(
         self,

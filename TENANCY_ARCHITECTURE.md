@@ -26,7 +26,7 @@ Normal tenant services require a validated org/workspace/principal context. Publ
 
 Suspension/deletion and workspace archive prevent new tenant work, including worker starts, webhooks, schedules, workflow continuation and external approved actions. Revalidate at admission/execution boundaries and propagate cancellation to running work at safe boundaries. Already dispatched external actions may have uncertain outcomes; record uncertainty instead of automatically repeating them. Explicit bounded recovery/cleanup is allowed and audited. Resume does not silently replay missed schedules or cancelled work.
 
-Phase 0 records the current violation in T0-D03; Phase 1 implements the common guard. Account disablement, organization membership removal, org suspension, and workspace archive have different scopes. Removing access to A must not unnecessarily disable access to B.
+Phase 0 recorded the violation as T0-D03; Phase 1 implements the common guard (required control T1-I04). Account disablement, organization membership removal, org suspension, and workspace archive have different scopes. Removing access to A must not unnecessarily disable access to B.
 
 ## Compatibility and migration
 

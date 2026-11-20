@@ -192,3 +192,18 @@ test('T1-I03 provider egress and tenant credentials are contained in API and wor
   expect(fixture.model_egress.worker_denied).toBe(true);
   expect(fixture.model_egress.zero_probe_requests).toBe(true);
 });
+
+test('T1-I04 suspended and archived tenants cannot start or continue work', async () => {
+  expect(fixture.lifecycle_control.api_denied).toBe(true);
+  expect(fixture.lifecycle_control.webhook_denied).toBe(true);
+  expect(fixture.lifecycle_control.no_webhook_jobs).toBe(true);
+  expect(fixture.lifecycle_control.worker_blocked).toBe(true);
+});
+
+test('T1-I06 the same email signs in to an explicit tenant with independent throttles', async () => {
+  const control = fixture.diagnostics.sign_in;
+  expect(control.shared_person_in_both).toBe(true);
+  expect(control.unscoped_ambiguous_issues_no_code).toBe(true);
+  expect(control.tenant_a_throttled).toBe(true);
+  expect(control.tenant_b_unaffected).toBe(true);
+});

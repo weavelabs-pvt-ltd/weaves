@@ -13,6 +13,13 @@ class ExecutionCancelled(RuntimeError):
     """A worker observed a cancellation request at a safe boundary."""
 
 
+class TenantInactive(PermissionError):
+    """New work was refused because its organization or workspace is not active."""
+
+    code = "tenant.inactive"
+    retryable = False
+
+
 class ModelGatewayError(RuntimeError):
     """Safe model failure details suitable for a run error summary."""
 

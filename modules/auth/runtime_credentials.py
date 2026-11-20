@@ -28,6 +28,7 @@ from contracts.v1 import (
 )
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
+from shared.errors import TenantInactive
 from shared.request_context import (
     effective_org_id,
     effective_principal_id,
@@ -312,11 +313,11 @@ class CredentialRuntimeMixin(CredentialRuntimeHost):
         """
         organization = self.organizations.get(org_id)
         if organization.status is not OrganizationStatus.ACTIVE:
-            raise PermissionError("organization is not active")
+            raise TenantInactive("organization is not active")
         if workspace_id is not None:
             workspace = self.workspaces.get_scoped(workspace_id, org_id)
             if workspace.status is not WorkspaceStatus.ACTIVE:
-                raise PermissionError("workspace is not active")
+                raise TenantInactive("workspace is not active")
 
     def authorize(self, principal_id: str, permission: Permission) -> None:
         """Require an active principal to hold a permission in its workspace."""

@@ -103,7 +103,9 @@ def _configure_execution_worker_service(
     services.execution_worker_service = ExecutionWorkerService(
         audit_events=dependencies.audit_events,
         execution_jobs=dependencies.execution_jobs,
+        organizations=dependencies.organizations,
         runs=dependencies.runs,
+        workspaces=dependencies.workspaces,
         evaluation_service=services.evaluation_service,
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,

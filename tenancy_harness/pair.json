@@ -24,17 +24,19 @@
     "T0-I11",
     "T1-I01",
     "T1-I02",
-    "T1-I03"
+    "T1-I03",
+    "T1-I04",
+    "T1-I06"
   ],
   "known_defects": {
-    "T0-D03": "Archived/suspended tenant work is executed",
-    "T0-D04": "Session expiry retains private browser state",
-    "T0-D05": "Duplicate-email unscoped sign-in issues no usable challenge"
+    "T0-D04": "Session expiry retains private browser state"
   },
   "known_defect_policy": "Remaining defects are explicit baseline observations. Resolved defects are required passing isolation controls, never xfail/skip. Passing this partial Phase 1 suite does not mean SaaS readiness.",
   "resolved_defects": {
     "T0-D01": "T1-I01",
-    "T0-D02": "T1-I03"
+    "T0-D02": "T1-I03",
+    "T0-D03": "T1-I04",
+    "T0-D05": "T1-I06"
   },
   "fixture_migrations": [
     20

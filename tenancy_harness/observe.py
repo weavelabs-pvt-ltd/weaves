@@ -28,14 +28,26 @@ def main():
                 "WHERE collection = 'tasks' AND record_id = %s AND org_id = %s",
                 (lifecycle["task_id"], lifecycle["org_id"]),
             ).fetchone()
-        if row and row[0].get("latest_turn_status") in {"succeeded", "failed"}:
+        if row and row[0].get("latest_turn_status") in {
+            "succeeded",
+            "failed",
+            "cancelled",
+        }:
+            with psycopg.connect(os.environ["DATABASE_URL"]) as connection:
+                webhook_jobs = connection.execute(
+                    "SELECT count(*) FROM product_records "
+                    "WHERE collection = 'execution_jobs' AND org_id = %s "
+                    "AND payload->>'trigger_id' IS NOT NULL",
+                    (lifecycle["org_id"],),
+                ).fetchone()[0]
             lifecycle["observed_turn_status"] = row[0]["latest_turn_status"]
             fixtures["schema_version"] = schema
-            fixtures["diagnostics"]["T0-D03"] = (
-                lifecycle["api_denied"]
-                and lifecycle["webhook_accepted_after_suspension"]
-                and row[0]["latest_turn_status"] == "succeeded"
-            )
+            fixtures["lifecycle_control"] = {
+                "api_denied": lifecycle["api_denied"],
+                "webhook_denied": lifecycle["webhook_status"] == 403,
+                "no_webhook_jobs": webhook_jobs == 0,
+                "worker_blocked": row[0]["latest_turn_status"] != "succeeded",
+            }
             observe_model_egress(fixtures)
             path.write_text(json.dumps(fixtures))
             path.chmod(0o600)

@@ -8,14 +8,33 @@ from tenancy_harness.resources import tenant
 
 def seed_diagnostics(fixtures):
     """Record baseline observations without weakening or mocking product policy."""
-    a = fixtures["tenants"]["a"]
+    return {"lifecycle": lifecycle_fixture(), "sign_in": sign_in_fixture(fixtures)}
+
+
+def sign_in_fixture(fixtures):
+    """Exhaust one tenant's email allowance, then prove the other is unaffected."""
+    a, b = fixtures["tenants"]["a"], fixtures["tenants"]["b"]
     email = a["shared_person"]["email"]
     before = mailbox(email)["count"]
-    result = call("POST", "/auth/email-code", body={"email": email})
-    ambiguous = mailbox(email)["count"] == before and bool(result["challenge_id"])
+    unscoped = call("POST", "/auth/email-code", body={"email": email})
+    ambiguous = mailbox(email)["count"] == before and bool(unscoped["challenge_id"])
+
+    def request_code(org_id, source):
+        return httpx.post(
+            API + "/auth/email-code",
+            headers={"X-Forwarded-For": f"198.19.{source // 250}.{source % 250 + 1}"},
+            json={"email": email, "organization_id": org_id},
+            timeout=30,
+        ).status_code
+
+    statuses = [request_code(a["org_id"], index) for index in range(1, 13)]
     return {
-        "T0-D05": ambiguous,
-        "lifecycle": lifecycle_fixture(),
+        "shared_person_in_both": all(
+            bool(t["shared_person"]["headers"]) for t in (a, b)
+        ),
+        "unscoped_ambiguous_issues_no_code": ambiguous,
+        "tenant_a_throttled": 429 in statuses,
+        "tenant_b_unaffected": request_code(b["org_id"], 200) == 202,
     }
 
 
@@ -80,6 +99,6 @@ def lifecycle_fixture():
         "org_id": t["org_id"],
         "workspace_id": t["workspace_id"],
         "api_denied": denied.status_code == 403,
-        "webhook_accepted_after_suspension": webhook.status_code == 202,
+        "webhook_status": webhook.status_code,
         "trigger": trigger,
     }

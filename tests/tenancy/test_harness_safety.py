@@ -65,7 +65,9 @@ def test_missing_browser_results_and_unexpected_diagnostic_behavior_fail():
     raw["suites"][0]["specs"][0]["tests"][0]["results"] = []
     assert not summarize(raw, PAIR, {}, "digest", fixture)["foundation_passed"]
     raw, fixture = report_inputs()
-    fixture["diagnostics"]["T0-D03"] = False
+    for item in raw["suites"][0]["specs"]:
+        if item["title"].startswith("T1-I04"):
+            item["tests"][0]["results"][0]["status"] = "failed"
     assert not summarize(raw, PAIR, {}, "digest", fixture)["foundation_passed"]
 
 
