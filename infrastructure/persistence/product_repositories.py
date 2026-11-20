@@ -61,6 +61,10 @@ from infrastructure.persistence.memory_repository import InMemoryRepository
 from infrastructure.persistence.postgres_plugin_catalog import PostgresPluginCatalog
 from infrastructure.persistence.postgres_repository import PostgresRepository
 
+# Collections whose identifiers are chosen by clients (for example suite names).
+# They are stored per organization so tenants never collide on, or probe, a name.
+TENANT_KEYED_COLLECTIONS = frozenset({"evaluation_suites", "evaluation_reports"})
+
 REPOSITORY_SPECS: tuple[tuple[str, str, str, type[ProductContract]], ...] = (
     ("organizations", "organizations", "id", Organization),
     ("accounts", "accounts", "id", Account),
@@ -201,6 +205,9 @@ def _create_repository(
     record_type: type[ProductContract],
 ) -> object:
     """Choose an in-memory or PostgreSQL implementation for one collection."""
+    keyed = collection in TENANT_KEYED_COLLECTIONS
     if store is None:
-        return InMemoryRepository(id_field)
-    return PostgresRepository(store, collection, id_field, record_type)
+        return InMemoryRepository(id_field, tenant_keyed=keyed)
+    return PostgresRepository(
+        store, collection, id_field, record_type, tenant_keyed=keyed
+    )
