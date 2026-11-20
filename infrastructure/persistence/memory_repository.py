@@ -27,8 +27,9 @@ def _same_owner(current: object, replacement: object) -> bool:
 class InMemoryRepository(Generic[TContract]):
     """A local repository keyed by a contract's explicit identifier field."""
 
-    def __init__(self, id_field: str) -> None:
+    def __init__(self, id_field: str, *, tenant_keyed: bool = False) -> None:
         """Initialize the adapter with its identifier or resource configuration."""
+        self._tenant_keyed = tenant_keyed
         self._id_field = id_field
         self._records: dict[str, TContract] = {}
         self._lock = RLock()
@@ -75,7 +76,7 @@ class InMemoryRepository(Generic[TContract]):
         workspace_id: OpaqueId | None = None,
     ) -> TContract:
         """Resolve an object only when its stored tenant scope matches."""
-        record = self.get(record_id)
+        record = self.get(f"{org_id}:{record_id}" if self._tenant_keyed else record_id)
         if getattr(record, "org_id", None) != org_id:
             raise KeyError(f"{self._id_field} not found in organization scope")
         if (
@@ -480,9 +481,11 @@ class InMemoryRepository(Generic[TContract]):
     def _record_id(self, record: TContract) -> str:
         """Read and normalize the contract identifier configured for this repository."""
         try:
-            return str(getattr(record, self._id_field))
+            record_id = str(getattr(record, self._id_field))
         except AttributeError as exc:
             raise TypeError(f"record has no {self._id_field} field") from exc
+        org_id = getattr(record, "org_id", "")
+        return f"{org_id}:{record_id}" if self._tenant_keyed else record_id
 
     def _clone(self, record: TContract) -> TContract:
         """Round-trip through the contract serializer for a detached deep copy."""

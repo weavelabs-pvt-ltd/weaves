@@ -54,6 +54,10 @@ Migration 21 (read-compatible since the previous release) creates the non-owner 
 
 Evidence: the real-stack suite (API, native worker, CLI fixtures) and the live Anthropic run pass with the restricted role active; direct SQL tests under that role show reads, updates, deletes, inserts and ownership transfers against another organization are refused, strict no-context sees nothing, scope does not survive rollback or reuse of a single pooled connection, and system scopes expose only their listed collections. Point-lookup latency on 200,000 rows measured 1.9 ms with the policy against 2.5 ms (noise-level difference) as owner; scoped queries keep their index scans, and unscoped collection scans remain sequential as before. Not yet covered by policies: `product_plugin_ownership*` and `product_login_throttle`.
 
+### Phase 2 progress: tenant-keyed client identifiers
+
+Collections whose identifiers are chosen by clients (`evaluation_suites`, `evaluation_reports`) are now stored under `<org_id>:<id>`. Two organizations can use the same suite name without a conflict, and creating a name another tenant owns no longer reveals that it exists. Public identifiers and payloads are unchanged; reads accept both the new key and any legacy unprefixed row owned by the requesting organization, so no backfill is needed. A duplicate inside one organization still fails.
+
 ### Phase 0 implementation evidence
 
 - [Architecture decisions](TENANCY_ARCHITECTURE.md), [complete ownership registry](tenancy_harness/ownership.json), and [portable test harness](tenancy_harness/README.md) are implemented. The registry covers 45 collections and 135 API operations, with drift checks.
