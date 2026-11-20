@@ -73,9 +73,11 @@ def _configure_credential_service(
     services.credential_service = CredentialService(
         api_credentials=dependencies.api_credentials,
         audit_events=dependencies.audit_events,
+        organizations=dependencies.organizations,
         principals=dependencies.principals,
         role_bindings=dependencies.role_bindings,
         roles=dependencies.roles,
+        workspaces=dependencies.workspaces,
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,
         unit_of_work=dependencies._unit_of_work,

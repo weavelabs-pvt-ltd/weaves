@@ -9,10 +9,12 @@ from application.ports.repository import Repository
 from contracts.v1 import (
     ApiCredential,
     AuditEvent,
+    Organization,
     Permission,
     Principal,
     Role,
     RoleBinding,
+    Workspace,
 )
 from modules.auth.runtime_credentials import CredentialRuntimeMixin
 from shared.request_context import effective_org_id, effective_principal_id
@@ -23,18 +25,22 @@ class CredentialService(CredentialRuntimeMixin):
 
     api_credentials: Repository[ApiCredential]
     audit_events: Repository[AuditEvent]
+    organizations: Repository[Organization]
     principals: Repository[Principal]
     role_bindings: Repository[RoleBinding]
     roles: Repository[Role]
+    workspaces: Repository[Workspace]
 
     def __init__(
         self,
         *,
         api_credentials: Repository[ApiCredential],
         audit_events: Repository[AuditEvent],
+        organizations: Repository[Organization],
         principals: Repository[Principal],
         role_bindings: Repository[RoleBinding],
         roles: Repository[Role],
+        workspaces: Repository[Workspace],
         is_bootstrapped: Callable[[], bool],
         bootstrap: Callable[[], None],
         unit_of_work: Callable[[], AbstractContextManager[None]],
@@ -42,9 +48,11 @@ class CredentialService(CredentialRuntimeMixin):
         """Bind credential repositories and application lifecycle callbacks."""
         self.api_credentials = api_credentials
         self.audit_events = audit_events
+        self.organizations = organizations
         self.principals = principals
         self.role_bindings = role_bindings
         self.roles = roles
+        self.workspaces = workspaces
         self._bootstrapped = is_bootstrapped
         self._bootstrap = bootstrap
         self._open_unit_of_work = unit_of_work
