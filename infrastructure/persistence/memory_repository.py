@@ -8,11 +8,20 @@ from typing import Any, Generic, cast
 
 from application.ports.repository import TContract
 from contracts.v1.base import OpaqueId
+from shared.errors import OwnershipConflict
 
 
 def _record_value(record: TContract, field: str) -> Any:
     """Read a field from one product contract with a runtime-selected schema."""
     return getattr(record, field)
+
+
+def _same_owner(current: object, replacement: object) -> bool:
+    """Report whether two versions of a record share organization and workspace."""
+    return all(
+        getattr(current, field, None) == getattr(replacement, field, None)
+        for field in ("org_id", "workspace_id")
+    )
 
 
 class InMemoryRepository(Generic[TContract]):
@@ -45,6 +54,9 @@ class InMemoryRepository(Generic[TContract]):
         """Insert or replace the record with this identifier."""
         record_id = self._record_id(record)
         with self._lock:
+            current = self._records.get(record_id)
+            if current is not None and not _same_owner(current, record):
+                raise OwnershipConflict("record ownership cannot be changed")
             self._records[record_id] = self._clone(record)
         return self._clone(record)
 
@@ -393,6 +405,8 @@ class InMemoryRepository(Generic[TContract]):
         record_id = self._record_id(record)
         with self._lock:
             current = self._records.get(record_id)
+            if current is None or not _same_owner(current, record):
+                return False
             current_status = getattr(current, "status", None)
             if getattr(current_status, "value", current_status) != expected_status:
                 return False
@@ -431,6 +445,7 @@ class InMemoryRepository(Generic[TContract]):
             current = self._records.get(record_id)
             if (
                 current is None
+                or not _same_owner(current, record)
                 or getattr(getattr(current, "status", None), "value", None)
                 != expected_status
                 or getattr(current, "worker_id", None) != worker_id
@@ -453,6 +468,7 @@ class InMemoryRepository(Generic[TContract]):
             current = self._records.get(record_id)
             if (
                 current is None
+                or not _same_owner(current, record)
                 or getattr(getattr(current, "status", None), "value", None)
                 != expected_status
                 or getattr(current, "active_turn_id", None) != expected_active_turn_id

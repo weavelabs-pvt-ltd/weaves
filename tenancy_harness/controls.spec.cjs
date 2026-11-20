@@ -209,6 +209,7 @@ test('T1-I06 the same email signs in to an explicit tenant with independent thro
   expect(control.tenant_b_unaffected).toBe(true);
 });
 
+// Signs out the builder (revoking only that session); admin/user sessions stay valid for later stages.
 test('T1-I05 session change tears down private browser state and ignores stale responses', async ({ browser }) => {
   const sentinel = 'TEARDOWN_SENTINEL_' + Date.now();
   const token = (actor) => actor.headers.Authorization.slice(7);
@@ -220,7 +221,7 @@ test('T1-I05 session change tears down private browser state and ignores stale r
     sessionStorage.setItem('weaves.session', session);
     sessionStorage.setItem('weaves.workspace', workspace);
     localStorage.setItem(draftKey, JSON.stringify([{ id: 'legacy', name: sentinelValue }]));
-  }, { session: token(a.admin), workspace: a.workspace_id, draftKey: 'weaves.agentDrafts.' + a.workspace_id, sentinelValue: sentinel });
+  }, { session: token(a.builder), workspace: a.workspace_id, draftKey: 'weaves.agentDrafts.' + a.workspace_id, sentinelValue: sentinel });
   await page.goto(process.env.WEAVES_E2E_APP_URL + '/#agents');
   await expect(page.getByText(a.agent.name, { exact: true }).first()).toBeVisible();
   let release;

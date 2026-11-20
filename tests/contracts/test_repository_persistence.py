@@ -21,6 +21,7 @@ from infrastructure.persistence.repositories import (
     IdempotencyKeyAlreadyExists,
     PostgresRepository,
 )
+from shared.errors import OwnershipConflict
 
 
 class RecordingConnection:
@@ -176,7 +177,8 @@ def test_postgres_execution_job_updates_are_fenced_by_worker_and_attempt():
     assert "(payload->>'attempts')::integer = %s" in query
     assert params[1] == job.updated_at
     assert params[2:4] == ("execution_jobs", job.job_id)
-    assert params[4] == "running"
+    assert params[4:6] == ("org-a", "workspace-a")
+    assert params[6] == "running"
     assert params[-2:] == ("worker-a", 2)
 
 
@@ -432,5 +434,32 @@ def test_postgres_repository_recovers_only_stale_running_status():
     assert updated is True
     assert "payload->>'status' = %s AND updated_at <= %s" in statement
     assert params[1] == run.updated_at
-    assert params[4] == RunStatus.RUNNING.value
-    assert params[5] == now - timedelta(hours=4)
+    assert params[4:6] == (run.org_id, run.workspace_id)
+    assert params[6] == RunStatus.RUNNING.value
+    assert params[7] == now - timedelta(hours=4)
+
+
+def test_postgres_put_cannot_transfer_ownership_or_change_it_in_place():
+    connection = RecordingConnection()
+    repository = PostgresRepository(
+        RecordingPool(connection), "execution_jobs", "job_id", ExecutionJob
+    )
+    now = datetime.now(UTC)
+    job = ExecutionJob(
+        job_id="job-a",
+        org_id="org-a",
+        workspace_id="workspace-a",
+        requested_by_principal_id="principal-a",
+        task="Run",
+        status=ExecutionJobStatus.QUEUED,
+        created_at=now,
+        updated_at=now,
+    )
+
+    connection.rowcount = 0
+    with pytest.raises(OwnershipConflict):
+        repository.put(job)
+    query = connection.statements[-1][0]
+    assert "org_id = EXCLUDED.org_id" not in query
+    assert "workspace_id = EXCLUDED.workspace_id" not in query
+    assert "product_records.org_id IS NOT DISTINCT FROM EXCLUDED.org_id" in query
