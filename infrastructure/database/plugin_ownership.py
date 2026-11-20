@@ -5,7 +5,8 @@ from collections import Counter
 from typing import Any
 
 from infrastructure.database.plugin_ownership_sql import CLASSIFY, GUARDS, TABLES
-from infrastructure.database.store import _MIGRATION_LOCK_NAME, APP_ROLE_GRANTS
+from infrastructure.database.row_security import APP_ROLE_GRANTS
+from infrastructure.database.store import _MIGRATION_LOCK_NAME
 
 
 def ownership_report(connection: Any) -> dict[str, Any]:

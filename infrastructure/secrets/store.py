@@ -12,7 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 from application.ports.secrets import SecretStore
-from infrastructure.database.store import APP_ROLE_GRANTS
+from infrastructure.database.row_security import APP_ROLE_GRANTS
 from shared.errors import SecretStoreUnavailable as SecretStoreUnavailable
 from shared.request_context import effective_org_id, effective_workspace_id
 
