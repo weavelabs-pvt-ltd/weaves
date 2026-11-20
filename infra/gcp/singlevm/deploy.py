@@ -6,6 +6,7 @@ import argparse
 import re
 import shlex
 import subprocess
+import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -18,12 +19,27 @@ BUNDLE_FILES = (
 )
 
 
-def invoke(command: list[str], payload: str | None = None) -> str:
+# A fresh short-lived SSH key can take a few seconds to reach the VM. Retrying
+# is safe only for this rejection, which happens before any remote command runs.
+_KEY_NOT_YET_ACCEPTED = "Permission denied (publickey)"
+
+
+def invoke(
+    command: list[str],
+    payload: str | None = None,
+    *,
+    attempts: int = 4,
+    wait_seconds: float = 20.0,
+) -> str:
     """Keep command output separate from transient access tokens."""
-    result = subprocess.run(command, input=payload, text=True, capture_output=True)
-    if result.returncode:
-        raise RuntimeError(result.stderr[-2000:])
-    return result.stdout.strip()
+    for attempt in range(1, attempts + 1):
+        result = subprocess.run(command, input=payload, text=True, capture_output=True)
+        if not result.returncode:
+            return result.stdout.strip()
+        if _KEY_NOT_YET_ACCEPTED not in result.stderr or attempt == attempts:
+            raise RuntimeError(result.stderr[-2000:])
+        time.sleep(wait_seconds)
+    raise AssertionError("unreachable")
 
 
 def main() -> None:
