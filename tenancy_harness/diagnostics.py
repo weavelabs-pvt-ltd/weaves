@@ -8,7 +8,58 @@ from tenancy_harness.resources import tenant
 
 def seed_diagnostics(fixtures):
     """Record baseline observations without weakening or mocking product policy."""
-    return {"lifecycle": lifecycle_fixture(), "sign_in": sign_in_fixture(fixtures)}
+    return {
+        "lifecycle": lifecycle_fixture(),
+        "sign_in": sign_in_fixture(fixtures),
+        "account": account_fixture(fixtures),
+    }
+
+
+def account_fixture(fixtures):
+    """Sign in as an account with real email proof and read its memberships."""
+    a, b = fixtures["tenants"]["a"], fixtures["tenants"]["b"]
+    email = a["shared_person"]["email"]
+    source = {"X-Forwarded-For": "198.20.0.77"}
+    before = mailbox(email)["count"]
+    started = httpx.post(
+        API + "/account/email-code", headers=source, json={"email": email}, timeout=30
+    )
+    proof = mailbox(email)
+    code_sent = started.status_code == 202 and proof["count"] == before + 1
+    verified = httpx.post(
+        API + "/account/email-verify",
+        headers=source,
+        json={"challenge_id": started.json()["challenge_id"], "code": proof["code"]},
+        timeout=30,
+    )
+    token = verified.json().get("access_token", "")
+    bearer = {"Authorization": "Bearer " + token}
+    me = httpx.get(API + "/account/me", headers=bearer, timeout=30)
+    organizations = {
+        item["organization_id"]
+        for item in (me.json().get("memberships", []) if me.status_code == 200 else [])
+    }
+    stranger = httpx.post(
+        API + "/account/email-code",
+        headers=source,
+        json={"email": "nobody.at.all@tenancy.test"},
+        timeout=30,
+    )
+    return {
+        "code_sent": code_sent,
+        "signed_in": verified.status_code == 200 and token.startswith("wvs_acct_"),
+        "one_account_two_organizations": organizations == {a["org_id"], b["org_id"]},
+        "account_token_denied_on_tenant_routes": all(
+            httpx.get(API + path, headers=bearer, timeout=30).status_code == 401
+            for path in ("/agents", "/workspaces", "/model-providers")
+        ),
+        "tenant_token_denied_on_account_routes": httpx.get(
+            API + "/account/me", headers=a["admin"]["headers"], timeout=30
+        ).status_code
+        == 401,
+        "unknown_email_indistinguishable": stranger.status_code == started.status_code
+        and set(stranger.json()) == set(started.json()),
+    }
 
 
 def sign_in_fixture(fixtures):

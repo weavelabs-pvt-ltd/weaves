@@ -257,3 +257,12 @@ test('T1-I05 session change tears down private browser state and ignores stale r
   await context.close();
   await other.close();
 });
+
+test('T1-I07 account sign-in links one person to both organizations without tenant access', async () => {
+  const control = fixture.diagnostics.account;
+  for (const key of ['code_sent', 'signed_in', 'one_account_two_organizations',
+    'account_token_denied_on_tenant_routes', 'tenant_token_denied_on_account_routes',
+    'unknown_email_indistinguishable']) {
+    expect(control[key], key).toBe(true);
+  }
+});
