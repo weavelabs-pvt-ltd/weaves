@@ -6,6 +6,7 @@ __pycache__
 .mypy_cache
 .ruff_cache
 tests
+tenancy_harness
 scripts
 examples
 requirements-dev.txt
