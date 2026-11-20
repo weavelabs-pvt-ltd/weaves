@@ -8,14 +8,15 @@ from tenancy_harness.resources import tenant
 
 def seed_diagnostics(fixtures):
     """Record baseline observations without weakening or mocking product policy."""
+    lifecycle = lifecycle_fixture()
     return {
-        "lifecycle": lifecycle_fixture(),
+        "lifecycle": lifecycle,
         "sign_in": sign_in_fixture(fixtures),
-        "account": account_fixture(fixtures),
+        "account": account_fixture(fixtures, lifecycle["org_id"]),
     }
 
 
-def account_fixture(fixtures):
+def account_fixture(fixtures, foreign_org_id):
     """Sign in as an account with real email proof and read its memberships."""
     a, b = fixtures["tenants"]["a"], fixtures["tenants"]["b"]
     email = a["shared_person"]["email"]
@@ -45,7 +46,34 @@ def account_fixture(fixtures):
         json={"email": "nobody.at.all@tenancy.test"},
         timeout=30,
     )
+
+    def names(org_id, actor_headers=None, workspace=None):
+        headers = dict(actor_headers or bearer)
+        headers["X-Organization-Id"] = org_id
+        if workspace:
+            headers["X-Workspace-ID"] = workspace
+        response = httpx.get(API + "/agents", headers=headers, timeout=30)
+        body = response.json() if response.status_code == 200 else None
+        return response, {item["name"] for item in body or []}
+
+    in_a, names_a = names(a["org_id"])
+    in_b, names_b = names(b["org_id"])
+    unknown, _ = names("no-such-organization")
+    foreign, _ = names(foreign_org_id)
+    ignored, names_ignored = names(b["org_id"], a["admin"]["headers"])
+    cross_workspace, _ = names(a["org_id"], workspace=b["workspace_id"])
     return {
+        "selects_each_organization": a["agent"]["name"] in names_a
+        and b["agent"]["name"] in names_b
+        and a["agent"]["name"] not in names_b
+        and b["agent"]["name"] not in names_a,
+        "foreign_and_unknown_indistinguishable": unknown.status_code == 403
+        and (foreign.status_code, foreign.json())
+        == (unknown.status_code, unknown.json()),
+        "tenant_token_ignores_header": ignored.status_code == 200
+        and a["agent"]["name"] in names_ignored
+        and b["agent"]["name"] not in names_ignored,
+        "workspace_checked_inside_organization": cross_workspace.status_code == 403,
         "code_sent": code_sent,
         "signed_in": verified.status_code == 200 and token.startswith("wvs_acct_"),
         "one_account_two_organizations": organizations == {a["org_id"], b["org_id"]},

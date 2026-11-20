@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, Request
 from starlette.responses import JSONResponse
 
+from modules.auth.account_sessions import ACCOUNT_TOKEN_PREFIX
 from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.credential_service import CredentialService
@@ -192,6 +193,69 @@ async def _account_request(
     return await call_next(request)
 
 
+def _account_token(authorization: str) -> str:
+    """Return an account session token from an Authorization header, else ''."""
+    scheme, _, value = authorization.partition(" ")
+    if scheme.casefold() == "bearer" and value.startswith(ACCOUNT_TOKEN_PREFIX):
+        return value
+    return ""
+
+
+async def _account_tenant_request(
+    request: Request, call_next: Any, services: AuthenticationServices, token: str
+) -> Any:
+    """Let an account session act inside one organization it currently belongs to.
+
+    The organization comes from ``X-Organization-Id`` on every request; there is
+    no mutable "current organization". Authorization is re-derived from the
+    membership, user, principal and organization, and the resulting identity is
+    the tenant-local principal, so roles, audit and ownership stay unchanged.
+    """
+    organization_id = request.headers.get("x-organization-id", "").strip()
+    if not organization_id:
+        return JSONResponse(
+            content={"detail": "Invalid or missing bearer token"},
+            status_code=401,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    try:
+        with system_scope("account"):
+            account = services.accounts.sessions.authenticate(token)
+            membership = services.accounts.selector.select(account, organization_id)
+    except PermissionError:
+        denied = "Organization not available"
+        return JSONResponse(content={"detail": denied}, status_code=403)
+    try:
+        with system_scope("auth"):
+            org_id, workspace_id = services.organizations.resolve_principal_scope(
+                membership.principal_id, request.headers.get("x-workspace-id")
+            )
+    except (KeyError, PermissionError):
+        return JSONResponse(
+            content={"detail": "Organization not available"}, status_code=403
+        )
+    identity_token = set_request_identity(membership.principal_id, org_id, workspace_id)
+    try:
+        return await call_next(request)
+    finally:
+        reset_request_principal(identity_token)
+
+
+async def _account_traffic(
+    request: Request,
+    call_next: Any,
+    services: AuthenticationServices,
+    authorization: str,
+) -> Any:
+    """Handle account routes and account-token tenant requests; None otherwise."""
+    if request.url.path.startswith("/api/v0/account/"):
+        return await _account_request(request, call_next, services)
+    token = _account_token(authorization)
+    if token:
+        return await _account_tenant_request(request, call_next, services, token)
+    return None
+
+
 def install_authentication(app: FastAPI) -> None:
     """Require a bearer token on product routes and bind request identity."""
     api_tokens = _load_api_tokens()
@@ -207,9 +271,12 @@ def install_authentication(app: FastAPI) -> None:
         ):
             return await call_next(request)
         services: AuthenticationServices = request.app.state.authentication_services
-        if request.url.path.startswith("/api/v0/account/"):
-            return await _account_request(request, call_next, services)
         authorization = request.headers.get("authorization", "")
+        account_response = await _account_traffic(
+            request, call_next, services, authorization
+        )
+        if account_response is not None:
+            return account_response
         cookie_token = request.cookies.get(COOKIE_NAME, "")
         browser_only = request.url.path.startswith("/api/v0/auth/browser/")
         using_cookie = bool(cookie_token) and not authorization.strip()
