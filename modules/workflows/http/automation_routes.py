@@ -254,6 +254,8 @@ def _register_update_workflow_trigger(
             raise HTTPException(
                 status_code=404, detail="Workflow trigger not found"
             ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         return _workflow_trigger_view(trigger)
 
 
