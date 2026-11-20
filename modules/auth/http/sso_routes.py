@@ -13,6 +13,7 @@ from starlette.responses import HTMLResponse, Response
 
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.organization_service import OrganizationService
+from shared.request_context import system_scoped
 
 PROVIDERS = ("google", "microsoft", "zoho")
 
@@ -128,6 +129,7 @@ def register_sso_routes(
         return [{"provider": p, "configured": p in configured} for p in PROVIDERS]
 
     @app.get("/api/v0/auth/sso/{provider}/start")
+    @system_scoped("auth")
     async def start(provider: str, request: Request) -> Response:
         if provider not in configured:
             return _popup_response(
@@ -140,6 +142,7 @@ def register_sso_routes(
         return await _authorization_redirect(oauth, provider, request, callback)
 
     @app.get("/api/v0/auth/sso/{provider}/callback")
+    @system_scoped("auth")
     async def callback(provider: str, request: Request) -> HTMLResponse:
         if provider not in configured:
             raise HTTPException(404, "Sign-in provider not configured")

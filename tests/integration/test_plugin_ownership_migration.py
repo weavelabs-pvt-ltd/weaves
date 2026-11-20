@@ -79,7 +79,7 @@ def test_plan_backfill_preserves_payloads_and_classifies_without_guessing(catalo
             connection.execute(
                 "SELECT max(version) FROM product_schema_migrations"
             ).fetchone()[0]
-            == 19
+            == 21
         )
     report = _activate(store)
     assert report["applied"]
@@ -298,7 +298,7 @@ def test_failed_activation_rolls_back_and_is_retryable(catalog, monkeypatch):
             connection.execute(
                 "SELECT max(version) FROM product_schema_migrations"
             ).fetchone()[0]
-            == 19
+            == 21
         )
     assert _payloads(store) == before
     monkeypatch.setattr(plugin_ownership, "GUARDS", original)

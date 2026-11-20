@@ -86,7 +86,7 @@ def test_product_postgres_migration_adds_idempotency_unique_index():
     assert "IS DISTINCT FROM" in sql
     assert "product_records_task_idempotency_uq" in sql
     assert "product_records_task_turn_claim_idx" in sql
-    assert versions == list(range(1, 20))
+    assert versions == [*range(1, 20), 21]
     assert "sso_identity_subject_uq" in sql
     assert "sso_identity_user_connection_uq" in sql
     assert "sso_identity_immutable" in sql
@@ -95,7 +95,9 @@ def test_product_postgres_migration_adds_idempotency_unique_index():
 
 
 def test_product_postgres_migration_skips_applied_versions():
-    connection = RecordingConnection(rows=[(version,) for version in range(1, 20)])
+    connection = RecordingConnection(
+        rows=[(version,) for version in (*range(1, 20), 21)]
+    )
     store = ProductPostgresStore.__new__(ProductPostgresStore)
     store.pool = RecordingPool(connection)
 
@@ -112,7 +114,9 @@ def test_product_postgres_migration_skips_applied_versions():
 
 
 def test_compatibility_release_reads_schema_19_without_applying_it():
-    connection = RecordingConnection(rows=[(version,) for version in range(1, 20)])
+    connection = RecordingConnection(
+        rows=[(version,) for version in (*range(1, 20), 21)]
+    )
     store = ProductPostgresStore.__new__(ProductPostgresStore)
     store.pool = RecordingPool(connection)
     store._migrate()
@@ -144,7 +148,7 @@ def test_product_postgres_migration_upgrades_legacy_version_five():
         for statement, params in connection.statements
         if "INSERT INTO product_schema_migrations" in statement
     ]
-    assert versions == list(range(6, 20))
+    assert versions == [*range(6, 20), 21]
     assert "product_records_user_session_digest_uq" in sql
     assert "product_records_workflow_schedule_due_idx" in sql
     assert "product_records_audit_event_workspace_page_idx" in sql

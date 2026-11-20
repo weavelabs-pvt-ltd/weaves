@@ -4,6 +4,8 @@ x-runtime: &runtime
   WEAVES_SECRET_ENCRYPTION_KEY: ${WEAVES_SECRET_ENCRYPTION_KEY:?required}
   WEAVES_DB_POOL_MAX_SIZE: "4"
   WEAVES_SEED_LOCAL_DEFAULTS: "false"
+  # Opt in to PostgreSQL row-level security by setting weaves_app in runtime.env.
+  WEAVES_DB_APP_ROLE: ${WEAVES_DB_APP_ROLE:-}
   WEAVES_HTTP_MAX_CONNECTIONS: "20"
   WEAVES_HTTP_MAX_KEEPALIVE_CONNECTIONS: "10"
 x-defaults: &defaults

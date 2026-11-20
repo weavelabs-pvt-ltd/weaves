@@ -1,6 +1,7 @@
 """Authenticated tenant identity for one API request or worker call."""
 
-from collections.abc import Iterator
+import functools
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
@@ -61,6 +62,18 @@ def reset_request_principal(token: Token[RequestIdentity | None]) -> None:
     _request_identity.reset(token)
 
 
+def storage_org_scope() -> str:
+    """Return the organization that database row policies should allow.
+
+    A validated request identity always wins. Without one, strict (production)
+    processes expose no tenant rows; development keeps its local scope.
+    """
+    identity = _request_identity.get()
+    if identity is not None:
+        return identity.org_id
+    return "" if _require_context else "local-org"
+
+
 def effective_principal_id(default: str) -> str:
     """Use the authenticated request identity, retaining local-call defaults."""
     identity = _request_identity.get()
@@ -100,6 +113,30 @@ def system_scope(purpose: str) -> Iterator[None]:
         yield
     finally:
         _system_purpose.reset(token)
+
+
+def enter_system_scope(purpose: str) -> Token[str | None]:
+    """Open a system scope without a block, for operator scripts and fixtures."""
+    return _system_purpose.set(purpose)
+
+
+def exit_system_scope(token: Token[str | None]) -> None:
+    """Close a scope opened by ``enter_system_scope``."""
+    _system_purpose.reset(token)
+
+
+def system_scoped[**P, R](purpose: str) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    """Run a whole handler under a named system scope, keeping its signature."""
+
+    def decorate(function: Callable[P, R]) -> Callable[P, R]:
+        @functools.wraps(function)
+        def scoped(*args: P.args, **kwargs: P.kwargs) -> R:
+            with system_scope(purpose):
+                return function(*args, **kwargs)
+
+        return scoped
+
+    return decorate
 
 
 def current_system_purpose() -> str | None:

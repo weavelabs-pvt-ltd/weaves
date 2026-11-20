@@ -13,6 +13,7 @@ from shared.request_context import (
     effective_workspace_id,
     reset_request_principal,
     set_request_identity,
+    system_scope,
 )
 
 
@@ -24,9 +25,10 @@ class ExecutionWorkerMixin(RuntimeCapabilityHost):
         self._ensure_bootstrapped()
         if not worker_id.strip() or len(worker_id) > 128:
             raise ValueError("worker_id must contain 1 to 128 characters")
-        job = self.execution_jobs.claim_next_queued(
-            worker_id.strip(), _now(), None, None
-        )
+        with system_scope("queue"):
+            job = self.execution_jobs.claim_next_queued(
+                worker_id.strip(), _now(), None, None
+            )
         if job is None:
             return None
         identity_token = set_request_identity(

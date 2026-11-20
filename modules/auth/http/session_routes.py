@@ -18,7 +18,11 @@ from modules.auth.http.schemas import (
 )
 from modules.auth.organization_service import OrganizationService
 from shared.errors import EmailDeliveryUnavailable, LoginThrottled
-from shared.request_context import effective_principal_id, effective_workspace_id
+from shared.request_context import (
+    effective_principal_id,
+    effective_workspace_id,
+    system_scoped,
+)
 
 
 def _register_login_user(
@@ -31,6 +35,7 @@ def _register_login_user(
     _dump = dump
 
     @app.post("/api/v0/auth/login")
+    @system_scoped("auth")
     def login_user(payload: UserLoginRequest, request: Request) -> dict[str, Any]:
         try:
             user, principal = authentication_service.authenticate_user_password(
@@ -71,6 +76,7 @@ def _register_email_login(
     """Register invite-free email-code authentication for provisioned users."""
 
     @app.post("/api/v0/auth/email-code", status_code=202)
+    @system_scoped("auth")
     def request_email_login_code(
         payload: EmailLoginCodeRequest, request: Request
     ) -> dict[str, str]:
@@ -94,6 +100,7 @@ def _register_email_login(
         }
 
     @app.post("/api/v0/auth/email-verify")
+    @system_scoped("auth")
     def verify_email_login_code(
         payload: EmailLoginVerifyRequest, request: Request
     ) -> dict[str, Any]:
@@ -183,6 +190,7 @@ def _register_logout_user(
     """Register the logout user endpoint."""
 
     @app.post("/api/v0/auth/logout", status_code=204)
+    @system_scoped("auth")
     def logout_user(authorization: str | None = Header(default=None)) -> Response:
         scheme, separator, supplied_token = (authorization or "").partition(" ")
         if not separator or scheme.casefold() != "bearer":

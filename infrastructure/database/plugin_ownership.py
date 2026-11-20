@@ -5,6 +5,7 @@ from collections import Counter
 from typing import Any
 
 from infrastructure.database.plugin_ownership_sql import CLASSIFY, GUARDS, TABLES
+from infrastructure.database.row_security import APP_ROLE_GRANTS
 from infrastructure.database.store import _MIGRATION_LOCK_NAME
 
 
@@ -164,6 +165,7 @@ def _backfill(connection: Any, report: dict[str, Any], reader_image: str) -> Non
     """Write the reviewed plan and enable guards in one transaction."""
     for statement in TABLES:
         connection.execute(statement)
+    connection.execute(APP_ROLE_GRANTS)
     for item in report["descriptors"]:
         connection.execute(
             """INSERT INTO product_plugin_ownership

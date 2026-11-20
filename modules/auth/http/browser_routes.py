@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request, Response
 
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.http.browser_sessions import COOKIE_NAME, csrf_token
-from shared.request_context import effective_principal_id
+from shared.request_context import effective_principal_id, system_scoped
 
 
 def register_browser_session_routes(
@@ -27,6 +27,7 @@ def register_browser_session_routes(
         }
 
     @app.post("/api/v0/auth/browser/logout", status_code=204)
+    @system_scoped("auth")
     def browser_logout(request: Request) -> Response:
         authentication.revoke_user_session(
             request.cookies[COOKIE_NAME],

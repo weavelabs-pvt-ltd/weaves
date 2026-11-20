@@ -43,6 +43,7 @@ from shared.clock import utc_now as _auth_now
 from shared.clock import utc_now as _now
 from shared.errors import RateLimitExceeded
 from shared.login_buckets import login_bucket_key
+from shared.request_context import reset_request_principal, set_request_identity
 
 
 class MockModelIdentifier(Protocol):
@@ -255,6 +256,22 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
         return OrganizationDefaults(provider, profile, policy)
 
     def _persist_new_organization(
+        self,
+        owner: OwnerRecords,
+        defaults: OrganizationDefaults,
+        normalized_email: str,
+        timestamp: datetime,
+    ) -> None:
+        """Write the new tenant's records under that tenant's own scope."""
+        identity = set_request_identity(
+            owner.principal.id, owner.organization.id, owner.workspace.id
+        )
+        try:
+            self._write_new_organization(owner, defaults, normalized_email, timestamp)
+        finally:
+            reset_request_principal(identity)
+
+    def _write_new_organization(
         self,
         owner: OwnerRecords,
         defaults: OrganizationDefaults,

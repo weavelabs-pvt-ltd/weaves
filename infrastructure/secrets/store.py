@@ -12,6 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 from application.ports.secrets import SecretStore
+from infrastructure.database.row_security import APP_ROLE_GRANTS
 from shared.errors import SecretStoreUnavailable as SecretStoreUnavailable
 from shared.request_context import effective_org_id, effective_workspace_id
 
@@ -142,8 +143,10 @@ class EncryptedPostgresSecretStore:
                 "WEAVES_SECRET_ENCRYPTION_KEY must be a valid Fernet key"
             ) from exc
         self._key_id = hashlib.sha256(encryption_key.encode("ascii")).hexdigest()[:12]
+        # A ProductPostgresStore scopes every runtime query to the caller's tenant;
+        # schema setup uses its raw pool, which keeps the owning connection.
         self._pool = pool
-        with self._pool.connection() as connection:
+        with getattr(pool, "pool", pool).connection() as connection:
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS product_secrets (
                     secret_ref text PRIMARY KEY,
@@ -166,6 +169,17 @@ class EncryptedPostgresSecretStore:
                 "CREATE INDEX IF NOT EXISTS product_secrets_org_idx "
                 "ON product_secrets (org_id)"
             )
+            connection.execute("ALTER TABLE product_secrets ENABLE ROW LEVEL SECURITY")
+            connection.execute(
+                "DROP POLICY IF EXISTS tenant_isolation ON product_secrets"
+            )
+            connection.execute(
+                """CREATE POLICY tenant_isolation ON product_secrets
+                   USING (org_id = nullif(current_setting('app.org_id', true), ''))
+                   WITH CHECK (
+                     org_id = nullif(current_setting('app.org_id', true), ''))"""
+            )
+            connection.execute(APP_ROLE_GRANTS)
             connection.execute(_BACKFILL_OWNERSHIP)
 
     def put(

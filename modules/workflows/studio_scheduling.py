@@ -8,6 +8,7 @@ from shared.clock import utc_now
 from shared.request_context import (
     reset_request_principal,
     set_request_identity,
+    system_scope,
 )
 
 
@@ -16,7 +17,10 @@ class WorkflowStudioSchedulingMixin(WorkflowStudioContext):
 
     def tick(self) -> None:
         """Resume queued work and dispatch due calendar occurrences after restart."""
-        for settings in self.settings.list():
+        with system_scope("studio"):
+            all_settings = tuple(self.settings.list())
+            all_runs = tuple(self.runs.list())
+        for settings in all_settings:
             if (
                 not settings.sched
                 or not settings.next_run_at
@@ -66,7 +70,7 @@ class WorkflowStudioSchedulingMixin(WorkflowStudioContext):
                     self.settings.put(current)
             finally:
                 reset_request_principal(token)
-        for run in self.runs.list():
+        for run in all_runs:
             if run.status not in {"queued", "running"}:
                 continue
             token = set_request_identity(

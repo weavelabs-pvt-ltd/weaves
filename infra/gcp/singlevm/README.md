@@ -20,6 +20,10 @@ connections each. `WEAVES_SEED_LOCAL_DEFAULTS=false` prevents local demo
 accounts, agents and workflows from appearing after restarts. Local development
 keeps its existing default example data.
 
+## Database row-level security (opt-in)
+
+Migration 21 creates the non-owner `weaves_app` role and tenant policies. They stay dormant until `WEAVES_DB_APP_ROLE=weaves_app` is added to `/opt/weaves/singlevm/runtime.env` and the API/worker are restarted; every transaction then runs as that role with the tenant bound transaction-locally. To roll back, remove the variable and restart (the owner connection bypasses the policies; the migration is additive).
+
 ## Automatic deployment
 
 Every push to `main` in `weavelabs-pvt-ltd/weaves` or

@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import os
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
+
+from infrastructure.database.row_security import ROW_SECURITY_MIGRATION
+from shared.request_context import current_system_purpose, storage_org_scope
 
 _MIGRATION_LOCK_NAME = "weaves-product-schema-migrations"
 
@@ -320,6 +325,7 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
                    FOR EACH ROW EXECUTE FUNCTION reject_sso_identity_rewrite()""",
         ),
     ),
+    ROW_SECURITY_MIGRATION,
 )
 
 
@@ -349,8 +355,22 @@ class ProductPostgresStore:
         pool: Any | None = None,
         max_size: int = 10,
         application_name: str = "weaves-product-api",
+        app_role: str | None = None,
     ) -> None:
-        """Open or accept a pool, then apply migrations before serving traffic."""
+        """Open or accept a pool, then apply migrations before serving traffic.
+
+        ``app_role`` (default: ``WEAVES_DB_APP_ROLE``) names a non-owner role
+        that every application transaction assumes, so PostgreSQL row policies
+        apply even though migrations run with the owning connection.
+        """
+        role = (
+            app_role
+            if app_role is not None
+            else os.environ.get("WEAVES_DB_APP_ROLE", "").strip()
+        )
+        if role and not re.fullmatch(r"[a-z_][a-z0-9_]{0,62}", role):
+            raise ValueError("WEAVES_DB_APP_ROLE must be a simple role name")
+        self._app_role = role or None
         if pool is None:
             if database_url is None or not database_url.strip():
                 raise ValueError(
@@ -421,14 +441,31 @@ class ProductPostgresStore:
         if pool is not None:
             pool.close()
 
+    def _enter_tenant_scope(self, connection: Any) -> None:
+        """Assume the restricted role and bind this transaction's tenant scope.
+
+        Everything is transaction-local, so a pooled connection can never carry
+        one tenant's scope into another transaction.
+        """
+        role = getattr(self, "_app_role", None)
+        if role is None:
+            return
+        connection.execute(
+            "SELECT set_config('role', %s, true), set_config('app.org_id', %s, true), "
+            "set_config('app.system_purpose', %s, true)",
+            (role, storage_org_scope(), current_system_purpose() or ""),
+        )
+
     @contextmanager
     def connection(self) -> Iterator[Any]:
         """Reuse the active unit-of-work connection or borrow a fresh one."""
         active = self._active_connection.get()
         if active is not None:
+            self._enter_tenant_scope(active)
             yield active
             return
         with self.pool.connection() as connection:
+            self._enter_tenant_scope(connection)
             yield connection
 
     @contextmanager
@@ -439,6 +476,7 @@ class ProductPostgresStore:
             yield active
             return
         with self.pool.connection() as connection:
+            self._enter_tenant_scope(connection)
             token = self._active_connection.set(connection)
             try:
                 yield connection
