@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "owner": "weaves/tenancy_harness",
+  "files": {
+    "__init__.py": "43ef4561dd9131b33ccf4317a6d8ae6acb242fafca0fda9b9dab07489ce8ae85",
+    "budget.py": "1ba635917326b2e630ed1195a57ab236eb2fbae8d9ab68056474785c97f1ed9b",
+    "canvas_probe.py": "052f7d3c3165c88d782d874602033c89b07add00f808e005a085fae6cc1155ee",
+    "client.py": "bbdced3dcdd2e0355f26053523d4ed5adc6d22ed41b3ce12fcbe8f577598e568",
+    "compose.yml": "3f234e569823f54d70c8f8f557d9e2dd5285ebaf744dab70897f98e357039e49",
+    "controls.spec.cjs": "fce4b3334699c44fd4b1463340485e01cdc8e5214d69a49548dc714be9102b86",
+    "diagnostics.py": "f4b245a9f3bc1ad998ca453e57f12eebb929a9c25567271d26e6fa748f5beb5f",
+    "diagnostics.spec.cjs": "0bc74122f7f76b65924d84a410887a3b3560d1dc2db8cbc4aff7623b32ece0f8",
+    "fakes.py": "ec2f47ea823b1a20f9bc20678f19272d61aa8ef3a0ad04d19c435c1f8786ab99",
+    "gateway.conf": "3b0b943c424ddcca82f58869993999781964292d45e22c4156df0fc99026337b",
+    "live.compose.yml": "7649a097c0e3cb9465689c7c7052e1ffbcd61f708d74620c25ce111f4b2707b4",
+    "live.config.cjs": "c4cb06b03c8d7083d5fd1336ccaf496307b121d51d80b230f256c4e8bd5c6385",
+    "live.py": "a5848e982ffb3fc271a6fac31ead6ea7929d7d85be4f134dcf37088e58e46c09",
+    "live.spec.cjs": "535edb9edb9fa7eb440d5bcb4b85c6c4b8835756fb598e2bc3a0829db2966300",
+    "live_host.py": "9b6943240002977e855377440cb02d12cbe69308c99ac1cbc89620f0ec9ffc73",
+    "live_relay.py": "ce39b8e64eb917f4c852595d8e99397a7c1958b7e74ae0f9db76f11ab08a43dd",
+    "observe.py": "9ec427c4470a78b092b7cbfc14c7e3e7ec9f97adcd0c6f6a42c8a6f2cf8e2b87",
+    "ownership.json": "e34fef95f2765437723a2879c963eb9b99666660bfe5aa7c541ae66fa1d57aaa",
+    "pair.json": "bff0f28dbcf050d96a7f6cf2b93fc0dd83ecaa8537de08a369faced463daf61a",
+    "playwright.config.cjs": "3d3fe79b25c7e0cae61d5ed442092f2500a393323cc5f2deedd27aa761005132",
+    "report.py": "dbdd505973166d32ea93c429e9ad322964d30ed4af4574944369f8d69af17770",
+    "resources.py": "d8c299963529d60842e65e1e0408fd2ae869e7f678b485075ebef35af4c4f25b",
+    "run.py": "7b013772060e3e7d2038fdfeda033d17f1b5eb3d3b12030c8bf8042c80e5f6e5",
+    "run_support.py": "d09c80d1ac72b77744daaf57d5611e0439a305063c04ff2302abe79e923b87b8",
+    "seed.py": "881589663111572ccba08eea7345b9c5b4df2400b1329bb894dfe55c5f4122cc"
+  }
+}

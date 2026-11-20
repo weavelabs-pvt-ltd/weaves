@@ -44,9 +44,73 @@ jobs:
       - run: pytest
       - run: docker build -t weaves-backend-ci .
 
+  tenancy:
+    name: Phase 0 real-stack tenancy foundation
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          path: backend
+          persist-credentials: false
+      - name: Read the exact counterpart revision
+        id: pair
+        working-directory: backend
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, re
+          pair = json.load(open('tenancy_harness/pair.json'))['frontend']
+          assert re.fullmatch(r'[a-f0-9]{40}', pair['revision'])
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('repository=' + pair['repository'] + '\n')
+              output.write('revision=' + pair['revision'] + '\n')
+          PYTHON
+      - name: Require read access to the private frontend fixture
+        env:
+          READ_TOKEN: ${{ secrets.TENANCY_FRONTEND_READ_TOKEN }}
+        run: |
+          if [ -z "$READ_TOKEN" ]; then
+            echo "::error::Set TENANCY_FRONTEND_READ_TOKEN with Contents read on weaves-app; private fixture access is required."
+            exit 1
+          fi
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ steps.pair.outputs.repository }}
+          ref: ${{ steps.pair.outputs.revision }}
+          path: frontend
+          persist-credentials: false
+          token: ${{ secrets.TENANCY_FRONTEND_READ_TOKEN }}
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Run real PostgreSQL, API, worker and browser cases
+        working-directory: backend
+        run: |
+          python3 -m tenancy_harness.run --backend "$GITHUB_WORKSPACE/backend" \
+            --frontend "$GITHUB_WORKSPACE/frontend" --candidate backend \
+            --output "$RUNNER_TEMP/tenancy"
+      - name: Publish credential-free tenancy evidence only
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: backend-tenancy-phase-0
+          path: ${{ runner.temp }}/tenancy/artifacts/
+          retention-days: 7
+
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: verify
+    needs: [verify, tenancy]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:

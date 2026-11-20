@@ -1,0 +1,12 @@
+# Explicit opt-in only. Ordinary CI has no external model access or API key.
+services:
+  provider:
+    networks: [default, live_egress]
+    environment:
+      TENANCY_LIVE_CONFIG: /live/live-config.json
+      TENANCY_BUDGET_DIR: /budget
+    volumes:
+      - ${TEST_PRIVATE_DIR:?}/live-config.json:/live/live-config.json:ro
+      - ${TEST_BUDGET_DIR:?}:/budget
+networks:
+  live_egress: {}
