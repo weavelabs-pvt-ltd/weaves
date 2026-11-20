@@ -57,9 +57,7 @@ def summarize(raw, pair, sources, bundle_digest, fixture):
     known = {
         key: {"observed": bool(diagnostics.get(key)), "resolution_phase": 1}
         for key in pair["known_defects"]
-        if key != "T0-D04"
     }
-    known["T0-D04"] = {"observed": observed.get("T0-D04", False), "resolution_phase": 1}
     complete = complete and all(value["observed"] for value in known.values())
     return {
         "phase": pair["phase"],
