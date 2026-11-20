@@ -329,6 +329,7 @@ def test_http_sign_in_returns_token_account_and_memberships(client):
     assert me.json()["account"] == body["account"]
     assert me.json()["identities"] == [
         {
+            "id": me.json()["identities"][0]["id"],
             "kind": "email",
             "subject": "p***@example.test",
             "verified_at": me.json()["identities"][0]["verified_at"],

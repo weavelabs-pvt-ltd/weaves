@@ -62,7 +62,45 @@ def account_fixture(fixtures, foreign_org_id):
     foreign, _ = names(foreign_org_id)
     ignored, names_ignored = names(b["org_id"], a["admin"]["headers"])
     cross_workspace, _ = names(a["org_id"], workspace=b["workspace_id"])
+
+    def prove(path, email, extra_headers=None, challenge_id=None):
+        headers = {**source, **(extra_headers or {})}
+        if challenge_id is None:
+            before_count = mailbox(email)["count"]
+            started = httpx.post(
+                API + path + "email-code",
+                headers=headers,
+                json={"email": email},
+                timeout=30,
+            )
+            challenge_id = started.json()["challenge_id"]
+            assert mailbox(email)["count"] == before_count + 1
+        return httpx.post(
+            API + path + "email-verify",
+            headers=headers,
+            json={"challenge_id": challenge_id, "code": mailbox(email)["code"]},
+            timeout=30,
+        )
+
+    other_email = b["admin"]["email"]
+    other_account = prove("/account/", other_email, {"X-Forwarded-For": "198.20.0.78"})
+    attach_email = a["builder"]["email"]
+    attached = prove("/account/identities/", attach_email, bearer)
+    conflict = prove("/account/identities/", other_email, bearer)
+    me_after = httpx.get(API + "/account/me", headers=bearer, timeout=30)
+    other_me = httpx.get(
+        API + "/account/me",
+        headers={"Authorization": "Bearer " + other_account.json()["access_token"]},
+        timeout=30,
+    )
     return {
+        "email_attached_after_proof": attached.status_code == 200
+        and len(attached.json()["identities"]) == 2,
+        "email_of_another_account_refused": conflict.status_code == 409,
+        "refusal_changed_nothing": me_after.status_code == 200
+        and len(me_after.json()["identities"]) == 2
+        and other_me.status_code == 200
+        and len(other_me.json()["identities"]) == 1,
         "selects_each_organization": a["agent"]["name"] in names_a
         and b["agent"]["name"] in names_b
         and a["agent"]["name"] not in names_b
