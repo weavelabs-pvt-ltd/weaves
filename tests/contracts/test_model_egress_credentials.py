@@ -53,8 +53,8 @@ def test_legacy_rotation_denial_preserves_original_key_and_removes_new_secret(
     references = []
     put = runtime.secret_store.put
 
-    def capture(value):
-        reference = put(value)
+    def capture(value, **kwargs):
+        reference = put(value, **kwargs)
         references.append(reference)
         return reference
 

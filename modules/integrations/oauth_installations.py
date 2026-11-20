@@ -161,7 +161,7 @@ class OAuthInstallationMixin(OAuthInstallationHost):
         identity_value: str | None = None,
     ) -> PluginInstallation:
         descriptor = self.plugins.get(plugin_id)
-        secret_ref = self.secret_store.put(credential.strip())
+        secret_ref = self.secret_store.put(credential.strip(), purpose="connector")
         matches = [
             item
             for item in self.installations.list_scoped(

@@ -253,8 +253,8 @@ def test_model_provider_and_profile_writes_roll_back_with_failed_audit(monkeypat
     original_secret_put = runtime.secret_store.put
     secret_refs = []
 
-    def tracked_secret_put(secret):
-        secret_ref = original_secret_put(secret)
+    def tracked_secret_put(secret, **kwargs):
+        secret_ref = original_secret_put(secret, **kwargs)
         secret_refs.append(secret_ref)
         return secret_ref
 

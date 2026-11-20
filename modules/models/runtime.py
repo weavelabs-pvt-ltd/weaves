@@ -239,7 +239,7 @@ class ModelService:
             raise ValueError("only OpenAI and Anthropic credentials are supported")
         if not api_key.strip():
             raise ValueError("provider API key is required")
-        secret_ref = self.secret_store.put(api_key.strip())
+        secret_ref = self.secret_store.put(api_key.strip(), purpose="model_provider")
         base_urls = {
             ModelProviderType.OPENAI: "https://api.openai.com/v1",
             ModelProviderType.ANTHROPIC: "https://api.anthropic.com",
@@ -305,7 +305,7 @@ class ModelService:
             provider_type, base_url
         )
         selected_model = initial_model.strip() if initial_model else "catalog-pending"
-        secret_ref = self.secret_store.put(api_key.strip())
+        secret_ref = self.secret_store.put(api_key.strip(), purpose="model_provider")
         provider_id = _id()
         candidate = ModelProviderContract(
             id=provider_id,
@@ -447,7 +447,9 @@ class ModelService:
         if not api_key.strip():
             raise ValueError("provider API key is required")
         provider = self.providers.get_scoped(provider_id, effective_org_id())
-        next_secret_ref = self.secret_store.put(api_key.strip())
+        next_secret_ref = self.secret_store.put(
+            api_key.strip(), purpose="model_provider"
+        )
         old_secret_ref = provider.auth_ref
         updated: ModelProviderContract = provider.model_copy(
             update={

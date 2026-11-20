@@ -63,7 +63,9 @@ class OAuthJiraMixin(OAuthContextBase):
         if not resources:
             return self.finish("jira", "failed", "no_resources")
         try:
-            secret_ref = self.dependencies.secret_store.put(bundle)
+            secret_ref = self.dependencies.secret_store.put(
+                bundle, purpose="oauth_token"
+            )
             try:
                 setup = self.state_record(
                     "jira",

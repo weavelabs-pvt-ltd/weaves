@@ -120,7 +120,7 @@ class McpInstallationMixin(RuntimeCapabilityHost):
         descriptor, tool_mapping = _build_descriptor(plugin_id, display_name, selected)
         stored_credential = oauth_token_bundle or bearer_token
         secret_ref = (
-            self.secret_store.put(stored_credential.strip())
+            self.secret_store.put(stored_credential.strip(), purpose="connector")
             if stored_credential
             else None
         )
