@@ -123,11 +123,11 @@ def test_compatibility_release_reads_schema_19_without_applying_it():
 
 
 def test_product_postgres_migration_rejects_newer_database_schema():
-    connection = RecordingConnection(rows=[(21,)])
+    connection = RecordingConnection(rows=[(22,)])
     store = ProductPostgresStore.__new__(ProductPostgresStore)
     store.pool = RecordingPool(connection)
 
-    with pytest.raises(RuntimeError, match="unsupported migration versions: 21"):
+    with pytest.raises(RuntimeError, match="unsupported migration versions: 22"):
         store._migrate()
 
 
@@ -463,3 +463,18 @@ def test_postgres_put_cannot_transfer_ownership_or_change_it_in_place():
     assert "org_id = EXCLUDED.org_id" not in query
     assert "workspace_id = EXCLUDED.workspace_id" not in query
     assert "product_records.org_id IS NOT DISTINCT FROM EXCLUDED.org_id" in query
+
+
+def test_reader_release_accepts_schema_21_without_applying_it():
+    connection = RecordingConnection(
+        rows=[(version,) for version in (*range(1, 20), 21)]
+    )
+    store = ProductPostgresStore.__new__(ProductPostgresStore)
+    store.pool = RecordingPool(connection)
+
+    store._migrate()
+
+    assert not any(
+        "INSERT INTO product_schema_migrations" in sql
+        for sql, _ in connection.statements
+    )
