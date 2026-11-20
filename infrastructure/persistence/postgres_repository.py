@@ -23,8 +23,16 @@ class PostgresRepository(PostgresQueryRepositoryMixin[TContract], Generic[TContr
         collection: str,
         id_field: str,
         record_type: type[TContract],
+        *,
+        tenant_keyed: bool = False,
     ) -> None:
-        """Initialize the adapter with its identifier or resource configuration."""
+        """Initialize the adapter with its identifier or resource configuration.
+
+        ``tenant_keyed`` stores client-chosen identifiers under the owning
+        organization, so two tenants can use the same name without colliding
+        (and without revealing that another tenant already has it).
+        """
+        self._tenant_keyed = tenant_keyed
         self._pool = pool
         self._collection = collection
         self._id_field = id_field
@@ -118,9 +126,14 @@ class PostgresRepository(PostgresQueryRepositoryMixin[TContract], Generic[TContr
         workspace_id: OpaqueId | None = None,
     ) -> TContract:
         """Return one record only when it matches the requested tenant scope."""
+        keys = (
+            [f"{org_id}:{record_id}", str(record_id)]
+            if self._tenant_keyed
+            else [str(record_id)]
+        )
         query = """SELECT payload FROM product_records
-                    WHERE collection = %s AND record_id = %s AND org_id = %s"""
-        params: tuple[object, ...] = (self._collection, str(record_id), str(org_id))
+                    WHERE collection = %s AND record_id = ANY(%s) AND org_id = %s"""
+        params: tuple[object, ...] = (self._collection, keys, str(org_id))
         if workspace_id is not None:
             query += " AND workspace_id = %s"
             params += (str(workspace_id),)
@@ -334,9 +347,11 @@ class PostgresRepository(PostgresQueryRepositoryMixin[TContract], Generic[TContr
     def _record_id(self, record: TContract) -> str:
         """Read and normalize the contract identifier configured for this repository."""
         try:
-            return str(getattr(record, self._id_field))
+            record_id = str(getattr(record, self._id_field))
         except AttributeError as exc:
             raise TypeError(f"record has no {self._id_field} field") from exc
+        org_id = getattr(record, "org_id", "")
+        return f"{org_id}:{record_id}" if self._tenant_keyed else record_id
 
     @staticmethod
     def _scope(record: TContract, field: str) -> str | None:
