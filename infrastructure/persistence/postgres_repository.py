@@ -11,7 +11,7 @@ from contracts.v1.base import OpaqueId
 from infrastructure.persistence.postgres_query_repository import (
     PostgresQueryRepositoryMixin,
 )
-from shared.errors import IdempotencyKeyAlreadyExists
+from shared.errors import IdempotencyKeyAlreadyExists, OwnershipConflict
 
 
 class PostgresRepository(PostgresQueryRepositoryMixin[TContract], Generic[TContract]):
@@ -72,18 +72,19 @@ class PostgresRepository(PostgresQueryRepositoryMixin[TContract], Generic[TContr
         from psycopg.types.json import Jsonb
 
         with self._pool.connection() as connection:
-            connection.execute(
+            result = connection.execute(
                 """INSERT INTO product_records
                    (collection, record_id, org_id, workspace_id,
                     idempotency_key, requested_by_principal_id, payload)
                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                    ON CONFLICT (collection, record_id) DO UPDATE SET
-                     org_id = EXCLUDED.org_id,
-                     workspace_id = EXCLUDED.workspace_id,
                      idempotency_key = EXCLUDED.idempotency_key,
                      requested_by_principal_id = EXCLUDED.requested_by_principal_id,
                      payload = EXCLUDED.payload,
-                     updated_at = now()""",
+                     updated_at = now()
+                   WHERE product_records.org_id IS NOT DISTINCT FROM EXCLUDED.org_id
+                     AND product_records.workspace_id
+                       IS NOT DISTINCT FROM EXCLUDED.workspace_id""",
                 (
                     self._collection,
                     self._record_id(record),
@@ -94,6 +95,8 @@ class PostgresRepository(PostgresQueryRepositoryMixin[TContract], Generic[TContr
                     Jsonb(record.model_dump(mode="json")),
                 ),
             )
+        if int(result.rowcount) != 1:
+            raise OwnershipConflict("record ownership cannot be changed")
         return self._clone(record)
 
     def get(self, record_id: OpaqueId) -> TContract:
@@ -231,12 +234,16 @@ class PostgresRepository(PostgresQueryRepositoryMixin[TContract], Generic[TContr
             result = connection.execute(
                 """UPDATE product_records SET payload = %s, updated_at = %s
                    WHERE collection = %s AND record_id = %s
+                     AND org_id IS NOT DISTINCT FROM %s
+                     AND workspace_id IS NOT DISTINCT FROM %s
                      AND payload->>'status' = %s AND updated_at <= %s""",
                 (
                     Jsonb(record.model_dump(mode="json")),
                     _updated_at(record),
                     self._collection,
                     self._record_id(record),
+                    self._scope(record, "org_id"),
+                    self._scope(record, "workspace_id"),
                     expected_status,
                     updated_before,
                 ),
@@ -274,6 +281,8 @@ class PostgresRepository(PostgresQueryRepositoryMixin[TContract], Generic[TContr
             result = connection.execute(
                 """UPDATE product_records SET payload = %s, updated_at = %s
                    WHERE collection = %s AND record_id = %s
+                     AND org_id IS NOT DISTINCT FROM %s
+                     AND workspace_id IS NOT DISTINCT FROM %s
                      AND payload->>'status' = %s
                      AND payload->>'worker_id' = %s
                      AND (payload->>'attempts')::integer = %s""",
@@ -282,6 +291,8 @@ class PostgresRepository(PostgresQueryRepositoryMixin[TContract], Generic[TContr
                     _updated_at(record),
                     self._collection,
                     self._record_id(record),
+                    self._scope(record, "org_id"),
+                    self._scope(record, "workspace_id"),
                     expected_status,
                     worker_id,
                     attempts,
@@ -303,6 +314,8 @@ class PostgresRepository(PostgresQueryRepositoryMixin[TContract], Generic[TContr
             result = connection.execute(
                 """UPDATE product_records SET payload = %s, updated_at = %s
                    WHERE collection = %s AND record_id = %s
+                     AND org_id IS NOT DISTINCT FROM %s
+                     AND workspace_id IS NOT DISTINCT FROM %s
                      AND payload->>'status' = %s
                      AND payload->>'active_turn_id' IS NOT DISTINCT FROM %s""",
                 (
@@ -310,6 +323,8 @@ class PostgresRepository(PostgresQueryRepositoryMixin[TContract], Generic[TContr
                     _updated_at(record),
                     self._collection,
                     self._record_id(record),
+                    self._scope(record, "org_id"),
+                    self._scope(record, "workspace_id"),
                     expected_status,
                     expected_active_turn_id,
                 ),

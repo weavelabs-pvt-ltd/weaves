@@ -123,23 +123,30 @@ class IdentityBootstrapService:
             ),
         )
         self._repair_developer_permissions()
-        self._seed(
-            self.role_bindings,
-            "id",
-            RoleBinding(
-                id="local-developer-binding",
-                org_id="local-org",
-                principal_id="local-developer",
-                role_id="local-developer-role",
-                workspace_id="local-workspace",
-                created_at=now,
-            ),
+        self._seed_organization_wide_developer_binding(now)
+
+    def _seed_organization_wide_developer_binding(self, now: datetime) -> None:
+        """Keep the local developer's grant organization-wide.
+
+        Ownership is immutable on update, so a legacy workspace-scoped grant is
+        replaced explicitly instead of being rewritten in place.
+        """
+        binding = RoleBinding(
+            id="local-developer-binding",
+            org_id="local-org",
+            principal_id="local-developer",
+            role_id="local-developer-role",
+            workspace_id=None,
+            created_at=now,
         )
-        developer_binding = self.role_bindings.get("local-developer-binding")
-        if developer_binding.workspace_id is not None:
-            self.role_bindings.put(
-                developer_binding.model_copy(update={"workspace_id": None})
-            )
+        try:
+            current = self.role_bindings.get(binding.id)
+        except KeyError:
+            self.role_bindings.create(binding)
+            return
+        if current.workspace_id is not None:
+            self.role_bindings.delete(binding.id)
+            self.role_bindings.create(binding)
 
     def seed_standard_roles(self) -> None:
         """Provision or repair standard roles for every organization once."""
