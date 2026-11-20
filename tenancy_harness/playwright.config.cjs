@@ -7,7 +7,7 @@ if (!fixture || !fs.existsSync(fixture) || url.hostname !== '127.0.0.1' || !url.
 }
 module.exports = defineConfig({
   testDir: __dirname,
-  testMatch: ['controls.spec.cjs', 'diagnostics.spec.cjs'],
+  testMatch: ['controls.spec.cjs'],
   workers: 1,
   fullyParallel: false,
   forbidOnly: true,

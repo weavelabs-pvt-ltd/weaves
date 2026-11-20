@@ -1,3 +1,4 @@
+/* global showDialog, api, setSession, prepareHomeEntry, refresh */
 const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -191,4 +192,67 @@ test('T1-I03 provider egress and tenant credentials are contained in API and wor
   expect(fixture.model_egress.tenant_credentials).toBe(true);
   expect(fixture.model_egress.worker_denied).toBe(true);
   expect(fixture.model_egress.zero_probe_requests).toBe(true);
+});
+
+test('T1-I04 suspended and archived tenants cannot start or continue work', async () => {
+  expect(fixture.lifecycle_control.api_denied).toBe(true);
+  expect(fixture.lifecycle_control.webhook_denied).toBe(true);
+  expect(fixture.lifecycle_control.no_webhook_jobs).toBe(true);
+  expect(fixture.lifecycle_control.worker_blocked).toBe(true);
+});
+
+test('T1-I06 the same email signs in to an explicit tenant with independent throttles', async () => {
+  const control = fixture.diagnostics.sign_in;
+  expect(control.shared_person_in_both).toBe(true);
+  expect(control.unscoped_ambiguous_issues_no_code).toBe(true);
+  expect(control.tenant_a_throttled).toBe(true);
+  expect(control.tenant_b_unaffected).toBe(true);
+});
+
+test('T1-I05 session change tears down private browser state and ignores stale responses', async ({ browser }) => {
+  const sentinel = 'TEARDOWN_SENTINEL_' + Date.now();
+  const token = (actor) => actor.headers.Authorization.slice(7);
+  const context = await browser.newContext({ baseURL: process.env.WEAVES_E2E_APP_URL });
+  const page = await context.newPage();
+  await page.addInitScript(({ session, workspace, draftKey, sentinelValue }) => {
+    if (sessionStorage.getItem('test.seeded')) return;
+    sessionStorage.setItem('test.seeded', '1');
+    sessionStorage.setItem('weaves.session', session);
+    sessionStorage.setItem('weaves.workspace', workspace);
+    localStorage.setItem(draftKey, JSON.stringify([{ id: 'legacy', name: sentinelValue }]));
+  }, { session: token(a.admin), workspace: a.workspace_id, draftKey: 'weaves.agentDrafts.' + a.workspace_id, sentinelValue: sentinel });
+  await page.goto(process.env.WEAVES_E2E_APP_URL + '/#agents');
+  await expect(page.getByText(a.agent.name, { exact: true }).first()).toBeVisible();
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  await page.route('**/api/v0/audit-events**', async (route) => {
+    await gate;
+    try { await route.fulfill({ status: 401, contentType: 'application/json', body: '{"detail":"expired"}' }); } catch { /* aborted by the page */ }
+  });
+  await page.evaluate((value) => {
+    state.agentBuilder = { name: value, instructions: value };
+    state.skillVersionCache = { privateVersion: { content: value } };
+    showDialog({ type: 'info', title: value, message: value, primaryLabel: 'Close' });
+    window.__stale = api('/audit-events').then(() => 'settled', () => 'rejected');
+  }, sentinel);
+  await page.evaluate(() => document.querySelector('[data-action="logout"]').click());
+  await expect.poll(() => page.evaluate(() => state.authToken)).toBe('');
+  await page.evaluate((userToken) => { setSession(userToken); prepareHomeEntry(); refresh(); }, token(a.user));
+  release();
+  await expect.poll(() => page.evaluate(() => state.authToken)).toBe(token(a.user));
+  const view = await page.evaluate(() => [document.documentElement.innerText + document.documentElement.innerHTML, JSON.stringify(state)]);
+  expect(view[0]).not.toContain(sentinel);
+  expect(view[1]).not.toContain(sentinel);
+  await expect(page.locator('#modal-root weaves-dialog')).toHaveCount(0);
+  const keys = await page.evaluate(() => Object.keys(localStorage));
+  expect(keys).not.toContain('weaves.agentDrafts.' + a.workspace_id);
+  expect(keys).toContain('weaves.quarantine.agentDrafts.' + a.workspace_id);
+  const other = await browser.newContext({ baseURL: process.env.WEAVES_E2E_APP_URL });
+  const otherPage = await other.newPage();
+  await open(otherPage, b);
+  const otherView = await otherPage.evaluate(() => document.documentElement.innerText + JSON.stringify(state));
+  expect(otherView).not.toContain(sentinel);
+  expect(otherView).not.toContain(a.agent.name);
+  await context.close();
+  await other.close();
 });

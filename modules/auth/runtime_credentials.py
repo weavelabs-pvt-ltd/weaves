@@ -15,15 +15,20 @@ from contracts.v1 import (
     ApiCredentialStatus,
     AuditEvent,
     AuditTargetScope,
+    Organization,
+    OrganizationStatus,
     Permission,
     Principal,
     PrincipalStatus,
     PrincipalType,
     Role,
     RoleBinding,
+    Workspace,
+    WorkspaceStatus,
 )
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
+from shared.errors import TenantInactive
 from shared.request_context import (
     effective_org_id,
     effective_principal_id,
@@ -37,9 +42,11 @@ class CredentialRuntimeHost(ABC):
     _bootstrapped: Callable[[], bool]
     api_credentials: Repository[ApiCredential]
     audit_events: Repository[AuditEvent]
+    organizations: Repository[Organization]
     principals: Repository[Principal]
     role_bindings: Repository[RoleBinding]
     roles: Repository[Role]
+    workspaces: Repository[Workspace]
 
     @abstractmethod
     def bootstrap(self) -> None:
@@ -296,6 +303,22 @@ class CredentialRuntimeMixin(CredentialRuntimeHost):
             permissions.update(role.permissions)
         return tuple(sorted(permissions, key=lambda permission: permission.value))
 
+    def _require_active_scope(self, org_id: str, workspace_id: str | None) -> None:
+        """Stop work for suspended organizations and archived workspaces.
+
+        Every non-HTTP entry point (webhooks, schedules, worker turns,
+        continuations) authorizes through here, so lifecycle changes take effect
+        at the next authorization boundary. Archived workspaces can still be
+        restored because that action uses organization-level authorization.
+        """
+        organization = self.organizations.get(org_id)
+        if organization.status is not OrganizationStatus.ACTIVE:
+            raise TenantInactive("organization is not active")
+        if workspace_id is not None:
+            workspace = self.workspaces.get_scoped(workspace_id, org_id)
+            if workspace.status is not WorkspaceStatus.ACTIVE:
+                raise TenantInactive("workspace is not active")
+
     def authorize(self, principal_id: str, permission: Permission) -> None:
         """Require an active principal to hold a permission in its workspace."""
         principal_id = effective_principal_id(principal_id)
@@ -304,6 +327,7 @@ class CredentialRuntimeMixin(CredentialRuntimeHost):
         principal = self.principals.get_scoped(principal_id, org_id)
         if principal.status is not PrincipalStatus.ACTIVE:
             raise PermissionError("principal is not active")
+        self._require_active_scope(org_id, workspace_id)
         bindings = self.role_bindings.list_scoped(org_id)
         for binding in bindings:
             if binding.principal_id != principal_id:
@@ -322,6 +346,7 @@ class CredentialRuntimeMixin(CredentialRuntimeHost):
         principal = self.principals.get_scoped(principal_id, org_id)
         if principal.status is not PrincipalStatus.ACTIVE:
             raise PermissionError("principal is not active")
+        self._require_active_scope(org_id, None)
         for binding in self.role_bindings.list_scoped(org_id):
             if binding.principal_id != principal_id or binding.workspace_id is not None:
                 continue

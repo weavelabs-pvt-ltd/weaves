@@ -2,11 +2,11 @@
   "version": 1,
   "backend": {
     "repository": "weavelabs-pvt-ltd/weaves",
-    "revision": "760ca0e52739a628dbf1ac41c438830ce5450e10"
+    "revision": "bac09383733411ad11dbb65db4c7455413fa1d40"
   },
   "frontend": {
     "repository": "weavelabs-pvt-ltd/weaves-app",
-    "revision": "7c21b60fd69e70d78c91780fe6376e3f752554c2"
+    "revision": "d52a3db1136388f0e4d6febe26af6ab98e2efda6"
   },
   "candidate_policy": "The triggering repository uses its checked-out candidate; the counterpart uses this exact revision. Record both actual revisions and dirty state.",
   "phase": 1,
@@ -24,17 +24,19 @@
     "T0-I11",
     "T1-I01",
     "T1-I02",
-    "T1-I03"
+    "T1-I03",
+    "T1-I04",
+    "T1-I05",
+    "T1-I06"
   ],
-  "known_defects": {
-    "T0-D03": "Archived/suspended tenant work is executed",
-    "T0-D04": "Session expiry retains private browser state",
-    "T0-D05": "Duplicate-email unscoped sign-in issues no usable challenge"
-  },
-  "known_defect_policy": "Remaining defects are explicit baseline observations. Resolved defects are required passing isolation controls, never xfail/skip. Passing this partial Phase 1 suite does not mean SaaS readiness.",
+  "known_defects": {},
+  "known_defect_policy": "No baseline defects remain after Phase 1 containment. Resolved defects are required passing isolation controls, never xfail/skip. Passing this suite does not mean SaaS readiness.",
   "resolved_defects": {
     "T0-D01": "T1-I01",
-    "T0-D02": "T1-I03"
+    "T0-D02": "T1-I03",
+    "T0-D03": "T1-I04",
+    "T0-D05": "T1-I06",
+    "T0-D04": "T1-I05"
   },
   "fixture_migrations": [
     20

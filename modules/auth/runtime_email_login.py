@@ -74,7 +74,7 @@ class EmailLoginRuntimeMixin(ABC):
         ):
             raise EmailDeliveryUnavailable("Email sign-in is not configured")
         normalized_email = email.strip().casefold()
-        self._consume_email_login_limits(normalized_email, client_address)
+        self._consume_email_login_limits(normalized_email, client_address, org_id)
         matches = self._matching_email_users(normalized_email, org_id)
         if len(matches) != 1:
             # Keep the public response shape identical for unknown addresses.
@@ -103,10 +103,10 @@ class EmailLoginRuntimeMixin(ABC):
         return challenge.challenge_id
 
     def _consume_email_login_limits(
-        self, email: str, client_address: str | None
+        self, email: str, client_address: str | None, org_id: str | None = None
     ) -> None:
-        """Apply shared throttles to code requests by account and source."""
-        buckets = [login_bucket_key("email-login-account", email)]
+        """Apply throttles per tenant account and globally per source."""
+        buckets = [login_bucket_key("email-login-account", email, org_id)]
         if client_address:
             buckets.append(login_bucket_key("email-login-source", client_address))
         retry_after = max(
@@ -181,7 +181,9 @@ class EmailLoginRuntimeMixin(ABC):
             challenge = self.email_login_challenges.get(challenge_id)
         except KeyError as exc:
             raise PermissionError("email code is invalid or expired") from exc
-        self._consume_email_login_limits(challenge.email, client_address)
+        self._consume_email_login_limits(
+            challenge.email, client_address, challenge.org_id
+        )
         if challenge.expires_at <= _auth_now() or challenge.attempts >= 5:
             self.email_login_challenges.delete(challenge_id)
             raise PermissionError("email code is invalid or expired")
@@ -197,7 +199,7 @@ class EmailLoginRuntimeMixin(ABC):
         user, principal = self._activate_email_login_account(challenge)
         session, token = self.create_user_session(principal)
         self.login_rate_limiter.clear(
-            login_bucket_key("email-login-account", challenge.email)
+            login_bucket_key("email-login-account", challenge.email, challenge.org_id)
         )
         return user, principal, session, token
 

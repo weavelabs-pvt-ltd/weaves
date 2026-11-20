@@ -34,6 +34,12 @@ Validation: 455 backend tests passed with actual PostgreSQL; strict mypy passed 
 
 The real egress test added USD 0.0094100 in conservative accounting across three requests. Lifetime accounted usage is USD 0.0636074 across 19 requests, with USD 99.9363926 available and no unresolved reservations. The exhaustive cap remains USD 100; no pricing, cap or ledger reset occurred. All three other Phase 1 boundaries remain open, and SaaS readiness is still false.
 
+### Lifecycle eligibility and tenant sign-in slice
+
+Authorization now rejects suspended organizations and archived workspaces with a dedicated `TenantInactive` error, so signed webhooks (HTTP 403, no job created), schedule dispatch, worker turns, approval decisions and OAuth continuations stop at the next authorization boundary. Schedules skip the occurrence with an audit event instead of failing, so they resume after restoration and cannot starve other schedules. Running jobs observe an inactive tenant at the existing cooperative-cancellation boundary and finish as audited cancelled work. Administrators can still restore an archived workspace because that action uses organization-level authorization. Already dispatched external actions are not retried; interrupted work is still recorded by the existing recovery path.
+
+Login throttles for password and email-code paths are namespaced by organization when an organization is selected, so failed attempts in A no longer consume the same email's allowance in B. Source-address throttles remain global. Unscoped requests for an email that exists in several organizations still receive no code. `T1-I04` replaces `T0-D03` and `T1-I06` replaces `T0-D05`; `T1-I05` replaces `T0-D04` (browser teardown, stale-response generations and namespaced drafts); no baseline defects remain.
+
 ### Phase 0 implementation evidence
 
 - [Architecture decisions](TENANCY_ARCHITECTURE.md), [complete ownership registry](tenancy_harness/ownership.json), and [portable test harness](tenancy_harness/README.md) are implemented. The registry covers 45 collections and 135 API operations, with drift checks.
