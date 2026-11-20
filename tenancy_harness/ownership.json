@@ -1591,6 +1591,27 @@
       "scope": "workspace",
       "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
       "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/account/identities/email-code",
+      "scope": "account_identity",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/account/identities/email-verify",
+      "scope": "account_identity",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v0/account/identities/{identity_id}",
+      "scope": "account_identity",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
     }
   ]
 }

@@ -117,10 +117,30 @@ class AccountSignInService:
     ) -> tuple[Account, AccountSession, str]:
         """Consume a valid code, link memberships and start an account session."""
         del client_address  # the source budget is spent when codes are requested
+        challenge = self.redeem(challenge_id, code, account_id=None)
+        account = self._find_or_create_account(challenge.email)
+        if account.status is not AccountStatus.ACTIVE:
+            raise PermissionError(_INVALID)
+        self._linker.link(account, challenge.email)
+        session, token = self.sessions.issue(account, channel)
+        self.login_rate_limiter.clear(self._email_bucket(challenge.email))
+        return account, session, token
+
+    def redeem(
+        self, challenge_id: str, code: str, *, account_id: str | None
+    ) -> AccountLoginChallenge:
+        """Consume one valid code exactly once for sign-in or for one account.
+
+        Sign-in redeems only challenges that name no account, and an
+        add-email proof only redeems a challenge naming the calling account,
+        so neither can be used for the other.
+        """
         try:
             challenge = self.challenges.get(challenge_id)
         except KeyError as exc:
             raise PermissionError(_INVALID) from exc
+        if challenge.account_id != account_id:
+            raise PermissionError(_INVALID)
         self._consume_limits(challenge.email, None, include_source=False)
         if challenge.expires_at <= utc_now() or challenge.attempts >= MAX_ATTEMPTS:
             self.challenges.delete(challenge_id)
@@ -134,13 +154,7 @@ class AccountSignInService:
             self.challenges.consume(challenge_id)
         except KeyError as exc:
             raise PermissionError(_INVALID) from exc
-        account = self._find_or_create_account(challenge.email)
-        if account.status is not AccountStatus.ACTIVE:
-            raise PermissionError(_INVALID)
-        self._linker.link(account, challenge.email)
-        session, token = self.sessions.issue(account, channel)
-        self.login_rate_limiter.clear(self._email_bucket(challenge.email))
-        return account, session, token
+        return challenge
 
     @staticmethod
     def _email_bucket(email: str) -> str:
