@@ -27,7 +27,8 @@
     "T1-I03",
     "T1-I04",
     "T1-I05",
-    "T1-I06"
+    "T1-I06",
+    "T1-I07"
   ],
   "known_defects": {},
   "known_defect_policy": "No baseline defects remain after Phase 1 containment. Resolved defects are required passing isolation controls, never xfail/skip. Passing this suite does not mean SaaS readiness.",

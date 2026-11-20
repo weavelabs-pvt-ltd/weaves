@@ -19,6 +19,10 @@ from clients.integrations.mcp import McpHttpPlugin
 from clients.integrations.slack import SlackReadPlugin
 from clients.model_providers.gateway import ModelAdapter, ModelGateway
 from contracts.v1 import (
+    Account,
+    AccountIdentity,
+    AccountLoginChallenge,
+    AccountSession,
     AgentDefinition,
     AgentRun,
     AgentVersion,
@@ -36,6 +40,7 @@ from contracts.v1 import (
     ModelProfile,
     ModelProviderType,
     Organization,
+    OrganizationMembership,
     OrganizationModelConfiguration,
     Permission,
     PluginDescriptor,
@@ -93,6 +98,11 @@ class RuntimeCompositionInputs(Protocol):
     artifacts: Repository[Artifact]
     audit_events: Repository[AuditEvent]
     email_login_challenges: Repository[EmailLoginChallenge]
+    accounts: Repository[Account]
+    account_identities: Repository[AccountIdentity]
+    memberships: Repository[OrganizationMembership]
+    account_login_challenges: Repository[AccountLoginChallenge]
+    account_sessions: Repository[AccountSession]
     evaluation_executions: Repository[EvaluationExecution]
     evaluation_reports: Repository[EvaluationReportRecord]
     evaluation_suites: Repository[EvaluationSuiteRecord]

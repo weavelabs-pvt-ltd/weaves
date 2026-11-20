@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from apps.capability_services import CapabilityServiceSet
 from apps.runtime_composition_inputs import RuntimeCompositionInputs
+from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.bootstrap import IdentityBootstrapService
 from modules.auth.credential_service import CredentialService
@@ -31,6 +32,26 @@ def _configure_authentication_service(
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,
         authenticate_principal=dependencies.authenticate_principal,
+        unit_of_work=dependencies._unit_of_work,
+    )
+
+
+def _configure_account_sign_in_service(
+    dependencies: RuntimeCompositionInputs, services: CapabilityServiceSet
+) -> None:
+    """Compose global account email sign-in and account sessions."""
+    services.account_sign_in_service = AccountSignInService(
+        accounts=dependencies.accounts,
+        identities=dependencies.account_identities,
+        challenges=dependencies.account_login_challenges,
+        sessions=dependencies.account_sessions,
+        memberships=dependencies.memberships,
+        users=dependencies.users,
+        principals=dependencies.principals,
+        organizations=dependencies.organizations,
+        email_sender=dependencies.email_sender,
+        email_login_hmac_key=dependencies.email_login_hmac_key,
+        login_rate_limiter=dependencies.login_rate_limiter,
         unit_of_work=dependencies._unit_of_work,
     )
 

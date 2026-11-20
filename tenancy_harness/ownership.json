@@ -551,6 +551,28 @@
         "org_id",
         "account_id"
       ]
+    },
+    "account_login_challenges": {
+      "scope": "global_account",
+      "contract": "AccountLoginChallenge",
+      "privacy": "one-time email-code digest keyed by normalized address; authentication only",
+      "system_access": "explicit account/auth system scope only; never tenant or customer Admin access",
+      "lifecycle": "short-lived; account disablement stops new work and expired rows are removable by bounded cleanup",
+      "current_gap": null,
+      "scope_keys": [
+        "email"
+      ]
+    },
+    "account_sessions": {
+      "scope": "global_account",
+      "contract": "AccountSession",
+      "privacy": "session token digest only; never returned and never valid on tenant routes",
+      "system_access": "explicit account/auth system scope only; never tenant or customer Admin access",
+      "lifecycle": "revocable and 12-hour expiry; account disablement stops use; bounded cleanup of expired rows",
+      "current_gap": null,
+      "scope_keys": [
+        "account_id"
+      ]
     }
   },
   "auxiliary_tables": {
@@ -576,6 +598,34 @@
     }
   },
   "routes": [
+    {
+      "method": "POST",
+      "path": "/api/v0/account/email-code",
+      "scope": "public_authentication",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/account/email-verify",
+      "scope": "public_authentication",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/account/logout",
+      "scope": "account_identity",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/account/me",
+      "scope": "account_identity",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
     {
       "method": "GET",
       "path": "/api/v0/agent-skills",

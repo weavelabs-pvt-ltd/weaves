@@ -22,6 +22,7 @@ def build_api_process_services(
             routes=build_api_route_services(active_runtime),
             authentication=AuthenticationServices(
                 authentication=active_runtime.authentication_service,
+                accounts=active_runtime.account_sign_in_service,
                 credentials=active_runtime.credential_service,
                 organizations=active_runtime.organization_service,
                 bearer_required=active_runtime.storage_mode == "postgres",
