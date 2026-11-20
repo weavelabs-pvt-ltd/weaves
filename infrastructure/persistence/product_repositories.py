@@ -6,6 +6,8 @@ from typing import cast
 
 from application.ports.product_repositories import ProductRepositorySet
 from contracts.v1 import (
+    Account,
+    AccountIdentity,
     AgentDefinition,
     AgentRun,
     AgentVersion,
@@ -23,6 +25,7 @@ from contracts.v1 import (
     ModelProfile,
     OAuthAuthorizationState,
     Organization,
+    OrganizationMembership,
     OrganizationModelConfiguration,
     PluginDescriptor,
     PluginInstallation,
@@ -64,6 +67,9 @@ TENANT_KEYED_COLLECTIONS = frozenset({"evaluation_suites", "evaluation_reports"}
 
 REPOSITORY_SPECS: tuple[tuple[str, str, str, type[ProductContract]], ...] = (
     ("organizations", "organizations", "id", Organization),
+    ("accounts", "accounts", "id", Account),
+    ("account_identities", "account_identities", "id", AccountIdentity),
+    ("memberships", "memberships", "id", OrganizationMembership),
     ("workspaces", "workspaces", "id", Workspace),
     ("users", "users", "id", User),
     ("principals", "principals", "id", Principal),

@@ -57,6 +57,9 @@ Evidence: the real-stack suite (API, native worker, CLI fixtures) and the live A
 ### Phase 2 progress: tenant-keyed client identifiers
 
 Collections whose identifiers are chosen by clients (`evaluation_suites`, `evaluation_reports`) are now stored under `<org_id>:<id>`. Two organizations can use the same suite name without a conflict, and creating a name another tenant owns no longer reveals that it exists. Public identifiers and payloads are unchanged; reads accept both the new key and any legacy unprefixed row owned by the requesting organization, so no backfill is needed. A duplicate inside one organization still fails.
+### Phase 3 progress: account data model (slice 1)
+
+Adds the `accounts`, `account_identities` and `memberships` collections (global account, verified login identity, account-to-organization membership that references the existing tenant user and principal), with no behavior change. Uniqueness is database-enforced by idempotent indexes applied at startup: a verified identity belongs to one account platform-wide, an account never holds the same identity twice, one membership per account and organization, and one account per tenant-local user. Row policies treat accounts and identities as system-only and memberships as organization-scoped; a new `account` system scope allows the cross-organization lookups the organization chooser will need. The policy functions are now re-applied at every start, so policy changes no longer need a schema version. `plan_account_backfill` classifies legacy users (single organization, shared across organizations, duplicate within an organization, skipped) without writing or merging anything; counts only are printable. Next slices: account email-code login and sessions, per-request organization selection, the verified linking flow, then the frontend chooser.
 
 ### Phase 0 implementation evidence
 

@@ -9,7 +9,10 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
-from infrastructure.database.row_security import ROW_SECURITY_MIGRATION
+from infrastructure.database.row_security import (
+    REPEATABLE_STATEMENTS,
+    ROW_SECURITY_MIGRATION,
+)
 from shared.request_context import current_system_purpose, storage_org_scope
 
 _MIGRATION_LOCK_NAME = "weaves-product-schema-migrations"
@@ -357,17 +360,9 @@ class ProductPostgresStore:
         application_name: str = "weaves-product-api",
         app_role: str | None = None,
     ) -> None:
-        """Open or accept a pool, then apply migrations before serving traffic.
-
-        ``app_role`` (default: ``WEAVES_DB_APP_ROLE``) names a non-owner role
-        that every application transaction assumes, so PostgreSQL row policies
-        apply even though migrations run with the owning connection.
-        """
-        role = (
-            app_role
-            if app_role is not None
-            else os.environ.get("WEAVES_DB_APP_ROLE", "").strip()
-        )
+        """Open or accept a pool, then migrate; ``app_role`` enables row policies."""
+        env_role = os.environ.get("WEAVES_DB_APP_ROLE", "").strip()
+        role = env_role if app_role is None else app_role
         if role and not re.fullmatch(r"[a-z_][a-z0-9_]{0,62}", role):
             raise ValueError("WEAVES_DB_APP_ROLE must be a simple role name")
         self._app_role = role or None
@@ -433,6 +428,8 @@ class ProductPostgresStore:
                     "INSERT INTO product_schema_migrations (version) VALUES (%s)",
                     (version,),
                 )
+            for statement in REPEATABLE_STATEMENTS:  # idempotent, version-free
+                connection.execute(statement)
 
     def close(self) -> None:
         """Close the connection pool. A second call is a no-op."""
