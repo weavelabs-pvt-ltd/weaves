@@ -2,6 +2,11 @@
 
 import httpx
 
+from tenancy_harness.account_checks import (
+    linking_checks,
+    selection_checks,
+    sign_in_checks,
+)
 from tenancy_harness.client import API, call, mailbox
 from tenancy_harness.resources import tenant
 
@@ -17,76 +22,13 @@ def seed_diagnostics(fixtures):
 
 
 def account_fixture(fixtures, foreign_org_id):
-    """Sign in as an account with real email proof and read its memberships."""
+    """Run the account sign-in, selection and email-linking controls."""
     a, b = fixtures["tenants"]["a"], fixtures["tenants"]["b"]
-    email = a["shared_person"]["email"]
-    source = {"X-Forwarded-For": "198.20.0.77"}
-    before = mailbox(email)["count"]
-    started = httpx.post(
-        API + "/account/email-code", headers=source, json={"email": email}, timeout=30
-    )
-    proof = mailbox(email)
-    code_sent = started.status_code == 202 and proof["count"] == before + 1
-    verified = httpx.post(
-        API + "/account/email-verify",
-        headers=source,
-        json={"challenge_id": started.json()["challenge_id"], "code": proof["code"]},
-        timeout=30,
-    )
-    token = verified.json().get("access_token", "")
-    bearer = {"Authorization": "Bearer " + token}
-    me = httpx.get(API + "/account/me", headers=bearer, timeout=30)
-    organizations = {
-        item["organization_id"]
-        for item in (me.json().get("memberships", []) if me.status_code == 200 else [])
-    }
-    stranger = httpx.post(
-        API + "/account/email-code",
-        headers=source,
-        json={"email": "nobody.at.all@tenancy.test"},
-        timeout=30,
-    )
-
-    def names(org_id, actor_headers=None, workspace=None):
-        headers = dict(actor_headers or bearer)
-        headers["X-Organization-Id"] = org_id
-        if workspace:
-            headers["X-Workspace-ID"] = workspace
-        response = httpx.get(API + "/agents", headers=headers, timeout=30)
-        body = response.json() if response.status_code == 200 else None
-        return response, {item["name"] for item in body or []}
-
-    _, names_a = names(a["org_id"])
-    _, names_b = names(b["org_id"])
-    unknown, _ = names("no-such-organization")
-    foreign, _ = names(foreign_org_id)
-    ignored, names_ignored = names(b["org_id"], a["admin"]["headers"])
-    cross_workspace, _ = names(a["org_id"], workspace=b["workspace_id"])
+    bearer, signed_in = sign_in_checks(a, b)
     return {
-        "selects_each_organization": a["agent"]["name"] in names_a
-        and b["agent"]["name"] in names_b
-        and a["agent"]["name"] not in names_b
-        and b["agent"]["name"] not in names_a,
-        "foreign_and_unknown_indistinguishable": unknown.status_code == 403
-        and (foreign.status_code, foreign.json())
-        == (unknown.status_code, unknown.json()),
-        "tenant_token_ignores_header": ignored.status_code == 200
-        and a["agent"]["name"] in names_ignored
-        and b["agent"]["name"] not in names_ignored,
-        "workspace_checked_inside_organization": cross_workspace.status_code == 403,
-        "code_sent": code_sent,
-        "signed_in": verified.status_code == 200 and token.startswith("wvs_acct_"),
-        "one_account_two_organizations": organizations == {a["org_id"], b["org_id"]},
-        "account_token_denied_on_tenant_routes": all(
-            httpx.get(API + path, headers=bearer, timeout=30).status_code == 401
-            for path in ("/agents", "/workspaces", "/model-providers")
-        ),
-        "tenant_token_denied_on_account_routes": httpx.get(
-            API + "/account/me", headers=a["admin"]["headers"], timeout=30
-        ).status_code
-        == 401,
-        "unknown_email_indistinguishable": stranger.status_code == started.status_code
-        and set(stranger.json()) == set(started.json()),
+        **signed_in,
+        **selection_checks(a, b, bearer, foreign_org_id),
+        **linking_checks(a, b, bearer),
     }
 
 

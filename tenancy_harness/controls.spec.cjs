@@ -274,3 +274,10 @@ test('T1-I08 an account selects an organization per request and tenant tokens ca
     expect(control[key], key).toBe(true);
   }
 });
+
+test('T1-I09 an account attaches a second email only with proof and never takes another account\'s', async () => {
+  const control = fixture.diagnostics.account;
+  for (const key of ['email_attached_after_proof', 'email_of_another_account_refused', 'refusal_changed_nothing']) {
+    expect(control[key], key).toBe(true);
+  }
+});

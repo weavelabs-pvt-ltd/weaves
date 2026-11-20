@@ -85,6 +85,9 @@ class AccountLoginChallenge(MutableProductContract):
     code_digest: str = Field(pattern=r"^[0-9a-f]{64}$", min_length=64, max_length=64)
     attempts: int = Field(default=0, ge=0, le=5)
     expires_at: AwareDatetime
+    # Set only for "add this email to my account" proofs; such a challenge can
+    # never sign anyone in, and only that account can redeem it.
+    account_id: OpaqueId | None = None
 
     @model_validator(mode="after")
     def email_is_normalized(self) -> AccountLoginChallenge:

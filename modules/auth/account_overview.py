@@ -59,6 +59,7 @@ def list_identities(
     """List this account's verified identities with the address masked."""
     return [
         {
+            "id": identity.id,
             "kind": identity.kind.value,
             "subject": (
                 mask_email(identity.subject)
