@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, Request
 from starlette.responses import JSONResponse
 
+from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.credential_service import CredentialService
 from modules.auth.http.browser_sessions import (
@@ -33,6 +34,8 @@ _PUBLIC_EXACT_PATHS = {
     "/api/v0/auth/login",
     "/api/v0/auth/email-code",
     "/api/v0/auth/email-verify",
+    "/api/v0/account/email-code",
+    "/api/v0/account/email-verify",
     "/api/v0/auth/sso/providers",
     "/api/v0/auth/sso/google/start",
     "/api/v0/auth/sso/google/callback",
@@ -55,6 +58,7 @@ class AuthenticationServices:
     authentication: AuthenticationService
     credentials: CredentialService
     organizations: OrganizationService
+    accounts: AccountSignInService
     bearer_required: bool
 
 
@@ -164,6 +168,30 @@ def _bearer_principal(
         )
 
 
+async def _account_request(
+    request: Request, call_next: Any, services: AuthenticationServices
+) -> Any:
+    """Authenticate account routes with account bearer sessions only.
+
+    No tenant identity is bound, and cookies, tenant sessions, API tokens and
+    static tokens never reach this path.
+    """
+    scheme, separator, token = request.headers.get("authorization", "").partition(" ")
+    unauthorized = JSONResponse(
+        content={"detail": "Invalid or missing account session"},
+        status_code=401,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    if not separator or scheme.casefold() != "bearer":
+        return unauthorized
+    try:
+        with system_scope("account"):
+            request.state.account = services.accounts.sessions.authenticate(token)
+    except PermissionError:
+        return unauthorized
+    return await call_next(request)
+
+
 def install_authentication(app: FastAPI) -> None:
     """Require a bearer token on product routes and bind request identity."""
     api_tokens = _load_api_tokens()
@@ -179,6 +207,8 @@ def install_authentication(app: FastAPI) -> None:
         ):
             return await call_next(request)
         services: AuthenticationServices = request.app.state.authentication_services
+        if request.url.path.startswith("/api/v0/account/"):
+            return await _account_request(request, call_next, services)
         authorization = request.headers.get("authorization", "")
         cookie_token = request.cookies.get(COOKIE_NAME, "")
         browser_only = request.url.path.startswith("/api/v0/auth/browser/")

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Annotated, Literal
 
-from pydantic import AwareDatetime, Field, model_validator
+from pydantic import AwareDatetime, Field, StringConstraints, model_validator
 
 from contracts.v1.base import (
     DisplayName,
@@ -74,3 +75,33 @@ class OrganizationMembership(MutableOrgScopedContract):
     user_id: OpaqueId
     principal_id: OpaqueId
     status: MembershipStatus
+
+
+class AccountLoginChallenge(MutableProductContract):
+    """A global, one-time email code challenge. It stores only an HMAC of the code."""
+
+    challenge_id: OpaqueId
+    email: str = Field(min_length=3, max_length=320)
+    code_digest: str = Field(pattern=r"^[0-9a-f]{64}$", min_length=64, max_length=64)
+    attempts: int = Field(default=0, ge=0, le=5)
+    expires_at: AwareDatetime
+
+    @model_validator(mode="after")
+    def email_is_normalized(self) -> AccountLoginChallenge:
+        """Challenges are keyed by the normalized address, like identities."""
+        if self.email != self.email.strip().casefold():
+            raise ValueError("challenge emails are stored normalized")
+        return self
+
+
+class AccountSession(MutableProductContract):
+    """An opaque account-level session stored only by its token digest."""
+
+    id: OpaqueId
+    account_id: OpaqueId
+    token_digest: Annotated[
+        str, StringConstraints(pattern=r"^[0-9a-f]{64}$", min_length=64, max_length=64)
+    ]
+    channel: Literal["bearer", "browser"] = "bearer"
+    expires_at: AwareDatetime
+    revoked_at: AwareDatetime | None = None

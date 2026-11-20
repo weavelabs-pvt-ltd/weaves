@@ -31,7 +31,8 @@ POLICY_FUNCTIONS: tuple[str, ...] = (
                'sso_connections', 'sso_external_identities',
                'email_login_challenges', 'roles', 'role_bindings',
                'audit_events', 'accounts', 'account_identities',
-               'memberships'])
+               'memberships', 'account_login_challenges',
+               'account_sessions'])
              WHEN 'queue' THEN coll = ANY (ARRAY[
                'execution_jobs', 'task_turns', 'tasks', 'task_messages',
                'evaluation_executions', 'workflow_runs', 'agent_runs',
@@ -49,6 +50,7 @@ POLICY_FUNCTIONS: tuple[str, ...] = (
                'canvas_settings', 'canvas_runs'])
              WHEN 'account' THEN coll = ANY (ARRAY[
                'accounts', 'account_identities', 'memberships',
+               'account_login_challenges', 'account_sessions',
                'organizations', 'workspaces', 'users', 'principals'])
              WHEN 'catalog' THEN coll = ANY (ARRAY[
                'plugins', 'plugin_installations'])
@@ -65,7 +67,8 @@ POLICY_FUNCTIONS: tuple[str, ...] = (
              WHEN coll = 'organizations'
                THEN rid = nullif(current_setting('app.org_id', true), '')
                     OR weaves_system_allows(coll)
-             WHEN coll IN ('accounts', 'account_identities')
+             WHEN coll IN ('accounts', 'account_identities',
+                         'account_login_challenges', 'account_sessions')
                THEN weaves_system_allows(coll)
              WHEN row_org IS NULL THEN true
              ELSE row_org = nullif(current_setting('app.org_id', true), '')

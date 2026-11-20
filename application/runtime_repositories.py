@@ -7,6 +7,10 @@ from typing import TypeVar, cast
 from application.ports.product_repositories import ProductRepositorySet
 from application.ports.repository import Repository
 from contracts.v1 import (
+    Account,
+    AccountIdentity,
+    AccountLoginChallenge,
+    AccountSession,
     AgentDefinition,
     AgentRun,
     AgentVersion,
@@ -24,6 +28,7 @@ from contracts.v1 import (
     ModelProfile,
     OAuthAuthorizationState,
     Organization,
+    OrganizationMembership,
     OrganizationModelConfiguration,
     PluginDescriptor,
     PluginInstallation,
@@ -103,6 +108,11 @@ class RuntimeRepositoryBindingMixin:
     task_turns: Repository[TaskTurn]
     audit_events: Repository[AuditEvent]
     email_login_challenges: Repository[EmailLoginChallenge]
+    accounts: Repository[Account]
+    account_identities: Repository[AccountIdentity]
+    memberships: Repository[OrganizationMembership]
+    account_login_challenges: Repository[AccountLoginChallenge]
+    account_sessions: Repository[AccountSession]
 
     def _bind_repositories(self) -> None:
         """Attach one repository for each product collection."""
@@ -173,6 +183,15 @@ class RuntimeRepositoryBindingMixin:
         self.email_login_challenges = self._repository(
             "email_login_challenges", EmailLoginChallenge
         )
+        self.accounts = self._repository("accounts", Account)
+        self.account_identities = self._repository(
+            "account_identities", AccountIdentity
+        )
+        self.memberships = self._repository("memberships", OrganizationMembership)
+        self.account_login_challenges = self._repository(
+            "account_login_challenges", AccountLoginChallenge
+        )
+        self.account_sessions = self._repository("account_sessions", AccountSession)
 
     def _repository(
         self, collection: str, record_type: type[TProduct]

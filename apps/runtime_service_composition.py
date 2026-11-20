@@ -3,6 +3,7 @@
 from apps.capability_services import CapabilityServiceSet
 from apps.runtime_composition_inputs import RuntimeCompositionInputs
 from apps.runtime_services_auth import (
+    _configure_account_sign_in_service,
     _configure_authentication_service,
     _configure_credential_service,
     _configure_identity_bootstrap_service,
@@ -38,6 +39,7 @@ def configure_capability_services(
     _configure_identity_bootstrap_service(dependencies, services)
     _configure_credential_service(dependencies, services)
     _configure_authentication_service(dependencies, services)
+    _configure_account_sign_in_service(dependencies, services)
     _configure_sso_identity_service(dependencies, services)
     _configure_user_administration_service(dependencies, services)
     _configure_workspace_access_service(dependencies, services)

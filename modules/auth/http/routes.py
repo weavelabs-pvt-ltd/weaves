@@ -6,8 +6,10 @@ from typing import Any
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.credential_service import CredentialService
+from modules.auth.http.account_routes import register_account_routes
 from modules.auth.http.browser_routes import register_browser_session_routes
 from modules.auth.http.credential_routes import register_credential_routes
 from modules.auth.http.session_routes import register_session_routes
@@ -26,6 +28,7 @@ def register_identity_routes(
     user_administration_service: UserAdministrationService,
     authentication_service: AuthenticationService,
     credential_service: CredentialService,
+    account_service: AccountSignInService,
     dump: Callable[[BaseModel], dict[str, Any]],
 ) -> None:
     """Register organization, workspace, user, session, and token endpoints."""
@@ -38,6 +41,7 @@ def register_identity_routes(
         credential_service,
         dump,
     )
+    register_account_routes(app, account_service)
     register_credential_routes(app, credential_service, dump)
     register_browser_session_routes(app, authentication_service)
     register_sso_routes(app, authentication_service, organization_service)

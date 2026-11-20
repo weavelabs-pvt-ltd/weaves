@@ -3,6 +3,7 @@
 from modules.agents.bootstrap import AgentBootstrapService
 from modules.agents.execution_service import AgentExecutionService
 from modules.agents.runtime_lifecycle import AgentService
+from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.bootstrap import IdentityBootstrapService
 from modules.auth.credential_service import CredentialService
@@ -34,6 +35,7 @@ from modules.workflows.studio_service import WorkflowStudioService
 class CapabilityServiceSet:
     """Hold fully constructed capability services for one process."""
 
+    account_sign_in_service: AccountSignInService
     action_recovery_service: ActionRecoveryService
     agent_bootstrap_service: AgentBootstrapService
     agent_execution_service: AgentExecutionService

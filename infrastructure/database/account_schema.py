@@ -27,4 +27,8 @@ ACCOUNT_SCHEMA: tuple[str, ...] = (
     """CREATE INDEX IF NOT EXISTS membership_account_idx
            ON product_records ((payload->>'account_id'))
            WHERE collection = 'memberships'""",
+    # A session token digest resolves to exactly one account session.
+    """CREATE UNIQUE INDEX IF NOT EXISTS account_session_token_uq
+           ON product_records ((payload->>'token_digest'))
+           WHERE collection = 'account_sessions'""",
 )
