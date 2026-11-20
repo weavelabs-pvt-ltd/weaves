@@ -1,4 +1,4 @@
-# Phase 0 tenancy integration foundation
+# Tenancy integration foundation and Phase 1 controls
 
 This bundle runs the actual backend Docker image, native worker process, PostgreSQL 16, and actual frontend Docker image/Chromium. Only external providers are faked: real SMTP delivery goes to a synthetic mailbox; HTTPS model and MCP requests go to an isolated provider. It does not add testing routes, mock application authentication, use static API-token bypasses, or process turns from a test endpoint.
 
@@ -28,9 +28,9 @@ Every human fixture session is issued using real challenge/SMTP/verify endpoints
 
 ## Required cases and known issues
 
-`pair.json` lists 11 required controls and five diagnostic IDs. The runner rejects missing, duplicate, skipped, failed, flaky or otherwise nonpassing required cases. Browser tests fail immediately without the private fixture and generated loopback URL. Authentication, foreign-ID/nested-reference denials, private skill/task audiences, role distinctions, service-key scope, real browser catalogs and native worker results are checked.
+`pair.json` currently lists 12 required controls and four diagnostic IDs. The runner rejects missing, duplicate, skipped, failed, flaky or otherwise nonpassing required cases. Browser tests fail immediately without the private fixture and generated loopback URL. Authentication, foreign-ID/nested-reference denials, private skill/task audiences, role distinctions, service-key scope, real browser catalogs and native worker results are checked.
 
-Diagnostics T0-D01–05 reproduce the five confirmed Phase 1 issues. They deliberately report `known_defects` separately and `saas_ready: false`. A changed observation fails the baseline so the corresponding control/ledger must be reviewed. Phase 1 converts each diagnostic into an isolation regression and removes it from the open ledger; no permanently skipped or expected-failing tests are introduced.
+The original five diagnostics reproduce the confirmed Phase 1 issues. Descriptor leak `T0-D01` is now replaced by mandatory control `T1-I01`: both tenants retain their own connector schemas, foreign schemas and installation changes are denied, built-ins stay public, and independent browser contexts show only their own connections. Four diagnostics still report `known_defects` separately and `saas_ready: false`. A changed observation fails the baseline so the corresponding control/ledger must be reviewed. Each fixed boundary becomes a required isolation regression; no permanently skipped or expected-failing tests are introduced.
 
 ## CI and source pairing
 
@@ -48,9 +48,11 @@ The content lock detects drift, missing files and stale copied code. Pin changes
 
 Only `artifacts/report.json` is suitable for upload. Private fixtures, mailbox codes, Compose env, ephemeral TLS key, browser output and any debugging logs stay under `private/` and are never uploaded. Playwright trace/video/screenshots are off for this suite because default network traces can contain bearer headers. The public report contains IDs/statuses and revision evidence, not request payloads, credentials or raw errors. Treat synthetic credentials as private nonetheless.
 
+Opt-in live tests retain `private/live-records.json` with mode 0600 before browser/provenance assertions and database cleanup. It contains scoped synthetic responses and provenance so an unexpected model reply can be investigated without paying to recreate lost evidence. The report records the failure stage and budget even on failure. The browser checks the agent's reply rather than matching the user's request text; provider success alone is insufficient. These private responses must never be uploaded as CI artifacts.
+
 ## Current limits
 
-This is a Phase 0 foundation, not fixes for the five defects or implementation of global accounts, RLS, quota fairness, billing, SSO policy, all role permutations or load/recovery behavior. Later phases extend the same fixtures and required inventory. Production, cloud resources, real email/model charges, and production migrations are outside this harness.
+The first Phase 1 containment infers legacy descriptor ownership from all installation references, retaining disabled references and rejecting orphans/conflicts before dispatch. Ambiguous references require operator resolution and cannot be removed through ordinary disconnects. Explicit persisted ownership/backfill remains pending; schema 19 and descriptor JSON are unchanged. Model egress, tenant lifecycle, browser teardown, and ambiguous authentication are still open. Global accounts, RLS, quota fairness, billing, SSO policy, all role permutations and load/recovery behavior arrive later. Production, cloud resources, real email/model charges, and production migrations are outside this harness.
 
 ## Opt-in live AI and lifetime testing budget
 

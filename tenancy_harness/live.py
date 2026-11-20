@@ -7,9 +7,9 @@ import time
 from pathlib import Path
 
 import httpx
-import psycopg
 
 from tenancy_harness.client import API, PROVIDER, call
+from tenancy_harness.live_records import capture_records, verify_records
 from tenancy_harness.seed import require_disposable_database
 
 
@@ -137,6 +137,10 @@ def prepare(fixtures, config, path):
     }
     path.write_text(json.dumps(fixtures))
     path.chmod(0o600)
+    tasks = [task["task_id"]] + [
+        task_id for step in paused["states"] for task_id in step["tasks"]
+    ]
+    capture_records(tasks, t, path.parent / "live-records.json")
     print("Live agent succeeded; workflow is waiting for browser approval.")
 
 
@@ -149,7 +153,10 @@ def verify(fixtures, config, path):
     if [s["status"] for s in result["states"]] != ["succeeded"] * 3:
         raise AssertionError("Live approval workflow did not complete every stage")
     tasks = [live["task_id"]] + [task for s in result["states"] for task in s["tasks"]]
-    evidence = verify_records(tasks, t, live)
+    records = capture_records(tasks, t, path.parent / "live-records.json")
+    evidence = verify_records(
+        records, live, t["org_skill"]["version"]["skill_version_id"]
+    )
     for target in ("/agents/" + live["agent_id"], resource):
         denied = httpx.get(API + target, headers=other["admin"]["headers"], timeout=10)
         if denied.status_code != 404:
@@ -170,74 +177,6 @@ def verify(fixtures, config, path):
     )
     (path.parent / "live-evidence.json").write_text(json.dumps(evidence, indent=2))
     print("Live model, skills, connector provenance and workflow evidence verified.")
-
-
-def verify_records(task_ids, tenant, live):
-    """Inspect durable model responses and usage without publishing their content."""
-    calls = []
-    with psycopg.connect(os.environ["DATABASE_URL"]) as connection:
-        for task_id in task_ids:
-            task = call("GET", "/tasks/" + task_id, tenant["admin"])
-            turn = connection.execute(
-                "SELECT payload FROM product_records WHERE "
-                "collection='task_turns' AND org_id=%s AND payload->>'task_id'=%s",
-                (tenant["org_id"], task_id),
-            ).fetchone()[0]
-            agent_run = connection.execute(
-                "SELECT payload FROM product_records WHERE "
-                "collection='agent_runs' AND org_id=%s AND record_id=%s",
-                (tenant["org_id"], turn["agent_run_id"]),
-            ).fetchone()[0]
-            summary = agent_run.get("output_summary") or {}
-            if task["latest_turn_status"] != "succeeded" or live[
-                "marker"
-            ] not in summary.get("response", ""):
-                raise AssertionError(
-                    "Live model did not produce the requested response"
-                )
-            if agent_run["resolved_provider_id"] not in live["provider_ids"]:
-                raise AssertionError("Live model execution used an unexpected provider")
-            if not summary.get("citations"):
-                raise AssertionError("Live agent did not record connector citations")
-            input_tokens, output_tokens = (
-                agent_run.get("input_tokens"),
-                agent_run.get("output_tokens"),
-            )
-            if not input_tokens or not output_tokens:
-                raise AssertionError("Live provider usage was not recorded")
-            version = connection.execute(
-                "SELECT payload FROM product_records WHERE collection='agent_versions' "
-                "AND org_id=%s AND record_id=%s",
-                (tenant["org_id"], agent_run["agent_version_id"]),
-            ).fetchone()[0]
-            pins = [s.get("source_skill_version_id") for s in version["skills"]]
-            if tenant["org_skill"]["version"]["skill_version_id"] not in pins:
-                raise AssertionError(
-                    "Live execution lost its pinned organization skill"
-                )
-            invocations = connection.execute(
-                "SELECT payload FROM product_records "
-                "WHERE collection='tool_invocations' "
-                "AND org_id=%s AND payload->>'agent_run_id'=%s",
-                (tenant["org_id"], agent_run["agent_run_id"]),
-            ).fetchall()
-            if len(invocations) != 1 or invocations[0][0]["status"] != "succeeded":
-                raise AssertionError(
-                    "Live read-only connector invocation was not successful"
-                )
-            calls.append(
-                {
-                    "model": agent_run["resolved_model_id"],
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
-                    "citations": len(summary["citations"]),
-                    "skill_pinned": True,
-                    "tool_invocations": 1,
-                }
-            )
-    if len(calls) != 3:
-        raise AssertionError("Live smoke exceeded or missed its three planned calls")
-    return {"verified_model_calls": calls}
 
 
 def main():

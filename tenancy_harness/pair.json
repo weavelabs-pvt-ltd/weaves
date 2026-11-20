@@ -2,14 +2,14 @@
   "version": 1,
   "backend": {
     "repository": "weavelabs-pvt-ltd/weaves",
-    "revision": "499a43ef7f9c3a4a3b6ac6db1a6cee9c218be466"
+    "revision": "7144e4961af60b47a5ce86aa602b09687ec1572a"
   },
   "frontend": {
     "repository": "weavelabs-pvt-ltd/weaves-app",
-    "revision": "6f6ed9888b398921e2d567e0671b954df64185e8"
+    "revision": "10d29687acf365a38b6d97a47f8653fdac91e7c6"
   },
   "candidate_policy": "The triggering repository uses its checked-out candidate; the counterpart uses this exact revision. Record both actual revisions and dirty state.",
-  "phase": 0,
+  "phase": 1,
   "required_controls": [
     "T0-I01",
     "T0-I02",
@@ -21,14 +21,17 @@
     "T0-I08",
     "T0-I09",
     "T0-I10",
-    "T0-I11"
+    "T0-I11",
+    "T1-I01"
   ],
   "known_defects": {
-    "T0-D01": "Imported MCP descriptor metadata crosses organizations",
     "T0-D02": "Model discovery reaches a private fixture destination",
     "T0-D03": "Archived/suspended tenant work is executed",
     "T0-D04": "Session expiry retains private browser state",
     "T0-D05": "Duplicate-email unscoped sign-in issues no usable challenge"
   },
-  "known_defect_policy": "Diagnostic observations only, resolved in Phase 1. No xfail/skip. Unexpected outcomes fail the baseline and require review. A passing foundation job is not security readiness."
+  "known_defect_policy": "Remaining defects are explicit baseline observations. Resolved defects are required passing isolation controls, never xfail/skip. Passing this partial Phase 1 suite does not mean SaaS readiness.",
+  "resolved_defects": {
+    "T0-D01": "T1-I01"
+  }
 }

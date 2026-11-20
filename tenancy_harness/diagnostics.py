@@ -10,9 +10,7 @@ from tenancy_harness.resources import tenant
 
 def seed_diagnostics(fixtures):
     """Record baseline observations without weakening or mocking product policy."""
-    a, b = fixtures["tenants"].values()
-    descriptors = call("GET", "/plugin-descriptors", b["admin"])
-    leaked = any(x["plugin_id"] == a["installation"]["plugin_id"] for x in descriptors)
+    a = fixtures["tenants"]["a"]
     call(
         "POST",
         "/model-providers",
@@ -30,7 +28,6 @@ def seed_diagnostics(fixtures):
     result = call("POST", "/auth/email-code", body={"email": email})
     ambiguous = mailbox(email)["count"] == before and bool(result["challenge_id"])
     return {
-        "T0-D01": leaked,
         "T0-D02": "/egress-probe/v1/models" in paths,
         "T0-D05": ambiguous,
         "private_provider_ip": socket.gethostbyname("provider"),

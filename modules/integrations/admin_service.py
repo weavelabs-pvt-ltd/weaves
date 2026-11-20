@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from application.descriptor_catalog import scoped_descriptor, visible_descriptors
 from application.ports.repository import Repository
 from application.ports.secrets import SecretStore
 from clients.integrations.github import GitHubReadPlugin
@@ -89,7 +90,7 @@ class IntegrationAdminService(
         """List registered connector definitions for authorized workspace users."""
         self._ensure_bootstrapped()
         self.authorize("local-developer", Permission.PLUGINS_VIEW)
-        return self.plugins.list()
+        return visible_descriptors(self.plugins, self.installations, effective_org_id())
 
     def list_plugin_installations(self) -> tuple[PluginInstallation, ...]:
         """List installations visible in the selected workspace."""
@@ -163,7 +164,12 @@ class IntegrationAdminService(
     ) -> tuple[PluginInstallation, CapabilitySpec] | None:
         """Return a capability match when this installation satisfies policy."""
         try:
-            descriptor = self.plugins.get(installation.plugin_id)
+            descriptor = scoped_descriptor(
+                self.plugins,
+                self.installations,
+                installation.plugin_id,
+                installation.org_id,
+            )
         except KeyError:
             return None
         capability = next(

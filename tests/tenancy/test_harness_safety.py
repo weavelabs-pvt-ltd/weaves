@@ -65,7 +65,7 @@ def test_missing_browser_results_and_unexpected_diagnostic_behavior_fail():
     raw["suites"][0]["specs"][0]["tests"][0]["results"] = []
     assert not summarize(raw, PAIR, {}, "digest", fixture)["foundation_passed"]
     raw, fixture = report_inputs()
-    fixture["diagnostics"]["T0-D01"] = False
+    fixture["diagnostics"]["T0-D02"] = False
     assert not summarize(raw, PAIR, {}, "digest", fixture)["foundation_passed"]
 
 

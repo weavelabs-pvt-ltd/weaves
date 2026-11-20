@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from application.descriptor_catalog import scoped_descriptor
 from application.runtime_host import RuntimeCapabilityHost
 from clients.integrations.mcp import is_query_tool
 from contracts.v1 import (
@@ -46,7 +47,9 @@ class IntegrationInstallationAdminMixin(RuntimeCapabilityHost):
             if enabled_capability_ids is not None
             else current.enabled_capability_ids
         )
-        descriptor = self.plugins.get(current.plugin_id)
+        descriptor = scoped_descriptor(
+            self.plugins, self.installations, current.plugin_id, current.org_id
+        )
         declared = {item.capability_id for item in descriptor.capability_manifest}
         if len(capabilities) != len(set(capabilities)):
             raise ValueError("enabled capabilities must be unique")
@@ -125,6 +128,9 @@ class IntegrationInstallationAdminMixin(RuntimeCapabilityHost):
             raise ValueError(
                 "credential replacement is only available for bearer MCP connections"
             )
+        scoped_descriptor(
+            self.plugins, self.installations, current.plugin_id, current.org_id
+        )
         next_secret_ref = self.secret_store.put(api_token.strip())
         updated = current.model_copy(
             update={"auth_ref": next_secret_ref, "updated_at": _now()}
@@ -167,6 +173,11 @@ class IntegrationInstallationAdminMixin(RuntimeCapabilityHost):
         self.authorize(actor_id, Permission.PLUGINS_MANAGE)
         current = self.installations.get_scoped(
             installation_id, effective_org_id(), effective_workspace_id()
+        )
+        # Retain conflicting legacy references until an operator resolves them.
+        # Deleting one would silently assign the other tenant its tool schema.
+        scoped_descriptor(
+            self.plugins, self.installations, current.plugin_id, current.org_id
         )
         self.installations.delete(installation_id)
         if current.auth_ref:
