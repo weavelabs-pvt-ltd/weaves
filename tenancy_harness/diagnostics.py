@@ -1,36 +1,20 @@
 """Capture known Phase 1 defects explicitly, separate from isolation controls."""
 
-import socket
-
 import httpx
 
-from tenancy_harness.client import API, PROVIDER, call, mailbox
+from tenancy_harness.client import API, call, mailbox
 from tenancy_harness.resources import tenant
 
 
 def seed_diagnostics(fixtures):
     """Record baseline observations without weakening or mocking product policy."""
     a = fixtures["tenants"]["a"]
-    call(
-        "POST",
-        "/model-providers",
-        a["admin"],
-        {
-            "provider_type": "openai_compatible",
-            "display_name": "egress diagnostic",
-            "api_key": "fixture-egress-only",
-            "base_url": PROVIDER + "/egress-probe/v1",
-        },
-    )
-    paths = httpx.get(PROVIDER + "/egress", timeout=10).json()["paths"]
     email = a["shared_person"]["email"]
     before = mailbox(email)["count"]
     result = call("POST", "/auth/email-code", body={"email": email})
     ambiguous = mailbox(email)["count"] == before and bool(result["challenge_id"])
     return {
-        "T0-D02": "/egress-probe/v1/models" in paths,
         "T0-D05": ambiguous,
-        "private_provider_ip": socket.gethostbyname("provider"),
         "lifecycle": lifecycle_fixture(),
     }
 

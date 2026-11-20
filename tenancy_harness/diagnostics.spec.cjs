@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const fixture = JSON.parse(fs.readFileSync(process.env.TENANCY_FIXTURE_FILE, 'utf8'));
 // These explicit baseline observations are NOT isolation guarantees or xfails.
 // Phase 1 replaces each observation with a passing security regression control.
-for (const id of ['T0-D02', 'T0-D03', 'T0-D05']) {
+for (const id of ['T0-D03', 'T0-D05']) {
   test(id + ' known defect baseline observation', async () => {
     expect(fixture.diagnostics[id], 'Known behavior changed: review and replace its baseline').toBe(true);
   });

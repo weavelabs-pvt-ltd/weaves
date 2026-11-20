@@ -27,6 +27,11 @@ from contracts.v1.model_execution import ModelUsage
 from tests.support.runtime import LocalPlatformRuntime
 
 
+@pytest.fixture(autouse=True)
+def custom_test_endpoint(monkeypatch):
+    monkeypatch.setenv("WEAVES_MODEL_CUSTOM_BASE_URLS", '["https://models.example/v1"]')
+
+
 def binding(**provider_overrides):
     provider = ModelProvider(
         id="provider-a",

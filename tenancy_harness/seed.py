@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 
 from tenancy_harness.client import wait_for_services
 from tenancy_harness.diagnostics import seed_diagnostics
+from tenancy_harness.model_egress import seed_model_egress
 from tenancy_harness.resources import member, resources, secondary, tenant
 
 
@@ -41,6 +42,7 @@ def main():
         secondary(t)
         fixtures["tenants"][label] = t
     fixtures["diagnostics"] = seed_diagnostics(fixtures)
+    fixtures["model_egress"] = seed_model_egress(fixtures)
     if os.environ.get("TENANCY_CATALOG_READER_IMAGE"):
         from tenancy_harness.catalog_ownership import migrate_catalog
 

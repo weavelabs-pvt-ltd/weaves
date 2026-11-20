@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import httpx
 
+from clients.model_providers.egress_policy import ModelEgressPolicy
 from clients.model_providers.gateway_base import SecretResolver
 from clients.model_providers.gateway_http import raise_upstream_error
 from contracts.v1 import (
@@ -28,24 +29,27 @@ class AnthropicAdapter:
         timeout_seconds: float = 30.0,
     ) -> None:
         """Create an Anthropic adapter using a shared HTTP client."""
+        self._egress = ModelEgressPolicy.from_environment()
         self._secret_resolver = secret_resolver
         self._client = client
         self._timeout_seconds = timeout_seconds
 
     def list_models(self, provider: ModelProvider) -> tuple[dict[str, str], ...]:
         """List Anthropic models available to the configured credential."""
+        base_url = self._egress.base_url(provider.provider_type, provider.base_url)
         secret = self._resolve_secret(provider.auth_ref)
         try:
             response = self._client.get(
-                f"{(provider.base_url or 'https://api.anthropic.com').rstrip('/')}/v1/models",
+                f"{base_url}/v1/models",
                 headers={"x-api-key": secret, "anthropic-version": "2023-06-01"},
                 timeout=self._timeout_seconds,
+                follow_redirects=False,
             )
         except httpx.HTTPError as exc:
             raise ModelGatewayError(
                 "model.transport_error", "Model provider request failed", retryable=True
             ) from exc
-        if response.is_error:
+        if response.status_code >= 300:
             raise_upstream_error(response)
         try:
             data = response.json()["data"]
@@ -70,6 +74,9 @@ class AnthropicAdapter:
         self, request: ModelRequest, binding: ModelProfileBinding
     ) -> ModelResponse:
         """Generate a response through Anthropic's Messages API."""
+        base_url = self._egress.base_url(
+            binding.provider.provider_type, binding.provider.base_url
+        )
         secret = self._resolve_secret(binding.provider.auth_ref)
         system = "\n\n".join(
             message.content
@@ -92,10 +99,11 @@ class AnthropicAdapter:
             body["system"] = system
         try:
             response = self._client.post(
-                f"{(binding.provider.base_url or 'https://api.anthropic.com').rstrip('/')}/v1/messages",
+                f"{base_url}/v1/messages",
                 json=body,
                 headers={"x-api-key": secret, "anthropic-version": "2023-06-01"},
                 timeout=self._timeout_seconds,
+                follow_redirects=False,
             )
         except httpx.TimeoutException as exc:
             raise ModelGatewayError(
@@ -105,7 +113,7 @@ class AnthropicAdapter:
             raise ModelGatewayError(
                 "model.transport_error", "Model provider request failed", retryable=True
             ) from exc
-        if response.is_error:
+        if response.status_code >= 300:
             raise_upstream_error(response)
         try:
             payload = response.json()

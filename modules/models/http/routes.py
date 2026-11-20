@@ -65,6 +65,8 @@ class ModelProfilePatchRequest(BaseModel):
 
 
 def _model_catalog_error(exc: ModelGatewayError) -> HTTPException:
+    if exc.code == "model.egress_denied":
+        return HTTPException(status_code=422, detail=exc.message)
     if exc.code in {
         "model.provider_disabled",
         "model.catalog_unsupported",

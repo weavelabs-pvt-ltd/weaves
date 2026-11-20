@@ -10,6 +10,8 @@ from typing import Literal, cast
 import httpx
 
 from application.ports.product_repositories import ProductRepositorySet
+from application.ports.secrets import SecretStore
+from application.ports.throttling import LoginRateLimiter
 from apps.platform_runtime import LocalPlatformRuntime
 from apps.runtime_adapters import (
     build_login_rate_limiters,
@@ -21,6 +23,7 @@ from contracts.v1.base import ProductContract
 from infrastructure.config.settings import PoolSettings, load_pool_settings
 from infrastructure.database.pool import open_postgres_pool
 from infrastructure.database.store import ProductPostgresStore
+from infrastructure.http.model_egress import open_model_http_client
 from infrastructure.http.pool import open_http_client
 from infrastructure.persistence.memory_repository import InMemoryRepository
 from infrastructure.persistence.product_repositories import (
@@ -76,14 +79,44 @@ def compose_platform_runtime(
     repositories = create_product_repository_set(store)
     secret_store = build_secret_store(store)
     login_limiter, onboarding_limiter = build_login_rate_limiters(store)
+    provider_http_client = open_model_http_client()
+    try:
+        return _compose_with_model_client(
+            http_client,
+            provider_http_client,
+            store,
+            seed_local_defaults,
+            repositories,
+            secret_store,
+            login_limiter,
+            onboarding_limiter,
+        )
+    except Exception:
+        provider_http_client.close()
+        raise
+
+
+def _compose_with_model_client(
+    http_client: httpx.Client,
+    provider_http_client: httpx.Client,
+    store: ProductPostgresStore | None,
+    seed_local_defaults: bool,
+    repositories: ProductRepositorySet,
+    secret_store: SecretStore,
+    login_limiter: LoginRateLimiter,
+    onboarding_limiter: LoginRateLimiter,
+) -> LocalPlatformRuntime:
+    """Bind both process-owned pools and transfer their lifetime to the runtime."""
     adapters = build_runtime_adapters(
         http_client=http_client,
+        provider_http_client=provider_http_client,
         secret_store=secret_store,
         repositories=repositories,
     )
     unit_of_work = _build_unit_of_work(store, repositories)
     runtime = LocalPlatformRuntime(
         http_client=http_client,
+        provider_http_client=provider_http_client,
         storage_mode="postgres" if store is not None else "memory",
         seed_local_defaults=seed_local_defaults,
         repository_set=repositories,

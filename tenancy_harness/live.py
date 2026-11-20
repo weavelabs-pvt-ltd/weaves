@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 
 from tenancy_harness.budget import MAX_OUTPUT_TOKENS
-from tenancy_harness.client import API, PROVIDER, call
+from tenancy_harness.client import API, call
 from tenancy_harness.live_records import capture_records, verify_records
 from tenancy_harness.seed import require_disposable_database
 
@@ -38,7 +38,7 @@ def configured_agent(t, config, model, name):
             "display_name": "Live " + name,
             "api_key": config["api_key"],
             "initial_model": model,
-            "base_url": PROVIDER + "/live/anthropic",
+            "base_url": "https://api.anthropic.com",
         },
     )
     profiles = call("GET", "/model-profiles", t["admin"])

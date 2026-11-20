@@ -87,11 +87,14 @@ def build_login_rate_limiters(
 def build_runtime_adapters(
     *,
     http_client: httpx.Client,
+    provider_http_client: httpx.Client,
     secret_store: SecretStore,
     repositories: ProductRepositorySet,
 ) -> RuntimeAdapterBundle:
-    """Create model and integration adapters over one shared HTTP client."""
-    model, model_settings, adapters = _build_model_adapters(http_client, secret_store)
+    """Create model adapters over guarded egress and reuse the integration client."""
+    model, model_settings, adapters = _build_model_adapters(
+        provider_http_client, secret_store
+    )
     oauth_resolver = OAuthTokenResolver(secret_store, http_client)
     github_app_provider = GitHubAppTokenProvider(http_client)
     github_plugin = GitHubReadPlugin(
@@ -168,6 +171,12 @@ def _build_model_adapters(
     }
     base_url = os.environ.get("MODEL_BASE_URL", "").strip() or base_urls[provider_type]
     enabled = bool(os.environ.get("MODEL_API_KEY", "").strip())
+    if enabled:
+        from clients.model_providers.egress_policy import ModelEgressPolicy
+
+        base_url = ModelEgressPolicy.from_environment().base_url(
+            provider_type, base_url
+        )
     default_profile_id = (
         "local-model-profile"
         if not enabled

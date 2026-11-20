@@ -1,12 +1,26 @@
-# Explicit opt-in only. Ordinary CI has no external model access or API key.
+# Explicit opt-in only. The budget relay alone can reach the actual provider.
 services:
   provider:
-    networks: [default, live_egress]
+    networks:
+      default: {}
+      live_bridge: {}
+    depends_on: [live-relay]
     environment:
+      TENANCY_LIVE_RELAY_URL: http://live-relay:8000
+  live-relay:
+    image: ${TEST_BACKEND_IMAGE:?}
+    user: ${TEST_UID:?}:${TEST_GID:?}
+    command: [uvicorn, tenancy_harness.live_relay:app, --host, 0.0.0.0, --port, "8000", --log-level, warning]
+    environment:
+      PYTHONPATH: /app:/suite
       TENANCY_LIVE_CONFIG: /live/live-config.json
       TENANCY_BUDGET_DIR: /budget
     volumes:
+      - ${TEST_HARNESS_DIR:?}:/suite/tenancy_harness:ro
       - ${TEST_PRIVATE_DIR:?}/live-config.json:/live/live-config.json:ro
       - ${TEST_BUDGET_DIR:?}:/budget
+    networks: [live_bridge, live_egress]
 networks:
+  live_bridge:
+    internal: true
   live_egress: {}

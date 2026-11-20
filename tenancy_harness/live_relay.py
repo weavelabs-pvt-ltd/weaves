@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 import httpx
-from fastapi import HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from starlette.responses import Response
 
 from tenancy_harness.budget import MAX_OUTPUT_TOKENS, BudgetExhausted, Ledger
@@ -35,6 +35,10 @@ def validate(body):
         raise HTTPException(400, "Unsupported or oversized live testing payload")
 
 
+app = FastAPI()
+
+
+@app.api_route("/v1/{endpoint}", methods=["GET", "POST"])
 async def relay(request: Request):
     """Forward only models/messages to the fixed real origin after a durable hold."""
     config = credentials(request)

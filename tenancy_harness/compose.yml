@@ -22,6 +22,9 @@ services:
       - ${TEST_HARNESS_DIR:?}:/suite/tenancy_harness:ro
       - ${TEST_PRIVATE_DIR:?}/tls:/tls:ro
       - ${TEST_PRIVATE_DIR:?}/mail:/mail
+    networks:
+      default:
+        aliases: [wrong-cert.tenancy.test, blocked-models.tenancy.test, models.tenancy.test, api.anthropic.com, api.openai.com, generativelanguage.googleapis.com]
   api:
     image: ${TEST_BACKEND_IMAGE:?}
     command: [uvicorn, apps.api.app:app, --host, 0.0.0.0, --port, "8000", --proxy-headers, --forwarded-allow-ips, "*"]
@@ -32,6 +35,12 @@ services:
       WEAVES_EMAIL_LOGIN_HMAC_KEY: ${TEST_EMAIL_KEY:?}
       WEAVES_ALLOW_ORGANIZATION_ONBOARDING: "true"
       WEAVES_ORGANIZATION_ONBOARDING_TOKEN: ${TEST_ONBOARDING_TOKEN:?}
+      WEAVES_MODEL_CUSTOM_BASE_URLS: '["https://models.tenancy.test/v1","https://blocked-models.tenancy.test/v1","https://wrong-cert.tenancy.test/v1","https://models.tenancy.test/redirect/v1"]'
+      WEAVES_MODEL_PRIVATE_NETWORKS: '{"wrong-cert.tenancy.test":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"],"models.tenancy.test":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"],"api.anthropic.com":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"],"api.openai.com":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"],"generativelanguage.googleapis.com":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"]}'
+      HTTPS_PROXY: http://provider:9999
+      HTTP_PROXY: http://provider:9999
+      ALL_PROXY: http://provider:9999
+      NO_PROXY: provider,api,postgres,localhost,127.0.0.1
       WEAVES_MCP_ALLOWED_HOSTS: provider
       WEAVES_SMTP_HOST: provider
       WEAVES_SMTP_PORT: "1025"

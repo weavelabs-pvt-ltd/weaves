@@ -73,7 +73,10 @@ def setup_private(root, harness, project):
             "-subj",
             "/CN=provider",
             "-addext",
-            "subjectAltName=DNS:provider",
+            "subjectAltName=DNS:provider,DNS:models.tenancy.test,"
+            "DNS:blocked-models.tenancy.test,"
+            "DNS:api.anthropic.com,DNS:api.openai.com,"
+            "DNS:generativelanguage.googleapis.com",
             "-keyout",
             str(tls / "key.pem"),
             "-out",

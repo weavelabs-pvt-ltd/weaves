@@ -11,6 +11,10 @@ from shared.errors import ModelGatewayError
 
 def raise_upstream_error(response: httpx.Response) -> None:
     """Expose only a validated provider error code, never its raw message."""
+    if 300 <= response.status_code < 400:
+        raise ModelGatewayError(
+            "model.redirect_blocked", "Model provider redirects are not permitted"
+        )
     code = None
     try:
         error = response.json().get("error", {})
