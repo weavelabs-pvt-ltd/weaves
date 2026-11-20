@@ -26,7 +26,7 @@ from contracts.v1 import (
 )
 from modules.auth.account_linking import MembershipLinker
 from modules.auth.account_selection import AccountOrganizationSelector
-from modules.auth.account_sessions import AccountSessions
+from modules.auth.account_sessions import AccountSessions, Channel
 from shared.clock import new_id, utc_now
 from shared.errors import EmailDeliveryUnavailable, LoginThrottled
 from shared.login_buckets import login_bucket_key
@@ -109,7 +109,11 @@ class AccountSignInService:
         return challenge.challenge_id
 
     def verify_email_login(
-        self, challenge_id: str, code: str, client_address: str | None = None
+        self,
+        challenge_id: str,
+        code: str,
+        client_address: str | None = None,
+        channel: Channel = "bearer",
     ) -> tuple[Account, AccountSession, str]:
         """Consume a valid code, link memberships and start an account session."""
         del client_address  # the source budget is spent when codes are requested
@@ -134,7 +138,7 @@ class AccountSignInService:
         if account.status is not AccountStatus.ACTIVE:
             raise PermissionError(_INVALID)
         self._linker.link(account, challenge.email)
-        session, token = self.sessions.issue(account)
+        session, token = self.sessions.issue(account, channel)
         self.login_rate_limiter.clear(self._email_bucket(challenge.email))
         return account, session, token
 

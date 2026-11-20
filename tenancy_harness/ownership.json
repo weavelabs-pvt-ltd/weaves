@@ -600,6 +600,27 @@
   "routes": [
     {
       "method": "POST",
+      "path": "/api/v0/account/browser/email-verify",
+      "scope": "public_authentication",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/account/browser/logout",
+      "scope": "account_identity",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/account/browser/me",
+      "scope": "account_identity",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "POST",
       "path": "/api/v0/account/email-code",
       "scope": "public_authentication",
       "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",

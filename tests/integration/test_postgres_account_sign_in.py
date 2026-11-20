@@ -168,3 +168,26 @@ def test_session_token_digests_are_unique_in_the_database(stack):
         with pytest.raises(ValueError) as failure:
             service.sessions._sessions.create(duplicate)
         assert isinstance(failure.value.__cause__, psycopg.errors.UniqueViolation)
+
+
+def test_browser_channel_sessions_are_isolated_under_the_restricted_role(stack):
+    service, mail, restricted, _ = stack
+    with system_scope("account"):
+        challenge = service.start_email_login("pat@example.test", "198.51.100.7")
+        account, session, cookie = service.verify_email_login(
+            challenge, mail.code(), channel="browser"
+        )
+        _, bearer_session, bearer = _sign_in(service, mail, "pat@example.test")
+        assert session.channel == "browser" and bearer_session.channel == "bearer"
+        assert cookie.startswith("wvs_acbr_") and bearer.startswith("wvs_acct_")
+        assert service.sessions.authenticate(cookie, "browser").id == account.id
+        for token, channel in ((cookie, "bearer"), (bearer, "browser")):
+            with pytest.raises(PermissionError):
+                service.sessions.authenticate(token, channel)
+        service.sessions.revoke(cookie, "browser")
+        with pytest.raises(PermissionError):
+            service.sessions.authenticate(cookie, "browser")
+        assert service.sessions.authenticate(bearer).id == account.id
+        assert _count(restricted, "account_sessions") == 2
+        stored = service.sessions._sessions.get(session.id)
+        assert stored.channel == "browser" and cookie not in stored.model_dump_json()

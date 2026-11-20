@@ -5,8 +5,7 @@ import hmac
 import json
 import os
 from dataclasses import dataclass
-from typing import Any
-from urllib.parse import urlsplit
+from typing import Any, Literal
 
 from fastapi import FastAPI, Request
 from starlette.responses import JSONResponse
@@ -16,11 +15,9 @@ from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.credential_service import CredentialService
 from modules.auth.http.browser_sessions import (
+    ACCOUNT_COOKIE_NAME,
     COOKIE_NAME,
-    CSRF_HEADER,
-    browser_origin,
-    browser_sessions_configured,
-    csrf_valid,
+    request_refusal,
 )
 from modules.auth.organization_service import OrganizationService
 from shared.request_context import (
@@ -37,6 +34,7 @@ _PUBLIC_EXACT_PATHS = {
     "/api/v0/auth/email-verify",
     "/api/v0/account/email-code",
     "/api/v0/account/email-verify",
+    "/api/v0/account/browser/email-verify",
     "/api/v0/auth/sso/providers",
     "/api/v0/auth/sso/google/start",
     "/api/v0/auth/sso/google/callback",
@@ -99,29 +97,9 @@ def _cookie_principal(
     request: Request, services: AuthenticationServices, token: str
 ) -> str | JSONResponse:
     """Validate same-origin cookie traffic before resolving its principal."""
-    expected_origin = browser_origin()
-    if (
-        not browser_sessions_configured()
-        or request.headers.get("host", "") != urlsplit(expected_origin).netloc
-        or request.url.scheme != urlsplit(expected_origin).scheme
-    ):
-        return JSONResponse(
-            content={"detail": "Browser session unavailable"}, status_code=401
-        )
-    if request.headers.get(
-        "origin", expected_origin
-    ) != expected_origin or request.headers.get(
-        "sec-fetch-site", "same-origin"
-    ) not in {"same-origin", "none"}:
-        return JSONResponse(
-            content={"detail": "Cross-origin request rejected"}, status_code=403
-        )
-    if request.method not in {"GET", "HEAD"} and (
-        request.headers.get("origin") != expected_origin
-        or request.headers.get("sec-fetch-site", "same-origin") != "same-origin"
-        or not csrf_valid(token, request.headers.get(CSRF_HEADER, ""))
-    ):
-        return JSONResponse(content={"detail": "CSRF check failed"}, status_code=403)
+    refusal = request_refusal(request, token)
+    if refusal is not None:
+        return refusal
     principal_id = services.authentication.authenticate_user_session(
         token, channel="browser"
     )
@@ -169,6 +147,34 @@ def _bearer_principal(
         )
 
 
+async def _account_browser_request(
+    request: Request, call_next: Any, services: AuthenticationServices
+) -> Any:
+    """Authenticate /account/browser/* with the account cookie only.
+
+    The cookie must be the sole credential: any Authorization header, a missing
+    cookie, a bearer-channel token or a legacy tenant cookie all fail here.
+    """
+    token = request.cookies.get(ACCOUNT_COOKIE_NAME, "")
+    if not token or request.headers.get("authorization", "").strip():
+        return JSONResponse(
+            content={"detail": "Browser session required"}, status_code=401
+        )
+    refusal = request_refusal(request, token)
+    if refusal is not None:
+        return refusal
+    try:
+        with system_scope("account"):
+            request.state.account = services.accounts.sessions.authenticate(
+                token, "browser"
+            )
+    except PermissionError:
+        return JSONResponse(
+            content={"detail": "Browser session invalid"}, status_code=401
+        )
+    return await call_next(request)
+
+
 async def _account_request(
     request: Request, call_next: Any, services: AuthenticationServices
 ) -> Any:
@@ -202,7 +208,11 @@ def _account_token(authorization: str) -> str:
 
 
 async def _account_tenant_request(
-    request: Request, call_next: Any, services: AuthenticationServices, token: str
+    request: Request,
+    call_next: Any,
+    services: AuthenticationServices,
+    token: str,
+    channel: Literal["bearer", "browser"] = "bearer",
 ) -> Any:
     """Let an account session act inside one organization it currently belongs to.
 
@@ -212,6 +222,10 @@ async def _account_tenant_request(
     the tenant-local principal, so roles, audit and ownership stay unchanged.
     """
     organization_id = request.headers.get("x-organization-id", "").strip()
+    if not organization_id and channel == "browser":
+        return JSONResponse(
+            content={"detail": "Organization required"}, status_code=401
+        )
     if not organization_id:
         return JSONResponse(
             content={"detail": "Invalid or missing bearer token"},
@@ -220,7 +234,7 @@ async def _account_tenant_request(
         )
     try:
         with system_scope("account"):
-            account = services.accounts.sessions.authenticate(token)
+            account = services.accounts.sessions.authenticate(token, channel)
             membership = services.accounts.selector.select(account, organization_id)
     except PermissionError:
         denied = "Organization not available"
@@ -236,7 +250,10 @@ async def _account_tenant_request(
         )
     identity_token = set_request_identity(membership.principal_id, org_id, workspace_id)
     try:
-        return await call_next(request)
+        response = await call_next(request)
+        if channel == "browser":
+            response.headers["Cache-Control"] = "no-store"
+        return response
     finally:
         reset_request_principal(identity_token)
 
@@ -248,12 +265,40 @@ async def _account_traffic(
     authorization: str,
 ) -> Any:
     """Handle account routes and account-token tenant requests; None otherwise."""
-    if request.url.path.startswith("/api/v0/account/"):
+    path = request.url.path
+    if path.startswith("/api/v0/account/browser/"):
+        return await _account_browser_request(request, call_next, services)
+    if path.startswith("/api/v0/account/"):
         return await _account_request(request, call_next, services)
     token = _account_token(authorization)
     if token:
         return await _account_tenant_request(request, call_next, services, token)
-    return None
+    return await _account_cookie_tenant(request, call_next, services, authorization)
+
+
+async def _account_cookie_tenant(
+    request: Request,
+    call_next: Any,
+    services: AuthenticationServices,
+    authorization: str,
+) -> Any:
+    """Serve tenant routes from an account cookie; None when it is not in play.
+
+    The legacy tenant cookie keeps precedence when both are present, and the
+    legacy browser-only routes never accept an account cookie.
+    """
+    token = request.cookies.get(ACCOUNT_COOKIE_NAME, "")
+    if (
+        not token
+        or authorization.strip()
+        or request.cookies.get(COOKIE_NAME)
+        or request.url.path.startswith("/api/v0/auth/browser/")
+    ):
+        return None
+    refusal = request_refusal(request, token)
+    if refusal is not None:
+        return refusal
+    return await _account_tenant_request(request, call_next, services, token, "browser")
 
 
 def install_authentication(app: FastAPI) -> None:
