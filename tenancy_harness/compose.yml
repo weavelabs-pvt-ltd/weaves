@@ -67,6 +67,7 @@ services:
     environment:
       <<: *runtime
       TENANCY_FIXTURE_FILE: /output/fixtures.json
+      TENANCY_CATALOG_READER_IMAGE: ${TEST_CATALOG_READER_IMAGE:-}
     volumes:
       - ${TEST_HARNESS_DIR:?}:/suite/tenancy_harness:ro
       - ${TEST_PRIVATE_DIR:?}:/output

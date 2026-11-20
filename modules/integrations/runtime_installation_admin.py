@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from application.descriptor_catalog import scoped_descriptor
+from application.ports.plugin_catalog import PluginCatalog
 from application.runtime_host import RuntimeCapabilityHost
 from clients.integrations.mcp import is_query_tool
 from contracts.v1 import (
@@ -174,18 +175,27 @@ class IntegrationInstallationAdminMixin(RuntimeCapabilityHost):
         current = self.installations.get_scoped(
             installation_id, effective_org_id(), effective_workspace_id()
         )
-        # Retain conflicting legacy references until an operator resolves them.
-        # Deleting one would silently assign the other tenant its tool schema.
-        scoped_descriptor(
-            self.plugins, self.installations, current.plugin_id, current.org_id
+        # Before migration, retain conflicting references as ownership evidence.
+        # Persisted quarantine permits cleanup without reassigning the descriptor.
+        quarantined = (
+            isinstance(self.plugins, PluginCatalog)
+            and self.plugins.ownership_state(current.plugin_id) == "quarantined"
         )
+        if not quarantined:
+            scoped_descriptor(
+                self.plugins, self.installations, current.plugin_id, current.org_id
+            )
         self.installations.delete(installation_id)
         if current.auth_ref:
             self.secret_store.delete(current.auth_ref)
-        if current.plugin_id.startswith("mcp-") and not any(
-            item.plugin_id == current.plugin_id for item in self.installations.list()
-        ):
-            self.plugins.delete(current.plugin_id)
+        if not quarantined and current.plugin_id.startswith("mcp-"):
+            if isinstance(self.plugins, PluginCatalog):
+                self.plugins.delete_unreferenced_descriptor(current.plugin_id)
+            elif not any(
+                item.plugin_id == current.plugin_id
+                for item in self.installations.list()
+            ):
+                self.plugins.delete(current.plugin_id)
         self.audit_events.create(
             AuditEvent(
                 audit_event_id=_id(),

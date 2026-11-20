@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import JsonValue, ValidationError
 
+from application.descriptor_catalog import create_owned_descriptor
 from application.ports.repository import Repository
 from application.ports.secrets import SecretStore
 from application.runtime_host import RuntimeCapabilityHost
@@ -136,7 +137,7 @@ class McpInstallationMixin(RuntimeCapabilityHost):
         )
         descriptor_created = False
         try:
-            self.plugins.create(descriptor)
+            create_owned_descriptor(self.plugins, descriptor, installation.org_id)
             descriptor_created = True
             self.installations.create(installation)
         except Exception:

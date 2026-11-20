@@ -10,6 +10,7 @@ from typing import Any, Protocol
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
+from application.ports.plugin_catalog import PluginCatalog
 from contracts.v1 import (
     AgentVersion,
     CapabilityKind,
@@ -116,11 +117,7 @@ class PluginGateway:
                 "plugin.installation_disabled", "Plugin installation is disabled"
             )
         try:
-            descriptor = self._descriptors.get(installation.plugin_id)
-            if not descriptor_visible(
-                descriptor, org_id, descriptor_owners(self._installations.list())
-            ):
-                raise KeyError("Plugin descriptor not found in organization scope")
+            descriptor = self._descriptor(installation.plugin_id, org_id)
         except KeyError as exc:
             raise PluginGatewayError(
                 "plugin.descriptor_not_found", "Plugin descriptor was not found"
@@ -158,6 +155,17 @@ class PluginGateway:
                     "Plugin installation configuration is invalid",
                 ) from exc
         return binding
+
+    def _descriptor(self, plugin_id: str, org_id: str) -> Any:
+        """Use persisted scope where available, retaining legacy test adapters."""
+        if isinstance(self._descriptors, PluginCatalog):
+            return self._descriptors.visible_descriptor(plugin_id, org_id)
+        descriptor = self._descriptors.get(plugin_id)
+        if not descriptor_visible(
+            descriptor, org_id, descriptor_owners(self._installations.list())
+        ):
+            raise KeyError("Plugin descriptor not found in organization scope")
+        return descriptor
 
     def _resolve_capability(
         self,

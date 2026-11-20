@@ -122,11 +122,11 @@ def test_compatibility_release_reads_schema_19_without_applying_it():
 
 
 def test_product_postgres_migration_rejects_newer_database_schema():
-    connection = RecordingConnection(rows=[(20,)])
+    connection = RecordingConnection(rows=[(21,)])
     store = ProductPostgresStore.__new__(ProductPostgresStore)
     store.pool = RecordingPool(connection)
 
-    with pytest.raises(RuntimeError, match="unsupported migration versions: 20"):
+    with pytest.raises(RuntimeError, match="unsupported migration versions: 21"):
         store._migrate()
 
 

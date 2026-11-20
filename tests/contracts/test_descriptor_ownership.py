@@ -102,6 +102,7 @@ def test_gateway_rechecks_descriptor_ownership_before_any_tool_dispatch():
     }
     gateway.invoke(**arguments)
     assert len(provider.calls) == 1
+
     installations.create(
         installation(
             plugin_installation_id="foreign-installation",
@@ -112,3 +113,23 @@ def test_gateway_rechecks_descriptor_ownership_before_any_tool_dispatch():
     with pytest.raises(PluginGatewayError, match="descriptor was not found"):
         gateway.invoke(**arguments)
     assert len(provider.calls) == 1
+
+
+def test_local_transaction_rolls_back_owner_metadata_with_the_descriptor():
+    from infrastructure.persistence.memory_plugin_catalog import InMemoryPluginCatalog
+    from infrastructure.persistence.unit_of_work import InMemoryUnitOfWork
+
+    references = InMemoryRepository("plugin_installation_id")
+    catalog = InMemoryPluginCatalog(references)
+    with (
+        pytest.raises(ValueError, match="abort"),
+        InMemoryUnitOfWork((catalog, references)),
+    ):
+        catalog.create_owned_descriptor(descriptor(), "org-a")
+        raise ValueError("abort")
+    assert catalog.ownership_state("custom-mcp") is None
+    with pytest.raises(KeyError):
+        catalog.get("custom-mcp")
+    catalog.create(descriptor())
+    references.create(installation(org_id="org-b", workspace_id="workspace-b"))
+    assert scoped_descriptor(catalog, references, "custom-mcp", "org-b")

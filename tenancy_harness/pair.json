@@ -2,11 +2,11 @@
   "version": 1,
   "backend": {
     "repository": "weavelabs-pvt-ltd/weaves",
-    "revision": "7144e4961af60b47a5ce86aa602b09687ec1572a"
+    "revision": "d9791fb540cad4c6bacd245910990604f0c00c31"
   },
   "frontend": {
     "repository": "weavelabs-pvt-ltd/weaves-app",
-    "revision": "10d29687acf365a38b6d97a47f8653fdac91e7c6"
+    "revision": "23e388e6a5361c2b4bd6ef31497e881efe8dc360"
   },
   "candidate_policy": "The triggering repository uses its checked-out candidate; the counterpart uses this exact revision. Record both actual revisions and dirty state.",
   "phase": 1,
@@ -22,7 +22,8 @@
     "T0-I09",
     "T0-I10",
     "T0-I11",
-    "T1-I01"
+    "T1-I01",
+    "T1-I02"
   ],
   "known_defects": {
     "T0-D02": "Model discovery reaches a private fixture destination",
@@ -33,5 +34,8 @@
   "known_defect_policy": "Remaining defects are explicit baseline observations. Resolved defects are required passing isolation controls, never xfail/skip. Passing this partial Phase 1 suite does not mean SaaS readiness.",
   "resolved_defects": {
     "T0-D01": "T1-I01"
-  }
+  },
+  "fixture_migrations": [
+    20
+  ]
 }

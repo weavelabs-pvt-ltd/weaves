@@ -8,6 +8,7 @@ from pathlib import Path
 
 import httpx
 
+from tenancy_harness.budget import MAX_OUTPUT_TOKENS
 from tenancy_harness.client import API, PROVIDER, call
 from tenancy_harness.live_records import capture_records, verify_records
 from tenancy_harness.seed import require_disposable_database
@@ -53,11 +54,13 @@ def configured_agent(t, config, model, name):
         {
             "name": "live-" + name,
             "model_profile_id": profile["id"],
-            "instructions": "Follow the request; include its LIVE_CHECK marker. "
-            "answer. Use context and cite it; do not take actions.",
+            "instructions": "For this synthetic check, put the exact LIVE_CHECK "
+            "marker supplied in the request on the first line. Then write one "
+            "short factual sentence from the retrieved context and cite its "
+            "source. Use plain text; do not take actions.",
             "allowed_capability_ids": t["installation"]["enabled_capability_ids"],
             "skill_version_ids": [t["org_skill"]["version"]["skill_version_id"]],
-            "max_output_tokens": 256,
+            "max_output_tokens": MAX_OUTPUT_TOKENS,
             "max_runtime_seconds": 60,
             "max_tool_calls": 1,
         },
@@ -82,10 +85,11 @@ def prepare(fixtures, config, path):
         {
             "agent_id": solo["id"],
             "title": "Live Anthropic diagnostic",
-            "initial_message": marker,
+            "initial_message": "Report one fact from the connected documentation. "
+            "Start with " + marker + " and cite the source.",
         },
     )
-    wait_for("/tasks/" + task["task_id"], t["admin"], "latest_turn_status", "succeeded")
+    _wait_for_task(task["task_id"], t, path)
     plan = {
         "manual": True,
         "steps": [
@@ -142,6 +146,16 @@ def prepare(fixtures, config, path):
     ]
     capture_records(tasks, t, path.parent / "live-records.json")
     print("Live agent succeeded; workflow is waiting for browser approval.")
+
+
+def _wait_for_task(task_id, tenant, path):
+    """Preserve terminal task evidence even when preparation cannot continue."""
+    try:
+        wait_for(
+            "/tasks/" + task_id, tenant["admin"], "latest_turn_status", "succeeded"
+        )
+    finally:
+        capture_records([task_id], tenant, path.parent / "live-records.json")
 
 
 def verify(fixtures, config, path):
