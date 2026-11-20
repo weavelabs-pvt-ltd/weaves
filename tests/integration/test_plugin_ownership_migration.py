@@ -396,3 +396,47 @@ def _waiting_for_lock(store, pid, future):
             return False
         time.sleep(0.01)
     return False
+
+
+def test_reader_cannot_mix_legacy_query_with_post_activation_data(
+    catalog, isolated_postgres_url, monkeypatch
+):
+    runtime, store, _ = catalog
+    with store.connection() as connection:
+        connection.execute(
+            "UPDATE product_records SET org_id='local-org' "
+            "WHERE collection='plugins' AND record_id='github'"
+        )
+    catalog_repo = runtime.plugins
+    original = catalog_repo._visible_query
+    reader_paused, release_reader, activation_ready = Event(), Event(), Event()
+    activation_pid = []
+
+    def pause_after_version_check(connection, org_id):
+        result = original(connection, org_id)
+        reader_paused.set()
+        assert release_reader.wait(8)
+        return result
+
+    def activate():
+        with psycopg.connect(isolated_postgres_url) as connection:
+            activation_pid.append(connection.info.backend_pid)
+            activation_ready.set()
+            return activate_ownership(connection, reader_image=IMAGE)
+
+    monkeypatch.setattr(catalog_repo, "_visible_query", pause_after_version_check)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        reading = pool.submit(catalog_repo.visible_descriptors, "local-org")
+        assert reader_paused.wait(5)
+        migrating = pool.submit(activate)
+        try:
+            assert activation_ready.wait(5)
+            assert _waiting_for_lock(store, activation_pid[0], migrating)
+        finally:
+            release_reader.set()
+        assert "github" not in {item.plugin_id for item in reading.result(timeout=5)}
+        assert migrating.result(timeout=5)["applied"]
+    monkeypatch.setattr(catalog_repo, "_visible_query", original)
+    assert "github" not in {
+        item.plugin_id for item in catalog_repo.visible_descriptors("local-org")
+    }

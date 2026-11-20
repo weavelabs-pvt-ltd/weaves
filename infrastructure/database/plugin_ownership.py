@@ -79,6 +79,8 @@ def activate_ownership(
     if not 1 <= max_records <= 10000:
         raise ValueError("Catalog activation is bounded to at most 10000 records")
     with connection.transaction():
+        connection.execute("SET LOCAL lock_timeout='10s'")
+        connection.execute("SET LOCAL statement_timeout='30s'")
         connection.execute(
             "SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",
             (_MIGRATION_LOCK_NAME,),
@@ -96,7 +98,7 @@ def activate_ownership(
         if 20 in versions:
             validate_schema(connection)
             return ownership_report(connection)
-        connection.execute("LOCK TABLE product_records IN SHARE ROW EXCLUSIVE MODE")
+        connection.execute("LOCK TABLE product_records IN ACCESS EXCLUSIVE MODE")
         total = connection.execute(
             "SELECT count(*) FROM (SELECT 1 FROM product_records LIMIT %s) sample",
             (max_records + 1,),

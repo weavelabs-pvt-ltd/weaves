@@ -21,6 +21,9 @@ class PostgresPluginCatalog(PostgresRepository[PluginDescriptor]):
     @staticmethod
     def _migrated(connection: Any) -> bool:
         """Observe operator activation without requiring every process to restart."""
+        # Pin the catalog's schema epoch until this transaction finishes. The
+        # operator takes ACCESS EXCLUSIVE before changing ownership or the marker.
+        connection.execute("LOCK TABLE product_records IN ACCESS SHARE MODE")
         return (
             connection.execute(
                 "SELECT 1 FROM product_schema_migrations WHERE version=20"
