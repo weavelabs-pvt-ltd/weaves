@@ -30,6 +30,7 @@ from infrastructure.persistence.product_repositories import (
     create_product_repository_set,
 )
 from infrastructure.persistence.unit_of_work import InMemoryUnitOfWork
+from shared.request_context import require_tenant_context
 
 
 def open_process_runtime(
@@ -44,11 +45,14 @@ def open_process_runtime(
     store: ProductPostgresStore | None = None
     try:
         store = _open_store(settings)
-        return compose_platform_runtime(
-            http_client=http_client,
-            store=store,
-            seed_local_defaults=local_seeds in {"true", "1", "yes"},
+        seeds_local = local_seeds in {"true", "1", "yes"}
+        runtime = compose_platform_runtime(
+            http_client=http_client, store=store, seed_local_defaults=seeds_local
         )
+        # Durable deployments without local demo data never fall back to
+        # local-org/local-workspace; every tenant operation needs real context.
+        require_tenant_context(store is not None and not seeds_local)
+        return runtime
     except Exception:
         http_client.close()
         if store is not None:

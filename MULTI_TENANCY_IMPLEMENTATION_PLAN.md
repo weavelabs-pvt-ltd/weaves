@@ -40,6 +40,10 @@ Authorization now rejects suspended organizations and archived workspaces with a
 
 Login throttles for password and email-code paths are namespaced by organization when an organization is selected, so failed attempts in A no longer consume the same email's allowance in B. Source-address throttles remain global. Unscoped requests for an email that exists in several organizations still receive no code. `T1-I04` replaces `T0-D03` and `T1-I06` replaces `T0-D05`; `T1-I05` replaces `T0-D04` (browser teardown, stale-response generations and namespaced drafts); no baseline defects remain.
 
+### Phase 2 progress: mandatory tenant context
+
+Durable (PostgreSQL) processes that do not seed local demo data now call `require_tenant_context`. In that mode `effective_org_id`, `effective_workspace_id`, `effective_principal_id` and the `set_request_principal` compatibility helper raise `TenantContextRequired` instead of selecting `local-org`/`local-workspace`. Development and in-memory test runtimes keep the explicit local scope. The required real-stack suite passes with the mode active in the API, native worker and CLI. Repository-level tenant predicates, reference validation, scoped secrets and PostgreSQL RLS remain open Phase 2 slices.
+
 ### Phase 0 implementation evidence
 
 - [Architecture decisions](TENANCY_ARCHITECTURE.md), [complete ownership registry](tenancy_harness/ownership.json), and [portable test harness](tenancy_harness/README.md) are implemented. The registry covers 45 collections and 135 API operations, with drift checks.

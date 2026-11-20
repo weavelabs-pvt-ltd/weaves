@@ -13,6 +13,13 @@ class ExecutionCancelled(RuntimeError):
     """A worker observed a cancellation request at a safe boundary."""
 
 
+class TenantContextRequired(RuntimeError):
+    """Tenant-scoped work ran without a validated organization and workspace."""
+
+    code = "tenant.context_required"
+    retryable = False
+
+
 class TenantInactive(PermissionError):
     """New work was refused because its organization or workspace is not active."""
 
