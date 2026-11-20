@@ -18,7 +18,12 @@ def test_all_persisted_collections_have_explicit_ownership_rules():
     for _, collection, _, contract in REPOSITORY_SPECS:
         rule = registry["collections"][collection]
         assert rule["contract"] == contract.__name__
-        assert rule["scope"] in {"organization", "workspace", "mixed_catalog"}
+        assert rule["scope"] in {
+            "organization",
+            "workspace",
+            "mixed_catalog",
+            "global_account",
+        }
         assert rule["privacy"] and rule["system_access"] and rule["lifecycle"]
         assert set(rule["scope_keys"]) <= set(contract.model_fields)
     assert registry["collections"]["plugins"]["current_gap"]

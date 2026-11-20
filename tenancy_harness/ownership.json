@@ -517,6 +517,40 @@
         "org_id"
       ],
       "current_gap": "audit may span org and workspace according to target_scope"
+    },
+    "accounts": {
+      "scope": "global_account",
+      "contract": "Account",
+      "privacy": "global identity; authentication and account endpoints only, never tenant resource access",
+      "system_access": "explicit account/auth system scope only; never tenant or customer Admin access",
+      "lifecycle": "account disablement and membership removal stop new work; allow audited cleanup",
+      "current_gap": null,
+      "scope_keys": [
+        "id"
+      ]
+    },
+    "account_identities": {
+      "scope": "global_account",
+      "contract": "AccountIdentity",
+      "privacy": "verified login identity material; authentication discovery only",
+      "system_access": "explicit account/auth system scope only; never tenant or customer Admin access",
+      "lifecycle": "account disablement and membership removal stop new work; allow audited cleanup",
+      "current_gap": null,
+      "scope_keys": [
+        "account_id"
+      ]
+    },
+    "memberships": {
+      "scope": "organization",
+      "contract": "OrganizationMembership",
+      "privacy": "organization members see their own organization's memberships; account endpoints list an account's own",
+      "system_access": "explicit account/auth system scope only; never tenant or customer Admin access",
+      "lifecycle": "account disablement and membership removal stop new work; allow audited cleanup",
+      "current_gap": null,
+      "scope_keys": [
+        "org_id",
+        "account_id"
+      ]
     }
   },
   "auxiliary_tables": {
