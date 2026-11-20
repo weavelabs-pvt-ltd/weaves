@@ -266,3 +266,11 @@ test('T1-I07 account sign-in links one person to both organizations without tena
     expect(control[key], key).toBe(true);
   }
 });
+
+test('T1-I08 an account selects an organization per request and tenant tokens cannot', async () => {
+  const control = fixture.diagnostics.account;
+  for (const key of ['selects_each_organization', 'foreign_and_unknown_indistinguishable',
+    'tenant_token_ignores_header', 'workspace_checked_inside_organization']) {
+    expect(control[key], key).toBe(true);
+  }
+});

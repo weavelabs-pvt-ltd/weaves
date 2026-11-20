@@ -25,6 +25,7 @@ from contracts.v1 import (
     User,
 )
 from modules.auth.account_linking import MembershipLinker
+from modules.auth.account_selection import AccountOrganizationSelector
 from modules.auth.account_sessions import AccountSessions
 from shared.clock import new_id, utc_now
 from shared.errors import EmailDeliveryUnavailable, LoginThrottled
@@ -65,6 +66,12 @@ class AccountSignInService:
         self.login_rate_limiter = login_rate_limiter
         self._unit_of_work = unit_of_work
         self.sessions = AccountSessions(sessions, accounts)
+        self.selector = AccountOrganizationSelector(
+            memberships=memberships,
+            users=users,
+            principals=principals,
+            organizations=organizations,
+        )
         self._linker = MembershipLinker(
             users=users,
             principals=principals,
