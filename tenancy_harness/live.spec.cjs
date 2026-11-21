@@ -4,10 +4,11 @@ const fixture = JSON.parse(fs.readFileSync(process.env.TENANCY_FIXTURE_FILE, 'ut
 if (!fixture.live) throw new Error('Live test preparation and approval gate are required');
 const tenant = fixture.tenants.a;
 async function open(page, hash) {
-  await page.addInitScript(({ token, workspace }) => {
-    sessionStorage.setItem('weaves.session', token);
+  await page.addInitScript(({ token, organization, workspace }) => {
+    sessionStorage.setItem('weaves.account', token);
+    sessionStorage.setItem('weaves.organization', organization);
     sessionStorage.setItem('weaves.workspace', workspace);
-  }, { token: tenant.admin.headers.Authorization.slice(7), workspace: tenant.workspace_id });
+  }, { token: tenant.admin.headers.Authorization.slice(7), organization: tenant.org_id, workspace: tenant.workspace_id });
   await page.goto('/#' + hash);
 }
 test('LIVE-I01 real Anthropic response appears in its task transcript', async ({ page }) => {

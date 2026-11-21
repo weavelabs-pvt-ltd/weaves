@@ -1,10 +1,17 @@
 """Create sentinel resources through real scoped product HTTP routes."""
 
-from tenancy_harness.client import PROVIDER, actor, call, sign_in
+from tenancy_harness.client import (
+    PROVIDER,
+    account_sign_in,
+    actor,
+    call,
+    service_actor,
+    source_for,
+)
 
 
 def member(tenant, role, email=None):
-    """Provision and authenticate an Admin/Builder/User fixture with email proof."""
+    """Provision a member by admin route, then sign in as an account."""
     email = email or f"{tenant['label']}.{role}@tenancy.test"
     roles = call("GET", "/roles", tenant["admin"])
     role_id = next(item["id"] for item in roles if item["system_role_key"] == role)
@@ -18,22 +25,39 @@ def member(tenant, role, email=None):
             "role_id": role_id,
         },
     )
-    token = sign_in(email, tenant["org_id"])
-    return actor(token, tenant["workspace_id"], result["principal"]["id"], email)
+    # Signing in first links the membership; only then is the organization usable.
+    token = account_sign_in(email)
+    person = actor(
+        token,
+        tenant["org_id"],
+        tenant["workspace_id"],
+        result["principal"]["id"],
+        email,
+    )
+    call("GET", "/agents", person)
+    return person
 
 
 def tenant(label):
-    """Provision a real org and two workspaces, with no local defaults seeded."""
+    """Create a real org through an owner account, with no local defaults seeded."""
     marker = "TENANCY_" + label.upper() + "_SENTINEL"
     email = f"{label}.admin@tenancy.test"
-    result = call(
+    token = account_sign_in(email)
+    created = call(
         "POST",
-        "/onboarding/organizations",
-        body={"name": marker, "owner_email": email, "owner_display_name": marker},
+        "/account/organizations",
+        {
+            "headers": {
+                "Authorization": "Bearer " + token,
+                "Idempotency-Key": "tenancy-" + label,
+                **source_for(email),
+            }
+        },
+        {"name": marker, "display_name": marker},
     )
-    org_id, workspace_id = result["organization"]["id"], result["workspace"]["id"]
+    org_id, workspace_id = created["organization"]["id"], created["workspace"]["id"]
     admin = actor(
-        sign_in(email, org_id), workspace_id, result["principal"]["id"], email
+        token, org_id, workspace_id, created["membership"]["principal_id"], email
     )
     second = call("POST", "/workspaces", admin, {"name": marker + " second"})
     return {
@@ -158,11 +182,8 @@ def resources(t):
             "private_task": private,
             "task": task,
             "policy": policy,
-            "service": actor(
-                service["token"],
-                t["workspace_id"],
-                service["principal"]["id"],
-                "service",
+            "service": service_actor(
+                service["token"], t["workspace_id"], service["principal"]["id"]
             ),
         }
     )
