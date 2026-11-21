@@ -172,6 +172,52 @@ bearer session for an existing active account (`--minutes` 1 to 1440, default
 60) and prints the token once on stdout; unknown and disabled accounts are
 refused. Use it with `X-Organization-Id: <organization id>` against the API.
 
+## Organization lifecycle (operator)
+
+`organization_lifecycle.py` is the only way to suspend, resume or delete an
+organization on behalf of the platform. Like the scripts above it opens the
+database owner's connection, refuses to run with local demo seeding, is never
+reachable over HTTP and is streamed into the running API container (the owner
+cannot resume a suspension; customer Admins have no operator authority):
+
+```
+docker compose exec -T product-api python - \
+  suspend --organization-id ORG --operator you@example.com \
+  --reason "billing hold" < organization_lifecycle.py
+docker compose exec -T product-api python - \
+  status --organization-id ORG < organization_lifecycle.py
+docker compose exec -T product-api python - list < organization_lifecycle.py
+```
+
+Subcommands: `suspend`, `resume`, `request-deletion`, `cancel-deletion`,
+`purge-now` (also needs `--confirm-organization-name "<exact name>"`), `status`
+and `list`. Every action needs `--operator` (your address) and `--reason`, writes
+an `organization.lifecycle.*` audit event attributed to the operator
+(`actor_kind` `operator`) and one secret-free JSON log line; the result is JSON on
+stdout. Exit status 2 means the action was refused (unknown organization,
+disallowed transition, wrong confirmation). Repeating an action is a no-op.
+
+* Suspension stops all new work at the next boundary and refuses every request
+  for that organization with `403 Organization not available`; other organizations
+  of the same accounts are unaffected. Resume never replays missed schedules,
+  cancelled jobs or old webhook events.
+* `request-deletion` starts the grace period
+  (`WEAVES_ORGANIZATION_DELETION_GRACE_DAYS`, default 7). While pending, only the
+  owner can read the state, export, and (for owner-requested deletions) cancel.
+  An operator-requested deletion can be cancelled only with `cancel-deletion`,
+  which restores the state it was requested from.
+* After the grace period (or `purge-now`) the worker deletes the organization in
+  bounded steps every `WEAVES_LIFECYCLE_POLL_SECONDS` (default 30). `status` shows
+  the state, the last completed step, rows deleted and `remaining_rows`. A crash
+  or restart resumes safely. DELETED is final: it cannot be resumed, selected or
+  re-created. Retained: the organization tombstone, its lifecycle history, the
+  `organization.lifecycle.*` and `organization.exported` audit events and the
+  account creation-quota ledger (a deleted organization still counts toward the
+  account's cap). Everything else, including other audit events and secrets, is
+  removed. Backups taken before deletion still contain the data; restoring one
+  needs the phase 6 retention procedure.
+* Time-limited support access is not provided: there is no operator HTTP surface.
+
 ## Migration and explicit reset record
 
 The source Cloud SQL export was restored and matched all 182 application rows,

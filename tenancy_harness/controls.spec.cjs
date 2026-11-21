@@ -332,3 +332,14 @@ test('T1-I11 an account creates an organization once, idempotently and privately
 test('T4-I01 organization settings and ownership handoff preserve other tenant access', async ({browser, request}) => {
   await require('./organization_administration.cjs').verify({browser, request}, fixture);
 });
+
+test('T4-I02 organization export, operator suspend/resume and owner-requested deletion', async () => {
+  const control = fixture.organization_lifecycle;
+  for (const key of ['owner_export_downloads', 'deletion_needs_exact_name', 'owner_requests_deletion',
+    'pending_deletion_refuses_other_routes', 'owner_cancels_deletion', 'operator_suspends',
+    'suspended_refuses_owner', 'other_organization_still_works', 'operator_resumes', 'purge_needs_exact_name',
+    'operator_purge_now_deletes', 'organization_rows_gone', 'other_organization_intact', 'deleted_never_selectable',
+    'deleted_cannot_resume', 'worker_keeps_running', 'deleted_organization_counts_toward_cap']) {
+    expect(control[key], key).toBe(true);
+  }
+});
