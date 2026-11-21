@@ -172,6 +172,22 @@ bearer session for an existing active account (`--minutes` 1 to 1440, default
 60) and prints the token once on stdout; unknown and disabled accounts are
 refused. Use it with `X-Organization-Id: <organization id>` against the API.
 
+## Schedule timezone backfill
+
+Records without a `timezone` already behave as `Asia/Kolkata`, so this step is
+optional and only makes that explicit in storage. It uses the owner connection
+like the other operator scripts and prints counts only:
+
+```
+docker compose exec -T product-api python - < backfill_schedule_timezones.py          # dry run
+docker compose exec -T product-api python - --apply < backfill_schedule_timezones.py
+```
+
+The default is a dry run. `--apply` writes `timezone='Asia/Kolkata'` into
+interval schedules and calendar settings that have none; records that already
+name a zone are never touched, `updated_at` and `next_run_at` are preserved and
+re-running changes nothing. The two flags are mutually exclusive.
+
 ## Migration and explicit reset record
 
 The source Cloud SQL export was restored and matched all 182 application rows,

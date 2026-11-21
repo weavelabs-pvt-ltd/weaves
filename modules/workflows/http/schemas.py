@@ -3,6 +3,7 @@
 from typing import Literal
 
 from pydantic import (
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
@@ -14,6 +15,7 @@ from contracts.v1 import (
     WorkflowStatus,
     WorkflowTriggerStatus,
 )
+from contracts.v1.timezones import ScheduleTimezone
 
 
 class WorkflowCreateRequest(BaseModel):
@@ -111,6 +113,7 @@ class WorkflowScheduleCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     task_instructions: str = Field(min_length=1, max_length=2000)
     interval_seconds: int = Field(ge=60, le=31_536_000)
+    timezone: ScheduleTimezone | None = None
 
 
 class WorkflowSchedulePatchRequest(BaseModel):
@@ -122,3 +125,5 @@ class WorkflowSchedulePatchRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=160)
     task_instructions: str | None = Field(default=None, min_length=1, max_length=2000)
     interval_seconds: int | None = Field(default=None, ge=60, le=31_536_000)
+    timezone: ScheduleTimezone | None = None
+    expected_updated_at: AwareDatetime | None = None

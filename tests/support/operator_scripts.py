@@ -14,6 +14,7 @@ if str(SCRIPTS) not in sys.path:
 
 bootstrap_account_owner = importlib.import_module("bootstrap_account_owner")
 issue_account_session = importlib.import_module("issue_account_session")
+backfill_schedule_timezones = importlib.import_module("backfill_schedule_timezones")
 
 
 def run_script(

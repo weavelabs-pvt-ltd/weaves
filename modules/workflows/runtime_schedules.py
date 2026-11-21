@@ -24,6 +24,12 @@ from contracts.v1 import (
     WorkflowStatus,
     WorkflowVersion,
 )
+from contracts.v1.timezones import validate_timezone_name
+from modules.workflows.schedule_edit import build_schedule_update
+from modules.workflows.schedule_time import (
+    effective_timezone,
+    organization_default_timezone,
+)
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.errors import TenantInactive
@@ -48,6 +54,7 @@ class WorkflowScheduleRuntimeHost(ABC):
     workflow_schedules: Repository[WorkflowSchedule]
     workflow_versions: Repository[WorkflowVersion]
     workflows: Repository[WorkflowDefinition]
+    organization_settings: object | None
 
     @abstractmethod
     def bootstrap(self) -> None:
@@ -107,9 +114,13 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
         name: str,
         task_instructions: str,
         interval_seconds: int,
+        timezone: str | None = None,
         requested_by_principal_id: str = "local-developer",
     ) -> WorkflowSchedule:
-        """Create a recurring interval schedule for an active workflow."""
+        """Create a recurring interval schedule for an active workflow.
+
+        The zone is the request's, else the organization's, else Asia/Kolkata.
+        """
         if not self._bootstrapped():
             self.bootstrap()
         actor = effective_principal_id(requested_by_principal_id)
@@ -135,6 +146,13 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
         if not 60 <= interval_seconds <= 31_536_000:
             raise ValueError("interval_seconds must be between 60 and 31536000")
         now = _now()
+        zone = (
+            validate_timezone_name(timezone)
+            if timezone is not None
+            else organization_default_timezone(
+                self.organization_settings, workflow.org_id
+            )
+        )
         schedule = WorkflowSchedule(
             schedule_id=_id(),
             workflow_id=workflow_id,
@@ -144,6 +162,7 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
             name=clean_name,
             task_instructions=clean_instructions,
             interval_seconds=interval_seconds,
+            timezone=zone,
             status=WorkflowScheduleStatus.ACTIVE,
             next_run_at=now + timedelta(seconds=interval_seconds),
             created_at=now,
@@ -156,7 +175,7 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
                 actor,
                 "workflow.schedule.created",
                 "Workflow schedule created",
-                metadata={"interval_seconds": interval_seconds},
+                metadata={"interval_seconds": interval_seconds, "timezone": zone},
             )
         return schedule
 
@@ -180,66 +199,49 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
         name: str | None = None,
         task_instructions: str | None = None,
         interval_seconds: int | None = None,
+        timezone: str | None = None,
+        expected_updated_at: datetime | None = None,
         requested_by_principal_id: str = "local-developer",
     ) -> WorkflowSchedule:
-        """Update a schedule; changes restart its interval."""
+        """Update a schedule; changes restart its interval.
+
+        A timezone-only change needs ``expected_updated_at`` and never moves the
+        pending UTC instant (interval schedules are timezone independent).
+        """
         if status is WorkflowScheduleStatus.ERROR:
             raise ValueError("schedule status can only be set to active or disabled")
         if not self._bootstrapped():
             self.bootstrap()
         actor = effective_principal_id(requested_by_principal_id)
         self.authorize(actor, Permission.WORKFLOWS_MANAGE)
+        zone = validate_timezone_name(timezone) if timezone is not None else None
         with self._workflow_schedule_guard(schedule_id):
             current = self.workflow_schedules.get_scoped(
                 schedule_id, effective_org_id(), effective_workspace_id()
             )
-            next_status = status or current.status
-            next_name = name.strip() if name is not None else current.name
-            next_instructions = (
-                task_instructions.strip()
-                if task_instructions is not None
-                else current.task_instructions
+            updated = build_schedule_update(
+                current,
+                status=status,
+                name=name,
+                task_instructions=task_instructions,
+                interval_seconds=interval_seconds,
+                timezone=zone,
+                expected_updated_at=expected_updated_at,
+                now=_now(),
             )
-            next_interval = interval_seconds or current.interval_seconds
-            if not next_name or not next_instructions:
-                raise ValueError(
-                    "schedule name and task instructions must not be blank"
-                )
-            if not 60 <= next_interval <= 31_536_000:
-                raise ValueError("interval_seconds must be between 60 and 31536000")
-            if (
-                current.status is next_status
-                and current.name == next_name
-                and current.task_instructions == next_instructions
-                and current.interval_seconds == next_interval
-            ):
+            if updated is current:
                 return current
-            timestamp = _now()
-            updated = WorkflowSchedule.model_validate(
-                current.model_copy(
-                    update={
-                        "status": next_status,
-                        "name": next_name,
-                        "task_instructions": next_instructions,
-                        "interval_seconds": next_interval,
-                        "next_run_at": (
-                            timestamp + timedelta(seconds=next_interval)
-                            if next_status is WorkflowScheduleStatus.ACTIVE
-                            else current.next_run_at
-                        ),
-                        "last_error": None,
-                        "updated_at": timestamp,
-                    }
-                ).model_dump()
-            )
             with self._unit_of_work():
                 self.workflow_schedules.put(updated)
                 self._record_workflow_schedule_audit(
                     updated,
                     actor,
                     "workflow.schedule.updated",
-                    f"Workflow schedule {next_status.value}",
-                    metadata={"interval_seconds": next_interval},
+                    f"Workflow schedule {updated.status.value}",
+                    metadata={
+                        "interval_seconds": updated.interval_seconds,
+                        "timezone": effective_timezone(updated.timezone),
+                    },
                 )
             return updated
 

@@ -27,6 +27,7 @@ def _configure_workflow_automation_service(
         unit_of_work=dependencies._unit_of_work,
         advisory_transaction_lock=dependencies._advisory_transaction_lock,
         enqueue_agent_run=dependencies.enqueue_agent_run,
+        organization_settings=dependencies.organization_settings,
     )
 
 

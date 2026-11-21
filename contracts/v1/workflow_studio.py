@@ -6,6 +6,7 @@ from typing import Literal, NotRequired, TypedDict
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from contracts.v1.base import MutableWorkspaceScopedContract
+from contracts.v1.timezones import ScheduleTimezone
 
 
 class CanvasStep(BaseModel):
@@ -20,7 +21,7 @@ class CanvasStep(BaseModel):
 
 
 class Calendar(BaseModel):
-    """Weekly calendar in the reference's explicit IST time zone."""
+    """Wall-clock calendar evaluated in its settings record's IANA time zone."""
 
     model_config = ConfigDict(extra="forbid")
     freq: Literal["hourly", "daily", "weekly"] = "daily"
@@ -52,6 +53,8 @@ class CanvasSettings(MutableWorkspaceScopedContract):
     event: str = "custom.event"
     sched: bool = False
     calendar: dict[str, JsonValue] = Field(default_factory=dict)
+    # None marks a legacy record, which reads as Asia/Kolkata.
+    timezone: ScheduleTimezone | None = None
     next_run_at: datetime | None = None
     last_run_at: datetime | None = None
     last_error: str | None = None

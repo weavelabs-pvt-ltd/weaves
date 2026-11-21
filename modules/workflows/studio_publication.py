@@ -7,11 +7,14 @@ from contracts.v1 import (
     WorkflowDefinition,
     WorkflowVersion,
 )
+from contracts.v1.timezones import validate_timezone_name
 from contracts.v1.workflow_studio import (
     CanvasPlan,
     CanvasSettings,
 )
+from modules.workflows.schedule_time import next_occurrence
 from modules.workflows.studio_context import WorkflowStudioContext
+from modules.workflows.studio_settings_edit import apply_settings_changes
 from shared.clock import new_id, utc_now
 from shared.request_context import (
     effective_principal_id,
@@ -27,8 +30,13 @@ class WorkflowStudioPublicationMixin(WorkflowStudioContext):
         description: str,
         plan: CanvasPlan,
         workflow_id: str | None = None,
+        timezone: str | None = None,
     ) -> dict[str, dict[str, JsonValue]]:
-        """Atomically save metadata, the immutable plan, and start controls."""
+        """Atomically save metadata, the immutable plan, and start controls.
+
+        New settings use ``timezone`` or the organization's zone; republishing
+        keeps the stored zone (a legacy record stays Asia/Kolkata) unless named.
+        """
         self.authorize(Permission.WORKFLOWS_MANAGE)
         plan = CanvasPlan.model_validate(plan)
         ids = self._validate_publication_plan(plan)
@@ -37,13 +45,16 @@ class WorkflowStudioPublicationMixin(WorkflowStudioContext):
                 name, description, plan, ids, workflow_id
             )
             now = utc_now()
+            zone = validate_timezone_name(timezone) if timezone else None
             try:
                 old = self.settings.get_scoped(
                     workflow.workflow_id, workflow.org_id, workflow.workspace_id
                 )
                 created = old.created_at
+                zone = zone or old.timezone
             except KeyError:
                 created = now
+                zone = zone or self.default_timezone()
             settings = CanvasSettings(
                 workflow_id=workflow.workflow_id,
                 org_id=workflow.org_id,
@@ -54,7 +65,8 @@ class WorkflowStudioPublicationMixin(WorkflowStudioContext):
                 event=plan.event,
                 sched=plan.sched,
                 calendar=plan.calendar.model_dump(),
-                next_run_at=self.next_dates(plan.calendar.model_dump())[0]
+                timezone=zone,
+                next_run_at=next_occurrence(plan.calendar, now, zone)
                 if plan.sched
                 else None,
                 created_at=created,
@@ -159,13 +171,17 @@ class WorkflowStudioPublicationMixin(WorkflowStudioContext):
         """Update actual dispatch controls, preserving the published step version."""
         self.authorize(Permission.WORKFLOWS_MANAGE)
         with self.guard(workflow_id):
+            workflow = self.definitions.get_workflow(workflow_id)
+            try:
+                self.settings.get_scoped(
+                    workflow_id, workflow.org_id, workflow.workspace_id
+                )
+                stored = True
+            except KeyError:
+                stored = False
             current = self.get_settings(workflow_id)
-            updated = CanvasSettings.model_validate(
-                current.model_copy(
-                    update={**changes, "updated_at": utc_now()}
-                ).model_dump()
+            updated = apply_settings_changes(
+                current, changes, now=utc_now(), stored=stored
             )
-            dates = self.next_dates(updated.calendar)
-            updated.next_run_at = dates[0] if updated.sched else None
             self.settings.put(updated)
             return updated

@@ -332,3 +332,8 @@ test('T1-I11 an account creates an organization once, idempotently and privately
 test('T4-I01 organization settings and ownership handoff preserve other tenant access', async ({browser, request}) => {
   await require('./organization_administration.cjs').verify({browser, request}, fixture);
 });
+
+test('T4-I03 schedule timezones are explicit, UTC on the wire and fire once through the real stack', async ({request}) => {
+  test.setTimeout(240000);
+  await require('./schedule_timezones.cjs').verify({request}, fixture);
+});

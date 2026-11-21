@@ -239,6 +239,7 @@ class LocalPlatformRuntime(
         name: str,
         task_instructions: str,
         interval_seconds: int,
+        timezone: str | None = None,
         requested_by_principal_id: str = "local-developer",
     ) -> WorkflowSchedule:
         """Retain workflow schedule creation compatibility."""
@@ -247,6 +248,7 @@ class LocalPlatformRuntime(
             name=name,
             task_instructions=task_instructions,
             interval_seconds=interval_seconds,
+            timezone=timezone,
             requested_by_principal_id=requested_by_principal_id,
         )
 
@@ -263,6 +265,8 @@ class LocalPlatformRuntime(
         name: str | None = None,
         task_instructions: str | None = None,
         interval_seconds: int | None = None,
+        timezone: str | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> WorkflowSchedule:
         """Retain workflow schedule updates compatibility."""
         return self.workflow_automation_service.update_workflow_schedule(
@@ -271,6 +275,8 @@ class LocalPlatformRuntime(
             name=name,
             task_instructions=task_instructions,
             interval_seconds=interval_seconds,
+            timezone=timezone,
+            expected_updated_at=expected_updated_at,
             requested_by_principal_id=requested_by_principal_id,
         )
 
