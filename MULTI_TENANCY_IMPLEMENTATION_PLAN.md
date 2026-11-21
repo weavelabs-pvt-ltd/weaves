@@ -180,6 +180,41 @@ audit-failure rollback and foreign-tenant denials. Required real-stack control
 membership removal, then proves the same account still accesses its other tenant.
 This is one Phase 4 slice, not full lifecycle completion or SaaS readiness.
 
+### Phase 4 progress: schedule timezones
+
+Every schedule and calendar record now carries an explicit IANA `timezone`
+(additive optional field, max 64 characters, validated with `zoneinfo`; unknown
+zones are 422). A record without one is legacy and is read as `Asia/Kolkata` at
+read time by the one shared module `modules/workflows/schedule_time.py`; nothing
+is rewritten at startup, so production correctness never depends on the
+operator script `infra/gcp/singlevm/backfill_schedule_timezones.py` (dry run by
+default, `--apply` writes `Asia/Kolkata` only into records lacking a zone, keeps
+`updated_at`/`next_run_at`, idempotent). New records use the request's zone, else
+the organization's `organization_settings.timezone`, else `Asia/Kolkata`. All
+instants are stored and sent as timezone-aware UTC; read models return the
+effective `timezone`.
+
+Calendar rules (hourly, daily, weekly at a wall-clock time) are evaluated in
+the record's zone. A nonexistent local time (spring-forward gap) runs at the
+first valid instant after the gap (02:30 becomes 03:00). An ambiguous local time
+(fall-back overlap) runs once, at its first occurrence. `hourly` fires at every
+real instant whose local minute is zero. There is no monthly rule today, so no
+month-end clamp exists. Occurrences are strictly increasing and never repeat.
+Existing `Asia/Kolkata` values are identical to the previous implementation
+(golden values captured before the change). Interval schedules
+(`interval_seconds`) are elapsed-time based and timezone independent; their math
+is untouched and their zone is metadata.
+
+Timezone-change rule: naming a different zone requires the observed
+`expected_updated_at` (422 if absent, 409 if stale) and keeps the pending UTC
+instant unchanged; the new zone applies to the occurrence after it, so nothing
+fires early, twice or shifts silently. If the same edit changes the calendar
+(frequency, days or time of day), or turns the schedule on, the pending
+occurrence is recomputed from now in the new zone. Unrelated edits keep the
+pending occurrence. Validation adds unit, DST, property, golden, API,
+PostgreSQL restricted-role concurrency and backfill tests, and required
+real-stack control `T4-I03`.
+
 ## Phase overview and dependencies
 
 | Phase | Deliverable | Depends on | Release gate |

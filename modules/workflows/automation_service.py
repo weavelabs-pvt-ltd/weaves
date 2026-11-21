@@ -76,6 +76,7 @@ class WorkflowAutomationService(
         unit_of_work: Callable[[], AbstractContextManager[None]],
         advisory_transaction_lock: Callable[[str], None] | None,
         enqueue_agent_run: AgentRunEnqueuer,
+        organization_settings: object | None = None,
     ) -> None:
         """Bind repositories, request policies, and execution dispatch ports."""
         self.audit_events = audit_events
@@ -83,6 +84,7 @@ class WorkflowAutomationService(
         self.workflow_schedules = workflow_schedules
         self.workflow_versions = workflow_versions
         self.workflows = workflows
+        self.organization_settings = organization_settings
         self._bootstrapped = is_bootstrapped
         self._bootstrap = bootstrap
         self._authorize = authorize

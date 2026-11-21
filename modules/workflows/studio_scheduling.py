@@ -1,5 +1,7 @@
 """Resume active canvas runs and dispatch scheduled workflow occurrences."""
 
+from datetime import UTC
+
 from contracts.v1 import (
     WorkflowStatus,
 )
@@ -51,7 +53,9 @@ class WorkflowStudioSchedulingMixin(WorkflowStudioContext):
                         )
                     current.last_run_at, current.next_run_at = (
                         utc_now(),
-                        self.next_dates(current.calendar)[0],
+                        self.next_dates(current.calendar, timezone=current.timezone)[
+                            0
+                        ].astimezone(UTC),
                     )
                     current.updated_at = utc_now()
                     current.last_error = None

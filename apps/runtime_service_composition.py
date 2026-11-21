@@ -81,6 +81,7 @@ def configure_capability_services(
         artifacts=dependencies.artifacts,
         unit_of_work=dependencies._unit_of_work,
         lock=dependencies._advisory_transaction_lock,
+        organization_settings=dependencies.organization_settings,
     )
     services.workflow_automation_service.studio = services.workflow_studio_service
     return services

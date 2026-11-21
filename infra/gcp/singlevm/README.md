@@ -217,6 +217,21 @@ disallowed transition, wrong confirmation). Repeating an action is a no-op.
   removed. Backups taken before deletion still contain the data; restoring one
   needs the phase 6 retention procedure.
 * Time-limited support access is not provided: there is no operator HTTP surface.
+## Schedule timezone backfill
+
+Records without a `timezone` already behave as `Asia/Kolkata`, so this step is
+optional and only makes that explicit in storage. It uses the owner connection
+like the other operator scripts and prints counts only:
+
+```
+docker compose exec -T product-api python - < backfill_schedule_timezones.py          # dry run
+docker compose exec -T product-api python - --apply < backfill_schedule_timezones.py
+```
+
+The default is a dry run. `--apply` writes `timezone='Asia/Kolkata'` into
+interval schedules and calendar settings that have none; records that already
+name a zone are never touched, `updated_at` and `next_run_at` are preserved and
+re-running changes nothing. The two flags are mutually exclusive.
 
 ## Migration and explicit reset record
 

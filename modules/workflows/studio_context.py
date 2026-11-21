@@ -3,9 +3,8 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from threading import RLock
-from zoneinfo import ZoneInfo
 
 from pydantic import JsonValue
 
@@ -24,6 +23,11 @@ from contracts.v1.workflow_studio import (
 )
 from modules.tasks.service import TaskService
 from modules.workflows.definition_service import WorkflowDefinitionService
+from modules.workflows.schedule_time import (
+    next_occurrences,
+    organization_default_timezone,
+    resolve_zone,
+)
 from shared.clock import new_id, utc_now
 from shared.request_context import (
     effective_org_id,
@@ -45,6 +49,7 @@ class WorkflowStudioContext(ABC):
         unit_of_work: Callable[[], AbstractContextManager[None]],
         lock: Callable[[str], None] | None = None,
         artifacts: Repository[Artifact] | None = None,
+        organization_settings: object | None = None,
     ) -> None:
         """Bind persistence, authorization, task execution and transaction ports."""
         self.definitions, self.tasks = definitions, tasks
@@ -52,6 +57,7 @@ class WorkflowStudioContext(ABC):
         self.unit_of_work, self.lock = unit_of_work, lock
         self.local_lock = RLock()
         self.artifacts = artifacts
+        self.organization_settings = organization_settings
 
     def authorize(self, permission: Permission) -> None:
         """Enforce workspace permissions at every public operation."""
@@ -69,27 +75,24 @@ class WorkflowStudioContext(ABC):
 
     @staticmethod
     def next_dates(
-        calendar: Calendar | dict[str, JsonValue], now: datetime | None = None
+        calendar: Calendar | dict[str, JsonValue],
+        now: datetime | None = None,
+        timezone: str | None = None,
     ) -> list[datetime]:
-        """Compute the next three real occurrences in Asia/Kolkata."""
+        """Next three occurrences in the zone (None = legacy Asia/Kolkata).
+
+        Returned in the zone's local offset; persist them as UTC instants.
+        """
         cal = Calendar.model_validate(calendar)
-        if any(day < 0 or day > 6 for day in cal.days):
-            raise ValueError("Weekdays must be between Monday and Sunday")
-        now = (now or utc_now()).astimezone(ZoneInfo("Asia/Kolkata"))
-        if cal.freq == "hourly":
-            first = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-            return [first + timedelta(hours=i) for i in range(3)]
-        hour, minute = map(int, cal.time.split(":"))
-        dates = []
-        for offset in range(22):
-            candidate = (now + timedelta(days=offset)).replace(
-                hour=hour, minute=minute, second=0, microsecond=0
-            )
-            if candidate > now and candidate.weekday() in cal.days:
-                dates.append(candidate)
-            if len(dates) == 3:
-                break
-        return dates
+        zone = resolve_zone(timezone)
+        found = next_occurrences(cal, now or utc_now(), timezone, 3)
+        return [instant.astimezone(zone) for instant in found]
+
+    def default_timezone(self) -> str:
+        """The organization's zone for newly created calendars."""
+        return organization_default_timezone(
+            self.organization_settings, effective_org_id()
+        )
 
     def get_settings(self, workflow_id: str) -> CanvasSettings:
         """Read start controls only inside the active workspace."""
@@ -109,6 +112,7 @@ class WorkflowStudioContext(ABC):
                 org_id=workflow.org_id,
                 workspace_id=workflow.workspace_id,
                 principal_id=effective_principal_id("local-developer"),
+                timezone=self.default_timezone(),
                 manual=plan.manual if plan else True,
                 hook=plan.hook if plan else False,
                 sched=plan.sched if plan else False,
