@@ -10,7 +10,7 @@
     "catalog_ownership.py": "557b3d8f132e546a74322e166dbde535858e89809ab7ce558d94e63e673872dc",
     "client.py": "2d06bf8d7afa340722ab8f98c5c11ac9bbcf203d0676f2b1315a25ae7469a3e1",
     "compose.yml": "5120b8e74c70a9e75c35d2eacf564128085a9c48e47c9b11a6867b6e82362c83",
-    "controls.spec.cjs": "0ed0cffb00acbe7f189bf49a7fceaca10d3cc759169269fc74c1f7888f337a24",
+    "controls.spec.cjs": "ddcfe7e5ced30c58ceb53bc50275ec8f1494de7e241cb486611830df2d3fd841",
     "diagnostics.py": "cc2cbdd47165197fbc28cc35f3cb66960ce2bfe24102b3dc9e94f71e2bb0ef87",
     "fake_google.py": "2fe9d738a3b364e6b3aa3e2d2f0bdd2eb5e52d7b4422e90527a6cd651492decf",
     "fakes.py": "172f29f83ddf4b3c7a9895756be4d9e82dfd72deb35a5ea7a98c4d40ad7f564f",

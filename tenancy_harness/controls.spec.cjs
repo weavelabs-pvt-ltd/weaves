@@ -342,6 +342,8 @@ test('T4-I02 organization export, operator suspend/resume and owner-requested de
     'deleted_cannot_resume', 'worker_keeps_running', 'deleted_organization_counts_toward_cap']) {
     expect(control[key], key).toBe(true);
   }
+});
+
 test('T4-I03 schedule timezones are explicit, UTC on the wire and fire once through the real stack', async ({request}) => {
   test.setTimeout(240000);
   await require('./schedule_timezones.cjs').verify({request}, fixture);
