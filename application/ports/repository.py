@@ -119,6 +119,26 @@ class Repository(Protocol[TContract]):
         """Find the first record matching a validated contract field."""
         ...
 
+    def list_by_field(
+        self, field: str, value: str, *, casefold: bool = False
+    ) -> tuple[TContract, ...]:
+        """Return every record whose field equals the value, ordered by identifier.
+
+        With ``casefold`` the comparison ignores letter case, for normalized
+        lookups such as email addresses.
+        """
+        ...
+
+    def list_before(
+        self, field: str, before: datetime, *, limit: int
+    ) -> tuple[TContract, ...]:
+        """Return up to ``limit`` records whose timestamp field is before a cutoff.
+
+        Records with no value for the field are skipped. Order is the field
+        value, then identifier, so repeated bounded calls make progress.
+        """
+        ...
+
     def claim_next_queued(
         self,
         worker_id: str,

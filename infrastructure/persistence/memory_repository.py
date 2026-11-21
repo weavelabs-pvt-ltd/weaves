@@ -8,6 +8,7 @@ from typing import Any, Generic, cast
 
 from application.ports.repository import TContract
 from contracts.v1.base import OpaqueId
+from infrastructure.persistence.memory_field_queries import InMemoryFieldQueries
 from shared.errors import OwnershipConflict
 
 
@@ -24,7 +25,7 @@ def _same_owner(current: object, replacement: object) -> bool:
     )
 
 
-class InMemoryRepository(Generic[TContract]):
+class InMemoryRepository(InMemoryFieldQueries[TContract], Generic[TContract]):
     """A local repository keyed by a contract's explicit identifier field."""
 
     def __init__(self, id_field: str, *, tenant_keyed: bool = False) -> None:

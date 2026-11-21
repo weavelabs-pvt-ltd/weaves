@@ -7,10 +7,14 @@ needs a deliberate, audited merge outside this flow.
 
 from __future__ import annotations
 
+import logging
+
 from contracts.v1 import Account, AccountIdentity, AccountIdentityKind
 from modules.auth.account_sign_in import CODE_MINUTES, AccountSignInService
 from shared.clock import new_id, utc_now
 from shared.errors import EmailDeliveryUnavailable
+
+logger = logging.getLogger("product.account")
 
 
 class EmailAlreadyAttached(Exception):
@@ -83,7 +87,13 @@ class AccountEmailLinking:
             updated_at=now,
         )
         try:
-            return service.identities.create(identity)
+            created = service.identities.create(identity)
+            logger.info(
+                "account identity attached account_id=%s identity_id=%s kind=email",
+                account.id,
+                created.id,
+            )
+            return created
         except ValueError:  # lost a race on the verified-identity index
             winner = service._verified_identity(email)
             if winner is not None and winner.account_id == account.id:
@@ -101,9 +111,15 @@ class AccountEmailLinking:
             raise PermissionError("identity not found")
         verified = [
             item
-            for item in service.identities.list()
-            if item.account_id == account.id and item.verified_at is not None
+            for item in service.identities.list_by_field("account_id", account.id)
+            if item.verified_at is not None
         ]
         if identity.verified_at is not None and len(verified) <= 1:
             raise LastVerifiedIdentity
         service.identities.delete(identity.id)
+        logger.info(
+            "account identity removed account_id=%s identity_id=%s kind=%s",
+            account.id,
+            identity.id,
+            identity.kind.value,
+        )

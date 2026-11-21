@@ -49,6 +49,8 @@ def stack(isolated_postgres_url):
         users=repos.get("users"),
         principals=repos.get("principals"),
         organizations=repos.get("organizations"),
+        workspaces=repos.get("workspaces"),
+        audit_events=repos.get("audit_events"),
         email_sender=mail,
         email_login_hmac_key=HMAC_KEY,
         login_rate_limiter=InMemoryLoginRateLimiter(limit=50),

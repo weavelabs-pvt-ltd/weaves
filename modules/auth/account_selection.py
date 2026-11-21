@@ -46,8 +46,8 @@ class AccountOrganizationSelector:
         try:
             membership = next(
                 item
-                for item in self._memberships.list_scoped(organization_id)
-                if item.account_id == account.id
+                for item in self._memberships.list_by_field("account_id", account.id)
+                if item.org_id == organization_id
             )
             organization = self._organizations.get(organization_id)
             user = self._users.get_scoped(membership.user_id, organization_id)

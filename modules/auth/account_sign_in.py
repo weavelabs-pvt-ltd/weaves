@@ -19,11 +19,14 @@ from contracts.v1 import (
     AccountLoginChallenge,
     AccountSession,
     AccountStatus,
+    AuditEvent,
     Organization,
     OrganizationMembership,
     Principal,
     User,
+    Workspace,
 )
+from modules.auth.account_cleanup import PURGE_BATCH, AccountCleanup
 from modules.auth.account_linking import MembershipLinker
 from modules.auth.account_selection import AccountOrganizationSelector
 from modules.auth.account_sessions import AccountSessions, Channel
@@ -50,6 +53,8 @@ class AccountSignInService:
         users: Repository[User],
         principals: Repository[Principal],
         organizations: Repository[Organization],
+        workspaces: Repository[Workspace],
+        audit_events: Repository[AuditEvent],
         email_sender: EmailSender,
         email_login_hmac_key: str,
         login_rate_limiter: LoginRateLimiter,
@@ -77,7 +82,15 @@ class AccountSignInService:
             principals=principals,
             organizations=organizations,
             memberships=memberships,
+            workspaces=workspaces,
+            audit_events=audit_events,
+            unit_of_work=unit_of_work,
         )
+        self._cleanup = AccountCleanup(challenges, sessions)
+
+    def purge_expired(self, limit: int = PURGE_BATCH) -> int:
+        """Delete at most ``limit`` finished challenges and sessions."""
+        return self._cleanup.purge(limit)
 
     def start_email_login(self, email: str, client_address: str | None = None) -> str:
         """Send a code to any address and return an opaque challenge id.
@@ -240,7 +253,11 @@ class AccountSignInService:
         if candidate is None:
             return None
         return next(
-            (i for i in self.identities.list() if self._is_verified_email(i, email)),
+            (
+                i
+                for i in self.identities.list_by_field("subject", email)
+                if self._is_verified_email(i, email)
+            ),
             None,
         )
 

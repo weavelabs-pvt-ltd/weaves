@@ -32,9 +32,8 @@ def list_memberships(
 ) -> list[dict[str, Any]]:
     """List only this account's active or suspended memberships."""
     rows: list[dict[str, Any]] = []
-    for membership in sorted(memberships.list(), key=lambda m: m.created_at):
-        if membership.account_id != account.id:
-            continue
+    owned = memberships.list_by_field("account_id", account.id)
+    for membership in sorted(owned, key=lambda m: m.created_at):
         if membership.status not in _LISTED_STATUSES:
             continue
         try:
@@ -68,8 +67,8 @@ def list_identities(
             ),
             "verified_at": identity.verified_at,
         }
-        for identity in identities.list()
-        if identity.account_id == account.id and identity.verified_at is not None
+        for identity in identities.list_by_field("account_id", account.id)
+        if identity.verified_at is not None
     ]
 
 
