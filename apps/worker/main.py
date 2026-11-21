@@ -38,6 +38,19 @@ def _recover_worker_state(services: WorkerServices) -> None:
         )
 
 
+def _purge_account_rows(services: WorkerServices) -> None:
+    """Drop a bounded batch of finished account rows; never disturb recovery."""
+    if services.purge_accounts is None:
+        return
+    try:
+        purged = services.purge_accounts()
+    except Exception:
+        logger.exception("account purge failed")
+        return
+    if purged:
+        logger.info("purged finished account rows count=%d", purged)
+
+
 def main() -> None:
     interval = float(os.environ.get("WEAVES_WORKER_POLL_SECONDS", "1"))
     if not 0.05 <= interval <= 60:
@@ -61,6 +74,7 @@ def main() -> None:
             try:
                 if time.monotonic() - last_recovery >= 30:
                     _recover_worker_state(services)
+                    _purge_account_rows(services)
                     last_recovery = time.monotonic()
                 if time.monotonic() - last_schedule_poll >= schedule_interval:
                     scheduled_jobs = (

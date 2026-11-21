@@ -49,6 +49,8 @@ def _configure_account_sign_in_service(
         users=dependencies.users,
         principals=dependencies.principals,
         organizations=dependencies.organizations,
+        workspaces=dependencies.workspaces,
+        audit_events=dependencies.audit_events,
         email_sender=dependencies.email_sender,
         email_login_hmac_key=dependencies.email_login_hmac_key,
         login_rate_limiter=dependencies.login_rate_limiter,

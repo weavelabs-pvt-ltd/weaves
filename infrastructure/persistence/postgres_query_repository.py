@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from contracts.v1.base import OpaqueId
@@ -81,6 +81,50 @@ class PostgresQueryRepositoryMixin[TContract]:
                 (self._collection, value),
             ).fetchone()
         return self._deserialize(row[0]) if row is not None else None
+
+    @staticmethod
+    def _checked_field(field: str) -> str:
+        """Reject anything but a plain contract field name before it is inlined."""
+        if not field.isascii() or not field.replace("_", "a").isalnum():
+            raise ValueError("field must be a valid contract field name")
+        return field
+
+    def list_by_field(
+        self, field: str, value: str, *, casefold: bool = False
+    ) -> tuple[TContract, ...]:
+        """Return all records whose payload field equals the value."""
+        field = self._checked_field(field)
+        if casefold:
+            where = f"lower(payload ->> '{field}') = lower(%s)"
+        else:
+            where = f"payload ->> '{field}' = %s"
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                f"""SELECT payload FROM product_records
+                        WHERE collection = %s AND {where}
+                        ORDER BY record_id""",
+                (self._collection, value),
+            ).fetchall()
+        return tuple(self._deserialize(row[0]) for row in rows)
+
+    def list_before(
+        self, field: str, before: datetime, *, limit: int
+    ) -> tuple[TContract, ...]:
+        """Return a bounded page of records whose timestamp field is past due."""
+        field = self._checked_field(field)
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        if before.tzinfo is None or before.utcoffset() is None:
+            raise ValueError("before must include a timezone")
+        cutoff = before.astimezone(UTC).isoformat().replace("+00:00", "Z")
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                f"""SELECT payload FROM product_records
+                        WHERE collection = %s AND payload ->> '{field}' < %s
+                        ORDER BY payload ->> '{field}', record_id LIMIT %s""",
+                (self._collection, cutoff, limit),
+            ).fetchall()
+        return tuple(self._deserialize(row[0]) for row in rows)
 
     def list_task_page(
         self,
