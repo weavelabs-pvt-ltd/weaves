@@ -9,6 +9,7 @@ from contracts.v1.base import (
     StrEnum,
 )
 from contracts.v1.executions import ErrorSummary
+from contracts.v1.timezones import ScheduleTimezone
 
 
 class WorkflowScheduleStatus(StrEnum):
@@ -26,6 +27,10 @@ class WorkflowSchedule(MutableWorkspaceScopedContract):
     name: DisplayName
     task_instructions: str = Field(min_length=1, max_length=2000)
     interval_seconds: int = Field(ge=60, le=31_536_000)
+    # None marks a legacy record, which reads as Asia/Kolkata. Interval math is
+    # elapsed-time based and timezone independent; the zone is display/calendar
+    # metadata for this record.
+    timezone: ScheduleTimezone | None = None
     status: WorkflowScheduleStatus
     next_run_at: AwareDatetime
     last_run_at: AwareDatetime | None = None

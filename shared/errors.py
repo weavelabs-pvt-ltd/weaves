@@ -60,3 +60,7 @@ class LoginThrottled(RuntimeError):
     def __init__(self, retry_after_seconds: int) -> None:
         super().__init__("login attempts are temporarily limited")
         self.retry_after_seconds = retry_after_seconds
+
+
+class StaleRevision(Exception):
+    """An edit named a revision that no longer matches the stored record."""

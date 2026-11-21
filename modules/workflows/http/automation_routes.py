@@ -11,6 +11,7 @@ from pydantic import BaseModel, JsonValue, TypeAdapter, ValidationError
 
 from application import IdempotencyConflict
 from contracts.v1 import (
+    WorkflowSchedule,
     WorkflowScheduleStatus,
 )
 from modules.workflows.automation_service import WorkflowAutomationService
@@ -20,6 +21,8 @@ from modules.workflows.http.schemas import (
     WorkflowTriggerCreateRequest,
     WorkflowTriggerPatchRequest,
 )
+from modules.workflows.schedule_time import effective_timezone
+from shared.errors import StaleRevision
 
 WorkflowDump = Callable[[BaseModel], dict[str, Any]]
 
@@ -127,6 +130,13 @@ def _register_create_workflow_trigger(
         }
 
 
+def _schedule_view(dump: WorkflowDump, schedule: WorkflowSchedule) -> dict[str, Any]:
+    """Schedule read model: legacy records report their effective zone."""
+    view = dump(schedule)
+    view["timezone"] = effective_timezone(schedule.timezone)
+    return view
+
+
 def _register_list_workflow_schedules(
     app: FastAPI,
     automation_service: WorkflowAutomationService,
@@ -140,7 +150,8 @@ def _register_list_workflow_schedules(
     def list_workflow_schedules() -> list[dict[str, Any]]:
         try:
             return [
-                _dump(item) for item in automation_service.list_workflow_schedules()
+                _schedule_view(_dump, item)
+                for item in automation_service.list_workflow_schedules()
             ]
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -170,6 +181,7 @@ def _register_create_workflow_schedule(
                 name=request.name,
                 task_instructions=request.task_instructions,
                 interval_seconds=request.interval_seconds,
+                timezone=request.timezone,
             )
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -177,7 +189,7 @@ def _register_create_workflow_schedule(
             raise HTTPException(status_code=404, detail="Workflow not found") from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-        return _dump(schedule)
+        return _schedule_view(_dump, schedule)
 
 
 def _register_update_workflow_schedule(
@@ -201,6 +213,7 @@ def _register_update_workflow_schedule(
                     patch.name,
                     patch.task_instructions,
                     patch.interval_seconds,
+                    patch.timezone,
                 )
             ):
                 raise ValueError("No schedule changes supplied")
@@ -210,7 +223,11 @@ def _register_update_workflow_schedule(
                 name=patch.name,
                 task_instructions=patch.task_instructions,
                 interval_seconds=patch.interval_seconds,
+                timezone=patch.timezone,
+                expected_updated_at=patch.expected_updated_at,
             )
+        except StaleRevision as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         except KeyError as exc:
@@ -219,7 +236,7 @@ def _register_update_workflow_schedule(
             ) from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-        return _dump(schedule)
+        return _schedule_view(_dump, schedule)
 
 
 def _register_update_workflow_trigger(

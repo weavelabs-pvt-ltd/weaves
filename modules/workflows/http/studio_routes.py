@@ -4,12 +4,15 @@ from collections.abc import Callable
 from typing import Literal
 
 from fastapi import FastAPI, Header, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, JsonValue
 
 from contracts.v1 import Permission
+from contracts.v1.timezones import ScheduleTimezone
 from contracts.v1.workflow_studio import Calendar, CanvasPlan, CanvasRun, CanvasSettings
 from modules.workflows.automation_service import WorkflowAutomationService
+from modules.workflows.schedule_time import effective_timezone
 from modules.workflows.studio_service import WorkflowStudioService
+from shared.errors import StaleRevision
 
 
 class PublishCanvas(BaseModel):
@@ -20,6 +23,7 @@ class PublishCanvas(BaseModel):
     name: str = Field(min_length=2, max_length=160)
     description: str = Field(default="", max_length=2000)
     plan: CanvasPlan
+    timezone: ScheduleTimezone | None = None
 
 
 class LaunchCanvas(BaseModel):
@@ -40,6 +44,15 @@ class StartControls(BaseModel):
     sched: bool | None = None
     event: str | None = Field(default=None, min_length=1, max_length=160)
     calendar: Calendar | None = None
+    timezone: ScheduleTimezone | None = None
+    expected_updated_at: AwareDatetime | None = None
+
+
+def _settings_view(item: CanvasSettings) -> dict[str, JsonValue]:
+    """Settings read model: legacy records report their effective zone."""
+    view = item.model_dump(mode="json")
+    view["timezone"] = effective_timezone(item.timezone)
+    return view
 
 
 def register_studio_routes(
@@ -51,7 +64,12 @@ def register_studio_routes(
     @app.post("/api/v0/workflow-studio/publish")
     def publish(body: PublishCanvas) -> dict[str, dict[str, JsonValue]]:
         return call(
-            studio.publish, body.name, body.description, body.plan, body.workflow_id
+            studio.publish,
+            body.name,
+            body.description,
+            body.plan,
+            body.workflow_id,
+            body.timezone,
         )
 
     @app.get("/api/v0/workflows/{workflow_id}/runs")
@@ -90,16 +108,19 @@ def _register_start_routes(app: FastAPI, studio: WorkflowStudioService) -> None:
     @app.get("/api/v0/workflows/{workflow_id}/studio/settings")
     def settings(workflow_id: str) -> dict[str, JsonValue]:
         item = call(studio.get_settings, workflow_id)
-        result = item.model_dump(mode="json")
-        result["next_runs"] = [d.isoformat() for d in studio.next_dates(item.calendar)]
+        result = _settings_view(item)
+        result["next_runs"] = [
+            d.isoformat()
+            for d in studio.next_dates(item.calendar, timezone=item.timezone)
+        ]
         return result
 
     @app.patch("/api/v0/workflows/{workflow_id}/studio/settings")
-    def save_settings(workflow_id: str, body: StartControls) -> CanvasSettings:
+    def save_settings(workflow_id: str, body: StartControls) -> dict[str, JsonValue]:
         changes = body.model_dump(exclude_unset=True, exclude_none=True)
         if not changes:
             raise HTTPException(422, "No changes supplied")
-        return call(studio.save_settings, workflow_id, changes)
+        return _settings_view(call(studio.save_settings, workflow_id, changes))
 
     @app.post("/api/v0/workflows/{workflow_id}/studio/test-webhook")
     def test_webhook(workflow_id: str) -> dict[str, bool]:
@@ -112,6 +133,8 @@ def call[**P, T](fn: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
     """Translate domain failures at the HTTP boundary."""
     try:
         return fn(*args, **kwargs)
+    except StaleRevision as exc:
+        raise HTTPException(409, str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(404, "Workflow or run not found") from exc
     except PermissionError as exc:

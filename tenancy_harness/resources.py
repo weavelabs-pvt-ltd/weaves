@@ -38,7 +38,7 @@ def member(tenant, role, email=None):
     return person
 
 
-def tenant(label):
+def tenant(label, timezone=None):
     """Create a real org through an owner account, with no local defaults seeded."""
     marker = "TENANCY_" + label.upper() + "_SENTINEL"
     email = f"{label}.admin@tenancy.test"
@@ -53,7 +53,8 @@ def tenant(label):
                 **source_for(email),
             }
         },
-        {"name": marker, "display_name": marker},
+        {"name": marker, "display_name": marker}
+        | ({"timezone": timezone} if timezone else {}),
     )
     org_id, workspace_id = created["organization"]["id"], created["workspace"]["id"]
     admin = actor(
