@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tenancy_harness.report import summarize, verify_bundle
+from tenancy_harness.report import failure_locations, summarize, verify_bundle
 from tenancy_harness.run_support import Compose, validate_pair
 from tenancy_harness.seed import require_disposable_database
 
@@ -41,6 +41,28 @@ def test_inventory_distinguishes_known_defects_from_saas_readiness():
     assert not report["saas_ready"]
     assert set(report["known_defects"]) == set(PAIR["known_defects"])
     assert "Bearer" not in json.dumps(report)
+
+
+def test_failure_diagnostics_never_publish_error_text_or_private_paths():
+    errors = [
+        {
+            "status": "failed",
+            "errors": [
+                {
+                    "message": "Bearer private-token with fixture credentials",
+                    "location": {
+                        "file": "/private/fixture/controls.spec.cjs",
+                        "line": 42,
+                        "column": 7,
+                    },
+                }
+            ],
+        }
+    ]
+    assert failure_locations(errors) == [
+        {"file": "controls.spec.cjs", "line": 42, "column": 7}
+    ]
+    assert "private" not in json.dumps(failure_locations(errors))
 
 
 @pytest.mark.parametrize("status", ["skipped", "failed", "timedOut", "interrupted"])

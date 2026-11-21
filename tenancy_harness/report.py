@@ -37,11 +37,39 @@ def specs(suites):
     return result
 
 
+def failure_locations(results):
+    """Keep only fixed source names and numeric positions, never error text/data."""
+    allowed = {
+        "controls.spec.cjs",
+        "browser_account.cjs",
+        "organization_administration.cjs",
+    }
+    failures = []
+    for result in results:
+        if result.get("status") == "passed":
+            continue
+        for error in result.get("errors", []) or [result.get("error", {})]:
+            location = error.get("location", {})
+            filename = (
+                str(location.get("file", "")).replace("\\", "/").rsplit("/", 1)[-1]
+            )
+            line, column = location.get("line", 0), location.get("column", 0)
+            failures.append(
+                {
+                    "file": filename if filename in allowed else "browser assertion",
+                    "line": line if isinstance(line, int) else 0,
+                    "column": column if isinstance(column, int) else 0,
+                }
+            )
+    return failures
+
+
 def summarize(raw, pair, sources, bundle_digest, fixture):
     """Require every declared case exactly once and report known defects honestly."""
     items = specs(raw.get("suites", []))
     required = set(pair["required_controls"]) | set(pair["known_defects"])
     observed = {}
+    locations = {}
     for item in items:
         match = re.match(r"(T\d+-[ID]\d{2})\b", item["title"])
         if not match or match[1] in observed:
@@ -50,6 +78,8 @@ def summarize(raw, pair, sources, bundle_digest, fixture):
         observed[match[1]] = bool(results) and all(
             r["status"] == "passed" for r in results
         )
+        if not observed[match[1]]:
+            locations[match[1]] = failure_locations(results)
     complete = (
         set(observed) == required and all(observed.values()) and not raw.get("errors")
     )
@@ -67,6 +97,7 @@ def summarize(raw, pair, sources, bundle_digest, fixture):
         "bundle_sha256": bundle_digest,
         "required_cases": sorted(required),
         "case_results": observed,
+        "failure_locations": locations,
         "known_defects": known,
         "resolved_defects": pair.get("resolved_defects", {}),
         "storage": "postgres",

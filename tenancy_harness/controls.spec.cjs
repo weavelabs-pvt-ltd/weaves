@@ -296,7 +296,11 @@ test('T1-I10 real browser signs in with Google, chooses and switches organizatio
     await expect(page.locator(browserAccount.SELECTORS.chooseOrganization(org))).toBeVisible();
   }
   await browserAccount.chooseOrganization(page, a.org_id);
-  await page.evaluate(() => { location.hash = 'agents'; });
+  // Organization data can arrive while the designed entry transition is still running.
+  // Navigate through the visible UI, as a person does, after that transition finishes.
+  await expect(page.locator(browserAccount.SELECTORS.profileMenuToggle)).toBeVisible({timeout:25000});
+  await expect(page.locator('.weaves-transition')).toBeHidden({timeout:15000});
+  await page.locator('nav a[data-page="agents"]').click();
   await expect(page.getByText(a.agent.name, { exact: true }).first()).toBeVisible({ timeout: 25000 });
   await expect(page.getByText(b.agent.name, { exact: true })).toHaveCount(0);
   expect(tenantCalls.length).toBeGreaterThan(0);
@@ -305,7 +309,7 @@ test('T1-I10 real browser signs in with Google, chooses and switches organizatio
   const beforeSwitch = tenantCalls.length;
   await browserAccount.switchOrganization(page, b.org_id);
   await expect.poll(() => browserAccount.currentOrganizationId(page), { timeout: 25000 }).toBe(b.org_id);
-  await page.evaluate(() => { location.hash = 'agents'; });
+  await page.locator('nav a[data-page="agents"]').click();
   await expect(page.getByText(b.agent.name, { exact: true }).first()).toBeVisible({ timeout: 25000 });
   await expect(page.getByText(a.agent.name, { exact: true })).toHaveCount(0);
   const html = await browserAccount.appStateText(page);
