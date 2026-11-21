@@ -221,12 +221,20 @@ def lifecycle_control():
     return result
 
 
+def lifecycle_ui_fixture():
+    """Prepare the T4-I05 browser fixture (kept in its own module)."""
+    from tenancy_harness.lifecycle_ui_fixture import lifecycle_ui_fixture as build
+
+    return build()
+
+
 def main():
     """Record the control in the private fixture file the browser suite reads."""
     require_disposable_database()
     path = Path(os.environ["TENANCY_FIXTURE_FILE"])
     fixtures = json.loads(path.read_text())
     fixtures["organization_lifecycle"] = lifecycle_control()
+    fixtures["lifecycle_ui"] = lifecycle_ui_fixture()
     path.write_text(json.dumps(fixtures))
     path.chmod(0o600)
     print("Organization lifecycle control recorded.")
