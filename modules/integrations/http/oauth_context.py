@@ -6,7 +6,7 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal, Protocol, cast
+from typing import Any, Literal, Protocol
 
 import httpx
 from fastapi import HTTPException
@@ -55,15 +55,6 @@ def _state_string(record: OAuthAuthorizationState, key: str) -> str:
             status_code=400, detail="OAuth state configuration is invalid"
         )
     return value
-
-
-def _state_strings(record: OAuthAuthorizationState, key: str) -> tuple[str, ...]:
-    value = record.configuration.get(key)
-    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
-        raise HTTPException(
-            status_code=400, detail="OAuth state configuration is invalid"
-        )
-    return tuple(cast(list[str], value))
 
 
 def _state_bool(record: OAuthAuthorizationState, key: str) -> bool:

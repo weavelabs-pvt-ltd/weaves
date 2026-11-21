@@ -18,8 +18,8 @@ APP_ROLE_GRANTS = """DO $$
                END $$"""
 
 
-# Re-applied on every start (CREATE OR REPLACE is idempotent), so policy changes
-# ship without a schema version and an older release can still roll back.
+# Re-applied on every start (CREATE OR REPLACE is idempotent), so a policy
+# change ships without a schema version. Keep every statement idempotent.
 POLICY_FUNCTIONS: tuple[str, ...] = (
     """CREATE OR REPLACE FUNCTION weaves_system_allows(coll text)
            RETURNS boolean LANGUAGE sql STABLE AS $$
@@ -104,8 +104,8 @@ ROW_SECURITY_MIGRATION: tuple[int, tuple[str, ...]] = (
 )
 
 
-# Index only (an older release can still roll back): the worker finds pending
-# deletions and the account views read each organization's lifecycle by id.
+# Index only: the worker finds pending deletions and the account views read
+# each organization's lifecycle by id.
 LIFECYCLE_SCHEMA: tuple[str, ...] = (
     """CREATE INDEX IF NOT EXISTS organization_lifecycle_state_idx
            ON product_records ((payload->>'state'), record_id)

@@ -209,6 +209,14 @@ From the repository root, use `pytest`, `ruff check .`, and `mypy` for the quali
 harness. Product contracts and JSON schemas are under
 `contracts/v1` and `schemas/product/v1`.
 
+Schema changes are versioned migrations in `infrastructure/database/store.py`
+(destructive clean-ups in their own module, for example `legacy_purge.py`).
+Migrations are append-only and forward-only: never edit a released one, append
+the next version, and add any new index to the justification list in
+`tests/integration/test_legacy_purge.py`. Every collection stored in
+`product_records` must be in `REPOSITORY_SPECS`; a removed one is listed in
+`PURGED_COLLECTIONS` and deleted by a migration.
+
 To run a repeatable agent smoke/regression suite against the local API, see
 [`docs/product-evaluations-v0.md`](docs/product-evaluations-v0.md). The harness
 checks output summaries, required citations, tool-call counts, and records

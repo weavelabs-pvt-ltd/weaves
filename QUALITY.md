@@ -63,6 +63,14 @@ These results describe the current local source. They do not claim that every
 future bug or possible refactoring has been eliminated, or that the existing
 compatibility exceptions in the Ruff configuration have all been retired.
 
+Legacy schema purge: migration 22 removes retired sign-in rows, indexes and the
+SSO trigger. The reader-rollback compatibility set is gone, migration version
+checks derive from the migration list, and tests pin the purge, the index
+inventory and the collection registry so schema drift fails the suite. A
+`vulture` pass at 80% confidence found only false positives and one unused
+route parameter; lower-confidence findings were reviewed and the verified dead
+items removed.
+
 The production bootstrap change subsequently passed 288 tests with PostgreSQL
 enabled, including the legacy owner-role upgrade and three clean-bootstrap
 checks. Strict mypy still passes all 273 checked source files. The actual VM

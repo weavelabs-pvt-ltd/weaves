@@ -95,10 +95,4 @@ PURGE_ORDER: tuple[str, ...] = (
     "users",
     "workspaces",
     "organization_settings",
-    "user_sessions",
-    "user_password_credentials",
-    "email_login_challenges",
-    "sso_connections",
-    "sso_external_identities",
-    "user_invitations",
 )

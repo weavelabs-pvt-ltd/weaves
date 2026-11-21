@@ -20,7 +20,9 @@ health check.
 - Startup applies ordered PostgreSQL schema migrations under a transaction-level
   advisory lock. Each migration is recorded only after its DDL and backfill
   succeed; already-applied migrations are skipped, and a database created by a
-  newer backend version is rejected. Existing agent/model/connection
+  newer backend version is rejected. Migrations are append-only and
+  forward-only; migration 22 removes the rows, indexes and trigger of retired
+  sign-in concepts. Existing agent/model/connection
   configuration survives restarts.
 - Model provider keys and connector tokens are kept in a separate
   `product_secrets` table as Fernet

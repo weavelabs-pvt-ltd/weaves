@@ -9,7 +9,6 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, JsonValue
 from contracts.v1 import Permission
 from contracts.v1.timezones import ScheduleTimezone
 from contracts.v1.workflow_studio import Calendar, CanvasPlan, CanvasRun, CanvasSettings
-from modules.workflows.automation_service import WorkflowAutomationService
 from modules.workflows.schedule_time import effective_timezone
 from modules.workflows.studio_service import WorkflowStudioService
 from shared.errors import StaleRevision
@@ -55,9 +54,7 @@ def _settings_view(item: CanvasSettings) -> dict[str, JsonValue]:
     return view
 
 
-def register_studio_routes(
-    app: FastAPI, studio: WorkflowStudioService, automation: WorkflowAutomationService
-) -> None:
+def register_studio_routes(app: FastAPI, studio: WorkflowStudioService) -> None:
     """Keep transport error mapping separate from workflow use cases."""
     _register_start_routes(app, studio)
 
