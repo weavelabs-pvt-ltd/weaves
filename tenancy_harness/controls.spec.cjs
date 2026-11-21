@@ -348,3 +348,8 @@ test('T4-I03 schedule timezones are explicit, UTC on the wire and fire once thro
   test.setTimeout(240000);
   await require('./schedule_timezones.cjs').verify({request}, fixture);
 });
+
+test('T4-I04 the schedule editor shows, edits and validates time zones through the real stack', async ({browser, request}) => {
+  test.setTimeout(240000);
+  await require('./schedule_timezone_ui.cjs').verify({browser, request}, fixture);
+});
