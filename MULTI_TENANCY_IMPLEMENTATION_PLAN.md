@@ -219,6 +219,10 @@ real-stack control `T4-I03`.
 
 The required real-stack suite now drives the actual schedule editor in Chromium: interval schedules show their own zone (a legacy record reads as Asia/Kolkata), a zone-only edit sends the loaded revision and leaves the pending UTC instant unchanged, a new schedule can name its own zone, and an unknown zone is refused by the server, shown inline and creates nothing. The harness pins the frontend change under review and is re-pinned to the merged frontend commit once it lands.
 
+### Phase 4 progress: lifecycle screens control (T4-I05)
+
+The required real-stack suite drives the lifecycle screens in Chromium: one signed-in person with three organizations sees a chooser where the operator-suspended one is shown, explained and not enterable; the owner exports an organization (a JSON download named for it), requests deletion by typing the exact name, and every route except the recovery ones is refused while it is pending; cancelling from the recovery screen returns the organization to service and the other organization is untouched. The suspension is performed by the real operator script. The harness pins the lifecycle frontend change under review and is re-pinned to the merged frontend commit afterwards.
+
 ## Phase overview and dependencies
 
 | Phase | Deliverable | Depends on | Release gate |

@@ -353,3 +353,8 @@ test('T4-I04 the schedule editor shows, edits and validates time zones through t
   test.setTimeout(240000);
   await require('./schedule_timezone_ui.cjs').verify({browser, request}, fixture);
 });
+
+test('T4-I05 the lifecycle screens export, request deletion and cancel through the real stack', async ({browser}) => {
+  test.setTimeout(240000);
+  await require('./lifecycle_ui.cjs').verify({browser}, fixture);
+});
