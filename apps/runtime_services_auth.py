@@ -86,6 +86,7 @@ def _configure_user_administration_service(
 ) -> None:
     """Compose workspace user management with identity and storage ports."""
     services.user_administration_service = UserAdministrationService(
+        administration_guard=services.organization_administration_service.guard,
         api_credentials=dependencies.api_credentials,
         audit_events=dependencies.audit_events,
         memberships=dependencies.memberships,
@@ -106,6 +107,7 @@ def _configure_workspace_access_service(
 ) -> None:
     """Compose workspace and role management with auth and storage ports."""
     services.workspace_access_service = WorkspaceAccessService(
+        administration_guard=services.organization_administration_service.guard,
         approval_policies=dependencies.approval_policies,
         audit_events=dependencies.audit_events,
         principals=dependencies.principals,
@@ -126,6 +128,7 @@ def _configure_organization_service(
 ) -> None:
     """Compose organization onboarding with workspace and identity ports."""
     services.organization_service = OrganizationService(
+        organization_settings=dependencies.organization_settings,
         api_credentials=dependencies.api_credentials,
         approval_policies=dependencies.approval_policies,
         audit_events=dependencies.audit_events,

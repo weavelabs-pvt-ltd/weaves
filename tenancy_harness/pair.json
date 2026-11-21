@@ -2,14 +2,14 @@
   "version": 1,
   "backend": {
     "repository": "weavelabs-pvt-ltd/weaves",
-    "revision": "f946c1a88b6736072d1a73c4cf641f95d05f26d7"
+    "revision": "88b41fe7bd8bc59fd3884171f52c4fa691fa5b6e"
   },
   "frontend": {
     "repository": "weavelabs-pvt-ltd/weaves-app",
-    "revision": "a20827cca1dc658b82ceefe13c8a24c63a8aa8c3"
+    "revision": "8428e299177cfc51f08d5a09c45c732ae67d2feb"
   },
   "candidate_policy": "The triggering repository uses its checked-out candidate; the counterpart uses this exact revision. Record both actual revisions and dirty state.",
-  "phase": 3,
+  "phase": 4,
   "required_controls": [
     "T0-I01",
     "T0-I03",
@@ -30,7 +30,8 @@
     "T1-I08",
     "T1-I09",
     "T1-I10",
-    "T1-I11"
+    "T1-I11",
+    "T4-I01"
   ],
   "known_defects": {},
   "known_defect_policy": "No baseline defects remain after Phase 1 containment. Resolved defects are required passing isolation controls, never xfail/skip. Passing this suite does not mean SaaS readiness.",

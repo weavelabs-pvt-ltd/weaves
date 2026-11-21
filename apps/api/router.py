@@ -9,6 +9,9 @@ from pydantic import BaseModel
 
 from apps.api.route_services import ApiRouteServices
 from modules.agents.http.routes import register_agent_routes
+from modules.auth.http.organization_administration_routes import (
+    register_organization_administration_routes,
+)
 from modules.auth.http.routes import register_identity_routes
 from modules.evaluations.http.routes import register_evaluation_routes
 from modules.governance.http.audit_routes import register_audit_routes
@@ -42,6 +45,9 @@ def register_v0_routes(app: FastAPI, services: ApiRouteServices) -> None:
         return {"status": "ok", "storage": services.storage_mode}
 
     dump: Callable[[BaseModel], dict[str, Any]] = _dump
+    register_organization_administration_routes(
+        app, services.organization_administration
+    )
     register_identity_routes(
         app,
         services.organization,

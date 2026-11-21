@@ -324,3 +324,7 @@ test('T1-I11 an account creates an organization once, idempotently and privately
     expect(control[key], key).toBe(true);
   }
 });
+
+test('T4-I01 organization settings and ownership handoff preserve other tenant access', async ({browser, request}) => {
+  await require('./organization_administration.cjs').verify({browser, request}, fixture);
+});

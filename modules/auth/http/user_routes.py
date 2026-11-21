@@ -70,6 +70,8 @@ def _register_suspend_user(
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="User not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def _register_reactivate_user(

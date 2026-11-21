@@ -17,6 +17,7 @@ from contracts.v1 import (
     User,
     UserStatus,
 )
+from modules.auth.organization_guard import OrganizationGuard
 from modules.auth.runtime_users import WorkspaceUserRuntimeMixin
 
 
@@ -34,6 +35,7 @@ class UserAdministrationService(WorkspaceUserRuntimeMixin):
     def __init__(
         self,
         *,
+        administration_guard: OrganizationGuard,
         api_credentials: Repository[ApiCredential],
         audit_events: Repository[AuditEvent],
         principals: Repository[Principal],
@@ -48,6 +50,7 @@ class UserAdministrationService(WorkspaceUserRuntimeMixin):
         unit_of_work: Callable[[], AbstractContextManager[None]],
     ) -> None:
         """Bind user repositories and application lifecycle callbacks."""
+        self.administration_guard = administration_guard
         self.api_credentials = api_credentials
         self.audit_events = audit_events
         self.principals = principals

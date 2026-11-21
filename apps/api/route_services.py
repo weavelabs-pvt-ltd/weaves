@@ -13,6 +13,7 @@ from modules.auth.authentication_service import AuthenticationService
 from modules.auth.credential_service import CredentialService
 from modules.auth.google_oidc import GoogleConfig, GoogleOidcProvider
 from modules.auth.google_sign_in import GoogleSignIn
+from modules.auth.organization_administration import OrganizationAdministrationService
 from modules.auth.organization_service import OrganizationService
 from modules.auth.user_administration_service import UserAdministrationService
 from modules.auth.workspace_access_service import WorkspaceAccessService
@@ -36,6 +37,7 @@ class ApiRouteServices:
 
     storage_mode: str
     check_storage: Callable[[], None]
+    organization_administration: OrganizationAdministrationService
     organization: OrganizationService
     workspace_access: WorkspaceAccessService
     user_administration: UserAdministrationService
@@ -83,6 +85,7 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
     return ApiRouteServices(
         storage_mode=runtime.storage_mode,
         check_storage=runtime.check_storage,
+        organization_administration=runtime.organization_administration_service,
         organization=runtime.organization_service,
         workspace_access=runtime.workspace_access_service,
         user_administration=runtime.user_administration_service,

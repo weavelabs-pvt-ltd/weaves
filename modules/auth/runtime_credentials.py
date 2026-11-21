@@ -303,6 +303,21 @@ class CredentialRuntimeMixin(CredentialRuntimeHost):
             permissions.update(role.permissions)
         return tuple(sorted(permissions, key=lambda permission: permission.value))
 
+    def organization_permissions(self, principal_id: str) -> tuple[Permission, ...]:
+        """Expose organization-wide grants separately from workspace permissions."""
+        principal_id = effective_principal_id(principal_id)
+        org_id = effective_org_id()
+        principal = self.principals.get_scoped(principal_id, org_id)
+        if principal.status is not PrincipalStatus.ACTIVE:
+            raise PermissionError("principal is not active")
+        permissions: set[Permission] = set()
+        for binding in self.role_bindings.list_scoped(org_id):
+            if binding.principal_id == principal_id and binding.workspace_id is None:
+                permissions.update(
+                    self.roles.get_scoped(binding.role_id, org_id).permissions
+                )
+        return tuple(sorted(permissions, key=lambda permission: permission.value))
+
     def _require_active_scope(self, org_id: str, workspace_id: str | None) -> None:
         """Stop work for suspended organizations and archived workspaces.
 

@@ -2,7 +2,7 @@
 
 Planning baseline: 2026-11-20. Based on [the tenancy audit](MULTI_TENANCY_AUDIT.md), backend `d70176dfbe3c328e6e3070fa2f79f5c123a23db2`, and frontend `6f6ed9888b398921e2d567e0671b954df64185e8`.
 
-Status: Phases 0–2 are implemented and released. Phase 3 account identity, memberships, per-request organization selection, cookie/CSRF sessions and the Google-only sign-in implementation are complete; the current release finishes production cutover and onboarding verification. Phase 4 organization creation and the conversational onboarding/checklist are implemented, but organization settings, owner-transfer concurrency, export and resumable deletion remain open. Phases 5–8 are not complete. Public self-service access remains off; production Google sign-in is restricted to the owner's explicit email allowlist.
+Status: Phases 0–2 are implemented and released. Phase 3 account identity, memberships, per-request organization selection, cookie/CSRF sessions and the Google-only sign-in implementation are complete; the current release finishes production cutover and onboarding verification. Phase 4 organization creation and the conversational onboarding/checklist are implemented, and organization settings, explicit ownership transfer, membership removal and administration concurrency are implemented in the current slice; export, resumable deletion and schedule-timezone lifecycle remain open. Phases 5–8 are not complete. Public self-service access remains off; production Google sign-in is restricted to the owner's explicit email allowlist.
 
 Current decision (2026-11-21): Google is the only human sign-in method. Passwords, email-code login, invitations, tenant SSO and token-gated legacy onboarding are removed. The historical checkpoint paragraphs below describe their implementation sequence, not instructions to restore those flows. Service accounts and tenant API credentials remain supported.
 
@@ -145,6 +145,40 @@ Use a global account plus tenant memberships, rather than moving all business re
 For browser sessions, prefer an account-authenticating HttpOnly cookie and explicit per-tab organization/workspace selection on each request, validated against current memberships. Do not put a mutable global “current organization” in a shared cookie/session and assume different tabs cannot interfere. Headers/route parameters identify a requested scope; they never prove authorization. Tenant API keys stay bound to their original tenant regardless of supplied headers.
 
 Legacy accounts must not be merged solely because their email strings match. Existing email claims may be unverified, passwords may differ, and enterprise issuers have separate trust boundaries. Account linking requires an authenticated, verified linking flow and explicit handling of ambiguous legacy identities.
+
+### Phase 4 progress: organization settings and safe administration
+
+Organization preferences and explicit ownership live in a separate tenant-owned
+`organization_settings` record, preserving the prior `Organization` payload for
+reader rollback. New provisioning writes it atomically. Legacy reads derive the
+owner only from an unambiguous creation audit and active human administrator;
+they never choose an arbitrary current Admin or write on GET. Missing/ambiguous
+proof requires operator recovery. Existing preferences use creation-audit values,
+with `Asia/Kolkata` / `en` defaults for older organizations.
+
+The bottom profile menu opens the shared settings dialog for organization-scoped
+administrators. Name, IANA timezone and locale edits require the observed
+revision; stale forms receive 409 and keep their draft until explicitly reloaded.
+These are organization preferences: this slice does not rewrite existing workflow
+schedule timing or implement the remaining timezone/DST scheduling work.
+
+Only an account-authenticated current owner can transfer to another active,
+already-linked human member. The recipient receives org Admin; the former owner
+remains Admin. Confirmation names the organization, and the settings revision
+prevents competing transfers. Role grants/replacement/deletion, member
+suspension/reactivation, settings writes, ownership transfer and membership
+removal share one per-organization PostgreSQL transaction lock. Authorization is
+rechecked after acquiring it. The owner cannot be suspended, removed or stripped
+of administration before transfer; inactive identities never count as surviving
+administrators. Removal revokes tenant credentials and the one membership, while
+retaining the global account, other memberships and existing work history.
+
+Validation includes two independent API runtimes on restricted PostgreSQL,
+concurrent settings/transfer/revocation cases, authorization revoked while waiting,
+audit-failure rollback and foreign-tenant denials. Required real-stack control
+`T4-I01` drives the actual settings dialog, two-way ownership transfer and People
+membership removal, then proves the same account still accesses its other tenant.
+This is one Phase 4 slice, not full lifecycle completion or SaaS readiness.
 
 ## Phase overview and dependencies
 

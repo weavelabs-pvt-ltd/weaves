@@ -213,6 +213,7 @@ async def _account_tenant_request(
         return JSONResponse(
             content={"detail": "Organization not available"}, status_code=403
         )
+    request.state.account = account
     identity_token = set_request_identity(membership.principal_id, org_id, workspace_id)
     try:
         response = await call_next(request)

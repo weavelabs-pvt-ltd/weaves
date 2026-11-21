@@ -22,6 +22,8 @@ from contracts.v1 import (
     User,
     UserStatus,
 )
+from modules.auth.administration_transaction import serialized_administration
+from modules.auth.organization_guard import OrganizationGuard
 from modules.auth.role_presets import validate_role_preset_scope
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
@@ -35,6 +37,7 @@ from shared.request_context import (
 class WorkspaceUserRuntimeHost(ABC):
     """Dependencies required to manage workspace users and active access."""
 
+    administration_guard: OrganizationGuard
     _bootstrapped: Callable[[], bool]
     api_credentials: Repository[ApiCredential]
     audit_events: Repository[AuditEvent]
@@ -238,6 +241,7 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
                     user
                     for user in self.users.list_scoped(org_id)
                     if user.id in visible_user_ids
+                    and user.status is not UserStatus.DELETED
                 ),
                 key=lambda user: user.email,
             )
@@ -253,6 +257,7 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
             if user.id in principal_ids
         )
 
+    @serialized_administration
     def suspend_workspace_user(
         self,
         user_id: str,
@@ -274,6 +279,7 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
             raise KeyError("user principal not found")
         if user.status is UserStatus.SUSPENDED:
             return user
+        self.administration_guard.validate_change(disabled_principal=principal.id)
         timestamp = _now()
         suspended_user = User.model_validate(
             user.model_copy(
@@ -348,6 +354,7 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
                 )
             )
 
+    @serialized_administration
     def reactivate_workspace_user(
         self,
         user_id: str,
