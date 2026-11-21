@@ -89,5 +89,38 @@ Time-limited operator support access (operators act only on the VM), public sign
 - Decide whether to remove the implicit development identity in memory-only mode (about 80 tests use it).
 - Re-pin the harness to merged commits after each squash merge (frontend merges change the commit).
 
+## E. Who does what: AI work and human work
+
+Rule of thumb: AI-assisted engineering builds, tests and documents; humans decide, approve risk, hold
+credentials and judge what only they can judge. Anything that spends money, touches production data
+irreversibly or changes who may access the system needs a human yes.
+
+### E1. AI-doable work (build, test, document; each slice still gets unit, PostgreSQL, real-stack and live AI runs)
+| Area | Work |
+|---|---|
+| Phase 5 | Limits and admission control, fair queue claiming, usage ledger and reservations, bounded queries, per-tenant metrics, noisy-neighbor and reservation-recovery tests |
+| Phase 6 | Backup automation scripts and restore drills, tenant-selective restore, deletion tombstones, staging definition as code, rollback rehearsal tooling, alert and kill-switch implementation, runbooks |
+| Phase 7 | Gateway integration code, plans and entitlements, subscription state machine, signed idempotent webhook inbox, reconciliation jobs, billing UI, sandbox-based test suite (once a gateway is chosen) |
+| Phase 8 | Organization-bound OIDC, verified domains, SSO policy enforcement, session revocation, optional MFA/SCIM, full policy-matrix tests |
+| Quality | Fixes from the reviews below, backend and frontend optimization, splitting `dashboard.js`, the small items in section C, keeping the harness pins and docs current |
+| Docs | Keep `HANDOFF.md`, `DATA_MODEL.md`, this file and the plan current after every slice |
+
+### E2. Human work
+| Area | Work |
+|---|---|
+| Approvals | Merge or approve high-risk changes (migrations, anything touching production data or sign-in); decide when to flip public signup on |
+| Reviews | Security review, bug review, optimization review, and the architect ER and schema review (AI can prepare and pre-screen; a person signs off) |
+| Decisions | Choose the payment gateway and commercial model (plans, pricing, currency, tax, refunds, grace periods); define supported capacity and limits per plan; decide data retention and legal terms |
+| Credentials and accounts | Create and own provider accounts (payment gateway, Google OAuth production consent screen, domains, DNS, email if ever needed); rotate and store secrets |
+| Production | Authorize destructive production actions (running the legacy purge or deleting real tenants), restore drills against real data, budget for paid AI testing beyond the USD 100 ledger |
+| Product | Real Google sign-in walkthrough, UX and copy judgment, onboarding design feedback, new use cases |
+| Compliance | Privacy policy, terms, data-processing agreements, payment compliance (PCI scope is the gateway's, but contracts and tax are yours) |
+
+### E3. Suggested order
+1. Merge the open PRs (schema purge, data-model doc, handoffs, frontend cleanup).
+2. Human reviews (security, bugs, optimization, ER) with AI preparing evidence; AI fixes findings.
+3. Phase 5 (AI), then Phase 6 (AI plus human approvals), in parallel with the gateway decision (human).
+4. Phase 7 then Phase 8 (AI), each released only after its test matrix passes.
+
 ## D. Where to continue
 Start with `docs/HANDOFF.md`, then `MULTI_TENANCY_IMPLEMENTATION_PLAN.md` (Phases 5 to 8 and the shared testing matrix), `docs/DATA_MODEL.md`, `infra/gcp/singlevm/README.md` and the frontend `docs/HANDOFF.md`.
