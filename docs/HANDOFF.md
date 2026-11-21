@@ -90,7 +90,7 @@ Each item has a progress paragraph in `MULTI_TENANCY_IMPLEMENTATION_PLAN.md`.
 | 1 | Connector descriptor isolation, model egress containment (DNS pinning, redirects, proxies), lifecycle guard for work (suspended/archived stops everything), browser teardown and namespaced drafts, per-tenant sign-in throttles (since removed with the legacy flows) |
 | 2 | Mandatory tenant context, immutable record ownership, tenant-owned encrypted secrets, cross-tenant reference validation matrix, tenant-keyed client-chosen IDs, PostgreSQL row-level security enabled in production |
 | 3 | Accounts and memberships, org selection per request, cookie sessions with CSRF, account-linking rules, onboarding conversation, Google-only sign-in (legacy sign-in fully removed) |
-| 4 | Verified atomic idempotent organization creation, organization settings and explicit ownership transfer with last-owner safety, lifecycle (suspend/resume/deletion request/cancel/purge), tenant export, schedule timezones with DST rules. A legacy schema purge migration (stale rows, indexes and triggers of the removed sign-in flows) is a separate PR that may not be merged yet: check `git log` and `docs/DATA_MODEL.md` |
+| 4 | Verified atomic idempotent organization creation, organization settings and explicit ownership transfer with last-owner safety, lifecycle (suspend/resume/deletion request/cancel/purge), tenant export, schedule timezones with DST rules. Legacy schema purge (migration 22, deployed 2026-11-22: stale rows, indexes and the SSO trigger of the removed sign-in flows) |
 
 Not covered by Phase 4 on purpose: time-limited operator support access (operators act only on the
 VM), deleted data in older backups (Phase 6), and public signup.
@@ -221,8 +221,9 @@ owner's email), `WEAVES_PUBLIC_FRONTEND_URL` and `WEAVES_PUBLIC_API_BASE_URL`,
 `WEAVES_SCHEDULE_POLL_SECONDS`, `WEAVES_LIFECYCLE_POLL_SECONDS`. Google OAuth consent screen is in
 Testing mode, so only listed test users can sign in; the application allowlist is a second gate.
 
-Rollback and migrations: migrations are append-only and forward-only (`infrastructure/database/store.py`);
-internal mode does not maintain reader-rollback compatibility. The plan's "Migration and deployment
+Rollback and migrations: migrations are append-only and forward-only (`infrastructure/database/store.py`; head is
+derived from the list, currently 22); internal mode does not maintain reader-rollback compatibility, so images older than
+migration 22 cannot be rolled back onto this database. The plan's "Migration and deployment
 protocol" describes the stricter expand/contract process you should adopt before real customers.
 
 ## 8. Decisions worth knowing (and why)
@@ -275,3 +276,10 @@ protocol" describes the stricter expand/contract process you should adopt before
 `TENANCY_ARCHITECTURE.md`, `tenancy_harness/README.md`, `infra/gcp/singlevm/README.md`, `README.md`,
 `QUALITY.md`, `AGENTS.md`; older product notes in `docs/` are historical context and may describe
 removed flows.
+
+## 12. Access the next engineer needs from the owner
+GitHub access to both repositories; a GCP login with IAP access to project `weaves-510819` (the VM has no public SSH);
+the Google OAuth client for `app.weave-studio.in` (the owner keeps the client file; never commit or paste it); their own
+paid-AI testing budget (the shared ledger lives only on the owner's machine under `~/.config/weaves-testing/`);
+and the owner's decisions listed in `docs/STATUS_AND_BACKLOG.md` section E2 (payment gateway, pricing, retention, legal).
+Add new documents under `/docs/` with `git add -f` (the directory is gitignored but tracked files exist).
