@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Installed with scripts/install_git_hooks.sh. Skip once with: git push --no-verify
+exec "$(git rev-parse --show-toplevel)/scripts/check_local.sh"
