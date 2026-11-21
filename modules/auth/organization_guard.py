@@ -97,11 +97,22 @@ class OrganizationGuard:
     def _usable_membership(self, membership: OrganizationMembership) -> bool:
         if membership.status is not MembershipStatus.ACTIVE:
             return False
+        org = effective_org_id()
+        if membership.org_id != org:
+            return False
         try:
+            principal = self.principals.get_scoped(membership.principal_id, org)
+            user = self.users.get_scoped(membership.user_id, org)
             account = self.accounts.get(membership.account_id)
         except KeyError:
             return False
-        return account.status is AccountStatus.ACTIVE
+        return (
+            principal.principal_type is PrincipalType.USER
+            and principal.status is PrincipalStatus.ACTIVE
+            and principal.user_id == user.id
+            and user.status is UserStatus.ACTIVE
+            and account.status is AccountStatus.ACTIVE
+        )
 
     def linked_member(self, principal_id: str) -> bool:
         """A transfer recipient must already have an active verified account link."""

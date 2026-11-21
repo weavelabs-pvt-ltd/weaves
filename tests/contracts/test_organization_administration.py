@@ -193,7 +193,9 @@ def test_legacy_owner_is_proven_by_creation_audit_and_read_does_not_backfill(wor
     assert world["client"].get(URL, headers=headers(world)).status_code == 409
 
 
-@pytest.mark.parametrize("state", ["user", "principal", "membership", "account"])
+@pytest.mark.parametrize(
+    "state", ["user", "principal", "membership", "account", "mislinked"]
+)
 def test_transfer_recipient_must_have_current_active_access(world, state):
     from contracts.v1 import AccountStatus, MembershipStatus, PrincipalStatus
     from shared.request_context import system_scope
@@ -216,6 +218,15 @@ def test_transfer_recipient_must_have_current_active_access(world, state):
             )
             runtime.memberships.put(
                 link.model_copy(update={"status": MembershipStatus.SUSPENDED})
+            )
+        elif state == "mislinked":
+            link = next(
+                m
+                for m in runtime.memberships.list_scoped(world["a"][0].id)
+                if m.principal_id == member[1].id
+            )
+            runtime.memberships.put(
+                link.model_copy(update={"user_id": world["a"][2].id})
             )
         else:
             with system_scope("account"):
