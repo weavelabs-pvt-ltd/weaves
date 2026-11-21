@@ -1,4 +1,4 @@
-/* global showDialog, api, setSession, prepareHomeEntry, refresh, state */
+/* global showDialog, api, setSession, prepareHomeEntry, refresh */
 const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
