@@ -1,4 +1,4 @@
-/* global showDialog, api, setSession, prepareHomeEntry, refresh */
+/* global showDialog, api, setSession, prepareHomeEntry, refresh, state */
 const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -280,4 +280,57 @@ test('T1-I09 an account attaches a second email only with proof and never takes 
   for (const key of ['email_attached_after_proof', 'email_of_another_account_refused', 'refusal_changed_nothing']) {
     expect(control[key], key).toBe(true);
   }
+});
+
+function mailCode(email) {
+  const filename = crypto.createHash('sha256').update(email).digest('hex') + '.json';
+  const file = path.join(path.dirname(process.env.TENANCY_FIXTURE_FILE), 'mail', filename);
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')).code : '';
+}
+
+test('T1-I10 real browser signs in as an account, chooses and switches organizations', async ({ browser }) => {
+  const email = a.shared_person.email;
+  const context = await browser.newContext({ baseURL: process.env.WEAVES_E2E_APP_URL });
+  const page = await context.newPage();
+  const tenantCalls = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith('/api/v0/') && !url.pathname.startsWith('/api/v0/account/') && url.pathname !== '/api/v0/health') {
+      tenantCalls.push({ path: url.pathname, organization: request.headers()['x-organization-id'] });
+    }
+  });
+  const previous = mailCode(email);
+  await page.goto(process.env.WEAVES_E2E_APP_URL + '/#account-signin');
+  await page.locator('#account-email').fill(email);
+  await page.getByRole('button', { name: 'Send code', exact: true }).click();
+  await expect(page.locator('#account-code-0')).toBeVisible();
+  await expect.poll(() => mailCode(email), { timeout: 20000 }).not.toBe(previous);
+  await page.locator('#account-code-0').click();
+  await page.keyboard.type(mailCode(email));
+  await page.getByRole('button', { name: /Verify and sign in/ }).click();
+
+  await expect(page.getByRole('heading', { name: 'Choose an organization' })).toBeVisible({ timeout: 25000 });
+  await expect(page.locator('[data-account-action="choose"]')).toHaveCount(2);
+  await page.locator('[data-account-action="choose"][data-organization-id="' + a.org_id + '"]').click();
+  await expect.poll(() => page.evaluate(() => state.organization?.id), { timeout: 25000 }).toBe(a.org_id);
+  await page.evaluate(() => { location.hash = 'agents'; });
+  await expect(page.getByText(a.agent.name, { exact: true }).first()).toBeVisible({ timeout: 25000 });
+  await expect(page.getByText(b.agent.name, { exact: true })).toHaveCount(0);
+  expect(tenantCalls.length).toBeGreaterThan(0);
+  expect(new Set(tenantCalls.map((call) => call.organization))).toEqual(new Set([a.org_id]));
+
+  const beforeSwitch = tenantCalls.length;
+  await page.evaluate(() => document.querySelector('#profile-menu-toggle').click());
+  await page.evaluate((org) => document.querySelector('[data-account-action="switch"][data-organization-id="' + org + '"]').click(), b.org_id);
+  await expect.poll(() => page.evaluate(() => state.organization?.id), { timeout: 25000 }).toBe(b.org_id);
+  await page.evaluate(() => { location.hash = 'agents'; });
+  await expect(page.getByText(b.agent.name, { exact: true }).first()).toBeVisible({ timeout: 25000 });
+  await expect(page.getByText(a.agent.name, { exact: true })).toHaveCount(0);
+  const html = await page.evaluate(() => document.documentElement.innerText + JSON.stringify(state));
+  expect(html).not.toContain(a.agent.name);
+  await page.waitForTimeout(1500);
+  const afterSwitch = tenantCalls.slice(beforeSwitch).filter((call) => call.organization === a.org_id);
+  expect(afterSwitch.length).toBeLessThanOrEqual(1);
+  expect(tenantCalls.at(-1).organization).toBe(b.org_id);
+  await context.close();
 });
