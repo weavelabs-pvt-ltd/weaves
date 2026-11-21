@@ -1,4 +1,4 @@
-/* global showDialog, api, state */
+/* global showDialog, api */
 // The ONE module that knows how the frontend signs a person in and out.
 //
 // The frontend signs in with "Continue with Google" -> /api/v0/account/google/start and keeps
@@ -99,7 +99,7 @@ async function openAsAccount(page, tenant, { actor = tenant.admin, route = 'agen
   // shell exists, otherwise the transition resets the page.
   try {
     await expect(page.locator(SELECTORS.profileMenuToggle)).toBeVisible({ timeout: 40000 });
-  } catch (error) {
+  } catch {
     throw new Error(`shell not visible :: ${await describePage(page)}`);
   }
   // A person with several workspaces lands in the first one the app picks; select the intended one.
@@ -108,7 +108,7 @@ async function openAsAccount(page, tenant, { actor = tenant.admin, route = 'agen
   await page.reload();
   try {
     await expect(page.locator(SELECTORS.profileMenuToggle)).toBeVisible({ timeout: 40000 });
-  } catch (error) {
+  } catch {
     throw new Error(`shell not visible after reload :: ${await describePage(page)}`);
   }
   await page.waitForTimeout(1500);

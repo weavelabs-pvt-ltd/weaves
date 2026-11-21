@@ -93,7 +93,7 @@ test('T0-I10 actual frontend renders only the signed-in tenant catalogue', async
     await open(other, b);
     try {
       await expect(other.getByText(b.agent.name, { exact: true }).first()).toBeVisible();
-    } catch (error) {
+    } catch {
       throw new Error('tenant B catalogue not shown :: ' + await browserAccount.describePage(other));
     }
     await expect(other.getByText(a.agent.name, { exact: true })).toHaveCount(0);
