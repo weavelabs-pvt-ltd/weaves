@@ -14,7 +14,7 @@ from application.ports.secrets import SecretStore
 from application.ports.throttling import LoginRateLimiter
 from apps.platform_runtime import LocalPlatformRuntime
 from apps.runtime_adapters import (
-    build_login_rate_limiters,
+    build_login_rate_limiter,
     build_runtime_adapters,
     build_secret_store,
 )
@@ -34,9 +34,13 @@ from shared.request_context import require_tenant_context
 
 
 def open_process_runtime(
-    *, process: Literal["api", "worker", "cli"]
+    *, process: Literal["api", "worker", "cli"], app_role: str | None = None
 ) -> LocalPlatformRuntime:
-    """Open process-scoped pools and compose the application runtime."""
+    """Open process-scoped pools and compose the application runtime.
+
+    ``app_role`` overrides ``WEAVES_DB_APP_ROLE``; an empty string keeps the
+    owner connection, which operator tooling uses to bypass tenant policies.
+    """
     settings = load_pool_settings(process=process)
     local_seeds = os.environ.get("WEAVES_SEED_LOCAL_DEFAULTS", "true").strip().lower()
     if local_seeds not in {"true", "false", "1", "0", "yes", "no"}:
@@ -44,7 +48,7 @@ def open_process_runtime(
     http_client = open_http_client(settings)
     store: ProductPostgresStore | None = None
     try:
-        store = _open_store(settings)
+        store = _open_store(settings, app_role=app_role)
         seeds_local = local_seeds in {"true", "1", "yes"}
         runtime = compose_platform_runtime(
             http_client=http_client, store=store, seed_local_defaults=seeds_local
@@ -60,7 +64,9 @@ def open_process_runtime(
         raise
 
 
-def _open_store(settings: PoolSettings) -> ProductPostgresStore | None:
+def _open_store(
+    settings: PoolSettings, app_role: str | None = None
+) -> ProductPostgresStore | None:
     """Open a process-owned database pool when database settings are present."""
     if not settings.database_url:
         return None
@@ -70,7 +76,7 @@ def _open_store(settings: PoolSettings) -> ProductPostgresStore | None:
         max_size=settings.db_pool_max_size,
         application_name=settings.db_application_name,
     )
-    return ProductPostgresStore(pool=pool)
+    return ProductPostgresStore(pool=pool, app_role=app_role)
 
 
 def compose_platform_runtime(
@@ -82,7 +88,7 @@ def compose_platform_runtime(
     """Build persistence, adapter, and lifecycle dependencies for one process."""
     repositories = create_product_repository_set(store)
     secret_store = build_secret_store(store)
-    login_limiter, onboarding_limiter = build_login_rate_limiters(store)
+    login_limiter = build_login_rate_limiter(store)
     provider_http_client = open_model_http_client()
     try:
         return _compose_with_model_client(
@@ -93,7 +99,6 @@ def compose_platform_runtime(
             repositories,
             secret_store,
             login_limiter,
-            onboarding_limiter,
         )
     except Exception:
         provider_http_client.close()
@@ -108,7 +113,6 @@ def _compose_with_model_client(
     repositories: ProductRepositorySet,
     secret_store: SecretStore,
     login_limiter: LoginRateLimiter,
-    onboarding_limiter: LoginRateLimiter,
 ) -> LocalPlatformRuntime:
     """Bind both process-owned pools and transfer their lifetime to the runtime."""
     adapters = build_runtime_adapters(
@@ -126,7 +130,6 @@ def _compose_with_model_client(
         repository_set=repositories,
         secret_store=secret_store,
         login_rate_limiter=login_limiter,
-        onboarding_rate_limiter=onboarding_limiter,
         runtime_adapters=adapters,
         unit_of_work=unit_of_work,
         advisory_transaction_lock=(

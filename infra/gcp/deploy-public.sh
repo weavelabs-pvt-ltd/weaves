@@ -27,7 +27,7 @@ frontend_url="$(gcloud run services describe weaves-frontend "${flags[@]}" --for
 gcloud run deploy weaves-api "${flags[@]}" --image "$BACKEND_IMAGE" \
   --port 8000 --cpu 1 --memory 1Gi --max 3 --max-instances 3 --min 0 \
   --concurrency 20 --timeout 900 --no-traffic --tag public-release \
-  --update-env-vars "^|^WEAVES_ALLOW_ORGANIZATION_ONBOARDING=false|WEAVES_PUBLIC_FRONTEND_URL=${APP_ORIGIN}|WEAVES_PUBLIC_API_BASE_URL=${API_ORIGIN}|CORS_ORIGINS=${APP_ORIGIN},${frontend_url},${frontend_preview}|WEAVES_DB_POOL_MAX_SIZE=4"
+  --update-env-vars "^|^WEAVES_PUBLIC_FRONTEND_URL=${APP_ORIGIN}|WEAVES_PUBLIC_API_BASE_URL=${API_ORIGIN}|CORS_ORIGINS=${APP_ORIGIN},${frontend_url},${frontend_preview}|WEAVES_DB_POOL_MAX_SIZE=4"
 
 python3 "$(dirname "$0")/update_worker.py" --project "$PROJECT_ID" \
   --account "$ACCOUNT" --region "$REGION" --image "$BACKEND_IMAGE"

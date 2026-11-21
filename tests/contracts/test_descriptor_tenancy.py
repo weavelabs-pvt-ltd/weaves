@@ -8,20 +8,18 @@ from fastapi.testclient import TestClient
 
 from apps.api.app import create_app
 from tests.contracts.test_mcp_plugin import _TOOL
+from tests.support.organizations import onboard
 from tests.support.runtime import LocalPlatformRuntime
 
 
 def _organization(client, label):
-    response = client.post(
-        "/api/v0/onboarding/organizations",
-        json={
-            "name": "Descriptor tenant " + label,
-            "owner_email": label + "@descriptor.test",
-            "owner_display_name": "Descriptor owner " + label,
-        },
+    response = onboard(
+        client,
+        name="Descriptor tenant " + label,
+        owner_email=label + "@descriptor.test",
+        owner_display_name="Descriptor owner " + label,
     )
-    assert response.status_code == 201, response.text
-    payload = response.json()
+    payload = response
     return {
         "Authorization": "Bearer " + payload["access_token"],
         "X-Workspace-ID": payload["workspace"]["id"],

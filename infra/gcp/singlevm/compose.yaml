@@ -36,8 +36,6 @@ services:
     command: uvicorn apps.api.app:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*
     environment:
       <<: *runtime
-      WEAVES_ALLOW_ORGANIZATION_ONBOARDING: "false"
-      WEAVES_SSO_SESSION_SECRET: ${WEAVES_SSO_SESSION_SECRET:?required}
       WEAVES_BROWSER_SESSION_SECRET: ${WEAVES_BROWSER_SESSION_SECRET:-}
       WEAVES_PUBLIC_FRONTEND_URL: https://app.weave-studio.in
       WEAVES_PUBLIC_API_BASE_URL: https://api.weave-studio.in

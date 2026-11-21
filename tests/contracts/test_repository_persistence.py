@@ -7,8 +7,8 @@ import psycopg.errors
 import pytest
 
 from contracts.v1 import (
+    AccountLoginChallenge,
     AuditEvent,
-    EmailLoginChallenge,
     ErrorSummary,
     ExecutionJob,
     ExecutionJobStatus,
@@ -87,9 +87,6 @@ def test_product_postgres_migration_adds_idempotency_unique_index():
     assert "product_records_task_idempotency_uq" in sql
     assert "product_records_task_turn_claim_idx" in sql
     assert versions == [*range(1, 20), 21]
-    assert "sso_identity_subject_uq" in sql
-    assert "sso_identity_user_connection_uq" in sql
-    assert "sso_identity_immutable" in sql
     assert "CREATE TABLE IF NOT EXISTS product_login_throttle" in sql
     assert "pg_advisory_xact_lock" in sql
 
@@ -186,20 +183,20 @@ def test_postgres_execution_job_updates_are_fenced_by_worker_and_attempt():
     assert params[-2:] == ("worker-a", 2)
 
 
-def test_postgres_email_challenge_consume_is_atomic_and_one_time():
+def test_postgres_account_challenge_consume_is_atomic_and_one_time():
     connection = RecordingConnection()
     repository = PostgresRepository(
         RecordingPool(connection),
-        "email_login_challenges",
+        "account_login_challenges",
         "challenge_id",
-        EmailLoginChallenge,
+        AccountLoginChallenge,
     )
     with pytest.raises(KeyError):
         repository.consume("already-used-challenge")
     query, params = connection.statements[-1]
     assert "DELETE FROM product_records" in query
     assert "RETURNING payload" in query
-    assert params == ("email_login_challenges", "already-used-challenge")
+    assert params == ("account_login_challenges", "already-used-challenge")
 
 
 def test_postgres_store_reuses_one_connection_inside_unit_of_work():

@@ -1,4 +1,4 @@
-"""Organization onboarding and principal scope resolution use cases."""
+"""Organization provisioning and principal scope resolution use cases."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 
 from application.ports.repository import Repository
-from application.ports.throttling import LoginRateLimiter
 from contracts.v1 import (
     ApiCredential,
     ApprovalPolicy,
@@ -57,7 +56,6 @@ class OrganizationService(OrganizationRuntimeMixin):
         users: Repository[User],
         workspaces: Repository[Workspace],
         model: MockModelIdentifier,
-        onboarding_rate_limiter: LoginRateLimiter,
         is_bootstrapped: Callable[[], bool],
         bootstrap: Callable[[], None],
         list_principal_workspaces: Callable[[str], tuple[Workspace, ...]],
@@ -76,7 +74,6 @@ class OrganizationService(OrganizationRuntimeMixin):
         self.users = users
         self.workspaces = workspaces
         self.model = model
-        self.onboarding_rate_limiter = onboarding_rate_limiter
         self._bootstrapped = is_bootstrapped
         self._bootstrap = bootstrap
         self._list_principal_workspaces = list_principal_workspaces

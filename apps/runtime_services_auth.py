@@ -10,7 +10,6 @@ from modules.auth.authentication_service import AuthenticationService
 from modules.auth.bootstrap import IdentityBootstrapService
 from modules.auth.credential_service import CredentialService
 from modules.auth.organization_service import OrganizationService
-from modules.auth.sso_identity_service import SsoIdentityService
 from modules.auth.user_administration_service import UserAdministrationService
 from modules.auth.workspace_access_service import WorkspaceAccessService
 
@@ -18,22 +17,14 @@ from modules.auth.workspace_access_service import WorkspaceAccessService
 def _configure_authentication_service(
     dependencies: RuntimeCompositionInputs, services: CapabilityServiceSet
 ) -> None:
-    """Compose session and password operations with auth persistence ports."""
+    """Compose API-token authentication with auth persistence ports."""
     services.authentication_service = AuthenticationService(
         api_credentials=dependencies.api_credentials,
-        audit_events=dependencies.audit_events,
-        email_login_challenges=dependencies.email_login_challenges,
-        email_sender=dependencies.email_sender,
-        email_login_hmac_key=dependencies.email_login_hmac_key,
         principals=dependencies.principals,
-        user_passwords=dependencies.user_passwords,
-        user_sessions=dependencies.user_sessions,
         users=dependencies.users,
-        login_rate_limiter=dependencies.login_rate_limiter,
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,
         authenticate_principal=dependencies.authenticate_principal,
-        unit_of_work=dependencies._unit_of_work,
     )
 
 
@@ -55,21 +46,6 @@ def _configure_account_sign_in_service(
         email_sender=dependencies.email_sender,
         email_login_hmac_key=dependencies.email_login_hmac_key,
         login_rate_limiter=dependencies.login_rate_limiter,
-        unit_of_work=dependencies._unit_of_work,
-    )
-
-
-def _configure_sso_identity_service(
-    dependencies: RuntimeCompositionInputs, services: CapabilityServiceSet
-) -> None:
-    """Compose tenant-scoped external subject bindings."""
-    services.sso_identity_service = SsoIdentityService(
-        connections=dependencies.sso_connections,
-        identities=dependencies.sso_external_identities,
-        users=dependencies.users,
-        principals=dependencies.principals,
-        audit_events=dependencies.audit_events,
-        authorize_organization=dependencies.authorize_organization,
         unit_of_work=dependencies._unit_of_work,
     )
 
@@ -115,10 +91,10 @@ def _configure_user_administration_service(
     services.user_administration_service = UserAdministrationService(
         api_credentials=dependencies.api_credentials,
         audit_events=dependencies.audit_events,
+        memberships=dependencies.memberships,
         principals=dependencies.principals,
         role_bindings=dependencies.role_bindings,
         roles=dependencies.roles,
-        user_sessions=dependencies.user_sessions,
         users=dependencies.users,
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,
@@ -165,7 +141,6 @@ def _configure_organization_service(
         users=dependencies.users,
         workspaces=dependencies.workspaces,
         model=dependencies.model,
-        onboarding_rate_limiter=dependencies.onboarding_rate_limiter,
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,
         list_principal_workspaces=(

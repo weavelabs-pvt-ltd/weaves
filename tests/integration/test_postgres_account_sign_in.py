@@ -3,7 +3,12 @@
 import psycopg
 import pytest
 
-from contracts.v1 import AccountSession, MembershipStatus
+from contracts.v1 import (
+    AccountSession,
+    MembershipStatus,
+    PrincipalStatus,
+    UserStatus,
+)
 from infrastructure.auth.throttle import InMemoryLoginRateLimiter
 from infrastructure.database.pool import open_postgres_pool
 from infrastructure.database.store import ProductPostgresStore
@@ -94,6 +99,41 @@ def test_sign_in_links_memberships_under_the_restricted_role(stack):
         assert _count(restricted, "account_login_challenges") == 0
         stored = service.sessions._sessions.get(session.id)
         assert token not in stored.model_dump_json()
+
+
+def test_sign_in_activates_invited_members_but_never_suspended_ones(stack):
+    service, mail, _restricted, owner = stack
+    seed = create_product_repository_set(owner)
+    users, principals = seed.get("users"), seed.get("principals")
+    for org, user_status, principal_status in (
+        ("org-a", UserStatus.INVITED, PrincipalStatus.DISABLED),
+        ("org-b", UserStatus.SUSPENDED, PrincipalStatus.DISABLED),
+    ):
+        user = next(u for u in users.list() if u.org_id == org and "pat@" in u.email)
+        principal = principals.find_by_field("user_id", user.id)
+        users.put(user.model_copy(update={"status": user_status}))
+        principals.put(principal.model_copy(update={"status": principal_status}))
+    with system_scope("account"):
+        account, _, _ = _sign_in(service, mail, "pat@example.test")
+        linked = {m.org_id for m in service.memberships.list()}
+    assert linked == {"org-a"}
+    by_org = {u.org_id: u for u in users.list() if "pat@" in u.email}
+    assert by_org["org-a"].status is UserStatus.ACTIVE
+    assert by_org["org-b"].status is UserStatus.SUSPENDED
+    statuses = {
+        p.org_id: p.status
+        for p in principals.list()
+        if p.user_id in {u.id for u in by_org.values()}
+    }
+    assert statuses == {
+        "org-a": PrincipalStatus.ACTIVE,
+        "org-b": PrincipalStatus.DISABLED,
+    }
+    with system_scope("account"):
+        service.selector.select(account, "org-a")
+        with pytest.raises(PermissionError):
+            service.selector.select(account, "org-b")
+    assert _count(owner, "audit_events") == 2
 
 
 def test_account_rows_are_invisible_to_tenants_and_other_system_scopes(stack):

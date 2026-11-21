@@ -11,9 +11,8 @@ The managed profile below uses `asia-south1` with a Cloud Run API, a one-instanc
 Cloud Run worker pool, and a Cloud Run frontend. The bootstrap profile below
 provisions regional high-availability PostgreSQL. It is retained for other
 projects and must not be used to redeploy the personal public environment.
-Runtime passwords, the database URL, encryption key, one-time
-onboarding token, and owner credentials are generated directly into Secret
-Manager. They do not belong in repository files or GitHub settings.
+Runtime passwords, the database URL and encryption key are generated
+directly into Secret Manager. They do not belong in repository files or GitHub settings.
 
 ## First deployment
 
@@ -40,11 +39,10 @@ bash infra/gcp/deploy-initial.sh
 ```
 
 The script builds and pushes both containers, starts the frontend and API,
-creates the initial owner using a short-lived Secret Manager token, disables
-public organization onboarding, removes the API's access to that token, starts
-the background worker, and runs the API smoke test. Owner credentials stay in
-Secret Manager and are loaded into the current process only when the workflows
-run their end-to-end checks.
+starts the background worker, and runs the API smoke test when
+`WEAVES_E2E_TOKEN` is set. The first account owner is created out of band with
+`infra/gcp/singlevm/bootstrap_account_owner.py` from a host with database owner
+access; there is no public signup.
 
 The managed bootstrap history below is retained for reference only. Current
 GitHub workflows deploy automatically to the personal single VM after quality

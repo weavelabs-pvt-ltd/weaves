@@ -70,7 +70,9 @@ def test_process_wiring_enables_strict_context_only_for_durable_non_demo_runtime
     monkeypatch.setattr(runtime_wiring, "load_pool_settings", lambda process: Pools())
     monkeypatch.setattr(runtime_wiring, "open_http_client", lambda settings: object())
     monkeypatch.setattr(
-        runtime_wiring, "_open_store", lambda settings: object() if database else None
+        runtime_wiring,
+        "_open_store",
+        lambda settings, app_role=None: object() if database else None,
     )
     monkeypatch.setattr(
         runtime_wiring, "compose_platform_runtime", lambda **kwargs: object()

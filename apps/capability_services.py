@@ -9,7 +9,6 @@ from modules.auth.authentication_service import AuthenticationService
 from modules.auth.bootstrap import IdentityBootstrapService
 from modules.auth.credential_service import CredentialService
 from modules.auth.organization_service import OrganizationService
-from modules.auth.sso_identity_service import SsoIdentityService
 from modules.auth.user_administration_service import UserAdministrationService
 from modules.auth.workspace_access_service import WorkspaceAccessService
 from modules.evaluations.service import EvaluationService
@@ -56,7 +55,6 @@ class CapabilityServiceSet:
     model_catalog_service: ModelCatalogService
     model_service: ModelService
     organization_service: OrganizationService
-    sso_identity_service: SsoIdentityService
     recovery_service: ExecutionRecoveryService
     user_administration_service: UserAdministrationService
     workflow_automation_service: WorkflowAutomationService

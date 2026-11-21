@@ -19,13 +19,7 @@ from contracts.v1.agents import (
     AgentStatus,
     AgentVersion,
 )
-from contracts.v1.auth import (
-    UserPasswordCredential,
-    UserSession,
-    UserSessionStatus,
-)
 from contracts.v1.credentials import ApiCredential, ApiCredentialStatus
-from contracts.v1.email_login import EmailLoginChallenge
 from contracts.v1.evaluations import (
     EvaluationCase,
     EvaluationCaseResult,
@@ -117,12 +111,6 @@ from contracts.v1.skills import (
     SkillStatus,
     SkillVersion,
 )
-from contracts.v1.sso import (
-    SsoConnection,
-    SsoConnectionStatus,
-    SsoExternalIdentity,
-    SsoProvider,
-)
 from contracts.v1.tasks import (
     Task,
     TaskAudience,
@@ -183,7 +171,6 @@ __all__ = [
     "CapabilitySpec",
     "ConversationThread",
     "ConversationThreadStatus",
-    "EmailLoginChallenge",
     "ErrorSummary",
     "EvaluationCase",
     "EvaluationCaseResult",
@@ -236,10 +223,6 @@ __all__ = [
     "SkillScope",
     "SkillStatus",
     "SkillVersion",
-    "SsoConnection",
-    "SsoConnectionStatus",
-    "SsoExternalIdentity",
-    "SsoProvider",
     "SystemRoleKey",
     "Task",
     "TaskAudience",
@@ -250,9 +233,6 @@ __all__ = [
     "TaskTurnStatus",
     "ToolInvocation",
     "User",
-    "UserPasswordCredential",
-    "UserSession",
-    "UserSessionStatus",
     "UserStatus",
     "WorkflowBundle",
     "WorkflowConditionOperator",

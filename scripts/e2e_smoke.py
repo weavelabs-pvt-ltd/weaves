@@ -1,7 +1,8 @@
-"""Exercise the deployed login → agent → task worker → transcript path.
+"""Exercise the deployed agent → task worker → transcript path.
 
-Credentials are read from environment variables populated from Secret Manager
-by the deployment workflow. This script never prints tokens or passwords.
+An account bearer session (``WEAVES_E2E_TOKEN``) and its organization
+(``WEAVES_E2E_ORGANIZATION_ID``) come from the environment, for example from the
+operator break-glass script. This script never prints tokens.
 """
 
 from __future__ import annotations
@@ -26,6 +27,9 @@ def request(
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
+        organization_id = os.environ.get("WEAVES_E2E_ORGANIZATION_ID", "")
+        if organization_id:
+            headers["X-Organization-Id"] = organization_id
     body = json.dumps(payload).encode() if payload is not None else None
     call = urllib.request.Request(
         f"{api_base.rstrip('/')}{path}", data=body, headers=headers, method=method
@@ -44,30 +48,23 @@ def request(
 def main() -> int:
     """Exercise the deployed API with environment-provided credentials."""
     api_base = os.environ["WEAVES_E2E_API_BASE"].rstrip("/")
-    token = _login(
-        api_base, os.environ["WEAVES_E2E_EMAIL"], os.environ["WEAVES_E2E_PASSWORD"]
-    )
+    token = _verified_session(api_base, os.environ["WEAVES_E2E_TOKEN"])
     profile = _active_local_profile(api_base, token)
     agent_id = _smoke_agent(api_base, token, str(profile["id"]))
     _verify_smoke_run(api_base, token, agent_id)
-    print("PASS health, owner login, agent, task worker and transcript")
+    print("PASS health, account session, agent, task worker and transcript")
     return 0
 
 
-def _login(api_base: str, email: str, password: str) -> str:
-    """Verify health and sign in with the deployment smoke-test account."""
+def _verified_session(api_base: str, token: str) -> str:
+    """Verify health and that the supplied session resolves to an identity."""
     health = request(api_base, "/health")
     if not isinstance(health, dict) or health.get("status") != "ok":
         raise RuntimeError("API health check did not return status=ok")
-    session = request(
-        api_base,
-        "/auth/login",
-        method="POST",
-        payload={"email": email, "password": password},
-    )
-    if not isinstance(session, dict) or not session.get("access_token"):
-        raise RuntimeError("Login did not return an active session")
-    return str(session["access_token"])
+    identity = request(api_base, "/auth/me", token=token)
+    if not isinstance(identity, dict) or not identity.get("principal"):
+        raise RuntimeError("The supplied session did not resolve to a principal")
+    return token
 
 
 def _active_local_profile(api_base: str, token: str) -> dict[str, Any]:

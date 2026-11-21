@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from apps.runtime_wiring import compose_platform_runtime, open_process_runtime
+from tests.support.organizations import create_organization
 
 
 def test_production_bootstrap_omits_demo_accounts_and_work():
@@ -17,8 +18,11 @@ def test_production_bootstrap_omits_demo_accounts_and_work():
         assert not runtime.providers.list()
         assert not runtime.approval_policies.list()
         assert runtime.plugins.list()
-        owner = runtime.organization_service.create_organization(
-            name="Fresh workspace", email="owner@example.com", display_name="Owner"
+        owner = create_organization(
+            runtime,
+            name="Fresh workspace",
+            email="owner@example.com",
+            display_name="Owner",
         )
         runtime._bootstrapped = False
         runtime.bootstrap()

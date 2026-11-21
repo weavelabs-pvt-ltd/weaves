@@ -64,24 +64,16 @@ def build_secret_store(store: ProductPostgresStore | None) -> SecretStore:
     return EncryptedPostgresSecretStore(store, encryption_key)
 
 
-def build_login_rate_limiters(
-    store: ProductPostgresStore | None,
-) -> tuple[LoginRateLimiter, LoginRateLimiter]:
-    """Build process-appropriate login and onboarding throttlers."""
+def build_login_rate_limiter(store: ProductPostgresStore | None) -> LoginRateLimiter:
+    """Build the process-appropriate account sign-in throttler."""
     from infrastructure.auth.throttle import (
         InMemoryLoginRateLimiter,
         PostgresLoginRateLimiter,
     )
 
     if store is None:
-        return (
-            InMemoryLoginRateLimiter(),
-            InMemoryLoginRateLimiter(limit=3, window_seconds=3600),
-        )
-    return (
-        PostgresLoginRateLimiter(store.pool),
-        PostgresLoginRateLimiter(store.pool, limit=3, window_seconds=3600),
-    )
+        return InMemoryLoginRateLimiter()
+    return PostgresLoginRateLimiter(store.pool)
 
 
 def build_runtime_adapters(

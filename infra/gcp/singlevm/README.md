@@ -13,7 +13,7 @@ to loopback for administration. The VM has no attached service account.
 ## Files and updates
 
 Server configuration lives in `/opt/weaves/singlevm`. `runtime.env` is root-only
-and contains generated database/SSO secrets, the encryption key and image refs.
+and contains the generated database secret, the encryption key and image refs.
 Caddy certificates and PostgreSQL use separate persistent Docker volumes.
 Logs rotate at 3 × 10 MB per container. API and worker use four database pool
 connections each. `WEAVES_SEED_LOCAL_DEFAULTS=false` prevents local demo
@@ -36,7 +36,7 @@ Backend CI runs Ruff lint/format, strict mypy, file/function size checks, all
 Python tests against PostgreSQL 16, and the container build. Frontend CI runs
 ESLint, JavaScript syntax, the container build and Chromium browser tests.
 Post-deployment checks read the health endpoint and anonymous website/sign-in
-pages. They never create tasks or use the owner's password.
+pages. They never create tasks or use any owner credential.
 
 Google authentication uses GitHub OIDC and Workload Identity Federation. No
 service-account key or production password is stored in GitHub. The identity is
@@ -103,6 +103,33 @@ into the live database requires explicitly stopping API/worker, restoring into
 an empty target, verifying the export and restarting the services. Preserve the
 encryption key corresponding to the backup.
 
+## Operator account bootstrap
+
+The VM has no email delivery, so two operator-only scripts create and recover
+access. They open the database owner's connection (`app_role=''`, so tenant row
+policies do not apply), refuse to run with local demo seeding, are never
+reachable over HTTP, and print one structured, secret-free JSON log line to
+stderr. They are not part of the image; stream them into the running API
+container from `/opt/weaves/backend/infra/gcp/singlevm`:
+
+```
+docker compose exec -T product-api python - \
+  --email owner@example.com --organization-name "Weaves" \
+  < bootstrap_account_owner.py
+docker compose exec -T product-api python - \
+  --email owner@example.com --minutes 60 < issue_account_session.py
+```
+
+`bootstrap_account_owner.py` is idempotent: it creates the Account, a VERIFIED
+email identity, the organization through `provision_organization` (ACTIVE owner,
+no API credential) and the membership, and re-running it changes nothing; it
+reuses an organization of that name the account already belongs to. A person who
+signs in later with the same verified email (once mail is configured) is the
+same account. `issue_account_session.py` is break-glass: it issues an account
+bearer session for an existing active account (`--minutes` 1 to 1440, default
+60) and prints the token once on stdout; unknown and disabled accounts are
+refused. Use it with `X-Organization-Id: <organization id>` against the API.
+
 ## Migration and explicit reset record
 
 The source Cloud SQL export was restored and matched all 182 application rows,
@@ -115,8 +142,9 @@ worker stopped during the final export, avoiding two writable databases.
 The owner then explicitly authorized deleting Cloud SQL and clearing all VM
 application data. Both old database volumes were removed; PostgreSQL initialized
 a fresh cluster and applied versions 1–18 at 2026-11-15 17:44:30 UTC. A sole owner
-`shivamsawarn15@gmail.com` was created internally, with public onboarding kept
-closed and the unused bootstrap API credential removed. The old CI account and
+`shivamsawarn15@gmail.com` was created internally (at that time with a
+password; the password, public onboarding and tenant sign-in routes have since
+been removed and the account flow is the only sign-in). The old CI account and
 all prior agents/workflows/tasks/skills are absent. Required system defaults
 remain. Fresh owner details are in `~/.config/weaves-public/login.json` locally,
 mode 0600. The old sign-in credentials are no longer valid.

@@ -8,7 +8,8 @@ from fastapi.testclient import TestClient
 
 from contracts.v1 import PluginInstallation, PluginInstallationStatus
 from shared.clock import utc_now
-from tests.support.member_login import member_token
+from tests.support.account_session import account_headers
+from tests.support.organizations import onboard
 
 CAPABILITY_ID = "slack.messages.search"
 SKILL_MARKDOWN = (
@@ -61,16 +62,13 @@ def build_world(client: TestClient, runtime: object) -> World:
 
 
 def _onboard(client: TestClient, label: str) -> Scope:
-    response = client.post(
-        "/api/v0/onboarding/organizations",
-        json={
-            "name": f"Org {label}",
-            "owner_email": f"owner-{label.lower()}@example.test",
-            "owner_display_name": f"Owner {label}",
-        },
+    response = onboard(
+        client,
+        name=f"Org {label}",
+        owner_email=f"owner-{label.lower()}@example.test",
+        owner_display_name=f"Owner {label}",
     )
-    assert response.status_code == 201, response.text
-    body = response.json()
+    body = response
     workspace_id = body["workspace"]["id"]
     headers = {
         "Authorization": f"Bearer {body['access_token']}",
@@ -274,10 +272,9 @@ def _peer_with_personal_skill(
             },
         )
     )
-    headers = {
-        "Authorization": f"Bearer {member_token(client, user)}",
-        "X-Workspace-ID": a1.workspace_id,
-    }
+    headers = account_headers(
+        client, user["user"]["email"], user["user"]["org_id"], a1.workspace_id
+    )
     created = _ok(
         client.post(
             "/api/v0/skills/personal",
