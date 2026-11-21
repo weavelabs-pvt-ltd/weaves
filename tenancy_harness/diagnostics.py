@@ -3,6 +3,7 @@
 import httpx
 
 from tenancy_harness.account_checks import (
+    creation_checks,
     linking_checks,
     selection_checks,
     sign_in_checks,
@@ -29,6 +30,7 @@ def account_fixture(fixtures, foreign_org_id):
         **signed_in,
         **selection_checks(a, b, bearer, foreign_org_id),
         **linking_checks(a, b, bearer),
+        **creation_checks(a, b, bearer),
     }
 
 

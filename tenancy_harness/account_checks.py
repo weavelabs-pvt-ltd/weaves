@@ -120,3 +120,43 @@ def linking_checks(a, b, bearer):
         and other_me.status_code == 200
         and len(other_me.json()["identities"]) == 1,
     }
+
+
+def creation_checks(a, b, bearer):
+    """Prove an account creates an organization once, idempotently and privately."""
+    headers = {**SOURCE, **bearer, "Idempotency-Key": "harness-create-1"}
+    body = {"name": "Harness Created Organization"}
+    first = _post("/account/organizations", headers, body)
+    replay = _post("/account/organizations", headers, body)
+    changed = _post("/account/organizations", headers, {"name": "A Different Name"})
+    created = (
+        first.json().get("organization", {}).get("id", "")
+        if first.status_code == 201
+        else ""
+    )
+    selected = httpx.get(
+        API + "/agents",
+        headers={**bearer, "X-Organization-Id": created},
+        timeout=30,
+    )
+    stranger = _prove(
+        "/account/", b["user"]["email"], {"X-Forwarded-For": "198.20.0.79"}
+    )
+    refused = httpx.get(
+        API + "/agents",
+        headers={
+            "Authorization": "Bearer " + stranger.json()["access_token"],
+            "X-Organization-Id": created,
+        },
+        timeout=30,
+    )
+    return {
+        "organization_created": first.status_code == 201 and bool(created),
+        "replay_returns_same_organization": replay.status_code == 200
+        and replay.json()["organization"]["id"] == created,
+        "key_reuse_with_other_body_conflicts": changed.status_code == 409,
+        "creator_can_select_it": selected.status_code == 200,
+        "another_account_is_refused": refused.status_code == 403,
+        "no_tenant_token_issued": "access_token" not in first.json()
+        and "token" not in first.text.lower(),
+    }

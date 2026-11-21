@@ -10,6 +10,7 @@ from contracts.v1 import (
     Account,
     AccountIdentity,
     AccountLoginChallenge,
+    AccountOrganizationRequest,
     AccountSession,
     AgentDefinition,
     AgentRun,
@@ -113,6 +114,7 @@ class RuntimeRepositoryBindingMixin:
     memberships: Repository[OrganizationMembership]
     account_login_challenges: Repository[AccountLoginChallenge]
     account_sessions: Repository[AccountSession]
+    account_organization_requests: Repository[AccountOrganizationRequest]
 
     def _bind_repositories(self) -> None:
         """Attach one repository for each product collection."""
@@ -183,6 +185,10 @@ class RuntimeRepositoryBindingMixin:
         self.email_login_challenges = self._repository(
             "email_login_challenges", EmailLoginChallenge
         )
+        self._bind_account_repositories()
+
+    def _bind_account_repositories(self) -> None:
+        """Attach the global account collections."""
         self.accounts = self._repository("accounts", Account)
         self.account_identities = self._repository(
             "account_identities", AccountIdentity
@@ -192,6 +198,9 @@ class RuntimeRepositoryBindingMixin:
             "account_login_challenges", AccountLoginChallenge
         )
         self.account_sessions = self._repository("account_sessions", AccountSession)
+        self.account_organization_requests = self._repository(
+            "account_organization_requests", AccountOrganizationRequest
+        )
 
     def _repository(
         self, collection: str, record_type: type[TProduct]

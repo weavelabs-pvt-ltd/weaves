@@ -22,6 +22,7 @@ from contracts.v1 import (
     Account,
     AccountIdentity,
     AccountLoginChallenge,
+    AccountOrganizationRequest,
     AccountSession,
     AgentDefinition,
     AgentRun,
@@ -103,6 +104,7 @@ class RuntimeCompositionInputs(Protocol):
     memberships: Repository[OrganizationMembership]
     account_login_challenges: Repository[AccountLoginChallenge]
     account_sessions: Repository[AccountSession]
+    account_organization_requests: Repository[AccountOrganizationRequest]
     evaluation_executions: Repository[EvaluationExecution]
     evaluation_reports: Repository[EvaluationReportRecord]
     evaluation_suites: Repository[EvaluationSuiteRecord]

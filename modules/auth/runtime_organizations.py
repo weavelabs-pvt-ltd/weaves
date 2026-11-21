@@ -9,7 +9,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Any, Protocol
 
 from application.ports.repository import Repository
 from application.ports.throttling import LoginRateLimiter
@@ -64,8 +64,8 @@ class OwnerRecords:
     role: Role
     preset_roles: tuple[Role, ...]
     binding: RoleBinding
-    credential: ApiCredential
-    token: str
+    credential: ApiCredential | None
+    token: str | None
 
 
 @dataclass(frozen=True)
@@ -118,8 +118,46 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
         self, *, name: str, email: str, display_name: str
     ) -> tuple[Organization, Workspace, User, Principal, str]:
         """Provision an organization, owner workspace, user, and API token."""
+        normalized_email = email.strip().casefold()
+        owner = self.provision_organization(
+            name=name,
+            email=normalized_email,
+            display_name=display_name,
+            audit_metadata={"owner_email": normalized_email},
+        )
+        if owner.token is None:
+            raise RuntimeError("legacy onboarding must issue an owner token")
+        return (
+            owner.organization,
+            owner.workspace,
+            owner.user,
+            owner.principal,
+            owner.token,
+        )
+
+    def ensure_bootstrapped(self) -> None:
+        """Initialize product defaults once, before any provisioning transaction."""
         if not self._bootstrapped():
             self.bootstrap()
+
+    def provision_organization(
+        self,
+        *,
+        name: str,
+        email: str,
+        display_name: str,
+        audit_metadata: dict[str, Any],
+        issue_credential: bool = True,
+        within: Callable[[OwnerRecords], None] | None = None,
+    ) -> OwnerRecords:
+        """Provision one organization and its owner as a single unit of work.
+
+        ``within`` runs inside the same unit of work, after the tenant rows and
+        under the new organization's own scope, so a caller can add records
+        that must commit or roll back together with the tenant. Account-scoped
+        callers switch to their system scope inside that callback.
+        """
+        self.ensure_bootstrapped()
         normalized_email = email.strip().casefold()
         if not normalized_email or "@" not in normalized_email:
             raise ValueError("a valid owner email is required")
@@ -131,18 +169,15 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
             normalized_email,
             display_name,
             timestamp,
+            issue_credential=issue_credential,
         )
         defaults = self._build_organization_defaults(
             organization_id, workspace_id, timestamp
         )
-        self._persist_new_organization(owner, defaults, normalized_email, timestamp)
-        return (
-            owner.organization,
-            owner.workspace,
-            owner.user,
-            owner.principal,
-            owner.token,
+        self._persist_new_organization(
+            owner, defaults, audit_metadata, timestamp, within
         )
+        return owner
 
     @staticmethod
     def _build_owner_records(
@@ -152,6 +187,8 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
         email: str,
         display_name: str,
         timestamp: datetime,
+        *,
+        issue_credential: bool = True,
     ) -> OwnerRecords:
         organization = Organization(
             id=organization_id,
@@ -199,15 +236,12 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
             workspace_id=None,
             created_at=timestamp,
         )
-        token = secrets.token_urlsafe(32)
-        credential = ApiCredential(
-            id=_id(),
-            token_digest=hashlib.sha256(token.encode("utf-8")).hexdigest(),
-            org_id=organization_id,
-            principal_id=principal.id,
-            status=ApiCredentialStatus.ACTIVE,
-            created_at=timestamp,
-            updated_at=timestamp,
+        credential, token = (
+            OrganizationRuntimeMixin._issue_credential(
+                organization_id, principal.id, timestamp
+            )
+            if issue_credential
+            else (None, None)
         )
         return OwnerRecords(
             organization,
@@ -220,6 +254,23 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
             credential,
             token,
         )
+
+    @staticmethod
+    def _issue_credential(
+        organization_id: str, principal_id: str, timestamp: datetime
+    ) -> tuple[ApiCredential, str]:
+        """Create the owner's API credential and the one-time token for it."""
+        token = secrets.token_urlsafe(32)
+        credential = ApiCredential(
+            id=_id(),
+            token_digest=hashlib.sha256(token.encode("utf-8")).hexdigest(),
+            org_id=organization_id,
+            principal_id=principal_id,
+            status=ApiCredentialStatus.ACTIVE,
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+        return credential, token
 
     def _build_organization_defaults(
         self, organization_id: str, workspace_id: str, timestamp: datetime
@@ -259,15 +310,18 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
         self,
         owner: OwnerRecords,
         defaults: OrganizationDefaults,
-        normalized_email: str,
+        audit_metadata: dict[str, Any],
         timestamp: datetime,
+        within: Callable[[OwnerRecords], None] | None = None,
     ) -> None:
         """Write the new tenant's records under that tenant's own scope."""
         identity = set_request_identity(
             owner.principal.id, owner.organization.id, owner.workspace.id
         )
         try:
-            self._write_new_organization(owner, defaults, normalized_email, timestamp)
+            self._write_new_organization(
+                owner, defaults, audit_metadata, timestamp, within
+            )
         finally:
             reset_request_principal(identity)
 
@@ -275,8 +329,9 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
         self,
         owner: OwnerRecords,
         defaults: OrganizationDefaults,
-        normalized_email: str,
+        audit_metadata: dict[str, Any],
         timestamp: datetime,
+        within: Callable[[OwnerRecords], None] | None = None,
     ) -> None:
         """Atomically persist the organization, owner, defaults, and audit event."""
         with self._unit_of_work():
@@ -288,7 +343,8 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
             for role in owner.preset_roles:
                 self.roles.create(role)
             self.role_bindings.create(owner.binding)
-            self.api_credentials.create(owner.credential)
+            if owner.credential is not None:
+                self.api_credentials.create(owner.credential)
             self.providers.create(defaults.provider)
             self.model_profiles.create(defaults.profile)
             self.approval_policies.create(defaults.policy)
@@ -303,10 +359,12 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
                     target_id=owner.organization.id,
                     summary="Organization and owner workspace provisioned",
                     request_id=owner.organization.id,
-                    metadata={"owner_email": normalized_email},
+                    metadata=audit_metadata,
                     created_at=timestamp,
                 )
             )
+            if within is not None:
+                within(owner)
 
     def check_onboarding_rate_limit(self, client_address: str | None) -> None:
         """Limit public organization provisioning per client address."""
