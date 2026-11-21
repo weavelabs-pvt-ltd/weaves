@@ -215,6 +215,10 @@ pending occurrence. Validation adds unit, DST, property, golden, API,
 PostgreSQL restricted-role concurrency and backfill tests, and required
 real-stack control `T4-I03`.
 
+### Phase 4 progress: schedule timezone editor control (T4-I04)
+
+The required real-stack suite now drives the actual schedule editor in Chromium: interval schedules show their own zone (a legacy record reads as Asia/Kolkata), a zone-only edit sends the loaded revision and leaves the pending UTC instant unchanged, a new schedule can name its own zone, and an unknown zone is refused by the server, shown inline and creates nothing. The harness pins the frontend change under review and is re-pinned to the merged frontend commit once it lands.
+
 ## Phase overview and dependencies
 
 | Phase | Deliverable | Depends on | Release gate |
