@@ -33,7 +33,6 @@ from contracts.v1 import (
     Artifact,
     AuditEvent,
     ConversationThread,
-    EmailLoginChallenge,
     EvaluationExecution,
     EvaluationReportRecord,
     EvaluationSuiteRecord,
@@ -53,15 +52,11 @@ from contracts.v1 import (
     SkillPublication,
     SkillRevocation,
     SkillVersion,
-    SsoConnection,
-    SsoExternalIdentity,
     Task,
     TaskMessage,
     TaskTurn,
     ToolInvocation,
     User,
-    UserPasswordCredential,
-    UserSession,
     WorkflowDefinition,
     WorkflowRun,
     WorkflowSchedule,
@@ -98,7 +93,6 @@ class RuntimeCompositionInputs(Protocol):
     approvals: Repository[ApprovalRequest]
     artifacts: Repository[Artifact]
     audit_events: Repository[AuditEvent]
-    email_login_challenges: Repository[EmailLoginChallenge]
     accounts: Repository[Account]
     account_identities: Repository[AccountIdentity]
     memberships: Repository[OrganizationMembership]
@@ -118,8 +112,6 @@ class RuntimeCompositionInputs(Protocol):
     organizations: Repository[Organization]
     plugins: Repository[PluginDescriptor]
     principals: Repository[Principal]
-    sso_connections: Repository[SsoConnection]
-    sso_external_identities: Repository[SsoExternalIdentity]
     providers: Repository[ModelProviderContract]
     role_bindings: Repository[RoleBinding]
     skill_definitions: Repository[SkillDefinition]
@@ -130,8 +122,6 @@ class RuntimeCompositionInputs(Protocol):
     runs: Repository[WorkflowRun]
     threads: Repository[ConversationThread]
     tool_invocations: Repository[ToolInvocation]
-    user_passwords: Repository[UserPasswordCredential]
-    user_sessions: Repository[UserSession]
     users: Repository[User]
     workflow_schedules: Repository[WorkflowSchedule]
     workflow_triggers: Repository[WorkflowTrigger]
@@ -152,7 +142,6 @@ class RuntimeCompositionInputs(Protocol):
     model: MockModelIdentifier
     model_adapters: Mapping[ModelProviderType, ModelAdapter]
     model_gateway: ModelGateway
-    onboarding_rate_limiter: LoginRateLimiter
     openai_enabled: bool
     plugin_gateway: PluginDispatcher
     secret_store: SecretStore

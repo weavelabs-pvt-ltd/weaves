@@ -1,4 +1,4 @@
-"""Organization onboarding and principal workspace resolution."""
+"""Organization provisioning and principal workspace resolution."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from datetime import datetime
 from typing import Any, Protocol
 
 from application.ports.repository import Repository
-from application.ports.throttling import LoginRateLimiter
 from contracts.v1 import (
     ApiCredential,
     ApiCredentialStatus,
@@ -39,10 +38,7 @@ from contracts.v1 import (
 from contracts.v1 import ModelProvider as ModelProviderContract
 from modules.auth.role_presets import build_role_preset
 from shared.clock import new_id as _id
-from shared.clock import utc_now as _auth_now
 from shared.clock import utc_now as _now
-from shared.errors import RateLimitExceeded
-from shared.login_buckets import login_bucket_key
 from shared.request_context import reset_request_principal, set_request_identity
 
 
@@ -86,7 +82,6 @@ class OrganizationRuntimeHost(ABC):
     audit_events: Repository[AuditEvent]
     model: MockModelIdentifier
     model_profiles: Repository[ModelProfile]
-    onboarding_rate_limiter: LoginRateLimiter
     organizations: Repository[Organization]
     principals: Repository[Principal]
     providers: Repository[ModelProviderContract]
@@ -113,27 +108,6 @@ class OrganizationRuntimeHost(ABC):
 
 class OrganizationRuntimeMixin(OrganizationRuntimeHost):
     """Provision organizations and resolve principal workspace access."""
-
-    def create_organization(
-        self, *, name: str, email: str, display_name: str
-    ) -> tuple[Organization, Workspace, User, Principal, str]:
-        """Provision an organization, owner workspace, user, and API token."""
-        normalized_email = email.strip().casefold()
-        owner = self.provision_organization(
-            name=name,
-            email=normalized_email,
-            display_name=display_name,
-            audit_metadata={"owner_email": normalized_email},
-        )
-        if owner.token is None:
-            raise RuntimeError("legacy onboarding must issue an owner token")
-        return (
-            owner.organization,
-            owner.workspace,
-            owner.user,
-            owner.principal,
-            owner.token,
-        )
 
     def ensure_bootstrapped(self) -> None:
         """Initialize product defaults once, before any provisioning transaction."""
@@ -365,16 +339,6 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
             )
             if within is not None:
                 within(owner)
-
-    def check_onboarding_rate_limit(self, client_address: str | None) -> None:
-        """Limit public organization provisioning per client address."""
-        normalized_address = (client_address or "").strip()
-        if not normalized_address:
-            raise RateLimitExceeded(3600)
-        bucket = login_bucket_key("onboarding-source", normalized_address)
-        decision = self.onboarding_rate_limiter.consume(bucket, _auth_now())
-        if not decision.allowed:
-            raise RateLimitExceeded(decision.retry_after_seconds)
 
     def resolve_principal_scope(
         self, principal_id: str, workspace_id: str | None = None

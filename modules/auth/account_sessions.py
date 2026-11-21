@@ -1,4 +1,4 @@
-"""Opaque account sessions, kept apart from tenant user sessions."""
+"""Opaque account sessions for bearer and browser channels."""
 
 from __future__ import annotations
 
@@ -34,11 +34,15 @@ class AccountSessions:
         self._accounts = accounts
 
     def issue(
-        self, account: Account, channel: Channel = "bearer"
+        self,
+        account: Account,
+        channel: Channel = "bearer",
+        lifetime: timedelta | None = None,
     ) -> tuple[AccountSession, str]:
         """Create a session for an enabled account on one channel.
 
         Browser tokens carry their own prefix and are valid only as cookies.
+        ``lifetime`` shortens the default for operator-issued sessions.
         """
         if account.status is not AccountStatus.ACTIVE:
             raise PermissionError("account is disabled")
@@ -49,7 +53,7 @@ class AccountSessions:
             account_id=account.id,
             token_digest=token_digest(token),
             channel=channel,
-            expires_at=now + timedelta(hours=ACCOUNT_SESSION_HOURS),
+            expires_at=now + (lifetime or timedelta(hours=ACCOUNT_SESSION_HOURS)),
             created_at=now,
             updated_at=now,
         )

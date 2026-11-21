@@ -1,4 +1,4 @@
-"""Cookie and CSRF helpers for same-origin browser sessions."""
+"""Cookie and CSRF helpers for same-origin account browser sessions."""
 
 from __future__ import annotations
 
@@ -10,10 +10,6 @@ from urllib.parse import urlsplit
 from fastapi import Request, Response
 from starlette.responses import JSONResponse
 
-from contracts.v1 import Principal
-from modules.auth.authentication_service import AuthenticationService
-
-COOKIE_NAME = "__Host-weaves_session"
 ACCOUNT_COOKIE_NAME = "__Host-weaves_account_session"
 CSRF_HEADER = "x-weaves-csrf"
 
@@ -118,18 +114,4 @@ def clear_session_cookie(response: Response, name: str) -> None:
     """Expire a session cookie with the attributes it was set with."""
     response.delete_cookie(
         name, path="/", secure=True, httponly=True, samesite="strict"
-    )
-
-
-def issue_browser_session(
-    authentication: AuthenticationService, principal: Principal, response: Response
-) -> None:
-    """Create an HttpOnly cookie session with the normal revocation lifecycle."""
-    _csrf_key()
-    session, token = authentication.create_user_session(principal, channel="browser")
-    set_session_cookie(
-        response,
-        COOKIE_NAME,
-        token,
-        max_age=int((session.expires_at - session.created_at).total_seconds()),
     )

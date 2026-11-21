@@ -25,6 +25,7 @@ from tests.support.account_world import (
     seed_member,
     seed_organization,
 )
+from tests.support.organizations import onboard
 from tests.support.runtime import LocalPlatformRuntime
 
 
@@ -414,16 +415,13 @@ def test_http_throttling_returns_429_with_retry_after(client):
 
 def test_account_and_tenant_tokens_never_cross(client):
     http, runtime, _, mail = client
-    onboarding = http.post(
-        "/api/v0/onboarding/organizations",
-        json={
-            "name": "Isolation Org",
-            "owner_email": "owner@isolation.test",
-            "owner_display_name": "Owner",
-        },
+    onboarding = onboard(
+        http,
+        name="Isolation Org",
+        owner_email="owner@isolation.test",
+        owner_display_name="Owner",
     )
-    assert onboarding.status_code == 201, onboarding.text
-    tenant_headers = {"Authorization": f"Bearer {onboarding.json()['access_token']}"}
+    tenant_headers = {"Authorization": f"Bearer {onboarding['access_token']}"}
     account = _http_sign_in(http, mail, "owner@isolation.test")
     account_headers = _bearer(account)
 
@@ -443,16 +441,6 @@ def test_account_and_tenant_tokens_never_cross(client):
         == 200
     )
     assert len(runtime.account_sessions.list()) == 1
-
-
-def test_a_tenant_user_session_token_is_not_an_account_session(client):
-    http, runtime, _, _ = client
-    _, principal = _member(runtime, "org-a", "member@example.test")
-    _, token = runtime.authentication_service.create_user_session(principal)
-    assert runtime.user_sessions.list()
-    headers = {"Authorization": f"Bearer {token}"}
-    assert http.get("/api/v0/account/me", headers=headers).status_code == 401
-    assert http.post("/api/v0/account/logout", headers=headers).status_code == 401
 
 
 def test_logout_revokes_the_session(client):

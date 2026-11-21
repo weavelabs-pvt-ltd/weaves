@@ -46,32 +46,17 @@ frontend_url="$("$GCLOUD" run services describe "$FRONTEND_SERVICE" \
   --no-invoker-iam-check \
   --service-account "weaves-api@${PROJECT_ID}.iam.gserviceaccount.com" \
   --add-cloudsql-instances "$connection_name" \
-  --set-secrets "DATABASE_URL=weaves-database-url:1,WEAVES_SECRET_ENCRYPTION_KEY=weaves-fernet-key:1,WEAVES_ORGANIZATION_ONBOARDING_TOKEN=weaves-onboarding-token:1" \
-  --set-env-vars "^|^WEAVES_ALLOW_ORGANIZATION_ONBOARDING=true|CORS_ORIGINS=${frontend_url}"
+  --set-secrets "DATABASE_URL=weaves-database-url:1,WEAVES_SECRET_ENCRYPTION_KEY=weaves-fernet-key:1" \
+  --set-env-vars "CORS_ORIGINS=${frontend_url}"
 api_url="$("$GCLOUD" run services describe "$API_SERVICE" \
   --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
 "$GCLOUD" run services update "$FRONTEND_SERVICE" \
   --project "$PROJECT_ID" --region "$REGION" \
   --update-env-vars "^|^WEAVES_API_BASE=${api_url}/api/v0"
 
-export WEAVES_API_BASE="${api_url}/api/v0"
-export WEAVES_OWNER_EMAIL="$("$GCLOUD" secrets versions access latest \
-  --secret=weaves-e2e-owner-email --project="$PROJECT_ID")"
-export WEAVES_OWNER_PASSWORD="$("$GCLOUD" secrets versions access latest \
-  --secret=weaves-e2e-owner-password --project="$PROJECT_ID")"
-export WEAVES_ONBOARDING_TOKEN="$("$GCLOUD" secrets versions access latest \
-  --secret=weaves-onboarding-token --project="$PROJECT_ID")"
-python3 infra/gcp/bootstrap_owner.py
-unset WEAVES_OWNER_PASSWORD WEAVES_ONBOARDING_TOKEN
-
-"$GCLOUD" run services update "$API_SERVICE" \
-  --project "$PROJECT_ID" --region "$REGION" \
-  --remove-secrets WEAVES_ORGANIZATION_ONBOARDING_TOKEN \
-  --update-env-vars "^|^WEAVES_ALLOW_ORGANIZATION_ONBOARDING=false|CORS_ORIGINS=${frontend_url}"
-"$GCLOUD" secrets remove-iam-policy-binding weaves-onboarding-token \
-  --project "$PROJECT_ID" \
-  --member="serviceAccount:weaves-api@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --role=roles/secretmanager.secretAccessor --quiet >/dev/null
+# The first account owner is created out of band with
+# infra/gcp/singlevm/bootstrap_account_owner.py from a host that has
+# database owner access; there is no public signup or password login.
 
 "$GCLOUD" run worker-pools deploy "$WORKER_POOL" \
   --project "$PROJECT_ID" --region "$REGION" --image "$backend_ref" \
@@ -81,10 +66,9 @@ unset WEAVES_OWNER_PASSWORD WEAVES_ONBOARDING_TOKEN
   --add-cloudsql-instances "$connection_name" \
   --set-secrets "DATABASE_URL=weaves-database-url:1,WEAVES_SECRET_ENCRYPTION_KEY=weaves-fernet-key:1"
 
-export WEAVES_E2E_API_BASE="${api_url}/api/v0"
-export WEAVES_E2E_EMAIL="$WEAVES_OWNER_EMAIL"
-export WEAVES_E2E_PASSWORD="$("$GCLOUD" secrets versions access latest \
-  --secret=weaves-e2e-owner-password --project="$PROJECT_ID")"
-python3 "$ROOT/scripts/e2e_smoke.py"
+if [ -n "${WEAVES_E2E_TOKEN:-}" ]; then
+  export WEAVES_E2E_API_BASE="${api_url}/api/v0"
+  python3 "$ROOT/scripts/e2e_smoke.py"
+fi
 
 printf 'Production is deployed.\nFrontend: %s\nAPI: %s\n' "$frontend_url" "$api_url"

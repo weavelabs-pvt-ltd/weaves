@@ -7,7 +7,8 @@ from fastapi.testclient import TestClient
 from apps.api.app import create_app
 from contracts.v1 import PluginInstallation, PluginInstallationStatus
 from shared.clock import utc_now
-from tests.support.member_login import member_token
+from tests.support.account_session import account_headers
+from tests.support.organizations import onboard
 from tests.support.runtime import LocalPlatformRuntime
 
 
@@ -29,18 +30,15 @@ class RbacApiScenario:
 
 def _create_rbac_api_scenario(client: TestClient, runtime) -> RbacApiScenario:
     """Create an owner, test data, and a user assigned the User preset."""
-    response = client.post(
-        "/api/v0/onboarding/organizations",
-        json={
-            "name": "RBAC test organization",
-            "owner_email": "rbac-owner@example.test",
-            "owner_display_name": "RBAC owner",
-        },
+    response = onboard(
+        client,
+        name="RBAC test organization",
+        owner_email="rbac-owner@example.test",
+        owner_display_name="RBAC owner",
     )
-    assert response.status_code == 201, response.text
-    workspace_id = response.json()["workspace"]["id"]
+    workspace_id = response["workspace"]["id"]
     owner_headers = {
-        "Authorization": f"Bearer {response.json()['access_token']}",
+        "Authorization": f"Bearer {response['access_token']}",
         "X-Workspace-ID": workspace_id,
     }
     roles = client.get("/api/v0/roles", headers=owner_headers).json()
@@ -62,7 +60,7 @@ def _create_rbac_api_scenario(client: TestClient, runtime) -> RbacApiScenario:
     runtime.installations.create(
         PluginInstallation(
             plugin_installation_id="rbac-test-installation",
-            org_id=response.json()["organization"]["id"],
+            org_id=response["organization"]["id"],
             workspace_id=workspace_id,
             plugin_id="slack",
             display_name="Test Slack",
@@ -89,10 +87,12 @@ def _create_rbac_api_scenario(client: TestClient, runtime) -> RbacApiScenario:
         },
     )
     assert user.status_code == 201, user.text
-    user_headers = {
-        "Authorization": f"Bearer {member_token(client, user.json())}",
-        "X-Workspace-ID": workspace_id,
-    }
+    user_headers = account_headers(
+        client,
+        user.json()["user"]["email"],
+        user.json()["user"]["org_id"],
+        workspace_id,
+    )
     return RbacApiScenario(
         owner_headers=owner_headers,
         user_headers=user_headers,
@@ -336,10 +336,12 @@ def _assert_custom_permission_paths_are_admin_only(
         },
     )
     assert workspace_admin.status_code == 201, workspace_admin.text
-    delegated_headers = {
-        "Authorization": f"Bearer {member_token(client, workspace_admin.json())}",
-        "X-Workspace-ID": workspace_id,
-    }
+    delegated_headers = account_headers(
+        client,
+        workspace_admin.json()["user"]["email"],
+        workspace_admin.json()["user"]["org_id"],
+        workspace_id,
+    )
     before_users = client.get("/api/v0/users", headers=owner_headers).json()
     rejected_user = client.post(
         "/api/v0/users",
@@ -369,22 +371,19 @@ def test_system_role_assignment_scope_is_enforced():
     client = TestClient(create_app(runtime))
 
     with client:
-        onboarded = client.post(
-            "/api/v0/onboarding/organizations",
-            json={
-                "name": "Scope test organization",
-                "owner_email": "scope-owner@example.test",
-                "owner_display_name": "Scope owner",
-            },
+        onboarded = onboard(
+            client,
+            name="Scope test organization",
+            owner_email="scope-owner@example.test",
+            owner_display_name="Scope owner",
         )
-        assert onboarded.status_code == 201, onboarded.text
-        headers = {"Authorization": f"Bearer {onboarded.json()['access_token']}"}
+        headers = {"Authorization": f"Bearer {onboarded['access_token']}"}
         roles = client.get("/api/v0/roles", headers=headers).json()
         admin_role = next(item for item in roles if item["system_role_key"] == "admin")
         user_role = next(item for item in roles if item["system_role_key"] == "user")
         scoped_headers = {
             **headers,
-            "X-Workspace-ID": onboarded.json()["workspace"]["id"],
+            "X-Workspace-ID": onboarded["workspace"]["id"],
         }
         current_bindings = client.get("/api/v0/role-bindings", headers=scoped_headers)
         owner_principal_id = next(
@@ -409,7 +408,7 @@ def test_system_role_assignment_scope_is_enforced():
         assert last_admin_replacement.status_code == 422
         user = client.post(
             "/api/v0/users",
-            headers={**headers, "X-Workspace-ID": onboarded.json()["workspace"]["id"]},
+            headers={**headers, "X-Workspace-ID": onboarded["workspace"]["id"]},
             json={
                 "email": "scope-user@example.test",
                 "display_name": "Scope user",
@@ -418,7 +417,7 @@ def test_system_role_assignment_scope_is_enforced():
         )
         assert user.status_code == 201, user.text
         _assert_custom_permission_paths_are_admin_only(
-            client, scoped_headers, onboarded.json()["workspace"]["id"]
+            client, scoped_headers, onboarded["workspace"]["id"]
         )
         invalid_assignment = client.put(
             "/api/v0/role-bindings",
@@ -426,7 +425,7 @@ def test_system_role_assignment_scope_is_enforced():
             json={
                 "principal_id": user.json()["principal"]["id"],
                 "role_id": admin_role["id"],
-                "workspace_id": onboarded.json()["workspace"]["id"],
+                "workspace_id": onboarded["workspace"]["id"],
             },
         )
         assert invalid_assignment.status_code == 422

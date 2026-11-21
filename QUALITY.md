@@ -24,7 +24,7 @@ Without that variable, the PostgreSQL tests are skipped.
 
 ## Cleanup performed
 
-- Typed the workflow studio, SSO routes, repository composition and worker
+- Typed the workflow studio, repository composition and worker
   dependencies; added a typed canvas step-progress contract with the same JSON
   field names used by existing records.
 - Split workflow publication, execution and scheduling into bounded modules

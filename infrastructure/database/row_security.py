@@ -27,9 +27,7 @@ POLICY_FUNCTIONS: tuple[str, ...] = (
              WHEN 'bootstrap' THEN true
              WHEN 'auth' THEN coll = ANY (ARRAY[
                'organizations', 'workspaces', 'users', 'principals',
-               'api_credentials', 'user_passwords', 'user_sessions',
-               'sso_connections', 'sso_external_identities',
-               'email_login_challenges', 'roles', 'role_bindings',
+               'api_credentials', 'roles', 'role_bindings',
                'audit_events', 'accounts', 'account_identities',
                'memberships', 'account_login_challenges',
                'account_sessions'])

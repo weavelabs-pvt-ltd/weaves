@@ -27,7 +27,6 @@ def main() -> None:
         values = {
             "POSTGRES_PASSWORD": secrets.token_hex(32),
             "WEAVES_SECRET_ENCRYPTION_KEY": incoming["encryption_key"],
-            "WEAVES_SSO_SESSION_SECRET": secrets.token_hex(32),
         }
     values.update(
         BACKEND_IMAGE=incoming["backend_image"],

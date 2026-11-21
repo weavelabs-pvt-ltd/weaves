@@ -6,7 +6,6 @@ from pydantic import ValidationError
 from contracts.v1 import (
     ApiCredential,
     ApiCredentialStatus,
-    EmailLoginChallenge,
     Organization,
     OrganizationStatus,
     Permission,
@@ -16,8 +15,6 @@ from contracts.v1 import (
     Role,
     RoleBinding,
     User,
-    UserSession,
-    UserSessionStatus,
     Workspace,
     WorkspaceStatus,
 )
@@ -43,57 +40,6 @@ def test_api_credential_contract_persists_digest_and_revocation_state():
             org_id="org-a",
             principal_id="principal-a",
             status=ApiCredentialStatus.ACTIVE,
-            created_at=NOW,
-            updated_at=NOW,
-        )
-
-
-def test_user_session_contract_requires_digest_and_consistent_revocation():
-    session = UserSession(
-        id="session-a",
-        org_id="org-a",
-        principal_id="principal-a",
-        token_digest="b" * 64,
-        status=UserSessionStatus.ACTIVE,
-        expires_at=NOW,
-        created_at=NOW,
-        updated_at=NOW,
-    )
-    assert session.token_digest == "b" * 64
-    with pytest.raises(ValidationError):
-        UserSession(
-            id="session-b",
-            org_id="org-a",
-            principal_id="principal-a",
-            token_digest="invalid",
-            status=UserSessionStatus.ACTIVE,
-            expires_at=NOW,
-            created_at=NOW,
-            updated_at=NOW,
-        )
-
-
-def test_email_login_challenge_rejects_non_digest_codes():
-    with pytest.raises(ValidationError):
-        EmailLoginChallenge(
-            challenge_id="challenge-a",
-            org_id="org-a",
-            user_id="user-a",
-            principal_id="principal-a",
-            email="person@example.com",
-            code_digest="123456",
-            expires_at=NOW,
-            created_at=NOW,
-            updated_at=NOW,
-        )
-    with pytest.raises(ValidationError):
-        UserSession(
-            id="session-c",
-            org_id="org-a",
-            principal_id="principal-a",
-            token_digest="c" * 64,
-            status=UserSessionStatus.REVOKED,
-            expires_at=NOW,
             created_at=NOW,
             updated_at=NOW,
         )

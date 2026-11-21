@@ -9,9 +9,8 @@ approval-backed Jira comments, persisted API credentials, and PostgreSQL-backed
 execution jobs. The dashboard is implemented for local evaluation.
 
 The product API provisions organizations and workspaces, resolves
-request-derived tenant scope, and supports human-user password sessions,
-invitations, service accounts, roles, and credentials. Email verification,
-MFA, SSO/OIDC, account recovery, and secure browser-cookie sessions are not
+request-derived tenant scope, and supports account sessions, service accounts,
+roles, and credentials. MFA, SSO/OIDC and account recovery are not
 implemented. Workflows can sequence up to ten agents, execute dependency graphs
 with multiple roots and `all`/`any` joins, select conditional routes based on
 validated structured output, and run bounded groups of adjacent independent
@@ -420,8 +419,8 @@ Routes expose organization/workspace records, provider and model profiles,
 plugin installation, agent create/update/read, workflow listing and execution,
 synchronous runs, durable execution jobs, threads, knowledge, memory,
 approvals, artifacts, credentials, and audit events. Bearer tokens resolve to
-active principals and role permissions. The onboarding endpoint provisions an
-organization, owner credential, default workspace, and initial runtime
+active principals and role permissions. Account organization creation provisions an
+organization, owner, default workspace, and initial runtime
 configuration. Organization admins can provision additional workspaces and
 the API validates workspace selection against role bindings. Workspace admins
 can provision human principals with explicit workspace permissions and one-time

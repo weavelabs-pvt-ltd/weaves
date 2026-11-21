@@ -1,4 +1,4 @@
-"""Account browser sessions: cookie + CSRF, isolated from bearer and legacy cookies."""
+"""Account browser sessions: cookie + CSRF, isolated from bearer sessions."""
 
 from datetime import timedelta
 from http.cookies import SimpleCookie
@@ -12,9 +12,10 @@ from apps.runtime_wiring import compose_platform_runtime
 from contracts.v1 import AccountStatus, MembershipStatus
 from infrastructure.auth.throttle import InMemoryLoginRateLimiter
 from modules.auth.account_sessions import token_digest
-from modules.auth.http.browser_sessions import ACCOUNT_COOKIE_NAME, COOKIE_NAME
+from modules.auth.http.browser_sessions import ACCOUNT_COOKIE_NAME, csrf_token
 from shared.clock import utc_now
 from tests.support.account_world import HMAC_KEY, CapturedMail
+from tests.support.organizations import create_organization
 
 ORIGIN = "https://app.example.test"
 EMAIL = "browser.person@example.test"
@@ -35,13 +36,14 @@ def world(monkeypatch):
     service.email_sender = mail
     service.email_login_hmac_key = HMAC_KEY
     service.login_rate_limiter = InMemoryLoginRateLimiter(limit=50)
-    org_a, _, _, principal_a, owner_a = (
-        runtime.organization_service.create_organization(
-            name="Org A", email=EMAIL, display_name="Person A"
-        )
+    org_a, _, _, principal_a, owner_a = create_organization(
+        runtime, name="Org A", email=EMAIL, display_name="Person A"
     )
-    org_b, *_ = runtime.organization_service.create_organization(
-        name="Org B", email="someone.else@example.test", display_name="Other"
+    org_b, *_ = create_organization(
+        runtime,
+        name="Org B",
+        email="someone.else@example.test",
+        display_name="Other",
     )
     client = TestClient(
         create_app(runtime), base_url=ORIGIN, raise_server_exceptions=False
@@ -92,7 +94,6 @@ def test_verify_sets_a_distinct_secure_cookie_and_returns_csrf_without_a_token(w
     cookie = SimpleCookie()
     cookie.load(response.headers["set-cookie"])
     morsel = cookie[ACCOUNT_COOKIE_NAME]
-    assert ACCOUNT_COOKIE_NAME != COOKIE_NAME
     assert morsel["secure"] and morsel["httponly"]
     assert morsel["samesite"] == "strict" and morsel["path"] == "/"
     assert int(morsel["max-age"]) == 12 * 3600
@@ -246,36 +247,20 @@ def test_bearer_and_cookie_credentials_are_not_interchangeable(world):
     assert ok.status_code == 200
 
 
-def test_account_and_legacy_cookies_are_not_interchangeable(world):
-    csrf, token = _login(world)
-    client, runtime = world["client"], world["runtime"]
+def test_an_unknown_cookie_is_refused_everywhere(world):
+    _login(world)
+    client = world["client"]
     org = {"X-Organization-Id": world["org_a"].id}
-    # an account token in the legacy cookie is refused as a tenant session
+    forged = "wvs_acbr_" + "x" * 43
+    csrf = csrf_token(forged)
     client.cookies.clear()
-    client.cookies.set(COOKIE_NAME, token)
-    assert client.get("/api/v0/auth/browser/me").status_code == 401
-    assert client.get("/api/v0/agents", headers=org).status_code == 401
-    # a legacy browser token in the account cookie is refused
-    principal = runtime.principals.get(world["principal_a"].id)
-    _, legacy = runtime.authentication_service.create_user_session(
-        principal, channel="browser"
-    )
-    client.cookies.clear()
-    client.cookies.set(ACCOUNT_COOKIE_NAME, legacy)
+    client.cookies.set(ACCOUNT_COOKIE_NAME, forged)
     assert client.get("/api/v0/account/browser/me").status_code == 401
     assert client.get("/api/v0/agents", headers=org).status_code == 403
-    # an account cookie never reaches the legacy cookie-only routes
-    client.cookies.clear()
-    client.cookies.set(ACCOUNT_COOKIE_NAME, token)
-    assert client.get("/api/v0/auth/browser/me").status_code == 401
-    assert (
-        client.post("/api/v0/auth/browser/logout", headers=_headers(csrf)).status_code
-        == 401
-    )
-    # a legacy cookie never reaches the account cookie routes
-    client.cookies.clear()
-    client.cookies.set(COOKIE_NAME, legacy)
-    assert client.get("/api/v0/account/browser/me").status_code == 401
+    out = client.post("/api/v0/account/browser/logout", headers=_headers(csrf))
+    assert out.status_code == 401
+    # the removed tenant browser routes no longer exist behind any cookie
+    assert client.get("/api/v0/auth/browser/me").status_code in (401, 404)
 
 
 def test_a_disabled_account_loses_the_session_at_once_and_cannot_sign_in(world):

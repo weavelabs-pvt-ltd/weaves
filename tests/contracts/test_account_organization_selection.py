@@ -14,6 +14,7 @@ from contracts.v1 import (
 )
 from infrastructure.auth.throttle import InMemoryLoginRateLimiter
 from tests.support.account_world import HMAC_KEY, CapturedMail
+from tests.support.organizations import create_organization
 
 SHARED = "shared.person@example.test"
 
@@ -29,18 +30,14 @@ def world():
     service.email_sender = mail
     service.email_login_hmac_key = HMAC_KEY
     service.login_rate_limiter = InMemoryLoginRateLimiter(limit=50)
-    org_a, ws_a, user_a, principal_a, owner_a = (
-        runtime.organization_service.create_organization(
-            name="Org A", email=SHARED, display_name="Shared A"
-        )
+    org_a, ws_a, user_a, principal_a, owner_a = create_organization(
+        runtime, name="Org A", email=SHARED, display_name="Shared A"
     )
-    org_b, ws_b, user_b, principal_b, owner_b = (
-        runtime.organization_service.create_organization(
-            name="Org B", email=SHARED, display_name="Shared B"
-        )
+    org_b, ws_b, user_b, principal_b, owner_b = create_organization(
+        runtime, name="Org B", email=SHARED, display_name="Shared B"
     )
-    org_c, _, _, _, _ = runtime.organization_service.create_organization(
-        name="Org C", email="stranger@example.test", display_name="Stranger"
+    org_c, _, _, _, _ = create_organization(
+        runtime, name="Org C", email="stranger@example.test", display_name="Stranger"
     )
     challenge = service.start_email_login(SHARED, "198.51.100.1")
     _, _, token = service.verify_email_login(challenge, mail.code(), "198.51.100.1")

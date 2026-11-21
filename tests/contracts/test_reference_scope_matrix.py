@@ -123,7 +123,7 @@ def _snapshot(world: World) -> str:
     state = {
         name: sorted(record.model_dump_json() for record in repository.list())
         for name, repository in repositories.items()
-        if hasattr(repository, "list") and name != "user_sessions"
+        if hasattr(repository, "list")
     }
     return json.dumps(state, sort_keys=True)
 

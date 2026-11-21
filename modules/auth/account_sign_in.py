@@ -131,7 +131,7 @@ class AccountSignInService:
         """Consume a valid code, link memberships and start an account session."""
         del client_address  # the source budget is spent when codes are requested
         challenge = self.redeem(challenge_id, code, account_id=None)
-        account = self._find_or_create_account(challenge.email)
+        account = self.find_or_create_account(challenge.email)
         if account.status is not AccountStatus.ACTIVE:
             raise PermissionError(_INVALID)
         self._linker.link(account, challenge.email)
@@ -270,7 +270,12 @@ class AccountSignInService:
             and identity.verified_at is not None
         )
 
-    def _find_or_create_account(self, email: str) -> Account:
+    def find_account(self, email: str) -> Account | None:
+        """Return the account that owns a verified email, never creating one."""
+        identity = self._verified_identity(email.strip().casefold())
+        return self.accounts.get(identity.account_id) if identity else None
+
+    def find_or_create_account(self, email: str) -> Account:
         """Resolve the platform-wide owner of a verified email, creating it once."""
         identity = self._verified_identity(email)
         if identity is None:

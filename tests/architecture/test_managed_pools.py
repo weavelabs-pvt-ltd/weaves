@@ -77,7 +77,9 @@ def test_api_and_worker_wiring_inject_one_http_client(monkeypatch) -> None:
         "apps.runtime_wiring.open_http_client",
         lambda settings: clients[settings.db_application_name],
     )
-    monkeypatch.setattr("apps.runtime_wiring._open_store", lambda settings: None)
+    monkeypatch.setattr(
+        "apps.runtime_wiring._open_store", lambda settings, app_role=None: None
+    )
     api_runtime = build_api_runtime()
     worker_runtime = build_worker_runtime()
     try:

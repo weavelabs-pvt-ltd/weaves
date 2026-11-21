@@ -56,61 +56,6 @@
       ],
       "current_gap": null
     },
-    "user_passwords": {
-      "scope": "organization",
-      "contract": "UserPasswordCredential",
-      "privacy": "secret/identity material; narrow authentication or admin capability only",
-      "system_access": "explicit bounded dispatcher/recovery or migration; not customer Admin bypass",
-      "lifecycle": "deny new tenant work when suspended/deleted or workspace archived; allow audited cleanup",
-      "scope_keys": [
-        "org_id"
-      ],
-      "current_gap": null
-    },
-    "user_sessions": {
-      "scope": "organization",
-      "contract": "UserSession",
-      "privacy": "secret/identity material; narrow authentication or admin capability only",
-      "system_access": "explicit bounded dispatcher/recovery or migration; not customer Admin bypass",
-      "lifecycle": "deny new tenant work when suspended/deleted or workspace archived; allow audited cleanup",
-      "scope_keys": [
-        "org_id"
-      ],
-      "current_gap": null
-    },
-    "sso_connections": {
-      "scope": "organization",
-      "contract": "SsoConnection",
-      "privacy": "secret/identity material; narrow authentication or admin capability only",
-      "system_access": "explicit bounded dispatcher/recovery or migration; not customer Admin bypass",
-      "lifecycle": "deny new tenant work when suspended/deleted or workspace archived; allow audited cleanup",
-      "scope_keys": [
-        "org_id"
-      ],
-      "current_gap": null
-    },
-    "sso_external_identities": {
-      "scope": "organization",
-      "contract": "SsoExternalIdentity",
-      "privacy": "secret/identity material; narrow authentication or admin capability only",
-      "system_access": "explicit bounded dispatcher/recovery or migration; not customer Admin bypass",
-      "lifecycle": "deny new tenant work when suspended/deleted or workspace archived; allow audited cleanup",
-      "scope_keys": [
-        "org_id"
-      ],
-      "current_gap": null
-    },
-    "email_login_challenges": {
-      "scope": "organization",
-      "contract": "EmailLoginChallenge",
-      "privacy": "secret/identity material; narrow authentication or admin capability only",
-      "system_access": "explicit bounded dispatcher/recovery or migration; not customer Admin bypass",
-      "lifecycle": "deny new tenant work when suspended/deleted or workspace archived; allow audited cleanup",
-      "scope_keys": [
-        "org_id"
-      ],
-      "current_gap": null
-    },
     "roles": {
       "scope": "organization",
       "contract": "Role",
@@ -827,79 +772,9 @@
       "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
     },
     {
-      "method": "POST",
-      "path": "/api/v0/auth/browser/logout",
-      "scope": "authenticated_identity",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v0/auth/browser/me",
-      "scope": "authenticated_identity",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v0/auth/email-code",
-      "scope": "public_authentication",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v0/auth/email-verify",
-      "scope": "public_authentication",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v0/auth/login",
-      "scope": "public_authentication",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v0/auth/logout",
-      "scope": "authenticated_identity",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
       "method": "GET",
       "path": "/api/v0/auth/me",
       "scope": "authenticated_identity",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/v0/auth/password",
-      "scope": "authenticated_identity",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v0/auth/sso/providers",
-      "scope": "public_authentication",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v0/auth/sso/{provider}/callback",
-      "scope": "public_authentication",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v0/auth/sso/{provider}/start",
-      "scope": "public_authentication",
       "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
       "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
     },
@@ -1145,13 +1020,6 @@
       "method": "POST",
       "path": "/api/v0/oauth/{provider}/start",
       "scope": "workspace",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v0/onboarding/organizations",
-      "scope": "public_authentication",
       "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
       "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
     },

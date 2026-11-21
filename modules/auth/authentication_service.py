@@ -1,69 +1,35 @@
-"""Password, API-token, and user-session authentication use cases."""
+"""API-token authentication and principal identity lookups."""
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
-from contextlib import AbstractContextManager
 
-from application.ports.email import EmailSender
 from application.ports.repository import Repository
-from application.ports.throttling import LoginRateLimiter
-from contracts.v1 import (
-    ApiCredential,
-    AuditEvent,
-    EmailLoginChallenge,
-    Principal,
-    User,
-    UserPasswordCredential,
-    UserSession,
-)
-from modules.auth.runtime_sessions import AuthenticationRuntimeMixin
+from contracts.v1 import ApiCredential, ApiCredentialStatus, Principal, User
+from shared.clock import utc_now
 
 
-class AuthenticationService(AuthenticationRuntimeMixin):
-    """Authenticate principals and manage sessions through injected adapters."""
-
-    api_credentials: Repository[ApiCredential]
-    audit_events: Repository[AuditEvent]
-    principals: Repository[Principal]
-    user_passwords: Repository[UserPasswordCredential]
-    user_sessions: Repository[UserSession]
-    users: Repository[User]
-    login_rate_limiter: LoginRateLimiter
+class AuthenticationService:
+    """Resolve service credentials and principals through injected adapters."""
 
     def __init__(
         self,
         *,
         api_credentials: Repository[ApiCredential],
-        audit_events: Repository[AuditEvent],
-        email_login_challenges: Repository[EmailLoginChallenge],
-        email_sender: EmailSender,
-        email_login_hmac_key: str,
         principals: Repository[Principal],
-        user_passwords: Repository[UserPasswordCredential],
-        user_sessions: Repository[UserSession],
         users: Repository[User],
-        login_rate_limiter: LoginRateLimiter,
         is_bootstrapped: Callable[[], bool],
         bootstrap: Callable[[], None],
         authenticate_principal: Callable[[str], str],
-        unit_of_work: Callable[[], AbstractContextManager[None]],
     ) -> None:
-        """Bind authentication repositories, throttling, and lifecycle ports."""
+        """Bind credential and identity repositories and lifecycle ports."""
         self.api_credentials = api_credentials
-        self.audit_events = audit_events
-        self.email_login_challenges = email_login_challenges
-        self.email_sender = email_sender
-        self.email_login_hmac_key = email_login_hmac_key
         self.principals = principals
-        self.user_passwords = user_passwords
-        self.user_sessions = user_sessions
         self.users = users
-        self.login_rate_limiter = login_rate_limiter
         self._bootstrapped = is_bootstrapped
         self._bootstrap = bootstrap
         self._authenticate_principal = authenticate_principal
-        self._open_unit_of_work = unit_of_work
 
     def bootstrap(self) -> None:
         """Delegate product initialization to the application lifecycle."""
@@ -72,6 +38,21 @@ class AuthenticationService(AuthenticationRuntimeMixin):
     def authenticate_principal(self, principal_id: str) -> str:
         """Resolve a principal through credential and membership policy."""
         return self._authenticate_principal(principal_id)
+
+    def authenticate_api_token(self, token: str) -> str | None:
+        """Resolve a persisted high-entropy API token to its active principal."""
+        if not self._bootstrapped():
+            self.bootstrap()
+        digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        credential = self.api_credentials.find_by_field("token_digest", digest)
+        if credential is None or credential.status is not ApiCredentialStatus.ACTIVE:
+            return None
+        if credential.expires_at is not None and credential.expires_at <= utc_now():
+            return None
+        try:
+            return self.authenticate_principal(credential.principal_id)
+        except (KeyError, PermissionError):
+            return None
 
     def get_authenticated_identity(
         self, principal_id: str
@@ -86,7 +67,3 @@ class AuthenticationService(AuthenticationRuntimeMixin):
             else None
         )
         return principal, user
-
-    def _unit_of_work(self) -> AbstractContextManager[None]:
-        """Open a transaction for related authentication state changes."""
-        return self._open_unit_of_work()

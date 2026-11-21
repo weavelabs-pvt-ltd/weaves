@@ -5,12 +5,14 @@ from shared.request_context import (
     reset_request_principal,
     set_request_identity,
 )
+from tests.support.organizations import create_organization
 from tests.support.runtime import LocalPlatformRuntime
 
 
 def test_task_worker_uses_the_tasks_tenant_scope():
     runtime = LocalPlatformRuntime()
-    organization, workspace, _, owner, _ = runtime.create_organization(
+    organization, workspace, _, owner, _ = create_organization(
+        runtime,
         name="Worker Tenant",
         email="owner@worker.example",
         display_name="Worker Owner",

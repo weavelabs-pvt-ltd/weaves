@@ -16,6 +16,7 @@ from infrastructure.database.plugin_ownership import (
 )
 from infrastructure.database.store import ProductPostgresStore
 from tests.contracts.test_plugin_workflow_contracts import descriptor, installation
+from tests.support.organizations import create_organization
 from tests.support.runtime import LocalPlatformRuntime
 
 IMAGE = "sha256:" + "a" * 64
@@ -26,8 +27,11 @@ def catalog(isolated_postgres_url):
     store = ProductPostgresStore(isolated_postgres_url)
     runtime = LocalPlatformRuntime(postgres_store=store)
     runtime.bootstrap()
-    other = runtime.organization_service.create_organization(
-        name="Other tenant", email="owner@other.test", display_name="Other owner"
+    other = create_organization(
+        runtime,
+        name="Other tenant",
+        email="owner@other.test",
+        display_name="Other owner",
     )
     try:
         yield runtime, store, other

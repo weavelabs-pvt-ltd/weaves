@@ -9,7 +9,7 @@ from threading import Lock
 from typing import Any
 
 from application.ports.throttling import LoginRateLimiter, LoginThrottleDecision
-from shared.errors import LoginThrottled, RateLimitExceeded
+from shared.errors import LoginThrottled
 from shared.login_buckets import login_bucket_key
 
 
@@ -151,7 +151,6 @@ __all__ = [
     "LoginThrottleDecision",
     "LoginThrottled",
     "PostgresLoginRateLimiter",
-    "RateLimitExceeded",
     "login_bucket_key",
     "utc_now",
 ]

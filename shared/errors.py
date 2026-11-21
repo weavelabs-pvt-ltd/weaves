@@ -64,11 +64,3 @@ class LoginThrottled(RuntimeError):
     def __init__(self, retry_after_seconds: int) -> None:
         super().__init__("login attempts are temporarily limited")
         self.retry_after_seconds = retry_after_seconds
-
-
-class RateLimitExceeded(RuntimeError):
-    """Raised when a public operation exceeds its source-address budget."""
-
-    def __init__(self, retry_after_seconds: int) -> None:
-        super().__init__("this operation is temporarily limited")
-        self.retry_after_seconds = retry_after_seconds

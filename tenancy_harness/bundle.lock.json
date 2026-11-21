@@ -22,7 +22,7 @@
     "live_relay.py": "321e5ef15c0bf1f037d6ea080e4e0f88e95583cafc3d28f9efc7e5221af6d81f",
     "model_egress.py": "d150bf4043d3d2a824d0ba1d82ade876045a8b2606ef34f2a33e94e8c3be99a9",
     "observe.py": "bec4e95f750abcb783a9a156e20944fb26d3acdeaca60ede89dcea1ab17c24c3",
-    "ownership.json": "75231d3b799539b7145412b791b24965663a87b31772cd0a72faad2d1a7b49f7",
+    "ownership.json": "a47ddf07772f14388b3a143ee670ff0a95ff3f218958df8cd879d278601aa4f9",
     "pair.json": "25037d6a125c778da3ea953194e2dcbe048aa815ad6686ce8b6d57144a1c0a0b",
     "playwright.config.cjs": "f269aed34e2c494c555df05b71eece37abb067a490abfc1e8387dcf1851215ab",
     "report.py": "a25704f23714cb40cf1ccef367477735e339697db04bdc339c9a3ab6f9ee7dcd",
