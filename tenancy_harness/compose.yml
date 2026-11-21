@@ -35,6 +35,7 @@ services:
       WEAVES_SECRET_ENCRYPTION_KEY: ${TEST_ENCRYPTION_KEY:?}
       WEAVES_EMAIL_LOGIN_HMAC_KEY: ${TEST_EMAIL_KEY:?}
       WEAVES_ALLOW_ORGANIZATION_ONBOARDING: "true"
+      WEAVES_ALLOW_ACCOUNT_ORGANIZATION_CREATION: "true"
       WEAVES_ORGANIZATION_ONBOARDING_TOKEN: ${TEST_ONBOARDING_TOKEN:?}
       WEAVES_MODEL_CUSTOM_BASE_URLS: '["https://models.tenancy.test/v1","https://blocked-models.tenancy.test/v1","https://wrong-cert.tenancy.test/v1","https://models.tenancy.test/redirect/v1"]'
       WEAVES_MODEL_PRIVATE_NETWORKS: '{"wrong-cert.tenancy.test":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"],"models.tenancy.test":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"],"api.anthropic.com":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"],"api.openai.com":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"],"generativelanguage.googleapis.com":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"]}'

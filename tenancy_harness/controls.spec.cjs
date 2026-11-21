@@ -310,7 +310,10 @@ test('T1-I10 real browser signs in as an account, chooses and switches organizat
   await page.getByRole('button', { name: /Verify and sign in/ }).click();
 
   await expect(page.getByRole('heading', { name: 'Choose an organization' })).toBeVisible({ timeout: 25000 });
-  await expect(page.locator('[data-account-action="choose"]')).toHaveCount(2);
+  // The same person may belong to more organizations (for example one created through the account API).
+  for (const org of [a.org_id, b.org_id]) {
+    await expect(page.locator('[data-account-action="choose"][data-organization-id="' + org + '"]')).toBeVisible();
+  }
   await page.locator('[data-account-action="choose"][data-organization-id="' + a.org_id + '"]').click();
   await expect.poll(() => page.evaluate(() => state.organization?.id), { timeout: 25000 }).toBe(a.org_id);
   await page.evaluate(() => { location.hash = 'agents'; });
@@ -333,4 +336,12 @@ test('T1-I10 real browser signs in as an account, chooses and switches organizat
   expect(afterSwitch.length).toBeLessThanOrEqual(1);
   expect(tenantCalls.at(-1).organization).toBe(b.org_id);
   await context.close();
+});
+
+test('T1-I11 an account creates an organization once, idempotently and privately', async () => {
+  const control = fixture.diagnostics.account;
+  for (const key of ['organization_created', 'replay_returns_same_organization', 'key_reuse_with_other_body_conflicts',
+    'creator_can_select_it', 'another_account_is_refused', 'no_tenant_token_issued']) {
+    expect(control[key], key).toBe(true);
+  }
 });
