@@ -293,20 +293,17 @@ and revocation are separate immutable facts.
 
 ### 2.9 Names that exist in the database layer but have no repository
 
-`PURGE_ORDER` and the migrations still name collections for which this release has
-no repository (listed by `scripts/export_data_model.py`, section 5 of generated.md):
-`user_sessions`, `user_password_credentials`, `email_login_challenges`,
-`user_invitations`, `sso_connections`, `sso_external_identities`. They are leftovers
-of the removed password/SSO flows (commit `4e90010`, "Remove every legacy sign-in
-flow"). Migration 15 deleted `user_invitations` rows. The indexes for
-`user_sessions`, `sso_connections` and `sso_external_identities`, and the
-`sso_identity_immutable` trigger, still exist (observations in
-[physical-schema.md](data-model/physical-schema.md)). Purge handles these names and
-any other unknown collection through `delete_remaining_batch`. Phase 8 (enterprise
-identity) will most likely revive the `sso_*` names; the indexes and the immutability
-trigger give the starting constraints for `sso_external_identities`:
-unique `(org_id, connection_id, issuer, subject)` and unique `(org_id, connection_id,
-user_id)`, updates rejected.
+Migration 22 (`infrastructure/database/legacy_purge.py`) deleted every row of the
+removed collections `user_passwords`, `user_password_credentials`, `user_sessions`,
+`user_invitations`, `sso_connections`, `sso_external_identities`,
+`email_login_challenges`, `account_login_challenges`, `memory_items` and
+`knowledge_documents`, dropped their indexes and the `sso_identity_immutable` trigger
+with its function, and removed the names from `PURGE_ORDER`. Every collection stored in
+`product_records` is now in `REPOSITORY_SPECS`; the test
+`tests/integration/test_collection_drift.py` enforces it, and `PURGED_COLLECTIONS` lists
+the removed names. Phase 8 (enterprise identity), if it revives `sso_*`, designs its
+constraints afresh. Purge still handles any unknown collection through
+`delete_remaining_batch`.
 
 Collections not exported (by design or omission): `organizations` and
 `organization_settings` and `organization_lifecycle` (included as document sections),
@@ -374,8 +371,8 @@ Where each rule is enforced: **code** (service layer), **repo** (repository SQL)
 6. `org_id IS NULL` rows are visible to all tenants; nothing prevents a tenant-owned
    collection from being written without an org.
 7. Immutability of versions, frozen records and audit events is by convention. The
-   only immutability triggers are for SSO identity rows (legacy) and plugin
-   descriptors/ownership. There is no protection against `UPDATE` or `DELETE` of
+   only immutability triggers are the plugin descriptor/ownership guards (after
+   migration 20). There is no protection against `UPDATE` or `DELETE` of
    `audit_events` for a role with `DELETE` privilege (the app role has full DML on
    every table, see physical-schema).
 8. Lifecycle state machine transitions and `Organization.status` / lifecycle

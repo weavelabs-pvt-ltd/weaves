@@ -32,7 +32,7 @@ kept current.
 
 Constraint: `product_records_pkey PRIMARY KEY (collection, record_id)`. No other
 constraints, no foreign keys, no check constraints. Row-level security enabled
-(not forced). Triggers: `sso_identity_immutable` (legacy) and, after migration 20,
+(not forced). Triggers: none, except after migration 20:
 `plugin_record_guard`, `plugin_record_owner`, `plugin_installation_owner_guard`.
 
 ### `product_secrets`
@@ -118,7 +118,6 @@ physical definitions by `pg_indexes`. The query column names the repository meth
 | `product_records_api_token_digest_uq` | `(collection, payload->>'token_digest')` where `api_credentials` | `authentication_service.py`: `find_by_field("token_digest")` |
 | `product_records_role_binding_scope_uq` | `(org_id, principal_id, role_id, COALESCE(workspace_id,''))` where `role_bindings` | uniqueness only (no lookup uses it directly; `list_scoped` serves reads) |
 | `product_records_execution_job_claim_idx` | `(created_at, record_id)` where `execution_jobs` and `status='queued'` | `claim_next_queued` for jobs (`ORDER BY created_at, record_id LIMIT 1 FOR UPDATE SKIP LOCKED`, PQ) |
-| `product_records_user_session_digest_uq` | `(collection, payload->>'token_digest')` where `user_sessions` | none: the collection has no repository (legacy) |
 | `product_records_active_user_email_uq` | `(org_id, lower(payload->>'email'))` where `users` and status not `deleted` | uniqueness of active email per organization |
 | `product_records_workflow_trigger_secret_uq` | `(collection, payload->>'secret_digest')` where `workflow_triggers` | uniqueness only; webhook auth reads the trigger by id then compares the digest (`runtime_triggers.py`) |
 | `product_records_workflow_schedule_due_idx` | `(payload->>'next_run_at', record_id)` where `workflow_schedules` and status active | `list_due` (PR) used by `runtime_schedules.py` |
@@ -148,7 +147,6 @@ physical definitions by `pg_indexes`. The query column names the repository meth
 | `user_email_lower_idx` | `(lower(payload->>'email'))` where `users` | `list_by_field("email", casefold=True)` across all organizations (`account_linking.py`) |
 | `organization_lifecycle_state_idx` | `(state, record_id)` where `organization_lifecycle` | `list_by_field("state")` in the purge tick |
 | `product_installations_plugin_owner_idx` (after migration 20) | `(payload->>'plugin_id', org_id, record_id)` where `plugin_installations` | trigger and catalog existence checks on `plugin_id` (`has_installations`, delete guards, ownership report) |
-| `sso_identity_subject_uq`, `sso_identity_user_connection_uq`, `sso_connections_org_provider_idx` | see generated.md | none: legacy collections `sso_external_identities`, `sso_connections` without repository |
 | `product_login_throttle_window_idx` (`product_login_throttle`) | `(window_started_at)` | `DELETE ... WHERE window_started_at < cutoff` in `_maybe_prune` |
 | `product_secrets_org_idx` (`product_secrets`) | `(org_id)` | `purge_organization` (`WHERE org_id = ...`) |
 | `product_plugin_owner_org_idx` (`product_plugin_ownership`) | `(org_id, plugin_id)` where state owned | owner lookups |
@@ -157,8 +155,6 @@ physical definitions by `pg_indexes`. The query column names the repository meth
 
 | Object | Definition | Purpose |
 |---|---|---|
-| Function `reject_sso_identity_rewrite()` | plpgsql; raises "SSO identity bindings are immutable" if `OLD.collection = 'sso_external_identities'` | migration 19 |
-| Trigger `sso_identity_immutable` | `BEFORE UPDATE ON product_records FOR EACH ROW` | runs for every update of every collection, acts on one legacy collection |
 | Function `weaves_system_allows(coll text)` | SQL, `STABLE`; `CASE app.system_purpose` returns whether the named purpose lists the collection | RLS; re-created at each start-up (CREATE OR REPLACE), see 5 |
 | Function `weaves_rls_allows(coll, rid, row_org)` | SQL, `STABLE` | RLS policy predicate |
 | `guard_plugin_record()` and trigger `plugin_record_guard` | `BEFORE INSERT OR UPDATE OR DELETE ON product_records` (migration 20) | descriptor identity immutable, no workspace on a descriptor, `payload.plugin_id = record_id`, owner and `plugin_type` immutable, deletion refused for built-in or quarantined or installed descriptors (SQLSTATE 23514), owner organization must exist |
@@ -254,15 +250,19 @@ marked **history**: they are applied once and are not edited.
 | 19 | history | SSO identity unique indexes, `sso_connections` index, `reject_sso_identity_rewrite` function and `sso_identity_immutable` trigger | questionable: no repository for these collections (see observations) |
 | 20 | history, operator-activated | Catalog ownership (`plugin_ownership.py`, `plugin_ownership_sql.py`): two tables, guards, backfill of `org_id` onto descriptors, rollout evidence. Never applied by start-up; absent from a fresh database; requires versions 1 to 19 and a recorded reader image digest, takes `ACCESS EXCLUSIVE` on `product_records`, bounded to 10,000 records | yes once activated |
 | 21 | history | Row-level security (`row_security.py`): `weaves_app` role, policy functions, `ENABLE ROW LEVEL SECURITY`, `tenant_isolation` policy, grants | yes |
-| repeatable | every start | Policy functions (`CREATE OR REPLACE`), account-layer indexes (`account_schema.py`), `organization_lifecycle_state_idx` | yes, additive and idempotent so older releases can roll back |
+| 22 | start-up | `legacy_purge.py`: deletes rows of the purged collections (`user_passwords`, `user_password_credentials`, `user_sessions`, `user_invitations`, `sso_connections`, `sso_external_identities`, `email_login_challenges`, `account_login_challenges`, `memory_items`, `knowledge_documents`); drops `product_records_user_session_digest_uq`, `product_records_user_invitation_digest_uq`, `sso_identity_subject_uq`, `sso_identity_user_connection_uq`, `sso_connections_org_provider_idx`, `account_challenge_email_idx`, `account_challenge_expiry_idx`, trigger `sso_identity_immutable` and function `reject_sso_identity_rewrite()` | yes (idempotent) |
+| repeatable | every start | Policy functions (`CREATE OR REPLACE`), account-layer indexes (`account_schema.py`), `organization_lifecycle_state_idx` | yes, idempotent |
 | out of band | secret store start | `product_secrets` create/alter/policy/backfill | yes |
 
-### Version 22 and later
+### Version 22
 
-> Reserved for migrations added after this snapshot. A bounded organization-purge
-> migration is being added by another contributor at the time of writing; when it lands
-> record here its version, the objects it adds, its activation mode (start-up or
-> operator), and its read-compatibility entry in `_READ_COMPATIBLE_MIGRATIONS`.
+Migration 22 is in the table above.
+
+
+Migrations are append-only and forward-only; the reader-compatibility set
+(`_READ_COMPATIBLE_MIGRATIONS`) no longer exists. Migrations 6, 15 and 19 stay as
+history and create objects that 22 removes. A bounded organization-purge needs no
+migration. Later migrations are recorded here.
 
 ## 7. Observations for the review
 
@@ -270,12 +270,8 @@ Listed, not fixed. "Verified" means the statement was read directly from code or
 introspected database; "unverified" means plan or volume behaviour not measured.
 
 Stale or unused objects
-1. `product_records_user_session_digest_uq` (migration 6) indexes collection `user_sessions`,
-   which has no repository and appears only in `PURGE_ORDER`. Verified unused.
-2. `sso_identity_subject_uq`, `sso_identity_user_connection_uq`, `sso_connections_org_provider_idx`
-   and the trigger `sso_identity_immutable` (migration 19) belong to collections
-   `sso_external_identities` and `sso_connections` that have no repository. The trigger fires
-   on every `UPDATE` of `product_records` for all collections. Verified.
+1. (Resolved by migration 22) the legacy session and SSO indexes and the SSO trigger.
+2. (Resolved by migration 22) legacy collection names no longer appear in `PURGE_ORDER`.
 3. `account_identity_account_idx` duplicates the leading column of `account_identity_owner_uq`.
    Verified from definitions.
 4. `account_session_account_idx`: no query by sessions' `account_id` was found
@@ -283,8 +279,7 @@ Stale or unused objects
    Verified by grep; may exist for future "list my sessions".
 5. `product_records_workflow_trigger_secret_uq` and `product_records_role_binding_scope_uq` serve
    uniqueness only (acceptable).
-6. Purge and migration names with no repository: `user_sessions`, `user_password_credentials`,
-   `email_login_challenges`, `user_invitations`, `sso_connections`, `sso_external_identities`.
+6. (Resolved by migration 22) no collection without a repository remains.
 7. `product_secrets` rows with `org_id IS NULL` are unreadable (policy) and are never deleted
    by purge (`purge_organization` filters by organization). Orphans are possible. Verified from
    code, not observed.
