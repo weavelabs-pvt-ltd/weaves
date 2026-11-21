@@ -93,7 +93,6 @@ def setup_private(root, harness, project):
             secrets.token_bytes(32)
         ).decode(),
         "TEST_EMAIL_KEY": secrets.token_hex(32),
-        "TEST_ONBOARDING_TOKEN": secrets.token_hex(32),
         "TEST_HTTP_PORT": str(port),
         "TEST_UID": str(os.getuid()),
         "TEST_GID": str(os.getgid()),

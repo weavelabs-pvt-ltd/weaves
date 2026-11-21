@@ -1,7 +1,6 @@
 """Fixture client using public HTTP authentication and resource APIs."""
 
 import hashlib
-import os
 import time
 
 import httpx
@@ -13,12 +12,6 @@ PROVIDER = "https://provider"
 def call(method, path, actor=None, body=None, expected=(200, 201, 202, 204)):
     """Call the actual API without logging tokens, codes, or credential bodies."""
     headers = actor["headers"] if actor else {}
-    if path == "/onboarding/organizations":
-        headers = {
-            "X-Weaves-Onboarding-Token": os.environ[
-                "WEAVES_ORGANIZATION_ONBOARDING_TOKEN"
-            ]
-        }
     response = httpx.request(method, API + path, headers=headers, json=body, timeout=30)
     if response.status_code not in expected:
         raise AssertionError(f"Fixture {method} {path}: HTTP {response.status_code}")
@@ -32,35 +25,47 @@ def mailbox(email):
     return response.json()
 
 
-def sign_in(email, org_id):
-    """Prove email through the real challenge, SMTP adapter, and verify endpoint."""
-    # Distinct synthetic clients exercise native source throttling without disabling it.
-    suffix = int(hashlib.sha256(email.encode()).hexdigest()[:2], 16) or 1
-    source = {"headers": {"X-Forwarded-For": f"198.18.0.{suffix}"}}
-    challenge = call(
-        "POST",
-        "/auth/email-code",
-        source,
-        body={"email": email, "organization_id": org_id},
-    )
+def source_for(email):
+    """Give each synthetic person a stable client address so native throttles apply."""
+    digest = hashlib.sha256(email.encode()).digest()
+    return {"X-Forwarded-For": f"198.18.{digest[0]}.{digest[1] % 250 + 1}"}
+
+
+def account_sign_in(email):
+    """Prove an email through the account challenge, SMTP adapter and verify routes."""
+    source = {"headers": source_for(email)}
+    challenge = call("POST", "/account/email-code", source, {"email": email})
     proof = mailbox(email)["code"]
     if not proof:
         raise AssertionError("Real SMTP fixture did not receive a code")
     result = call(
         "POST",
-        "/auth/email-verify",
+        "/account/email-verify",
         source,
-        body={"challenge_id": challenge["challenge_id"], "code": proof},
+        {"challenge_id": challenge["challenge_id"], "code": proof},
     )
     return result["access_token"]
 
 
-def actor(token, workspace, principal, email):
-    """Describe a real persisted principal without inventing global memberships."""
+def actor(token, org_id, workspace, principal, email):
+    """Describe an account acting as one tenant-local principal in one organization."""
+    return {
+        "headers": {
+            "Authorization": "Bearer " + token,
+            "X-Organization-Id": org_id,
+            "X-Workspace-ID": workspace,
+        },
+        "principal_id": principal,
+        "email": email,
+    }
+
+
+def service_actor(token, workspace, principal):
+    """A workspace-bound service account uses its API credential as a bearer."""
     return {
         "headers": {"Authorization": "Bearer " + token, "X-Workspace-ID": workspace},
         "principal_id": principal,
-        "email": email,
+        "email": "service",
     }
 
 

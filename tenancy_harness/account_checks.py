@@ -5,6 +5,7 @@ import httpx
 from tenancy_harness.client import API, mailbox
 
 SOURCE = {"X-Forwarded-For": "198.20.0.77"}
+SECOND_EMAIL = "shared.person.second@tenancy.test"
 
 
 def _post(path, headers, body):
@@ -41,7 +42,7 @@ def sign_in_checks(a, b):
             for path in ("/agents", "/workspaces", "/model-providers")
         ),
         "tenant_token_denied_on_account_routes": httpx.get(
-            API + "/account/me", headers=a["admin"]["headers"], timeout=30
+            API + "/account/me", headers=a["service"]["headers"], timeout=30
         ).status_code
         == 401,
         "unknown_email_indistinguishable": stranger.status_code == started.status_code
@@ -65,7 +66,7 @@ def selection_checks(a, b, bearer, foreign_org_id):
     _, names_b = names(b["org_id"])
     unknown, _ = names("no-such-organization")
     foreign, _ = names(foreign_org_id)
-    ignored, names_ignored = names(b["org_id"], a["admin"]["headers"])
+    ignored, names_ignored = names(b["org_id"], a["service"]["headers"])
     cross_workspace, _ = names(a["org_id"], workspace=b["workspace_id"])
     return {
         "selects_each_organization": a["agent"]["name"] in names_a
@@ -101,9 +102,7 @@ def linking_checks(a, b, bearer):
     """Prove a second email needs proof and another account's email is refused."""
     other_email = b["admin"]["email"]
     other = _prove("/account/", other_email, {"X-Forwarded-For": "198.20.0.78"})
-    attached = _prove(
-        "/account/identities/", a["builder"]["email"], {**SOURCE, **bearer}
-    )
+    attached = _prove("/account/identities/", SECOND_EMAIL, {**SOURCE, **bearer})
     conflict = _prove("/account/identities/", other_email, {**SOURCE, **bearer})
     me_after = httpx.get(API + "/account/me", headers=bearer, timeout=30)
     other_me = httpx.get(
