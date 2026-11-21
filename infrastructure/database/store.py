@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
+from infrastructure.database.legacy_purge import LEGACY_PURGE_MIGRATION
 from infrastructure.database.row_security import (
     REPEATABLE_STATEMENTS,
     ROW_SECURITY_MIGRATION,
@@ -16,6 +17,17 @@ from infrastructure.database.row_security import (
 from shared.request_context import current_system_purpose, storage_org_scope
 
 _MIGRATION_LOCK_NAME = "weaves-product-schema-migrations"
+
+# Migrations are append-only and forward-only. Never edit or delete a released
+# entry: a database that already recorded its version will not run it again,
+# and a new database must reach the same schema by replaying the whole list.
+# Change the schema by appending the next version (a destructive change gets
+# its own migration, e.g. ``legacy_purge``). Versions 2-5 were recorded by the
+# original bootstrap without DDL and stay reserved. Version 20 is the
+# operator-activated catalog ownership step (``plugin_ownership``); it is
+# recorded outside this list and is the only version allowed to be missing
+# from it.
+CATALOG_OWNERSHIP_VERSION = 20
 
 
 _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
@@ -329,23 +341,13 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
         ),
     ),
     ROW_SECURITY_MIGRATION,
+    LEGACY_PURGE_MIGRATION,
 )
 
-
-# Migration 20 keeps descriptor JSON unchanged and is explicitly activated by
-# the operator after this compatible API/worker image is healthy. Startup must
-# never apply it automatically. Unknown later migrations remain rejected.
-_READ_COMPATIBLE_MIGRATIONS = frozenset({19, 20, 21})
-
-
-def _schema_migrations() -> tuple[tuple[int, tuple[str, ...]], ...]:
-    """Return ordered migrations, retaining the versions used by older releases.
-
-    Versions 2–5 were recorded by the original bootstrap without separate DDL.
-    They remain reserved so existing databases can be upgraded without
-    rewriting migration history.
-    """
-    return _SCHEMA_MIGRATIONS
+SCHEMA_HEAD_VERSION = _SCHEMA_MIGRATIONS[-1][0]
+KNOWN_SCHEMA_VERSIONS = frozenset(version for version, _ in _SCHEMA_MIGRATIONS) | {
+    CATALOG_OWNERSHIP_VERSION
+}
 
 
 class ProductPostgresStore:
@@ -406,20 +408,17 @@ class ProductPostgresStore:
                     "SELECT version FROM product_schema_migrations ORDER BY version"
                 ).fetchall()
             }
-            migrations = _schema_migrations()
-            unknown_versions = applied.difference(
-                {version for version, _ in migrations} | _READ_COMPATIBLE_MIGRATIONS
-            )
+            unknown_versions = applied - KNOWN_SCHEMA_VERSIONS
             if unknown_versions:
                 raise RuntimeError(
                     "Database schema contains unsupported migration versions: "
                     + ", ".join(str(version) for version in sorted(unknown_versions))
                 )
-            if 20 in applied:
+            if CATALOG_OWNERSHIP_VERSION in applied:
                 from infrastructure.database.plugin_ownership import validate_schema
 
                 validate_schema(connection)
-            for version, statements in migrations:
+            for version, statements in _SCHEMA_MIGRATIONS:
                 if version in applied:
                     continue
                 for statement in statements:

@@ -1113,7 +1113,6 @@ Parsed from the migration and repeatable statements. `collection` is the partial
 | `product_records_execution_job_idempotency_uq` | migration 1 | `product_records` | yes | `org_id, workspace_id, requested_by_principal_id, idempotency_key` | `collection = 'execution_jobs' AND idempotency_key IS NOT NULL` |
 | `product_records_role_binding_scope_uq` | migration 1 | `product_records` | yes | `org_id, (payload->>'principal_id'), (payload->>'role_id'), (COALESCE(payload->>'workspace_id', ''))` | `collection = 'role_bindings'` |
 | `product_records_execution_job_claim_idx` | migration 1 | `product_records` | no | `created_at, record_id` | `collection = 'execution_jobs' AND payload->>'status' = 'queued'` |
-| `product_records_user_session_digest_uq` | migration 6 | `product_records` | yes | `collection, (payload->>'token_digest')` | `collection = 'user_sessions'` |
 | `product_records_active_user_email_uq` | migration 8 | `product_records` | yes | `org_id, lower(payload->>'email')` | `collection = 'users' AND payload->>'status' <> 'deleted'` |
 | `product_login_throttle_window_idx` | migration 9 | `product_login_throttle` | no | `window_started_at` | `-` |
 | `product_records_workflow_trigger_secret_uq` | migration 10 | `product_records` | yes | `collection, (payload->>'secret_digest')` | `collection = 'workflow_triggers'` |
@@ -1132,9 +1131,6 @@ Parsed from the migration and repeatable statements. `collection` is the partial
 | `skills_version_number_unique_idx` | migration 17 | `product_records` | yes | `org_id, (payload->>'skill_id'), (payload->>'version')` | `collection = 'skill_versions'` |
 | `skills_publication_version_unique_idx` | migration 17 | `product_records` | yes | `org_id, (payload->>'skill_version_id')` | `collection = 'skill_publications'` |
 | `skills_revocation_version_unique_idx` | migration 18 | `product_records` | yes | `org_id, (payload->>'skill_version_id')` | `collection = 'skill_revocations'` |
-| `sso_identity_subject_uq` | migration 19 | `product_records` | yes | `org_id, (payload->>'connection_id'), (payload->>'issuer'), (payload->>'subject')` | `collection = 'sso_external_identities'` |
-| `sso_identity_user_connection_uq` | migration 19 | `product_records` | yes | `org_id, (payload->>'connection_id'), (payload->>'user_id')` | `collection = 'sso_external_identities'` |
-| `sso_connections_org_provider_idx` | migration 19 | `product_records` | no | `org_id, (payload->>'provider')` | `collection = 'sso_connections'` |
 | `account_identity_verified_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities' AND payload->>'verified_at' IS NOT NULL` |
 | `account_identity_owner_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'account_id'), (payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities'` |
 | `membership_account_org_uq` | repeatable (account schema) | `product_records` | yes | `org_id, (payload->>'account_id')` | `collection = 'memberships'` |
@@ -1178,9 +1174,4 @@ Collections handled by the account branch of `weaves_rls_allows` (visible only u
 
 Collection names referenced by purge order or indexes that no repository serves in this release.
 
-- `email_login_challenges`
-- `sso_connections`
-- `sso_external_identities`
-- `user_invitations`
-- `user_password_credentials`
-- `user_sessions`
+- none

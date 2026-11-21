@@ -14,7 +14,7 @@ from infrastructure.database.plugin_ownership import (
     activate_ownership,
     ownership_report,
 )
-from infrastructure.database.store import ProductPostgresStore
+from infrastructure.database.store import SCHEMA_HEAD_VERSION, ProductPostgresStore
 from tests.contracts.test_plugin_workflow_contracts import descriptor, installation
 from tests.support.organizations import create_organization
 from tests.support.runtime import LocalPlatformRuntime
@@ -83,7 +83,7 @@ def test_plan_backfill_preserves_payloads_and_classifies_without_guessing(catalo
             connection.execute(
                 "SELECT max(version) FROM product_schema_migrations"
             ).fetchone()[0]
-            == 21
+            == SCHEMA_HEAD_VERSION
         )
     report = _activate(store)
     assert report["applied"]
@@ -302,7 +302,7 @@ def test_failed_activation_rolls_back_and_is_retryable(catalog, monkeypatch):
             connection.execute(
                 "SELECT max(version) FROM product_schema_migrations"
             ).fetchone()[0]
-            == 21
+            == SCHEMA_HEAD_VERSION
         )
     assert _payloads(store) == before
     monkeypatch.setattr(plugin_ownership, "GUARDS", original)

@@ -6,7 +6,11 @@ from typing import Any
 
 from infrastructure.database.plugin_ownership_sql import CLASSIFY, GUARDS, TABLES
 from infrastructure.database.row_security import APP_ROLE_GRANTS
-from infrastructure.database.store import _MIGRATION_LOCK_NAME
+from infrastructure.database.store import (
+    _MIGRATION_LOCK_NAME,
+    CATALOG_OWNERSHIP_VERSION,
+    KNOWN_SCHEMA_VERSIONS,
+)
 
 
 def ownership_report(connection: Any) -> dict[str, Any]:
@@ -72,7 +76,7 @@ def activate_ownership(
     """Atomically backfill and activate after the compatible image is verified.
 
     This is deliberately separate from process startup. A failed transaction
-    leaves schema 19 intact; retries cannot reassign an existing owner or clear
+    leaves the schema unchanged; retries cannot reassign an existing owner or clear
     quarantine. Larger catalogs require a separately rehearsed batch rollout.
     """
     if not re.fullmatch(r"(?:[^\s@]+@)?sha256:[a-f0-9]{64}", reader_image):
@@ -92,11 +96,14 @@ def activate_ownership(
                 "SELECT version FROM product_schema_migrations"
             ).fetchall()
         }
-        if not set(range(1, 20)) <= versions or versions - set(range(1, 22)):
-            raise RuntimeError(
-                "Catalog activation requires a supported schema 19 reader"
-            )
-        if 20 in versions:
+        prerequisites = {
+            version
+            for version in KNOWN_SCHEMA_VERSIONS
+            if version < CATALOG_OWNERSHIP_VERSION
+        }
+        if not prerequisites <= versions or versions - KNOWN_SCHEMA_VERSIONS:
+            raise RuntimeError("Catalog activation requires a supported schema")
+        if CATALOG_OWNERSHIP_VERSION in versions:
             validate_schema(connection)
             return ownership_report(connection)
         connection.execute("LOCK TABLE product_records IN ACCESS EXCLUSIVE MODE")

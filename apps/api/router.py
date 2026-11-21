@@ -85,7 +85,7 @@ def register_v0_routes(app: FastAPI, services: ApiRouteServices) -> None:
         services.storage_mode == "postgres",
         dump,
     )
-    register_studio_routes(app, services.workflow_studio, services.workflow_automation)
+    register_studio_routes(app, services.workflow_studio)
     register_task_routes(app, services.tasks, dump)
     register_skill_routes(app, services.skills, dump)
     register_audit_routes(app, services.governance, dump)

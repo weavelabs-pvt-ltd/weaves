@@ -16,7 +16,11 @@ from contracts.v1 import (
     WorkflowRun,
     WorkflowSchedule,
 )
-from infrastructure.database.store import ProductPostgresStore
+from infrastructure.database.store import (
+    _SCHEMA_MIGRATIONS,
+    SCHEMA_HEAD_VERSION,
+    ProductPostgresStore,
+)
 from infrastructure.persistence.repositories import (
     IdempotencyKeyAlreadyExists,
     PostgresRepository,
@@ -54,6 +58,9 @@ class RecordingPool:
         yield self._connection
 
 
+LISTED_VERSIONS = [version for version, _ in _SCHEMA_MIGRATIONS]
+
+
 def test_product_postgres_migration_adds_idempotency_unique_index():
     connection = RecordingConnection()
     store = ProductPostgresStore.__new__(ProductPostgresStore)
@@ -86,15 +93,13 @@ def test_product_postgres_migration_adds_idempotency_unique_index():
     assert "IS DISTINCT FROM" in sql
     assert "product_records_task_idempotency_uq" in sql
     assert "product_records_task_turn_claim_idx" in sql
-    assert versions == [*range(1, 20), 21]
+    assert versions == LISTED_VERSIONS
     assert "CREATE TABLE IF NOT EXISTS product_login_throttle" in sql
     assert "pg_advisory_xact_lock" in sql
 
 
 def test_product_postgres_migration_skips_applied_versions():
-    connection = RecordingConnection(
-        rows=[(version,) for version in (*range(1, 20), 21)]
-    )
+    connection = RecordingConnection(rows=[(version,) for version in LISTED_VERSIONS])
     store = ProductPostgresStore.__new__(ProductPostgresStore)
     store.pool = RecordingPool(connection)
 
@@ -110,25 +115,13 @@ def test_product_postgres_migration_skips_applied_versions():
     )
 
 
-def test_compatibility_release_reads_schema_19_without_applying_it():
-    connection = RecordingConnection(
-        rows=[(version,) for version in (*range(1, 20), 21)]
-    )
-    store = ProductPostgresStore.__new__(ProductPostgresStore)
-    store.pool = RecordingPool(connection)
-    store._migrate()
-    assert not any(
-        "INSERT INTO product_schema_migrations" in sql
-        for sql, _ in connection.statements
-    )
-
-
 def test_product_postgres_migration_rejects_newer_database_schema():
-    connection = RecordingConnection(rows=[(22,)])
+    newer = SCHEMA_HEAD_VERSION + 1
+    connection = RecordingConnection(rows=[(newer,)])
     store = ProductPostgresStore.__new__(ProductPostgresStore)
     store.pool = RecordingPool(connection)
 
-    with pytest.raises(RuntimeError, match="unsupported migration versions: 22"):
+    with pytest.raises(RuntimeError, match=f"unsupported migration versions: {newer}"):
         store._migrate()
 
 
@@ -145,7 +138,7 @@ def test_product_postgres_migration_upgrades_legacy_version_five():
         for statement, params in connection.statements
         if "INSERT INTO product_schema_migrations" in statement
     ]
-    assert versions == [*range(6, 20), 21]
+    assert versions == [v for v in LISTED_VERSIONS if v >= 6]
     assert "product_records_user_session_digest_uq" in sql
     assert "product_records_workflow_schedule_due_idx" in sql
     assert "product_records_audit_event_workspace_page_idx" in sql
@@ -466,16 +459,28 @@ def test_postgres_put_cannot_transfer_ownership_or_change_it_in_place():
     assert "product_records.org_id IS NOT DISTINCT FROM EXCLUDED.org_id" in query
 
 
-def test_reader_release_accepts_schema_21_without_applying_it():
+def test_database_at_previous_head_applies_only_the_legacy_purge():
     connection = RecordingConnection(
-        rows=[(version,) for version in (*range(1, 20), 21)]
+        rows=[(v,) for v in LISTED_VERSIONS if v < SCHEMA_HEAD_VERSION]
     )
     store = ProductPostgresStore.__new__(ProductPostgresStore)
     store.pool = RecordingPool(connection)
 
     store._migrate()
 
-    assert not any(
-        "INSERT INTO product_schema_migrations" in sql
-        for sql, _ in connection.statements
-    )
+    versions = [
+        params[0]
+        for sql, params in connection.statements
+        if "INSERT INTO product_schema_migrations" in sql
+    ]
+    assert versions == [22]
+    sql = "\n".join(statement for statement, _ in connection.statements)
+    assert "DROP TRIGGER IF EXISTS sso_identity_immutable" in sql
+    assert "DROP FUNCTION IF EXISTS reject_sso_identity_rewrite()" in sql
+    assert "DELETE FROM product_records WHERE collection IN (" in sql
+
+
+def test_migration_list_is_contiguous_append_only_history():
+    # Version 20 is the operator-activated catalog step, recorded outside the list.
+    assert [*range(1, 20), *range(21, SCHEMA_HEAD_VERSION + 1)] == LISTED_VERSIONS
+    assert SCHEMA_HEAD_VERSION == 22

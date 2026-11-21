@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from time import perf_counter
-from typing import Any, Protocol
+from typing import Any
 
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
@@ -30,19 +30,6 @@ from contracts.v1.json_data import (
 from contracts.v1.plugin_visibility import descriptor_owners, descriptor_visible
 from infrastructure.persistence.repositories import Repository
 from shared.errors import PluginGatewayError as PluginGatewayError
-
-
-class CapabilityProvider(Protocol):
-    def invoke(self, capability_id: str, payload: dict[str, Any]) -> dict[str, Any]: ...
-
-
-class InstallationAwareCapabilityProvider(Protocol):
-    def invoke_for_installation(
-        self,
-        capability_id: str,
-        payload: dict[str, Any],
-        installation: Any,
-    ) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True)

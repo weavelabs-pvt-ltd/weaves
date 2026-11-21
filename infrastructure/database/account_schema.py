@@ -1,7 +1,7 @@
 """Database-enforced uniqueness and lookup indexes for the account layer."""
 
-# Applied idempotently on every start. They add indexes only, so an older
-# release can roll back without knowing about them.
+# Applied idempotently on every start (IF NOT EXISTS). Indexes dropped by a
+# versioned migration must be removed from this list too, or they come back.
 ACCOUNT_SCHEMA: tuple[str, ...] = (
     # A verified login identity belongs to exactly one account, platform-wide.
     """CREATE UNIQUE INDEX IF NOT EXISTS account_identity_verified_uq

@@ -23,7 +23,7 @@ from infrastructure.auth.throttle import (
     PostgresLoginRateLimiter,
     login_bucket_key,
 )
-from infrastructure.database.store import ProductPostgresStore
+from infrastructure.database.store import SCHEMA_HEAD_VERSION, ProductPostgresStore
 from infrastructure.persistence.repositories import (
     IdempotencyKeyAlreadyExists,
     PostgresRepository,
@@ -68,7 +68,7 @@ def test_postgres_schema_migrations_are_ordered_and_idempotent(
                     "SELECT version FROM product_schema_migrations ORDER BY version"
                 ).fetchall()
             )
-        assert versions == (*range(1, 20), 21)
+        assert versions == (*range(1, 20), *range(21, SCHEMA_HEAD_VERSION + 1))
 
         # A second API/worker startup must observe the applied history and leave
         # the migration ledger unchanged.

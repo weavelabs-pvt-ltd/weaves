@@ -58,8 +58,10 @@ No database reset, seed or owner bootstrap occurs.
 
 A failed image pull leaves the running release intact. A failed activation
 restores previous image refs/configuration and restarts those services.
-Database migrations are not reversed: migrations must remain compatible with
-the previous application version. This single VM has a brief service restart;
+Database migrations are append-only and never reversed, and a migration may
+remove data (migration 22 purges retired sign-in rows and indexes), so an
+application rollback onto an older image is not supported once a newer schema
+is applied; roll forward instead. This single VM has a brief service restart;
 it does not provide zero-downtime deployment or high availability. The worker
 finishes its current operation on SIGTERM; work exceeding five minutes may be
 recovered through the durable execution queue.
