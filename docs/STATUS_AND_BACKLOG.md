@@ -38,10 +38,10 @@ Legend: DONE = merged to `main` and deployed; IN REVIEW = open PR; OPEN = not st
 - DONE Production checks: healthy deploys, row-level security active, legacy login routes gone, a restore of a fresh backup matched row for row (2026-11-21).
 
 ### Finishing work for Phase 4
-- IN REVIEW Frontend dead-code removal and copy fix, plus the frontend handoff (frontend #27).
-- IN REVIEW Backend handoff and this document (backend #35).
-- IN PROGRESS Legacy schema purge: a forward-only migration deleting the stale rows, indexes and the SSO trigger left by removed flows, removal of rollback-reader machinery, a dead-code pass.
-- IN PROGRESS `docs/DATA_MODEL.md`: collection catalogue, ER diagrams, physical schema and review questions.
+- DONE Frontend dead-code removal, stale copy fix and the frontend handoff (frontend #27).
+- DONE Backend handoff and this document (backend #35); data-model documentation (backend #36).
+- DONE Legacy schema purge (backend #37, migration 22, deployed 2026-11-22): stale rows, indexes and the SSO trigger of removed flows deleted; rollback-reader machinery removed; dead-code pass. Verified on production: migration 22 recorded, no legacy rows, indexes or triggers left, healthy, no errors. Application images older than migration 22 can no longer be rolled back onto this database.
+- DONE `docs/DATA_MODEL.md` and `docs/data-model/` (regenerated for schema version 22 with `scripts/export_data_model.py`).
 
 ### Explicitly out of scope for Phase 4
 Time-limited operator support access (operators act only on the VM), public signup (stays off until Phase 6), deleted data in older backups (Phase 6), and owner-only visibility of lifecycle actions in the chooser.
@@ -124,3 +124,10 @@ irreversibly or changes who may access the system needs a human yes.
 
 ## D. Where to continue
 Start with `docs/HANDOFF.md`, then `MULTI_TENANCY_IMPLEMENTATION_PLAN.md` (Phases 5 to 8 and the shared testing matrix), `docs/DATA_MODEL.md`, `infra/gcp/singlevm/README.md` and the frontend `docs/HANDOFF.md`.
+
+## F. Known test flake
+`T4-I04` (schedule editor control, `tenancy_harness/schedule_timezone_ui.cjs`) failed once on the frontend `main` run after the lifecycle merge and passed on the next run of the same code, so the deploy was skipped until it was re-run. Likely a timing issue under CI load; if it recurs, add an explicit wait for the dialog or row state before asserting. Also: a Playwright run that dies with "Target page, context or browser has been closed" is usually machine memory pressure; rerun.
+
+## G. Repository notes for the next engineer
+- `/docs/` is listed in the backend `.gitignore` although it contains tracked files: add new documents with `git add -f`.
+- Frontend `main` deploys only if its real-stack job passes; a failed job leaves production on the previous frontend while the backend may already be ahead. After any merge check that the deploy ran (`gh run list`) and that new files are served.
