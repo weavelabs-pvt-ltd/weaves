@@ -6,11 +6,14 @@ const crypto = require('node:crypto');
 const fixture = JSON.parse(fs.readFileSync(process.env.TENANCY_FIXTURE_FILE, 'utf8'));
 const { a, b } = fixture.tenants;
 const get = (request, resource, actor = a.admin) => request.get('/api/v0' + resource, { headers: actor.headers });
-async function open(page, tenant, route = '#agents') {
-  await page.addInitScript(({ token, workspace }) => {
-    sessionStorage.setItem('weaves.session', token);
+// Seed the account session keys the real frontend uses: the account token, the tab's selected
+// organization and its workspace. Nothing here is a tenant session.
+async function open(page, tenant, route = '#agents', actor = tenant.admin) {
+  await page.addInitScript(({ token, organization, workspace }) => {
+    sessionStorage.setItem('weaves.account', token);
+    sessionStorage.setItem('weaves.organization', organization);
     sessionStorage.setItem('weaves.workspace', workspace);
-  }, { token: tenant.admin.headers.Authorization.slice(7), workspace: tenant.workspace_id });
+  }, { token: actor.headers.Authorization.slice(7), organization: tenant.org_id, workspace: tenant.workspace_id });
   await page.goto(process.env.WEAVES_E2E_APP_URL + '/' + route);
 }
 
@@ -18,19 +21,6 @@ test('T0-I01 real PostgreSQL API rejects missing authentication', async ({ reque
   const health = await request.get('/api/v0/health');
   expect(await health.json()).toEqual({ status: 'ok', storage: 'postgres' });
   expect((await request.get('/api/v0/agents')).status()).toBe(401);
-});
-
-test('T0-I02 browser signs in using a real SMTP email proof', async ({ page }) => {
-  await page.goto('/#member-signin');
-  await page.locator('#member-email').fill(a.user.email);
-  await page.getByRole('button', { name: 'Send code', exact: true }).click();
-  await expect(page.locator('#member-code-0')).toBeVisible();
-  const filename = crypto.createHash('sha256').update(a.user.email).digest('hex') + '.json';
-  const mail = JSON.parse(fs.readFileSync(path.join(path.dirname(process.env.TENANCY_FIXTURE_FILE), 'mail', filename), 'utf8'));
-  expect(mail.code).toMatch(/^\d{6}$/);
-  for (let i = 0; i < 6; i++) await page.locator('#member-code-' + i).fill(mail.code[i]);
-  await page.locator('#member-code-form button[type=submit]').click();
-  await expect.poll(() => page.evaluate(() => Boolean(sessionStorage.getItem('weaves.session')))).toBe(true);
 });
 
 test('T0-I03 collection reads are tenant scoped', async ({ request }) => {
@@ -201,27 +191,21 @@ test('T1-I04 suspended and archived tenants cannot start or continue work', asyn
   expect(fixture.lifecycle_control.worker_blocked).toBe(true);
 });
 
-test('T1-I06 the same email signs in to an explicit tenant with independent throttles', async () => {
-  const control = fixture.diagnostics.sign_in;
-  expect(control.shared_person_in_both).toBe(true);
-  expect(control.unscoped_ambiguous_issues_no_code).toBe(true);
-  expect(control.tenant_a_throttled).toBe(true);
-  expect(control.tenant_b_unaffected).toBe(true);
-});
-
-// Signs out the builder (revoking only that session); admin/user sessions stay valid for later stages.
-test('T1-I05 session change tears down private browser state and ignores stale responses', async ({ browser }) => {
+// Signs out the builder's account session (revoking only that session); the admin, user and
+// shared-person sessions stay valid for later stages.
+test('T1-I05 session change tears down private browser state and ignores stale responses', async ({ browser, request }) => {
   const sentinel = 'TEARDOWN_SENTINEL_' + Date.now();
   const token = (actor) => actor.headers.Authorization.slice(7);
   const context = await browser.newContext({ baseURL: process.env.WEAVES_E2E_APP_URL });
   const page = await context.newPage();
-  await page.addInitScript(({ session, workspace, draftKey, sentinelValue }) => {
+  await page.addInitScript(({ session, organization, workspace, draftKey, sentinelValue }) => {
     if (sessionStorage.getItem('test.seeded')) return;
     sessionStorage.setItem('test.seeded', '1');
-    sessionStorage.setItem('weaves.session', session);
+    sessionStorage.setItem('weaves.account', session);
+    sessionStorage.setItem('weaves.organization', organization);
     sessionStorage.setItem('weaves.workspace', workspace);
     localStorage.setItem(draftKey, JSON.stringify([{ id: 'legacy', name: sentinelValue }]));
-  }, { session: token(a.builder), workspace: a.workspace_id, draftKey: 'weaves.agentDrafts.' + a.workspace_id, sentinelValue: sentinel });
+  }, { session: token(a.builder), organization: a.org_id, workspace: a.workspace_id, draftKey: 'weaves.agentDrafts.' + a.workspace_id, sentinelValue: sentinel });
   await page.goto(process.env.WEAVES_E2E_APP_URL + '/#agents');
   await expect(page.getByText(a.agent.name, { exact: true }).first()).toBeVisible();
   let release;
@@ -238,7 +222,18 @@ test('T1-I05 session change tears down private browser state and ignores stale r
   }, sentinel);
   await page.evaluate(() => document.querySelector('[data-action="logout"]').click());
   await expect.poll(() => page.evaluate(() => state.authToken)).toBe('');
-  await page.evaluate((userToken) => { setSession(userToken); prepareHomeEntry(); refresh(); }, token(a.user));
+  expect(await page.evaluate(() => [state.accountToken, sessionStorage.getItem('weaves.account'), sessionStorage.getItem('weaves.organization'), sessionStorage.getItem('weaves.workspace')])).toEqual(['', null, null, null]);
+  // Sign-out revokes the server session, not just the browser's copy of it.
+  await expect.poll(async () => (await get(request, '/agents', a.builder)).status()).toBeGreaterThanOrEqual(401);
+  expect((await get(request, '/agents', a.user)).status()).toBe(200);
+  // A different person's account session starts in the same tab while the old response is outstanding.
+  await page.evaluate(({ userToken, organization }) => {
+    window.weavesScope.teardown({ authUi: true });
+    sessionStorage.setItem('weaves.account', userToken);
+    sessionStorage.setItem('weaves.organization', organization);
+    Object.assign(state, { accountToken: userToken, organizationId: organization, authToken: userToken, accountInfo: null });
+    prepareHomeEntry(); refresh();
+  }, { userToken: token(a.user), organization: a.org_id });
   release();
   await expect.poll(() => page.evaluate(() => state.authToken)).toBe(token(a.user));
   const view = await page.evaluate(() => [document.documentElement.innerText + document.documentElement.innerHTML, JSON.stringify(state)]);
@@ -267,7 +262,7 @@ test('T1-I07 account sign-in links one person to both organizations without tena
   }
 });
 
-test('T1-I08 an account selects an organization per request and tenant tokens cannot', async () => {
+test('T1-I08 an account selects an organization per request and service credentials cannot', async () => {
   const control = fixture.diagnostics.account;
   for (const key of ['selects_each_organization', 'foreign_and_unknown_indistinguishable',
     'tenant_token_ignores_header', 'workspace_checked_inside_organization']) {
