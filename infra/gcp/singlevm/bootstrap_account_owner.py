@@ -41,6 +41,7 @@ def bootstrap(runtime: Any, email: str, organization_name: str) -> dict[str, Any
     )
     with system_scope("account"):
         account = runtime.account_sign_in_service.find_or_create_account(normalized)
+        runtime.account_sign_in_service.linker.link(account, normalized)
         existing = _existing_organization_id(runtime, account.id, command.name)
         if existing is not None:
             result = {"account_id": account.id, "organization_id": existing}

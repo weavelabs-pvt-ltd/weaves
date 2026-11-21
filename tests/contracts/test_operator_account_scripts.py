@@ -174,3 +174,24 @@ def test_the_scripts_are_not_reachable_over_http(runtime):
         paths = {getattr(route, "path", "") for route in client.app.routes}
     assert any(path.startswith("/api/v0/account/") for path in paths)
     assert not [p for p in paths if "bootstrap" in p or "break" in p or "operator" in p]
+
+
+def test_bootstrap_reuses_existing_owner_organization_and_principal(runtime, capsys):
+    from tests.support.account_world import seed_member, seed_organization
+
+    seed_organization(runtime.organizations, "existing-org")
+    user, principal = seed_member(
+        runtime.users, runtime.principals, "existing-org", "owner@example.test"
+    )
+    status, _, logs = _bootstrap(capsys, runtime, name="Org existing-org")
+    assert status == 0 and not logs[0]["created"]
+    assert len(runtime.organizations.list()) == len(runtime.users.list()) == 1
+    membership = runtime.memberships.list()[0]
+    assert (membership.org_id, membership.user_id, membership.principal_id) == (
+        "existing-org",
+        user.id,
+        principal.id,
+    )
+    before = _snapshot(runtime)
+    _bootstrap(capsys, runtime, name="Org existing-org")
+    assert _snapshot(runtime) == before

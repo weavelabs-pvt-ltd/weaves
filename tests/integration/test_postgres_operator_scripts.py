@@ -113,3 +113,30 @@ def test_issue_refuses_unknown_and_disabled_accounts(stack, capsys):
     status, out, _ = run_script(issue_account_session, capsys, owner, "--email", EMAIL)
     assert status == 2 and out == ""
     assert _counts(store).get("account_sessions", 0) == 0
+
+
+def test_bootstrap_preserves_existing_tenant_ids_and_links_owner(stack, capsys):
+    from tests.support.account_world import seed_member, seed_organization
+
+    owner, _, store = stack
+    seed_organization(owner.organizations, "existing-org")
+    user, principal = seed_member(owner.users, owner.principals, "existing-org", EMAIL)
+    result, _, logs = run_script(
+        bootstrap_account_owner,
+        capsys,
+        owner,
+        "--email",
+        EMAIL,
+        "--organization-name",
+        "Org existing-org",
+    )
+    assert result == 0 and not logs[0]["created"]
+    counts = _counts(store)
+    assert counts["organizations"] == counts["users"] == counts["memberships"] == 1
+    with system_scope("account"):
+        membership = owner.memberships.list()[0]
+        assert (membership.org_id, membership.user_id, membership.principal_id) == (
+            "existing-org",
+            user.id,
+            principal.id,
+        )

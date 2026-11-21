@@ -9,7 +9,7 @@
     "revision": "a20827cca1dc658b82ceefe13c8a24c63a8aa8c3"
   },
   "candidate_policy": "The triggering repository uses its checked-out candidate; the counterpart uses this exact revision. Record both actual revisions and dirty state.",
-  "phase": 1,
+  "phase": 3,
   "required_controls": [
     "T0-I01",
     "T0-I03",

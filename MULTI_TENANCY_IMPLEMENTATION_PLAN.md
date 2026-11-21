@@ -2,7 +2,11 @@
 
 Planning baseline: 2026-11-20. Based on [the tenancy audit](MULTI_TENANCY_AUDIT.md), backend `d70176dfbe3c328e6e3070fa2f79f5c123a23db2`, and frontend `6f6ed9888b398921e2d567e0671b954df64185e8`.
 
-Status: Phase 0 PRs #3/#15 and connector containment/ownership PRs #4/#16/#5/#17 are merged. Production API/worker and frontend were verified after migration 20 activation on 2026-11-20, including a restored backup comparison and ten authenticated pages. The private frontend checkout credential is configured and backend CI/deployment run 44758652570 completed successfully. The current `codex/model-egress-containment` slice implements model-provider egress protection and is not deployed yet. Lifecycle eligibility, browser teardown/drafts and tenant-specific authentication/throttling remain open.
+Status: Phases 0–2 are implemented and released. Phase 3 account identity, memberships, per-request organization selection, cookie/CSRF sessions and the Google-only sign-in implementation are complete; the current release finishes production cutover and onboarding verification. Phase 4 organization creation and the conversational onboarding/checklist are implemented, but organization settings, owner-transfer concurrency, export and resumable deletion remain open. Phases 5–8 are not complete. Public self-service access remains off; production Google sign-in is restricted to the owner's explicit email allowlist.
+
+Current decision (2026-11-21): Google is the only human sign-in method. Passwords, email-code login, invitations, tenant SSO and token-gated legacy onboarding are removed. The historical checkpoint paragraphs below describe their implementation sequence, not instructions to restore those flows. Service accounts and tenant API credentials remain supported.
+
+Google cutover validation covers the restricted PostgreSQL role, real Chromium account/organization switching and logout, organization creation, plus a budget-gated real Anthropic task/approval workflow. Deployment uses the same-origin app API proxy, forwards the organization-creation flag only when explicitly enabled, and links the existing owner user/principal before bootstrap decides whether a new organization is necessary. Production credentials stay in the root-only runtime environment. The user must complete Google's interactive sign-in to verify the external consent/identity leg of the live flow; operator recovery sessions are tested separately and never presented as a Google login.
 
 ### Phase 1 progress
 
@@ -237,14 +241,14 @@ Suggested suites: `tests/tenancy/`, `tests/integration/tenancy/`, frontend `test
 - Two tabs/two orgs, logout/login on the same origin, expired sessions, stale responses, deep links/bookmarks, personal skills, draft recovery, and cross-origin login callbacks.
 - Migration rehearsals retain principal IDs, role bindings, skill ownership, audit attribution, task history, and existing tenant API credentials. Test supported old/new API/worker/frontend version combinations.
 
-**Exit gate:** one identity can reliably use multiple organizations with independent membership and permissions. The old tenant-specific login remains only as a bounded compatibility path with an explicit retirement plan.
+**Exit gate:** one identity can reliably use multiple organizations with independent membership and permissions. The Google-only account journey replaces all legacy human sign-in paths; no compatibility login remains, following the internal-product decision.
 
 ## Phase 4 — Deliver safe onboarding and tenant lifecycle
 
 ### Changes
 
 - Require verified account authentication before organization creation. Provision org, owner membership/principal, workspace, roles, defaults, and audit atomically and idempotently. Return a human session/selection result, not a permanent owner API key.
-- Keep member provisioning compatible with the existing invite-less email-code experience. A pending access grant may be claimed only through verified identity under the documented policy. Membership removal is different from disabling a global account.
+- Keep member provisioning compatible with verified Google identity and account memberships; no email-code experience remains. A pending access grant may be claimed only through verified identity under the documented policy. Membership removal is different from disabling a global account.
 - Add organization settings and administration: name/identifier, timezone/locale, membership/role management, owner transfer/recovery, lifecycle state, and feature/usage limits. Preserve last-owner/admin safety checks under concurrency.
 - Separate platform operator actions from customer Admin roles. Customer admins manage only their org; operator access is narrowly scoped, attributable, and time-limited when used for support.
 - Implement active/suspended/deletion-requested/deleting/deleted behavior, with reason and audit history. Suspend stops work through the phase-1 guard; resume does not automatically replay missed schedules or previously cancelled jobs.

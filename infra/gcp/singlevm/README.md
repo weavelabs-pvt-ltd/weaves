@@ -105,7 +105,7 @@ encryption key corresponding to the backup.
 
 ## Google sign-in runbook
 
-Google is the only sign-in method; there is no email delivery on the VM.
+Google is the only sign-in method; there is no email delivery on the VM. The frontend must use `WEAVES_API_BASE=/api/v0`: account cookies are host-bound to `app.weave-studio.in`, whose `/api/v0/*` routes proxy to the API. The separate API hostname remains available for service credentials, not browser-cookie calls.
 
 1. In the Google Cloud console open APIs & Services, then OAuth consent screen.
    Choose user type External (Internal only works inside a Workspace
@@ -126,6 +126,8 @@ Google is the only sign-in method; there is no email delivery on the VM.
    WEAVES_GOOGLE_CLIENT_ID=<client id>
    WEAVES_GOOGLE_CLIENT_SECRET=<client secret>
    WEAVES_ACCOUNT_ALLOWED_EMAILS=owner@example.com
+   WEAVES_ALLOW_ACCOUNT_ORGANIZATION_CREATION=true
+   WEAVES_ACCOUNT_ORGANIZATION_LIMIT=3
    # optional: WEAVES_ACCOUNT_ALLOWED_EMAIL_DOMAINS=example.com
    # optional: WEAVES_GOOGLE_DISCOVERY_URL (tests only)
    ```
@@ -163,8 +165,7 @@ docker compose exec -T product-api python - \
 `bootstrap_account_owner.py` is idempotent: it creates the Account, a VERIFIED
 email identity (use the owner's Google email), the organization through
 `provision_organization` (ACTIVE owner, no API credential) and the membership,
-and re-running it changes nothing; it reuses an organization of that name the
-account already belongs to. When that person signs in with Google the verified
+and re-running it changes nothing. It first links the verified operator email to existing tenant users/principals, then reuses an organization of that name the account already belongs to; a cutover must pass the existing organization name to preserve it. When that person signs in with Google the verified
 email matches, so they are the same account in the same organization.
 `issue_account_session.py` is break-glass: it issues an account
 bearer session for an existing active account (`--minutes` 1 to 1440, default
