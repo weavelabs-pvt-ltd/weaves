@@ -78,24 +78,24 @@ class OrganizationMembership(MutableOrgScopedContract):
     status: MembershipStatus
 
 
-class AccountLoginChallenge(MutableProductContract):
-    """A global, one-time email code challenge. It stores only an HMAC of the code."""
+class AccountOAuthState(MutableProductContract):
+    """A short-lived, single-use Google sign-in attempt, bound to one browser.
 
-    challenge_id: OpaqueId
-    email: str = Field(min_length=3, max_length=320)
-    code_digest: str = Field(pattern=r"^[0-9a-f]{64}$", min_length=64, max_length=64)
-    attempts: int = Field(default=0, ge=0, le=5)
+    Only digests of the state and of the browser-binding cookie are stored; the
+    nonce and PKCE verifier stay server-side and are never sent to the browser.
+    """
+
+    id: OpaqueId
+    state_digest: Annotated[
+        str, StringConstraints(pattern=r"^[0-9a-f]{64}$", min_length=64, max_length=64)
+    ]
+    binding_digest: Annotated[
+        str, StringConstraints(pattern=r"^[0-9a-f]{64}$", min_length=64, max_length=64)
+    ]
+    nonce: str = Field(min_length=16, max_length=128)
+    code_verifier: str = Field(min_length=43, max_length=128)
+    return_to: str = Field(min_length=1, max_length=512)
     expires_at: AwareDatetime
-    # Set only for "add this email to my account" proofs; such a challenge can
-    # never sign anyone in, and only that account can redeem it.
-    account_id: OpaqueId | None = None
-
-    @model_validator(mode="after")
-    def email_is_normalized(self) -> AccountLoginChallenge:
-        """Challenges are keyed by the normalized address, like identities."""
-        if self.email != self.email.strip().casefold():
-            raise ValueError("challenge emails are stored normalized")
-        return self
 
 
 class AccountSession(MutableProductContract):

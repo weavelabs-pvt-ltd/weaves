@@ -15,7 +15,8 @@ from contracts.v1 import (
     Workspace,
     WorkspaceStatus,
 )
-from tests.support.member_login import member_token
+from tests.support.account_session import account_headers
+from tests.support.organizations import onboard
 from tests.support.runtime import LocalPlatformRuntime
 from tests.support.task_execution import run_task
 
@@ -42,16 +43,13 @@ def test_workspace_admin_cannot_manage_organization_wide_resources():
 
 
 def _prepare_workspace_admin_scenario(client: TestClient) -> WorkspaceAdminScenario:
-    onboarded = client.post(
-        "/api/v0/onboarding/organizations",
-        json={
-            "name": "Scoped Administration Org",
-            "owner_email": "owner@scoped-admin.example",
-            "owner_display_name": "Scoped Admin Owner",
-        },
+    onboarded = onboard(
+        client,
+        name="Scoped Administration Org",
+        owner_email="owner@scoped-admin.example",
+        owner_display_name="Scoped Admin Owner",
     )
-    assert onboarded.status_code == 201
-    owner_headers = {"Authorization": f"Bearer {onboarded.json()['access_token']}"}
+    owner_headers = {"Authorization": f"Bearer {onboarded['access_token']}"}
     workspace = client.post(
         "/api/v0/workspaces",
         headers=owner_headers,
@@ -90,11 +88,15 @@ def _prepare_workspace_admin_scenario(client: TestClient) -> WorkspaceAdminScena
     assert admin.status_code == 201, admin.text
     return WorkspaceAdminScenario(
         workspace_id=workspace_id,
-        headers={"Authorization": f"Bearer {member_token(client, admin.json())}"},
+        headers=account_headers(
+            client,
+            admin.json()["user"]["email"],
+            admin.json()["user"]["org_id"],
+        ),
         provider_id=provider.json()["id"],
         profile_id=profile_id,
         credential_id=credential.json()["credential"]["id"],
-        owner_user_id=onboarded.json()["owner"]["id"],
+        owner_user_id=onboarded["owner"]["id"],
     )
 
 

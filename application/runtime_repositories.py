@@ -9,7 +9,7 @@ from application.ports.repository import Repository
 from contracts.v1 import (
     Account,
     AccountIdentity,
-    AccountLoginChallenge,
+    AccountOAuthState,
     AccountOrganizationRequest,
     AccountSession,
     AgentDefinition,
@@ -21,7 +21,6 @@ from contracts.v1 import (
     Artifact,
     AuditEvent,
     ConversationThread,
-    EmailLoginChallenge,
     EvaluationExecution,
     EvaluationReportRecord,
     EvaluationSuiteRecord,
@@ -40,15 +39,11 @@ from contracts.v1 import (
     SkillPublication,
     SkillRevocation,
     SkillVersion,
-    SsoConnection,
-    SsoExternalIdentity,
     Task,
     TaskMessage,
     TaskTurn,
     ToolInvocation,
     User,
-    UserPasswordCredential,
-    UserSession,
     WorkflowDefinition,
     WorkflowRun,
     WorkflowSchedule,
@@ -71,10 +66,6 @@ class RuntimeRepositoryBindingMixin:
     users: Repository[User]
     principals: Repository[Principal]
     api_credentials: Repository[ApiCredential]
-    user_passwords: Repository[UserPasswordCredential]
-    user_sessions: Repository[UserSession]
-    sso_connections: Repository[SsoConnection]
-    sso_external_identities: Repository[SsoExternalIdentity]
     roles: Repository[Role]
     role_bindings: Repository[RoleBinding]
     skill_definitions: Repository[SkillDefinition]
@@ -108,11 +99,10 @@ class RuntimeRepositoryBindingMixin:
     task_messages: Repository[TaskMessage]
     task_turns: Repository[TaskTurn]
     audit_events: Repository[AuditEvent]
-    email_login_challenges: Repository[EmailLoginChallenge]
     accounts: Repository[Account]
     account_identities: Repository[AccountIdentity]
     memberships: Repository[OrganizationMembership]
-    account_login_challenges: Repository[AccountLoginChallenge]
+    account_oauth_states: Repository[AccountOAuthState]
     account_sessions: Repository[AccountSession]
     account_organization_requests: Repository[AccountOrganizationRequest]
 
@@ -123,12 +113,6 @@ class RuntimeRepositoryBindingMixin:
         self.users = self._repository("users", User)
         self.principals = self._repository("principals", Principal)
         self.api_credentials = self._repository("api_credentials", ApiCredential)
-        self.user_passwords = self._repository("user_passwords", UserPasswordCredential)
-        self.user_sessions = self._repository("user_sessions", UserSession)
-        self.sso_connections = self._repository("sso_connections", SsoConnection)
-        self.sso_external_identities = self._repository(
-            "sso_external_identities", SsoExternalIdentity
-        )
         self.roles = self._repository("roles", Role)
         self.role_bindings = self._repository("role_bindings", RoleBinding)
         self.skill_definitions = self._repository("skill_definitions", SkillDefinition)
@@ -182,9 +166,6 @@ class RuntimeRepositoryBindingMixin:
         self.task_messages = self._repository("task_messages", TaskMessage)
         self.task_turns = self._repository("task_turns", TaskTurn)
         self.audit_events = self._repository("audit_events", AuditEvent)
-        self.email_login_challenges = self._repository(
-            "email_login_challenges", EmailLoginChallenge
-        )
         self._bind_account_repositories()
 
     def _bind_account_repositories(self) -> None:
@@ -194,8 +175,8 @@ class RuntimeRepositoryBindingMixin:
             "account_identities", AccountIdentity
         )
         self.memberships = self._repository("memberships", OrganizationMembership)
-        self.account_login_challenges = self._repository(
-            "account_login_challenges", AccountLoginChallenge
+        self.account_oauth_states = self._repository(
+            "account_oauth_states", AccountOAuthState
         )
         self.account_sessions = self._repository("account_sessions", AccountSession)
         self.account_organization_requests = self._repository(

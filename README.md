@@ -57,15 +57,40 @@ variables remain available for one environment-configured provider. Set
 path creates one provider profile at startup. Use the provider API when an
 organization needs multiple providers or profiles.
 
-Set `WEAVES_API_TOKEN` to map `Authorization: Bearer <token>` to the seeded
-local developer principal, or configure `WEAVES_API_TOKENS` to bind tokens to
-active principals. Health, onboarding, password login, and invitation
-acceptance are public entrypoints. Without a configured token, memory-only mode
+A person authenticates only through an account, and Google is the only sign-in
+method: the browser visits `GET /api/v0/account/google/start?return_to=/path`,
+signs in at Google (authorization-code flow with PKCE, state and nonce) and
+returns to `GET /api/v0/account/google/callback`, which opens an account
+browser session cookie. Tenant routes are called with that session plus
+`X-Organization-Id` (cookie sessions also need the `X-Weaves-CSRF` header).
+Set `WEAVES_GOOGLE_CLIENT_ID`, `WEAVES_GOOGLE_CLIENT_SECRET` and
+`WEAVES_PUBLIC_FRONTEND_URL` (the redirect URI is
+`<that origin>/api/v0/account/google/callback`; the app and API must share one
+origin); without the client id and secret both routes return 404.
+`WEAVES_ACCOUNT_ALLOWED_EMAILS` (comma list) and
+`WEAVES_ACCOUNT_ALLOWED_EMAIL_DOMAINS` restrict who may sign in or create an
+account. **When neither is set, anyone with a verified Google email may sign in
+and gets an account**; set one of them for an internal deployment. An account
+that signs in with the email of an existing verified email identity (for
+example the operator-bootstrapped owner) lands in that account and its
+organizations. Bearer account sessions (`wvs_acct_`) exist only for non-browser
+tools and the operator break-glass script. Service accounts and API credentials (`/service-accounts`,
+`/credentials`) authenticate automation. Set `WEAVES_API_TOKEN` to map
+`Authorization: Bearer <token>` to the seeded local developer principal, or
+configure `WEAVES_API_TOKENS` to bind tokens to active principals. Health,
+the Google sign-in routes and the OAuth callbacks are public entrypoints; every other
+credential is rejected with 401. Without a configured token, memory-only mode
 allows local development access. PostgreSQL mode requires bearer
-authentication for protected routes; create the first organization owner
-through onboarding and use its returned credential. Human users can enroll a
-password, accept admin-created invitations, and sign in to expiring sessions.
-Invitation delivery and email identity verification are not integrated.
+authentication for protected routes.
+
+There is no public signup, password sign-in or invitation flow. An
+administrator provisions a member with `POST /api/v0/users`; the member's first
+verified account sign-in links and activates that user. The first owner on a
+fresh deployment is created by an operator on the host with
+`infra/gcp/singlevm/bootstrap_account_owner.py`, and
+`infra/gcp/singlevm/issue_account_session.py` issues a short break-glass
+account session (see
+`infra/gcp/singlevm/README.md`).
 
 ## Backend flows
 
@@ -103,9 +128,10 @@ Invitation delivery and email identity verification are not integrated.
   the API; the server retains the definition snapshot and checks submitted
   scores against persisted run evidence. See
   [`docs/product-evaluations-v0.md`](docs/product-evaluations-v0.md).
-- Organization onboarding is limited to three creations per client address per
-  hour. PostgreSQL counters are shared across API instances; memory-mode
-  counters are process-local. This does not verify email ownership.
+- A verified account creates organizations with
+  `POST /api/v0/account/organizations`, limited per account and throttled per
+  source address. PostgreSQL counters are shared across API instances;
+  memory-mode counters are process-local.
 - `GET/POST /api/v0/agents` and `GET/PATCH /api/v0/agents/{id}` create agents
   and publish immutable versions. Agent versions include wall-clock,
   context-call, output-token, and optional estimated-cost budgets. Configure an
@@ -162,11 +188,10 @@ See [the connector setup guide](docs/product-connectors-v0.md) for request
 payloads and the complete setup sequence, including approval-backed actions.
 
 The backend supports organization/workspace-scoped users, roles, agents,
-installations, runs, and audit records, along with password sessions and
+installations, runs, and audit records, along with account sessions and
 PostgreSQL-backed worker jobs. It is still an evaluation-grade v0 rather than a
-production multi-tenant service: onboarding does not verify email ownership,
-MFA/SSO and account recovery are absent, browser session cookie handling is not
-provided, and deployment isolation/operations are not production-hardened. The
+production multi-tenant service: MFA, SSO/OIDC and account recovery are
+absent and deployment isolation/operations are not production-hardened. The
 seeded local approval policy permits self-approval; organization/workspace
 defaults forbid it. Production deployments must use verified reviewer
 identities and preserve that policy.
@@ -194,7 +219,7 @@ per-run usage and cost estimates.
 The current runtime is for local v0 evaluation. It supports local knowledge,
 GitHub, Slack, Jira, and allowlisted MCP read capabilities; an approval-gated
 Jira comment is the only connector write. Durable queueing requires PostgreSQL
-and the separate worker. Email verification, MFA/SSO, recovery, workflow loops,
+and the separate worker. MFA, SSO/OIDC, recovery, workflow loops,
 automated job retries, external-write reconciliation, and
 production deployment hardening remain follow-up work. See
 [`docs/product-runtime-persistence.md`](docs/product-runtime-persistence.md),

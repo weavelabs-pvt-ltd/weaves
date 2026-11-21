@@ -1,11 +1,11 @@
-"""Account-level sign-in, session and membership discovery routes."""
+"""Account-level session, profile and membership discovery routes (bearer)."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from contracts.v1 import Account
 from modules.auth.account_overview import (
@@ -14,25 +14,38 @@ from modules.auth.account_overview import (
     list_memberships,
 )
 from modules.auth.account_sign_in import AccountSignInService
-from shared.errors import EmailDeliveryUnavailable, LoginThrottled
+from shared.clock import utc_now
+from shared.errors import LoginThrottled
 from shared.request_context import system_scoped
 
 
-class AccountEmailCodeRequest(BaseModel):
-    """Request a sign-in code for any email address."""
+class AccountPatchRequest(BaseModel):
+    """Editable account profile fields."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    email: str = Field(min_length=3, max_length=320)
+    display_name: str = Field(min_length=1, max_length=160)
+
+    @field_validator("display_name")
+    @classmethod
+    def printable(cls, value: str) -> str:
+        """Allow only printable characters, with no control or line breaks."""
+        if not value.isprintable():
+            raise ValueError("display_name must be printable text")
+        return value
 
 
-class AccountEmailVerifyRequest(BaseModel):
-    """Redeem one code for an account session."""
-
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    challenge_id: str = Field(min_length=1, max_length=128)
-    code: str = Field(min_length=1, max_length=16)
+def rename_account(
+    service: AccountSignInService, account: Account, display_name: str
+) -> Account:
+    """Persist a new display name and return the updated account."""
+    updated = Account.model_validate(
+        account.model_copy(
+            update={"display_name": display_name, "updated_at": utc_now()}
+        ).model_dump()
+    )
+    service.accounts.put(updated)
+    return updated
 
 
 def throttled_response(exc: LoginThrottled) -> HTTPException:
@@ -50,57 +63,6 @@ def _bearer(authorization: str | None) -> str:
     if not separator or scheme.casefold() != "bearer":
         raise HTTPException(status_code=401, detail="A bearer session is required")
     return token
-
-
-def _register_sign_in(app: FastAPI, service: AccountSignInService) -> None:
-    """Register the public code request and verification routes."""
-
-    @app.post("/api/v0/account/email-code", status_code=202)
-    @system_scoped("account")
-    def request_account_email_code(
-        payload: AccountEmailCodeRequest, request: Request
-    ) -> dict[str, str]:
-        try:
-            challenge_id = service.start_email_login(
-                payload.email, request.client.host if request.client else None
-            )
-        except LoginThrottled as exc:
-            raise throttled_response(exc) from exc
-        except EmailDeliveryUnavailable as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-        return {
-            "message": "If the address can receive email, a sign-in code was sent.",
-            "challenge_id": challenge_id,
-        }
-
-    @app.post("/api/v0/account/email-verify")
-    @system_scoped("account")
-    def verify_account_email_code(
-        payload: AccountEmailVerifyRequest, request: Request
-    ) -> dict[str, Any]:
-        try:
-            account, session, token = service.verify_email_login(
-                payload.challenge_id,
-                payload.code,
-                request.client.host if request.client else None,
-            )
-        except LoginThrottled as exc:
-            raise throttled_response(exc) from exc
-        except PermissionError as exc:
-            raise HTTPException(
-                status_code=401,
-                detail="Email code is invalid, expired, or sign-in is not allowed",
-                headers={"WWW-Authenticate": "Bearer"},
-            ) from exc
-        return {
-            "access_token": token,
-            "token_type": "bearer",
-            "expires_at": session.expires_at,
-            "account": account_summary(account),
-            "memberships": list_memberships(
-                account, service.memberships, service.organizations
-            ),
-        }
 
 
 def _register_session(app: FastAPI, service: AccountSignInService) -> None:
@@ -124,6 +86,14 @@ def _register_session(app: FastAPI, service: AccountSignInService) -> None:
             ),
         }
 
+    @app.patch("/api/v0/account/me")
+    @system_scoped("account")
+    def patch_account(payload: AccountPatchRequest, request: Request) -> dict[str, Any]:
+        account = rename_account(
+            service, current_account(request), payload.display_name
+        )
+        return {"account": account_summary(account)}
+
     @app.post("/api/v0/account/logout", status_code=204)
     @system_scoped("account")
     def logout_account(
@@ -141,5 +111,4 @@ def _register_session(app: FastAPI, service: AccountSignInService) -> None:
 
 def register_account_routes(app: FastAPI, service: AccountSignInService) -> None:
     """Register account-level routes; none grants tenant resource access."""
-    _register_sign_in(app, service)
     _register_session(app, service)

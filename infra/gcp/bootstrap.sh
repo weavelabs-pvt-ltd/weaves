@@ -33,9 +33,6 @@ secrets=(
   weaves-db-password
   weaves-database-url
   weaves-fernet-key
-  weaves-onboarding-token
-  weaves-e2e-owner-email
-  weaves-e2e-owner-password
 )
 
 ensure_secret() {
@@ -170,21 +167,6 @@ if ! "$GCLOUD" secrets describe weaves-fernet-key \
   fernet_key="$(openssl rand -base64 32 | tr '+/' '-_')"
   ensure_secret weaves-fernet-key "$fernet_key"
 fi
-if ! "$GCLOUD" secrets describe weaves-onboarding-token \
-  --project="$PROJECT_ID" >/dev/null 2>&1; then
-  onboarding_token="$(openssl rand -hex 48)"
-  ensure_secret weaves-onboarding-token "$onboarding_token"
-fi
-if ! "$GCLOUD" secrets describe weaves-e2e-owner-email \
-  --project="$PROJECT_ID" >/dev/null 2>&1; then
-  owner_email="$("$GCLOUD" config get-value account 2>/dev/null)"
-  ensure_secret weaves-e2e-owner-email "$owner_email"
-fi
-if ! "$GCLOUD" secrets describe weaves-e2e-owner-password \
-  --project="$PROJECT_ID" >/dev/null 2>&1; then
-  owner_password="$(openssl rand -hex 24)"
-  ensure_secret weaves-e2e-owner-password "$owner_password"
-fi
 
 ensure_service_account "$DEPLOYER_SA" "Weaves production GitHub deployer"
 ensure_service_account "$API_SA" "Weaves production API runtime"
@@ -214,12 +196,6 @@ for secret_name in \
   weaves-fernet-key; do
   grant_secret_access "$secret_name" "serviceAccount:${API_EMAIL}"
   grant_secret_access "$secret_name" "serviceAccount:${WORKER_EMAIL}"
-done
-grant_secret_access weaves-onboarding-token "serviceAccount:${API_EMAIL}"
-for secret_name in \
-  weaves-e2e-owner-email \
-  weaves-e2e-owner-password; do
-  grant_secret_access "$secret_name" "serviceAccount:${DEPLOYER_EMAIL}"
 done
 
 if ! "$GCLOUD" iam workload-identity-pools describe "$WIF_POOL" \

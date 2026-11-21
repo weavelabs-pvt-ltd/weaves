@@ -50,6 +50,7 @@ def register_v0_routes(app: FastAPI, services: ApiRouteServices) -> None:
         services.authentication,
         services.credential,
         services.accounts,
+        services.google_sign_in,
         services.account_organizations,
         dump,
     )

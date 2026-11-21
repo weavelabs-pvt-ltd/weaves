@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from infrastructure.auth.throttle import InMemoryLoginRateLimiter
-from tests.support.account_world import HMAC_KEY, CapturedMail
+from tests.support.account_session import sign_in
 
 URL = "/api/v0/account/organizations"
 ENABLE = "WEAVES_ALLOW_ACCOUNT_ORGANIZATION_CREATION"
@@ -32,30 +32,21 @@ PROVISIONED_COLLECTIONS = (
 
 @dataclass
 class Signer:
-    """Sign accounts in with captured mail and a roomy throttle."""
+    """Issue account bearer sessions directly for organization tests."""
 
     runtime: object
-    mail: CapturedMail
 
     def sign_in(self, email: str) -> tuple[object, str]:
         """Return (account, bearer token) for a verified email."""
-        service = self.runtime.account_sign_in_service
-        challenge = service.start_email_login(email, "198.51.100.1")
-        account, _, token = service.verify_email_login(challenge, self.mail.code())
-        return account, token
+        return sign_in(self.runtime.account_sign_in_service, email)
 
 
 def prepare(runtime) -> Signer:
-    """Point sign-in and organization creation at test-safe collaborators."""
-    mail = CapturedMail()
-    sign_in = runtime.account_sign_in_service
-    sign_in.email_sender = mail
-    sign_in.email_login_hmac_key = HMAC_KEY
-    sign_in.login_rate_limiter = InMemoryLoginRateLimiter(limit=500)
+    """Give organization creation a roomy throttle and return a signer."""
     runtime.account_organization_service.login_rate_limiter = InMemoryLoginRateLimiter(
         limit=500
     )
-    return Signer(runtime, mail)
+    return Signer(runtime)
 
 
 def bearer(token: str, key: str | None = None, org: str | None = None) -> dict:

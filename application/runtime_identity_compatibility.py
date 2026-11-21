@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from contracts.v1 import (
-    Organization,
     Permission,
     Principal,
     Role,
@@ -27,18 +26,6 @@ class RuntimeIdentityCompatibilityMixin:
     organization_service: OrganizationService
     workspace_access_service: WorkspaceAccessService
     user_administration_service: UserAdministrationService
-
-    def create_organization(
-        self, *, name: str, email: str, display_name: str
-    ) -> tuple[Organization, Workspace, User, Principal, str]:
-        """Delegate onboarding and preserve the legacy runtime method."""
-        return self.organization_service.create_organization(
-            name=name, email=email, display_name=display_name
-        )
-
-    def check_onboarding_rate_limit(self, client_address: str | None) -> None:
-        """Delegate onboarding throttling to the organization service."""
-        self.organization_service.check_onboarding_rate_limit(client_address)
 
     def resolve_principal_scope(
         self, principal_id: str, workspace_id: str | None = None

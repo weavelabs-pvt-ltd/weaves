@@ -14,6 +14,7 @@ from contracts.v1 import (
     Organization,
     OrganizationMembership,
     Principal,
+    PrincipalStatus,
     PrincipalType,
     User,
     UserStatus,
@@ -30,7 +31,13 @@ class _LostRace(Exception):
 
 
 class MembershipLinker:
-    """Create missing active memberships from verified-email matches only."""
+    """Create missing active memberships from verified-email matches only.
+
+    Linking a member an administrator provisioned but who never signed in
+    (an INVITED user whose principal is still DISABLED) also activates that
+    user and principal, in the same unit of work as the membership. Suspended
+    or deleted users and their principals are never touched.
+    """
 
     def __init__(
         self,
@@ -116,9 +123,26 @@ class MembershipLinker:
                     self._memberships.create(membership)
                 except ValueError as exc:  # unique index: another request won
                     raise _LostRace from exc
-                self._record_link(account, membership, principal)
+                activated = self._activate(user, principal)
+                self._record_link(account, membership, principal, activated)
         except _LostRace:
             return False
+        return True
+
+    def _activate(self, user: User, principal: Principal) -> bool:
+        """Activate a provisioned member on first verified sign-in."""
+        if user.status is not UserStatus.INVITED:
+            return False
+        now = utc_now()
+        self._users.put(
+            user.model_copy(update={"status": UserStatus.ACTIVE, "updated_at": now})
+        )
+        if principal.status is PrincipalStatus.DISABLED:
+            self._principals.put(
+                principal.model_copy(
+                    update={"status": PrincipalStatus.ACTIVE, "updated_at": now}
+                )
+            )
         return True
 
     def _record_link(
@@ -126,6 +150,7 @@ class MembershipLinker:
         account: Account,
         membership: OrganizationMembership,
         principal: Principal,
+        activated: bool,
     ) -> None:
         """Write the tenant-visible audit event inside the organization's own scope.
 
@@ -153,5 +178,20 @@ class MembershipLinker:
                     created_at=membership.created_at,
                 )
             )
+            if activated:
+                self._audit_events.create(
+                    AuditEvent(
+                        audit_event_id=new_id(),
+                        org_id=membership.org_id,
+                        target_scope=AuditTargetScope.ORGANIZATION,
+                        actor_principal_id=principal.id,
+                        action="user.activated_by_email",
+                        target_type="user",
+                        target_id=membership.user_id,
+                        summary="Provisioned user verified their email address",
+                        request_id=new_id(),
+                        created_at=membership.created_at,
+                    )
+                )
         finally:
             reset_request_principal(token)

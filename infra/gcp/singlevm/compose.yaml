@@ -36,9 +36,14 @@ services:
     command: uvicorn apps.api.app:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*
     environment:
       <<: *runtime
-      WEAVES_ALLOW_ORGANIZATION_ONBOARDING: "false"
-      WEAVES_SSO_SESSION_SECRET: ${WEAVES_SSO_SESSION_SECRET:?required}
       WEAVES_BROWSER_SESSION_SECRET: ${WEAVES_BROWSER_SESSION_SECRET:-}
+      # Google is the only sign-in method; leave the client unset to disable it.
+      WEAVES_GOOGLE_CLIENT_ID: ${WEAVES_GOOGLE_CLIENT_ID:-}
+      WEAVES_GOOGLE_CLIENT_SECRET: ${WEAVES_GOOGLE_CLIENT_SECRET:-}
+      WEAVES_ACCOUNT_ALLOWED_EMAILS: ${WEAVES_ACCOUNT_ALLOWED_EMAILS:-}
+      WEAVES_ACCOUNT_ALLOWED_EMAIL_DOMAINS: ${WEAVES_ACCOUNT_ALLOWED_EMAIL_DOMAINS:-}
+      WEAVES_ALLOW_ACCOUNT_ORGANIZATION_CREATION: ${WEAVES_ALLOW_ACCOUNT_ORGANIZATION_CREATION:-false}
+      WEAVES_ACCOUNT_ORGANIZATION_LIMIT: ${WEAVES_ACCOUNT_ORGANIZATION_LIMIT:-3}
       WEAVES_PUBLIC_FRONTEND_URL: https://app.weave-studio.in
       WEAVES_PUBLIC_API_BASE_URL: https://api.weave-studio.in
       CORS_ORIGINS: https://app.weave-studio.in
@@ -67,7 +72,7 @@ services:
     <<: *defaults
     image: ${FRONTEND_IMAGE:?required}
     environment:
-      WEAVES_API_BASE: https://api.weave-studio.in/api/v0
+      WEAVES_API_BASE: /api/v0
       WEAVES_PUBLIC_REGISTRATION: "false"
       WEAVES_APP_ORIGIN: https://app.weave-studio.in
       WEAVES_WEBSITE_ORIGIN: https://weave-studio.in

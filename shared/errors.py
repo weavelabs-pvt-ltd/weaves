@@ -54,21 +54,9 @@ class SecretStoreUnavailable(RuntimeError):
     """Raised when durable secret encryption is not configured."""
 
 
-class EmailDeliveryUnavailable(RuntimeError):
-    """Raised when account email delivery is not configured or fails."""
-
-
 class LoginThrottled(RuntimeError):
     """Raised when an account or source address exceeds the login budget."""
 
     def __init__(self, retry_after_seconds: int) -> None:
         super().__init__("login attempts are temporarily limited")
-        self.retry_after_seconds = retry_after_seconds
-
-
-class RateLimitExceeded(RuntimeError):
-    """Raised when a public operation exceeds its source-address budget."""
-
-    def __init__(self, retry_after_seconds: int) -> None:
-        super().__init__("this operation is temporarily limited")
         self.retry_after_seconds = retry_after_seconds

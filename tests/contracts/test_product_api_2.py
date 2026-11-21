@@ -4,7 +4,8 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 from apps.api.app import create_app
-from tests.support.member_login import member_token
+from tests.support.account_session import account_headers
+from tests.support.organizations import onboard
 from tests.support.runtime import LocalPlatformRuntime
 
 
@@ -29,7 +30,6 @@ class MemberSetup:
     user_id: str
     principal_id: str
     headers: dict[str, str]
-    session_headers: dict[str, str]
 
 
 def test_organization_onboarding_scopes_requests_and_runs_agent():
@@ -54,16 +54,12 @@ def test_organization_onboarding_scopes_requests_and_runs_agent():
 
 
 def _onboard_organization(client: TestClient) -> OrganizationSetup:
-    response = client.post(
-        "/api/v0/onboarding/organizations",
-        json={
-            "name": "Acme Research",
-            "owner_email": "Owner@Example.com",
-            "owner_display_name": "Acme Owner",
-        },
+    payload = onboard(
+        client,
+        name="Acme Research",
+        owner_email="Owner@Example.com",
+        owner_display_name="Acme Owner",
     )
-    assert response.status_code == 201, response.text
-    payload = response.json()
     return OrganizationSetup(
         payload=payload,
         headers={"Authorization": f"Bearer {payload['access_token']}"},
@@ -195,7 +191,8 @@ def _verify_policy_admin_access(
         },
     )
     assert admin.status_code == 201, admin.text
-    headers = {"Authorization": f"Bearer {member_token(client, admin.json())}"}
+    admin_user = admin.json()["user"]
+    headers = account_headers(client, admin_user["email"], admin_user["org_id"])
     listing = client.get("/api/v0/approval-policies", headers=headers)
     assert listing.status_code == 200
     created = client.post(
@@ -261,26 +258,12 @@ def _create_workspace_member(
     )
     assert created.status_code == 201, created.text
     member = created.json()
-    headers = {"Authorization": f"Bearer {member_token(client, member)}"}
-    password = "member-password-123"
-    password_set = client.put(
-        "/api/v0/auth/password",
-        headers=headers,
-        json={"password": password},
-    )
-    assert password_set.status_code == 204
-    login = client.post(
-        "/api/v0/auth/login",
-        json={"email": member["user"]["email"], "password": password},
-    )
-    assert login.status_code == 200, login.text
-    session_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
-    headers = {"Authorization": f"Bearer {member_token(client, member)}"}
+    user = member["user"]
+    headers = account_headers(client, user["email"], user["org_id"])
     return MemberSetup(
         member["user"]["id"],
         member["principal"]["id"],
         headers,
-        session_headers,
     )
 
 
@@ -361,40 +344,26 @@ def _verify_member_suspension_and_reactivation(
     )
     assert suspended.status_code == 200, suspended.text
     assert suspended.json()["status"] == "suspended"
-    assert client.get("/api/v0/workspaces", headers=member.headers).status_code == 401
-    assert (
-        client.get("/api/v0/workspaces", headers=member.session_headers).status_code
-        == 401
-    )
+    # The account session survives, but the membership no longer resolves.
+    assert client.get("/api/v0/workspaces", headers=member.headers).status_code == 403
     reactivated = client.post(
         f"/api/v0/users/{member.user_id}/reactivate", headers=workspace.headers
     )
     assert reactivated.status_code == 200, reactivated.text
-    reactivated_headers = {
-        "Authorization": f"Bearer {member_token(client, reactivated.json())}"
-    }
-    assert client.get("/api/v0/workspaces", headers=member.headers).status_code == 401
-    assert (
-        client.get("/api/v0/workspaces", headers=member.session_headers).status_code
-        == 401
-    )
-    visible = client.get("/api/v0/workspaces", headers=reactivated_headers)
+    visible = client.get("/api/v0/workspaces", headers=member.headers)
     assert [item["id"] for item in visible.json()] == [workspace.workspace_id]
 
 
 def _verify_cross_tenant_isolation(
     client: TestClient, organization: OrganizationSetup
 ) -> None:
-    other = client.post(
-        "/api/v0/onboarding/organizations",
-        json={
-            "name": "Other Research",
-            "owner_email": "other@example.com",
-            "owner_display_name": "Other Owner",
-        },
+    other = onboard(
+        client,
+        name="Other Research",
+        owner_email="other@example.com",
+        owner_display_name="Other Owner",
     )
-    assert other.status_code == 201
-    other_workspace_id = other.json()["workspace"]["id"]
+    other_workspace_id = other["workspace"]["id"]
     response = client.get(
         "/api/v0/agents",
         headers={

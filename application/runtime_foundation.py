@@ -8,7 +8,6 @@ from threading import RLock
 
 import httpx
 
-from application.ports.email import EmailSender
 from application.ports.product_repositories import ProductRepositorySet
 from application.ports.runtime_adapters import RuntimeAdapterBundle
 from application.ports.secrets import SecretStore
@@ -25,8 +24,6 @@ class RuntimeFoundationMixin(RuntimeRepositoryBindingMixin, RuntimeCoordinationM
 
     model: MockModelIdentifier
     model_adapters: Mapping[ModelProviderType, ModelAdapter]
-    email_sender: EmailSender
-    email_login_hmac_key: str
 
     def __init__(
         self,
@@ -37,7 +34,6 @@ class RuntimeFoundationMixin(RuntimeRepositoryBindingMixin, RuntimeCoordinationM
         repository_set: ProductRepositorySet,
         secret_store: SecretStore,
         login_rate_limiter: LoginRateLimiter,
-        onboarding_rate_limiter: LoginRateLimiter,
         runtime_adapters: RuntimeAdapterBundle,
         unit_of_work: Callable[[], AbstractContextManager[None]],
         advisory_transaction_lock: Callable[[str], None] | None,
@@ -50,7 +46,6 @@ class RuntimeFoundationMixin(RuntimeRepositoryBindingMixin, RuntimeCoordinationM
         self.seed_local_defaults = seed_local_defaults
         self.secret_store = secret_store
         self.login_rate_limiter = login_rate_limiter
-        self.onboarding_rate_limiter = onboarding_rate_limiter
         self._unit_of_work_impl = unit_of_work
         self._advisory_transaction_lock = advisory_transaction_lock
         self._close_storage = close_storage
@@ -84,8 +79,6 @@ class RuntimeFoundationMixin(RuntimeRepositoryBindingMixin, RuntimeCoordinationM
         self.openai_enabled = adapters.openai_enabled
         self.openai_model_name = adapters.openai_model_name
         self.openai_base_url = adapters.openai_base_url
-        self.email_sender = adapters.email_sender
-        self.email_login_hmac_key = adapters.email_login_hmac_key
 
     def _unit_of_work(self) -> AbstractContextManager[None]:
         """Open the transaction supplied by the process composition root."""

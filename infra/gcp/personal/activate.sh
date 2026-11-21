@@ -7,10 +7,12 @@ set -a
 set +a
 compose=(docker compose --env-file /opt/weaves/runtime.env)
 "${compose[@]}" build
-WEAVES_ALLOW_ORGANIZATION_ONBOARDING=true "${compose[@]}" up -d --wait --wait-timeout 240 postgres product-api frontend
-WEAVES_API_BASE=http://localhost:8080/api/v0 WEAVES_ONBOARDING_TOKEN="$WEAVES_ORGANIZATION_ONBOARDING_TOKEN" python3 /opt/weaves/backend/infra/gcp/bootstrap_owner.py
-# Close the one-time onboarding gate before starting background execution.
-WEAVES_ALLOW_ORGANIZATION_ONBOARDING=false "${compose[@]}" up -d --wait --wait-timeout 240
+"${compose[@]}" up -d --wait --wait-timeout 240 postgres product-api frontend
+# Create (idempotently) the account owner with database owner access; no secret is printed.
+"${compose[@]}" exec -T product-api python - \
+  --email "$WEAVES_OWNER_EMAIL" --organization-name "$WEAVES_OWNER_ORGANIZATION" \
+  < /opt/weaves/backend/infra/gcp/singlevm/bootstrap_account_owner.py
+"${compose[@]}" up -d --wait --wait-timeout 240
 install -m 0700 backup.sh /opt/weaves/backup.sh
 printf '15 20 * * * root /opt/weaves/backup.sh >> /var/log/weaves-backup.log 2>&1\n' > /etc/cron.d/weaves-backup
 /opt/weaves/backup.sh

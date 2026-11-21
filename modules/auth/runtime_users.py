@@ -20,8 +20,6 @@ from contracts.v1 import (
     Role,
     RoleBinding,
     User,
-    UserSession,
-    UserSessionStatus,
     UserStatus,
 )
 from modules.auth.role_presets import validate_role_preset_scope
@@ -43,7 +41,6 @@ class WorkspaceUserRuntimeHost(ABC):
     principals: Repository[Principal]
     role_bindings: Repository[RoleBinding]
     roles: Repository[Role]
-    user_sessions: Repository[UserSession]
     users: Repository[User]
 
     @abstractmethod
@@ -294,15 +291,8 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
             if item.principal_id == principal.id
             and item.status is ApiCredentialStatus.ACTIVE
         )
-        active_sessions = tuple(
-            session
-            for session in self.user_sessions.list_scoped(effective_org_id())
-            if session.principal_id == principal.id
-            and session.status is UserSessionStatus.ACTIVE
-        )
         self._suspend_workspace_user_records(
             active_credentials,
-            active_sessions,
             disabled_principal,
             principal,
             requested_by_principal_id,
@@ -315,7 +305,6 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
     def _suspend_workspace_user_records(
         self,
         active_credentials: Any,
-        active_sessions: Any,
         disabled_principal: Any,
         principal: Any,
         requested_by_principal_id: Any,
@@ -339,18 +328,6 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
                         ).model_dump()
                     )
                 )
-            for session in active_sessions:
-                self.user_sessions.put(
-                    UserSession.model_validate(
-                        session.model_copy(
-                            update={
-                                "status": UserSessionStatus.REVOKED,
-                                "revoked_at": timestamp,
-                                "updated_at": timestamp,
-                            }
-                        ).model_dump()
-                    )
-                )
             self.audit_events.create(
                 AuditEvent(
                     audit_event_id=_id(),
@@ -366,7 +343,6 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
                     metadata={
                         "principal_id": principal.id,
                         "access_revoked_count": len(active_credentials),
-                        "session_revoked_count": len(active_sessions),
                     },
                     created_at=timestamp,
                 )

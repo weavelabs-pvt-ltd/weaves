@@ -6,13 +6,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.sessions import SessionMiddleware
 
 from apps.api.authentication import install_authentication
 from apps.api.error_mapping import install_error_handlers
 from apps.api.router import register_v0_routes
 from apps.api.wiring import build_api_process_services
 from apps.platform_runtime import LocalPlatformRuntime
+from modules.auth.http.browser_sessions import CSRF_HEADER
 
 
 def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
@@ -39,18 +39,6 @@ def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
         ),
         lifespan=lifespan,
     )
-    session_secret = os.getenv("WEAVES_SSO_SESSION_SECRET", "")
-    if len(session_secret) >= 32:
-        app.add_middleware(
-            SessionMiddleware,
-            secret_key=session_secret,
-            session_cookie="weaves_sso",
-            max_age=600,
-            same_site="lax",
-            https_only=os.getenv("WEAVES_PUBLIC_API_BASE_URL", "").startswith(
-                "https://"
-            ),
-        )
     install_error_handlers(app)
     install_authentication(app)
     allowed_origins = tuple(
@@ -72,8 +60,10 @@ def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
             "Idempotency-Key",
             "If-Match",
             "X-Workspace-ID",
-            "X-Weaves-Onboarding-Token",
+            "X-Organization-Id",
+            CSRF_HEADER,
         ],
+        expose_headers=["Retry-After"],
     )
     return app
 

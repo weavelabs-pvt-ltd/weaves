@@ -25,8 +25,8 @@ internet access; it is not a public application endpoint. No load balancer,
 Cloud NAT, Cloud SQL, or worker-pool service is provisioned.
 
 Credentials are generated on the VM in `/opt/weaves/runtime.env`, readable only
-by root. Organization onboarding is token-gated for initialization and disabled
-after the owner is created. Local development data and provider credentials are
+by root. The account owner is created idempotently by
+`infra/gcp/singlevm/bootstrap_account_owner.py`; there is no public signup. Local development data and provider credentials are
 not copied to the VM. Add your own model provider key in AI & Models to test real
 AI responses. OAuth connectors require their own registered callback URLs and
 configuration; no company OAuth credentials are reused by this deployment.
@@ -40,8 +40,8 @@ cloud commands specify the personal project and account explicitly.
 Place backend source at `/opt/weaves/backend` and frontend at
 `/opt/weaves/weaves-app`, excluding Git metadata, local environment files and
 caches. Run `sudo bash /opt/weaves/backend/infra/gcp/personal/activate.sh` on the
-VM. It builds both images, creates/verifies the owner, closes onboarding and
-starts the worker. Updates preserve the PostgreSQL volume and existing secrets.
+VM. It builds both images, creates/verifies the account owner and starts the
+worker. Updates preserve the PostgreSQL volume and existing secrets.
 Use `/opt/weaves/backup.sh` before updates; inspect `docker compose logs` after
 updates. Automatic logical dumps run at 20:15 UTC daily and snapshots at 20:00.
 
@@ -92,7 +92,7 @@ records with encrypted provider credentials.
   tests passed (29 checks including repeated model regression tests).
 - 82 browser regression checks passed; six opt-in integration checks were skipped
   in that run. The real deployed owner login, worker task, transcript, exact task
-  artifact persistence, authentication gate, disabled onboarding, and logical
+  artifact persistence, authentication gate, and logical
   backup were then verified on the GCP VM.
 - A browser signed into the real deployed app and opened Overview, Agents,
   Workflows, Skills, Connections, Models and People without API or JavaScript

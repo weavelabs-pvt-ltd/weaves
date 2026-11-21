@@ -9,7 +9,6 @@ from apps.runtime_services_auth import (
     _configure_credential_service,
     _configure_identity_bootstrap_service,
     _configure_organization_service,
-    _configure_sso_identity_service,
     _configure_user_administration_service,
     _configure_workspace_access_service,
 )
@@ -41,7 +40,6 @@ def configure_capability_services(
     _configure_credential_service(dependencies, services)
     _configure_authentication_service(dependencies, services)
     _configure_account_sign_in_service(dependencies, services)
-    _configure_sso_identity_service(dependencies, services)
     _configure_user_administration_service(dependencies, services)
     _configure_workspace_access_service(dependencies, services)
     _configure_organization_service(dependencies, services)

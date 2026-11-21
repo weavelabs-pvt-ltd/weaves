@@ -76,102 +76,41 @@ configured.
 
 ## Current boundaries
 
-- `/api/v0/onboarding/organizations` provisions an organization, default
-  workspace, owner principal, initial API credential, mock model profile,
-  approval policy, and local knowledge installation. Authenticated requests
-  derive organization scope from the credential's principal; `X-Workspace-ID`
-  can select only a workspace granted to that principal. The request's tenant
-  scope is propagated through API service calls, including worker execution.
-  Organization admins can create additional workspaces with
-  `POST /api/v0/workspaces`; the new workspace gets its own approval policy,
-  local knowledge installation, and starter document. Workspace creation
-  requires an organization-wide `workspaces.admin` role binding.
-  Organization workspace administrators can rename, archive, and restore a
-  workspace with `PATCH /api/v0/workspaces/{workspace_id}`. The last active
-  workspace cannot be archived; the check is serialized across PostgreSQL API
-  replicas. `GET /api/v0/workspaces?include_archived=true`
-  includes archived workspaces and requires the organization-wide workspace
-  administration permission. Workspace lifecycle changes are audited in the
-  affected workspace.
-  Admins can provision workspace users through `POST /api/v0/users` by
-  granting a role and issuing an initial bearer token; `GET /api/v0/users`
-  shows users bound to the current workspace. Organization administrators can
-  also see organization-bound users. Role-binding lists follow the same
-  visibility boundary.
-  `POST /api/v0/users/{user_id}/suspend` disables the principal and revokes
-  all its active credentials atomically, so suspension requires
-  organization-level `users.manage`.
-  `POST /api/v0/users/{user_id}/reactivate` restores a suspended principal and
-  issues a replacement credential; this also requires organization-level
-  `users.manage`, and old revoked tokens stay invalid.
-  Admins can create workspace-scoped invitations with
-  `POST /api/v0/user-invitations`, list and resend them, or revoke them before
-  acceptance. Invitation tokens expire after seven days, are stored only as
-  SHA-256 digests, and are returned once to the admin; resending rotates the
-  token and expiry. The public `POST /api/v0/auth/accept-invitation` endpoint
-  consumes a token once, sets the invitee's initial password, activates the
-  principal, and returns a 12-hour session. The invited user has no active
-  principal or API credential before acceptance.
-  Organization-level role administrators can create reusable roles and assign
-  them at organization or selected-workspace scope through `/api/v0/roles` and
-  `/api/v0/role-bindings`. Role assignments are audited; removing the last
-  organization administrator is rejected.
-  Principals with `approval_policies.manage` can create and update scoped
-  approval policies through `/api/v0/approval-policies`; changes are audited
-  and take effect immediately for agent versions pinned to that policy. New
-  organization and workspace defaults forbid self-approval. The seeded local
-  demo policy still allows it for development.
-  `GET /api/v0/audit-events` supports action, target type/ID, actor, and
-  timezone-aware creation-time filters, bounded to the current workspace.
-  `GET /api/v0/audit-events/export` returns bounded NDJSON pages with the same
-  filters; follow the `X-Next-Cursor` response header until it is absent to
-  export the complete matching history. Export requires `audit.read` and sends
-  `Cache-Control: no-store`.
-  Invitation tokens must be handed to invitees securely out of band. Automated
-  email delivery and identity verification are still missing; possession of an
-  invite token proves access to that token only.
-  The v0 onboarding endpoint limits each client address to three organization
-  creations per hour, using shared PostgreSQL counters or bounded process-local
-  counters in memory mode. It returns `429` with `Retry-After` when limited.
-  This is a basic abuse control, not a substitute for verified signup: email
-  ownership is not checked, and deployments must configure trusted proxies so
-  the client address is accurate. The endpoint remains intended for controlled
-  evaluation, not unrestricted public signup.
-- `WEAVES_API_TOKENS` can map bearer tokens to active local principal IDs;
-  only SHA-256 token digests are held in the API process. The legacy
-  `WEAVES_API_TOKEN` maps to the local developer principal. Admins can create
-  workspace-scoped service accounts and one-time bearer credentials through
-  the API; listing, revoking, or rotating API credentials requires
-  organization-level `users.manage` because credentials are principal-wide.
+- An organization is provisioned by a verified account
+  (`POST /api/v0/account/organizations`) or by an operator on the host; either way
+  it gets a default workspace, an owner principal, a mock model profile, an
+  approval policy, and a local knowledge installation. Authenticated requests
+  derive organization scope from the principal behind the credential (an
+  account session names its organization with `X-Organization-Id`);
+  `X-Workspace-ID` can select only a workspace granted to that principal. The
+  request's tenant scope is propagated through API service calls, including
+  worker execution. Members are provisioned by an administrator and activated by
+  their first verified account sign-in; there are no invitation tokens.
+  Account organization creation is throttled per account and source address.
+  Service accounts and API credentials authenticate automation:
   PostgreSQL stores only token digests, supports expiry, and revokes credentials
   immediately. `PUT /api/v0/api-credentials/{credential_id}/rotate` atomically
   revokes an active credential and issues a replacement for the same principal,
   preserving its expiry. The plaintext replacement is returned once.
-  Human users can enroll or change a password through authenticated
-  `PUT /api/v0/auth/password`, sign in with `POST /api/v0/auth/login`, inspect
-  their account through `GET /api/v0/auth/me`, and revoke the current session
-  through `POST /api/v0/auth/logout`. Passwords use salted PBKDF2-SHA256
-  verifiers; the plaintext is never persisted. Login returns an opaque bearer
-  session token that expires after 12 hours. Session tokens are stored as
-  digests, checked against current principal and user status on every request,
-  and revoked on logout, password change, or user suspension. If an email is
-  present in multiple organizations, login must include `organization_id`.
-  Login attempts are limited to five attempts per 15-minute fixed window for
-  both a normalized account key and the request's client address. PostgreSQL
-  stores hashed bucket keys and shares counters across API instances; memory
-  mode keeps bounded process-local counters. `Retry-After` is returned without
-  account-specific error text. Reverse-proxy deployments must configure their
-  ASGI server to trust only known proxies so `request.client.host` is accurate.
-  These are evaluation-grade sessions: automated email delivery and identity
-  verification, MFA, SSO/OIDC, secure browser-cookie
-  handling, refresh tokens, and account recovery remain unimplemented. API
-  credentials remain active until separately revoked or expired.
-  Permission checks and run/audit actors use the resolved principal.
+  People sign in only through accounts: Google sign-in opens an account
+  browser session (an HttpOnly cookie with CSRF protection; bearer account
+  sessions are issued only by the operator break-glass script) that
+  acts in one organization per request through `X-Organization-Id`.
+  `GET /api/v0/auth/me` shows the resolved identity. Account sessions are stored
+  as digests, expire after 12 hours, and every request re-derives the
+  membership, user, principal and organization state, so suspension applies
+  immediately. Account organization creation is throttled per account and
+  source address with hashed bucket keys; PostgreSQL shares counters across API
+  instances and memory mode keeps bounded process-local counters. `Retry-After`
+  is returned without account-specific error text. Reverse-proxy deployments must configure
+  their ASGI server to trust only known proxies so `request.client.host` is
+  accurate. MFA, refresh tokens and account recovery remain unimplemented. API credentials remain active until separately revoked or
+  expired. Permission checks and run/audit actors use the resolved principal.
   Without environment-configured tokens, the seeded local developer remains
   available only in memory-only local development. When PostgreSQL is
   configured, protected product routes require a bearer token even if no
-  environment token is configured; health, onboarding, password login, and
-  invitation acceptance remain public entrypoints.
+  environment token is configured; health, the Google sign-in routes and
+  the OAuth callbacks remain public entrypoints.
 - OpenAI, Anthropic, Gemini, and OpenAI-compatible API-key providers are
   supported; provider and model-profile administration requires
   organization-level `models.manage` because those records are shared across
@@ -245,8 +184,8 @@ configured.
 - This adapter is suitable for local v0 evaluation, not customer data or a
   production multi-tenant deployment.
 
-Identity verification, MFA, SSO/OIDC, secure browser-cookie handling, refresh
-tokens, and account recovery remain follow-up identity work. Managed identity
+MFA, SSO/OIDC, refresh tokens, and account recovery remain follow-up identity
+work. Managed identity
 and production deployment hardening remain outside this local-v0 runtime.
 
 ## PostgreSQL Integration Checks

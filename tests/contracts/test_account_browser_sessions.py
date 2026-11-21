@@ -1,56 +1,50 @@
-"""Account browser sessions: cookie + CSRF, isolated from bearer and legacy cookies."""
+"""Account browser sessions: cookie + CSRF, isolated from bearer sessions."""
 
 from datetime import timedelta
 from http.cookies import SimpleCookie
 
-import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from apps.api.app import create_app
 from apps.runtime_wiring import compose_platform_runtime
 from contracts.v1 import AccountStatus, MembershipStatus
-from infrastructure.auth.throttle import InMemoryLoginRateLimiter
 from modules.auth.account_sessions import token_digest
-from modules.auth.http.browser_sessions import ACCOUNT_COOKIE_NAME, COOKIE_NAME
+from modules.auth.http.browser_sessions import ACCOUNT_COOKIE_NAME, csrf_token
 from shared.clock import utc_now
-from tests.support.account_world import HMAC_KEY, CapturedMail
+from tests.support.account_session import configure_google, google_sign_in, sign_in
+from tests.support.fake_google import FakeGoogle
+from tests.support.organizations import create_organization
 
 ORIGIN = "https://app.example.test"
 EMAIL = "browser.person@example.test"
-VERIFY = "/api/v0/account/browser/email-verify"
 SAME = {"Origin": ORIGIN}
 
 
 @pytest.fixture
 def world(monkeypatch):
-    monkeypatch.setenv("WEAVES_PUBLIC_FRONTEND_URL", ORIGIN)
-    monkeypatch.setenv("WEAVES_BROWSER_SESSION_SECRET", "browser-secret-" * 4)
+    configure_google(monkeypatch)
+    fake = FakeGoogle()
     runtime = compose_platform_runtime(
-        http_client=httpx.Client(), store=None, seed_local_defaults=False
+        http_client=fake.client(), store=None, seed_local_defaults=False
     )
     runtime.bootstrap()
     service = runtime.account_sign_in_service
-    mail = CapturedMail()
-    service.email_sender = mail
-    service.email_login_hmac_key = HMAC_KEY
-    service.login_rate_limiter = InMemoryLoginRateLimiter(limit=50)
-    org_a, _, _, principal_a, owner_a = (
-        runtime.organization_service.create_organization(
-            name="Org A", email=EMAIL, display_name="Person A"
-        )
+    org_a, _, _, principal_a, owner_a = create_organization(
+        runtime, name="Org A", email=EMAIL, display_name="Person A"
     )
-    org_b, *_ = runtime.organization_service.create_organization(
-        name="Org B", email="someone.else@example.test", display_name="Other"
+    org_b, *_ = create_organization(
+        runtime,
+        name="Org B",
+        email="someone.else@example.test",
+        display_name="Other",
     )
     client = TestClient(
         create_app(runtime), base_url=ORIGIN, raise_server_exceptions=False
     )
 
-    def sign_in(**kwargs):
-        challenge = service.start_email_login(EMAIL, "198.51.100.1")
-        body = {"challenge_id": challenge, "code": mail.code()}
-        return client.post(VERIFY, json=body, headers=SAME, **kwargs)
+    def sign_in():
+        return google_sign_in(client, fake, EMAIL)
 
     with client:
         yield {
@@ -62,16 +56,17 @@ def world(monkeypatch):
             "org_b": org_b,
             "owner_a": owner_a,
             "principal_a": principal_a,
-            "mail": mail,
+            "fake": fake,
         }
     runtime.close()
 
 
 def _login(world):
     response = world["sign_in"]()
-    assert response.status_code == 200, response.text
+    assert response.status_code == 302, response.text
+    assert response.headers["location"] == "/"
     token = world["client"].cookies.get(ACCOUNT_COOKIE_NAME)
-    return response.json()["csrf_token"], token
+    return csrf_token(token), token
 
 
 def _headers(csrf, org=None):
@@ -81,18 +76,15 @@ def _headers(csrf, org=None):
     return headers
 
 
-def test_verify_sets_a_distinct_secure_cookie_and_returns_csrf_without_a_token(world):
+def test_callback_sets_a_distinct_secure_cookie_and_the_me_route_gives_csrf(world):
     response = world["sign_in"]()
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["csrf_token"] and "access_token" not in body
-    assert body["account"] and {m["organization_id"] for m in body["memberships"]} == {
-        world["org_a"].id
-    }
-    cookie = SimpleCookie()
-    cookie.load(response.headers["set-cookie"])
-    morsel = cookie[ACCOUNT_COOKIE_NAME]
-    assert ACCOUNT_COOKIE_NAME != COOKIE_NAME
+    assert response.status_code == 302, response.text
+    cookies = {}
+    for header in response.headers.get_list("set-cookie"):
+        cookie = SimpleCookie()
+        cookie.load(header)
+        cookies.update(cookie)
+    morsel = cookies[ACCOUNT_COOKIE_NAME]
     assert morsel["secure"] and morsel["httponly"]
     assert morsel["samesite"] == "strict" and morsel["path"] == "/"
     assert int(morsel["max-age"]) == 12 * 3600
@@ -105,18 +97,9 @@ def test_verify_sets_a_distinct_secure_cookie_and_returns_csrf_without_a_token(w
     assert (
         session.channel == "browser" and morsel.value not in session.model_dump_json()
     )
-
-
-def test_verify_refuses_a_missing_or_foreign_origin_and_keeps_the_code_usable(world):
-    service, mail = world["service"], world["mail"]
-    challenge = service.start_email_login(EMAIL, "198.51.100.1")
-    body = {"challenge_id": challenge, "code": mail.code()}
-    client = world["client"]
-    assert client.post(VERIFY, json=body).status_code == 403
-    foreign = client.post(VERIFY, json=body, headers={"Origin": "https://evil.test"})
-    assert foreign.status_code == 403
-    assert ACCOUNT_COOKIE_NAME not in client.cookies
-    assert client.post(VERIFY, json=body, headers=SAME).status_code == 200
+    me = world["client"].get("/api/v0/account/browser/me").json()
+    assert me["csrf_token"] == csrf_token(morsel.value) and "access_token" not in me
+    assert {m["organization_id"] for m in me["memberships"]} == {world["org_a"].id}
 
 
 def test_me_is_cookie_only_and_csrf_is_not_required_for_safe_methods(world):
@@ -223,9 +206,7 @@ def test_membership_state_is_rechecked_through_the_cookie_path(world):
 def test_bearer_and_cookie_credentials_are_not_interchangeable(world):
     service, client = world["service"], world["client"]
     _, cookie_token = _login(world)
-    mail = world["mail"]
-    challenge = service.start_email_login(EMAIL, "198.51.100.1")
-    _, _, bearer = service.verify_email_login(challenge, mail.code())
+    _, bearer = sign_in(service, EMAIL)
     org = {"X-Organization-Id": world["org_a"].id}
     client.cookies.clear()
 
@@ -246,36 +227,20 @@ def test_bearer_and_cookie_credentials_are_not_interchangeable(world):
     assert ok.status_code == 200
 
 
-def test_account_and_legacy_cookies_are_not_interchangeable(world):
-    csrf, token = _login(world)
-    client, runtime = world["client"], world["runtime"]
+def test_an_unknown_cookie_is_refused_everywhere(world):
+    _login(world)
+    client = world["client"]
     org = {"X-Organization-Id": world["org_a"].id}
-    # an account token in the legacy cookie is refused as a tenant session
+    forged = "wvs_acbr_" + "x" * 43
+    csrf = csrf_token(forged)
     client.cookies.clear()
-    client.cookies.set(COOKIE_NAME, token)
-    assert client.get("/api/v0/auth/browser/me").status_code == 401
-    assert client.get("/api/v0/agents", headers=org).status_code == 401
-    # a legacy browser token in the account cookie is refused
-    principal = runtime.principals.get(world["principal_a"].id)
-    _, legacy = runtime.authentication_service.create_user_session(
-        principal, channel="browser"
-    )
-    client.cookies.clear()
-    client.cookies.set(ACCOUNT_COOKIE_NAME, legacy)
+    client.cookies.set(ACCOUNT_COOKIE_NAME, forged)
     assert client.get("/api/v0/account/browser/me").status_code == 401
     assert client.get("/api/v0/agents", headers=org).status_code == 403
-    # an account cookie never reaches the legacy cookie-only routes
-    client.cookies.clear()
-    client.cookies.set(ACCOUNT_COOKIE_NAME, token)
-    assert client.get("/api/v0/auth/browser/me").status_code == 401
-    assert (
-        client.post("/api/v0/auth/browser/logout", headers=_headers(csrf)).status_code
-        == 401
-    )
-    # a legacy cookie never reaches the account cookie routes
-    client.cookies.clear()
-    client.cookies.set(COOKIE_NAME, legacy)
-    assert client.get("/api/v0/account/browser/me").status_code == 401
+    out = client.post("/api/v0/account/browser/logout", headers=_headers(csrf))
+    assert out.status_code == 401
+    # the removed tenant browser routes no longer exist behind any cookie
+    assert client.get("/api/v0/auth/browser/me").status_code in (401, 404)
 
 
 def test_a_disabled_account_loses_the_session_at_once_and_cannot_sign_in(world):
@@ -288,7 +253,9 @@ def test_a_disabled_account_loses_the_session_at_once_and_cannot_sign_in(world):
     assert client.get("/api/v0/account/browser/me").status_code == 401
     assert client.get("/api/v0/agents", headers=org).status_code == 403
     client.cookies.clear()
-    assert world["sign_in"]().status_code == 401
+    refused = world["sign_in"]()
+    assert refused.status_code == 302
+    assert refused.headers["location"] == "/#account-signin?error=disabled"
     assert ACCOUNT_COOKIE_NAME not in client.cookies
 
 
