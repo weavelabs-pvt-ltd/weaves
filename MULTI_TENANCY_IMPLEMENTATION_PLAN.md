@@ -76,6 +76,10 @@ The browser can hold an account session in an HttpOnly cookie, mirroring the leg
 
 A signed-in account can attach another email only after proving control of that mailbox: `POST /api/v0/account/identities/email-code` sends a code bound to the calling account (it can never sign anyone in, and a sign-in code can never attach an email), and `email-verify` creates the verified identity and links any tenant users carrying that address. An address already verified on a different account is refused with a conflict and nothing moves; merging accounts is deliberately not available through this flow. `DELETE /api/v0/account/identities/{id}` removes an identity but never the last verified one, and only the owner can remove it. `/account/me` now returns identity ids. Tenant credentials stay tenant-bound, and a claimed or unverified address never links anything. `T1-I09` is a required real-stack control.
 
+### Phase 3 progress: browser account journey control (T1-I10)
+
+The required real-stack suite now drives the frontend account journey in Chromium against the real API: account sign-in with an emailed one-time code read from the SMTP fixture, the organization chooser for the person who belongs to both fixture organizations, entering one organization, and switching to the other through the shell. It asserts every tenant request carries the selected `X-Organization-Id`, content from the previous organization is gone after the switch, and the new organization's data is shown. The pinned frontend revision is the account-journey change under review in the frontend repository; it is re-pinned to the merged frontend commit once that lands.
+
 ### Phase 0 implementation evidence
 
 - [Architecture decisions](TENANCY_ARCHITECTURE.md), [complete ownership registry](tenancy_harness/ownership.json), and [portable test harness](tenancy_harness/README.md) are implemented. The registry covers 45 collections and 135 API operations, with drift checks.
