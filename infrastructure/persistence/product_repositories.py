@@ -29,6 +29,7 @@ from contracts.v1 import (
     Organization,
     OrganizationMembership,
     OrganizationModelConfiguration,
+    OrganizationSettings,
     PluginDescriptor,
     PluginInstallation,
     Principal,
@@ -65,6 +66,7 @@ TENANT_KEYED_COLLECTIONS = frozenset({"evaluation_suites", "evaluation_reports"}
 
 REPOSITORY_SPECS: tuple[tuple[str, str, str, type[ProductContract]], ...] = (
     ("organizations", "organizations", "id", Organization),
+    ("organization_settings", "organization_settings", "id", OrganizationSettings),
     ("accounts", "accounts", "id", Account),
     ("account_identities", "account_identities", "id", AccountIdentity),
     ("memberships", "memberships", "id", OrganizationMembership),

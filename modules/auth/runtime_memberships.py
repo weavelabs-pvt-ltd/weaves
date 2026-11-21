@@ -19,6 +19,8 @@ from contracts.v1 import (
     Workspace,
     WorkspaceStatus,
 )
+from modules.auth.administration_transaction import serialized_administration
+from modules.auth.organization_guard import OrganizationGuard
 from modules.auth.role_presets import validate_role_preset_scope
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
@@ -32,6 +34,7 @@ from shared.request_context import (
 class MembershipRuntimeHost(ABC):
     """Dependencies needed to manage workspaces, roles, and their membership."""
 
+    administration_guard: OrganizationGuard
     _bootstrapped: Callable[[], bool]
     approval_policies: Repository[ApprovalPolicy]
     audit_events: Repository[AuditEvent]
@@ -123,6 +126,7 @@ class MembershipRuntimeMixin(MembershipRuntimeHost):
             )
         )
 
+    @serialized_administration
     def create_role_binding(
         self,
         *,
@@ -201,6 +205,7 @@ class MembershipRuntimeMixin(MembershipRuntimeHost):
             return existing
         return binding
 
+    @serialized_administration
     def replace_role_binding(
         self,
         *,
@@ -313,27 +318,7 @@ class MembershipRuntimeMixin(MembershipRuntimeHost):
         """Prevent replacement from removing the final effective administrator."""
         candidates = [*remaining, proposed]
         if workspace_id is None:
-            protected = {
-                Permission.ORGANIZATIONS_ADMIN,
-                Permission.ROLES_MANAGE,
-            }
-            for permission in protected:
-                had_permission = any(
-                    binding.workspace_id is None
-                    and permission
-                    in self.roles.get_scoped(binding.role_id, org_id).permissions
-                    for binding in replacing
-                )
-                remains = any(
-                    binding.workspace_id is None
-                    and permission
-                    in self.roles.get_scoped(binding.role_id, org_id).permissions
-                    for binding in candidates
-                )
-                if had_permission and not remains:
-                    raise ValueError(
-                        "cannot remove the last organization-level administrator"
-                    )
+            self.administration_guard.validate_change(bindings=candidates)
         elif principal_id == actor and any(
             Permission.ROLES_MANAGE
             in self.roles.get_scoped(binding.role_id, org_id).permissions
@@ -385,6 +370,7 @@ class MembershipRuntimeMixin(MembershipRuntimeHost):
             )
         )
 
+    @serialized_administration
     def delete_role_binding(
         self,
         binding_id: str,
@@ -408,22 +394,11 @@ class MembershipRuntimeMixin(MembershipRuntimeHost):
         role = self.roles.get_scoped(binding.role_id, org_id)
         bindings = self.role_bindings.list_scoped(org_id)
         if binding.workspace_id is None:
-            protected_permissions = {
-                Permission.ORGANIZATIONS_ADMIN,
-                Permission.ROLES_MANAGE,
-            }.intersection(role.permissions)
-            for permission in protected_permissions:
-                another_org_admin = any(
-                    candidate.id != binding.id
-                    and candidate.workspace_id is None
-                    and permission
-                    in self.roles.get_scoped(candidate.role_id, org_id).permissions
-                    for candidate in bindings
-                )
-                if not another_org_admin:
-                    raise ValueError(
-                        "cannot remove the last organization-level administrator"
-                    )
+            self.administration_guard.validate_change(
+                bindings=[
+                    candidate for candidate in bindings if candidate.id != binding.id
+                ]
+            )
         elif binding.principal_id == requested_by_principal_id and (
             Permission.ROLES_MANAGE in role.permissions
         ):

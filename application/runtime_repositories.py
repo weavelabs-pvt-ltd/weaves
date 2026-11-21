@@ -30,6 +30,7 @@ from contracts.v1 import (
     Organization,
     OrganizationMembership,
     OrganizationModelConfiguration,
+    OrganizationSettings,
     PluginDescriptor,
     PluginInstallation,
     Principal,
@@ -62,6 +63,7 @@ class RuntimeRepositoryBindingMixin:
 
     _repository_set: ProductRepositorySet
     organizations: Repository[Organization]
+    organization_settings: Repository[OrganizationSettings]
     workspaces: Repository[Workspace]
     users: Repository[User]
     principals: Repository[Principal]
@@ -108,6 +110,9 @@ class RuntimeRepositoryBindingMixin:
 
     def _bind_repositories(self) -> None:
         """Attach one repository for each product collection."""
+        self.organization_settings = self._repository(
+            "organization_settings", OrganizationSettings
+        )
         self.organizations = self._repository("organizations", Organization)
         self.workspaces = self._repository("workspaces", Workspace)
         self.users = self._repository("users", User)

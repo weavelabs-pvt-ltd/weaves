@@ -23,6 +23,7 @@ from contracts.v1 import (
     ModelProviderStatus,
     ModelProviderType,
     Organization,
+    OrganizationSettings,
     OrganizationStatus,
     Principal,
     PrincipalStatus,
@@ -83,6 +84,7 @@ class OrganizationRuntimeHost(ABC):
     model: MockModelIdentifier
     model_profiles: Repository[ModelProfile]
     organizations: Repository[Organization]
+    organization_settings: Repository[OrganizationSettings]
     principals: Repository[Principal]
     providers: Repository[ModelProviderContract]
     role_bindings: Repository[RoleBinding]
@@ -310,6 +312,17 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
         """Atomically persist the organization, owner, defaults, and audit event."""
         with self._unit_of_work():
             self.organizations.create(owner.organization)
+            self.organization_settings.create(
+                OrganizationSettings(
+                    id=owner.organization.id,
+                    org_id=owner.organization.id,
+                    owner_principal_id=owner.principal.id,
+                    timezone=str(audit_metadata.get("timezone", "Asia/Kolkata")),
+                    locale=str(audit_metadata.get("locale", "en")),
+                    created_at=timestamp,
+                    updated_at=timestamp,
+                )
+            )
             self.workspaces.create(owner.workspace)
             self.users.create(owner.user)
             self.principals.create(owner.principal)

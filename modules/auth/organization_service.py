@@ -12,6 +12,7 @@ from contracts.v1 import (
     AuditEvent,
     ModelProfile,
     Organization,
+    OrganizationSettings,
     Principal,
     Role,
     RoleBinding,
@@ -49,6 +50,7 @@ class OrganizationService(OrganizationRuntimeMixin):
         audit_events: Repository[AuditEvent],
         model_profiles: Repository[ModelProfile],
         organizations: Repository[Organization],
+        organization_settings: Repository[OrganizationSettings],
         principals: Repository[Principal],
         providers: Repository[ModelProviderContract],
         role_bindings: Repository[RoleBinding],
@@ -67,6 +69,7 @@ class OrganizationService(OrganizationRuntimeMixin):
         self.audit_events = audit_events
         self.model_profiles = model_profiles
         self.organizations = organizations
+        self.organization_settings = organization_settings
         self.principals = principals
         self.providers = providers
         self.role_bindings = role_bindings

@@ -202,6 +202,7 @@ __all__ = [
     "Organization",
     "OrganizationMembership",
     "OrganizationModelConfiguration",
+    "OrganizationSettings",
     "OrganizationStatus",
     "Permission",
     "PluginDescriptor",
@@ -252,3 +253,5 @@ __all__ = [
     "Workspace",
     "WorkspaceStatus",
 ]
+
+from contracts.v1.organization_settings import OrganizationSettings

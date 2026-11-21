@@ -41,6 +41,7 @@ from contracts.v1 import (
     Organization,
     OrganizationMembership,
     OrganizationModelConfiguration,
+    OrganizationSettings,
     Permission,
     PluginDescriptor,
     PluginInstallation,
@@ -109,6 +110,7 @@ class RuntimeCompositionInputs(Protocol):
     model_profiles: Repository[ModelProfile]
     model_configurations: Repository[OrganizationModelConfiguration]
     organizations: Repository[Organization]
+    organization_settings: Repository[OrganizationSettings]
     plugins: Repository[PluginDescriptor]
     principals: Repository[Principal]
     providers: Repository[ModelProviderContract]

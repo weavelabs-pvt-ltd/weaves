@@ -17,6 +17,7 @@ from contracts.v1 import (
     Workspace,
     WorkspaceStatus,
 )
+from modules.auth.organization_guard import OrganizationGuard
 from modules.auth.runtime_memberships import MembershipRuntimeMixin
 from modules.auth.runtime_workspaces import WorkspaceRuntimeMixin
 
@@ -34,6 +35,7 @@ class WorkspaceAccessService(WorkspaceRuntimeMixin, MembershipRuntimeMixin):
     def __init__(
         self,
         *,
+        administration_guard: OrganizationGuard,
         approval_policies: Repository[ApprovalPolicy],
         audit_events: Repository[AuditEvent],
         principals: Repository[Principal],
@@ -48,6 +50,7 @@ class WorkspaceAccessService(WorkspaceRuntimeMixin, MembershipRuntimeMixin):
         advisory_transaction_lock: Callable[[str], None] | None,
     ) -> None:
         """Bind workspace repositories and identity lifecycle operations."""
+        self.administration_guard = administration_guard
         self.approval_policies = approval_policies
         self.audit_events = audit_events
         self.principals = principals

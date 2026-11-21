@@ -529,6 +529,17 @@
       "scope_keys": [
         "account_id"
       ]
+    },
+    "organization_settings": {
+      "scope": "organization",
+      "contract": "OrganizationSettings",
+      "privacy": "organizations.admin at organization scope; ownership transfer restricted to current human owner",
+      "system_access": "explicit provisioning or operator recovery only",
+      "lifecycle": "active tenant; shared org transaction guard protects ownership and admin access",
+      "scope_keys": [
+        "org_id"
+      ],
+      "current_gap": null
     }
   },
   "auxiliary_tables": {
@@ -1498,6 +1509,34 @@
       "scope": "account_identity",
       "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
       "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/organization/settings",
+      "scope": "organization",
+      "rule": "validated per-request organization; org-scoped permission; account-authenticated owner for transfer; mutation guard and optimistic settings revision",
+      "lifecycle": "active tenant; preserve global account and other memberships"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v0/organization/settings",
+      "scope": "organization",
+      "rule": "validated per-request organization; org-scoped permission; account-authenticated owner for transfer; mutation guard and optimistic settings revision",
+      "lifecycle": "active tenant; preserve global account and other memberships"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/organization/transfer-ownership",
+      "scope": "organization",
+      "rule": "validated per-request organization; org-scoped permission; account-authenticated owner for transfer; mutation guard and optimistic settings revision",
+      "lifecycle": "active tenant; preserve global account and other memberships"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v0/organization/members/{user_id}",
+      "scope": "organization",
+      "rule": "validated per-request organization; org-scoped permission; account-authenticated owner for transfer; mutation guard and optimistic settings revision",
+      "lifecycle": "active tenant; preserve global account and other memberships"
     }
   ]
 }

@@ -36,6 +36,10 @@ def _register_get_authenticated_user(
             "user": _dump(user) if user else None,
             "workspace_id": effective_workspace_id(),
             "effective_permissions": [permission.value for permission in permissions],
+            "organization_permissions": [
+                p.value
+                for p in credential_service.organization_permissions(principal.id)
+            ],
         }
 
 

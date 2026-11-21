@@ -37,6 +37,9 @@ if TYPE_CHECKING:
     from modules.auth.authentication_service import AuthenticationService
     from modules.auth.bootstrap import IdentityBootstrapService
     from modules.auth.credential_service import CredentialService
+    from modules.auth.organization_administration import (
+        OrganizationAdministrationService,
+    )
     from modules.auth.organization_service import OrganizationService
     from modules.auth.user_administration_service import UserAdministrationService
     from modules.auth.workspace_access_service import WorkspaceAccessService
@@ -73,6 +76,7 @@ class RuntimeCapabilityHost:
     credential_service: CredentialService
     user_administration_service: UserAdministrationService
     workspace_access_service: WorkspaceAccessService
+    organization_administration_service: OrganizationAdministrationService
     organization_service: OrganizationService
     execution_service: ExecutionService
     execution_worker_service: ExecutionWorkerService
