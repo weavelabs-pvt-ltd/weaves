@@ -7,7 +7,7 @@ import psycopg.errors
 import pytest
 
 from contracts.v1 import (
-    AccountLoginChallenge,
+    AccountOAuthState,
     AuditEvent,
     ErrorSummary,
     ExecutionJob,
@@ -183,20 +183,20 @@ def test_postgres_execution_job_updates_are_fenced_by_worker_and_attempt():
     assert params[-2:] == ("worker-a", 2)
 
 
-def test_postgres_account_challenge_consume_is_atomic_and_one_time():
+def test_postgres_account_oauth_state_consume_is_atomic_and_one_time():
     connection = RecordingConnection()
     repository = PostgresRepository(
         RecordingPool(connection),
-        "account_login_challenges",
-        "challenge_id",
-        AccountLoginChallenge,
+        "account_oauth_states",
+        "id",
+        AccountOAuthState,
     )
     with pytest.raises(KeyError):
-        repository.consume("already-used-challenge")
+        repository.consume("already-used-state")
     query, params = connection.statements[-1]
     assert "DELETE FROM product_records" in query
     assert "RETURNING payload" in query
-    assert params == ("account_login_challenges", "already-used-challenge")
+    assert params == ("account_oauth_states", "already-used-state")
 
 
 def test_postgres_store_reuses_one_connection_inside_unit_of_work():

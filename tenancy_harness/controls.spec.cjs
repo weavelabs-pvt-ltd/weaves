@@ -1,21 +1,14 @@
-/* global showDialog, api, setSession, prepareHomeEntry, refresh */
 const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
-const path = require('node:path');
-const crypto = require('node:crypto');
+const browserAccount = require('./browser_account.cjs');
 const fixture = JSON.parse(fs.readFileSync(process.env.TENANCY_FIXTURE_FILE, 'utf8'));
 const { a, b } = fixture.tenants;
 const get = (request, resource, actor = a.admin) => request.get('/api/v0' + resource, { headers: actor.headers });
-// Seed the account session keys the real frontend uses: the account token, the tab's selected
-// organization and its workspace. Nothing here is a tenant session.
-async function open(page, tenant, route = '#agents', actor = tenant.admin) {
-  await page.addInitScript(({ token, organization, workspace }) => {
-    sessionStorage.setItem('weaves.account', token);
-    sessionStorage.setItem('weaves.organization', organization);
-    sessionStorage.setItem('weaves.workspace', workspace);
-  }, { token: actor.headers.Authorization.slice(7), organization: tenant.org_id, workspace: tenant.workspace_id });
-  await page.goto(process.env.WEAVES_E2E_APP_URL + '/' + route);
-}
+// API-only local debugging (run.py --api-only) omits the parts that need the signed-in frontend.
+const withBrowser = !process.env.TENANCY_API_ONLY;
+// Sign in through the real Google redirect flow (fake provider) and choose the organization.
+const open = (page, tenant, route = 'agents', actor = tenant.admin) =>
+  browserAccount.openAsAccount(page, tenant, { actor, route: route.replace(/^#/, '') });
 
 test('T0-I01 real PostgreSQL API rejects missing authentication', async ({ request }) => {
   const health = await request.get('/api/v0/health');
@@ -98,7 +91,11 @@ test('T0-I10 actual frontend renders only the signed-in tenant catalogue', async
   const other = await context.newPage();
   try {
     await open(other, b);
-    await expect(other.getByText(b.agent.name, { exact: true }).first()).toBeVisible();
+    try {
+      await expect(other.getByText(b.agent.name, { exact: true }).first()).toBeVisible();
+    } catch (error) {
+      throw new Error('tenant B catalogue not shown :: ' + await browserAccount.describePage(other));
+    }
     await expect(other.getByText(a.agent.name, { exact: true })).toHaveCount(0);
   } finally { await context.close(); }
 });
@@ -137,6 +134,7 @@ test('T1-I01 custom connector metadata belongs only to its organization', async 
     const health = await request.post('/api/v0/plugin-installations/' + own.installation.plugin_installation_id + '/healthcheck', { headers: own.admin.headers });
     expect(health.status()).toBe(200);
   }
+  if (!withBrowser) return;
   await open(page, a, '#connections');
   await expect(page.getByText(a.marker + ' connector', { exact: true }).first()).toBeVisible();
   await expect(page.getByText(b.marker + ' connector', { exact: true })).toHaveCount(0);
@@ -195,18 +193,16 @@ test('T1-I04 suspended and archived tenants cannot start or continue work', asyn
 // shared-person sessions stay valid for later stages.
 test('T1-I05 session change tears down private browser state and ignores stale responses', async ({ browser, request }) => {
   const sentinel = 'TEARDOWN_SENTINEL_' + Date.now();
-  const token = (actor) => actor.headers.Authorization.slice(7);
   const context = await browser.newContext({ baseURL: process.env.WEAVES_E2E_APP_URL });
-  const page = await context.newPage();
-  await page.addInitScript(({ session, organization, workspace, draftKey, sentinelValue }) => {
+  await context.addInitScript(({ draftKey, sentinelValue }) => {
     if (sessionStorage.getItem('test.seeded')) return;
     sessionStorage.setItem('test.seeded', '1');
-    sessionStorage.setItem('weaves.account', session);
-    sessionStorage.setItem('weaves.organization', organization);
-    sessionStorage.setItem('weaves.workspace', workspace);
     localStorage.setItem(draftKey, JSON.stringify([{ id: 'legacy', name: sentinelValue }]));
-  }, { session: token(a.builder), organization: a.org_id, workspace: a.workspace_id, draftKey: 'weaves.agentDrafts.' + a.workspace_id, sentinelValue: sentinel });
-  await page.goto(process.env.WEAVES_E2E_APP_URL + '/#agents');
+  }, { draftKey: 'weaves.agentDrafts.' + a.workspace_id, sentinelValue: sentinel });
+  const page = await context.newPage();
+  await open(page, a, 'agents', a.builder);
+  await browserAccount.expectSessionCookie(context);
+  await browserAccount.expectNoTokenInStorage(page);
   await expect(page.getByText(a.agent.name, { exact: true }).first()).toBeVisible();
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
@@ -214,31 +210,28 @@ test('T1-I05 session change tears down private browser state and ignores stale r
     await gate;
     try { await route.fulfill({ status: 401, contentType: 'application/json', body: '{"detail":"expired"}' }); } catch { /* aborted by the page */ }
   });
-  await page.evaluate((value) => {
-    state.agentBuilder = { name: value, instructions: value };
-    state.skillVersionCache = { privateVersion: { content: value } };
-    showDialog({ type: 'info', title: value, message: value, primaryLabel: 'Close' });
-    window.__stale = api('/audit-events').then(() => 'settled', () => 'rejected');
-  }, sentinel);
-  await page.evaluate(() => document.querySelector('[data-action="logout"]').click());
-  await expect.poll(() => page.evaluate(() => state.authToken)).toBe('');
-  expect(await page.evaluate(() => [state.accountToken, sessionStorage.getItem('weaves.account'), sessionStorage.getItem('weaves.organization'), sessionStorage.getItem('weaves.workspace')])).toEqual(['', null, null, null]);
+  await browserAccount.plantPrivateState(page, sentinel);
+  const browserSession = (await context.cookies()).find((cookie) => cookie.name === browserAccount.SESSION_COOKIE).value;
+  const withBrowserSession = () => request.get('/api/v0/agents', {
+    headers: { Cookie: browserAccount.SESSION_COOKIE + '=' + browserSession, 'X-Organization-Id': a.org_id, Origin: process.env.WEAVES_E2E_APP_URL },
+  });
+  expect((await withBrowserSession()).status()).toBe(200);
+  await browserAccount.signOut(page);
+  await browserAccount.expectSignedOut(page, context);
   // Sign-out revokes the server session, not just the browser's copy of it.
-  await expect.poll(async () => (await get(request, '/agents', a.builder)).status()).toBeGreaterThanOrEqual(401);
+  await expect.poll(async () => (await withBrowserSession()).status()).toBeGreaterThanOrEqual(401);
   expect((await get(request, '/agents', a.user)).status()).toBe(200);
-  // A different person's account session starts in the same tab while the old response is outstanding.
-  await page.evaluate(({ userToken, organization }) => {
-    window.weavesScope.teardown({ authUi: true });
-    sessionStorage.setItem('weaves.account', userToken);
-    sessionStorage.setItem('weaves.organization', organization);
-    Object.assign(state, { accountToken: userToken, organizationId: organization, authToken: userToken, accountInfo: null });
-    prepareHomeEntry(); refresh();
-  }, { userToken: token(a.user), organization: a.org_id });
+  // The outstanding response settles after sign-out; it must not repopulate the page.
   release();
-  await expect.poll(() => page.evaluate(() => state.authToken)).toBe(token(a.user));
-  const view = await page.evaluate(() => [document.documentElement.innerText + document.documentElement.innerHTML, JSON.stringify(state)]);
-  expect(view[0]).not.toContain(sentinel);
-  expect(view[1]).not.toContain(sentinel);
+  await page.waitForTimeout(500);
+  expect(await browserAccount.appStateText(page)).not.toContain(sentinel);
+  // The held-response interception only exists to prove a late response is ignored; the next
+  // person's Home page loads audit events normally.
+  await page.unroute('**/api/v0/audit-events**');
+  // A different person signs in, in the same browser context, while the old drafts still exist.
+  await open(page, a, 'agents', a.user);
+  await browserAccount.expectSessionCookie(context);
+  expect(await browserAccount.appStateText(page)).not.toContain(sentinel);
   await expect(page.locator('#modal-root weaves-dialog')).toHaveCount(0);
   const keys = await page.evaluate(() => Object.keys(localStorage));
   expect(keys).not.toContain('weaves.agentDrafts.' + a.workspace_id);
@@ -246,18 +239,20 @@ test('T1-I05 session change tears down private browser state and ignores stale r
   const other = await browser.newContext({ baseURL: process.env.WEAVES_E2E_APP_URL });
   const otherPage = await other.newPage();
   await open(otherPage, b);
-  const otherView = await otherPage.evaluate(() => document.documentElement.innerText + JSON.stringify(state));
+  const otherView = await browserAccount.appStateText(otherPage);
   expect(otherView).not.toContain(sentinel);
   expect(otherView).not.toContain(a.agent.name);
   await context.close();
   await other.close();
 });
 
-test('T1-I07 account sign-in links one person to both organizations without tenant access', async () => {
+test('T1-I07 Google sign-in links one person to both organizations and refuses what it must', async () => {
   const control = fixture.diagnostics.account;
-  for (const key of ['code_sent', 'signed_in', 'one_account_two_organizations',
-    'account_token_denied_on_tenant_routes', 'tenant_token_denied_on_account_routes',
-    'unknown_email_indistinguishable']) {
+  for (const key of ['signed_in', 'one_account_two_organizations',
+    'session_without_organization_denied_on_tenant_routes', 'tenant_credential_denied_on_account_routes',
+    'csrf_enforced', 'email_outside_allowlist_not_allowed', 'email_outside_allowlist_creates_nothing',
+    'unverified_google_email_refused', 'unverified_google_email_creates_nothing',
+    'provider_denial_refused', 'provider_denial_creates_nothing']) {
     expect(control[key], key).toBe(true);
   }
 });
@@ -270,20 +265,15 @@ test('T1-I08 an account selects an organization per request and service credenti
   }
 });
 
-test('T1-I09 an account attaches a second email only with proof and never takes another account\'s', async () => {
+test('T1-I09 removing an identity always keeps the last verified one', async () => {
   const control = fixture.diagnostics.account;
-  for (const key of ['email_attached_after_proof', 'email_of_another_account_refused', 'refusal_changed_nothing']) {
+  for (const key of ['google_sign_in_adds_two_verified_identities', 'other_account_identity_not_removable',
+    'identity_removed_while_another_verified_remains', 'last_verified_identity_kept', 'other_account_unchanged']) {
     expect(control[key], key).toBe(true);
   }
 });
 
-function mailCode(email) {
-  const filename = crypto.createHash('sha256').update(email).digest('hex') + '.json';
-  const file = path.join(path.dirname(process.env.TENANCY_FIXTURE_FILE), 'mail', filename);
-  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')).code : '';
-}
-
-test('T1-I10 real browser signs in as an account, chooses and switches organizations', async ({ browser }) => {
+test('T1-I10 real browser signs in with Google, chooses and switches organizations', async ({ browser }) => {
   const email = a.shared_person.email;
   const context = await browser.newContext({ baseURL: process.env.WEAVES_E2E_APP_URL });
   const page = await context.newPage();
@@ -294,23 +284,18 @@ test('T1-I10 real browser signs in as an account, chooses and switches organizat
       tenantCalls.push({ path: url.pathname, organization: request.headers()['x-organization-id'] });
     }
   });
-  const previous = mailCode(email);
+  // The real UI path: the sign-in page's "Continue with Google" button, not a direct navigation.
+  await browserAccount.chooseGoogleIdentity(email);
   await page.goto(process.env.WEAVES_E2E_APP_URL + '/#account-signin');
-  await page.locator('#account-email').fill(email);
-  await page.getByRole('button', { name: 'Send code', exact: true }).click();
-  await expect(page.locator('#account-code-0')).toBeVisible();
-  await expect.poll(() => mailCode(email), { timeout: 20000 }).not.toBe(previous);
-  await page.locator('#account-code-0').click();
-  await page.keyboard.type(mailCode(email));
-  await page.getByRole('button', { name: /Verify and sign in/ }).click();
-
-  await expect(page.getByRole('heading', { name: 'Choose an organization' })).toBeVisible({ timeout: 25000 });
+  await browserAccount.SELECTORS.continueWithGoogle(page).click();
+  await expect(browserAccount.SELECTORS.chooserHeading(page)).toBeVisible({ timeout: 25000 });
+  await browserAccount.expectSessionCookie(context);
+  await browserAccount.expectNoTokenInStorage(page);
   // The same person may belong to more organizations (for example one created through the account API).
   for (const org of [a.org_id, b.org_id]) {
-    await expect(page.locator('[data-account-action="choose"][data-organization-id="' + org + '"]')).toBeVisible();
+    await expect(page.locator(browserAccount.SELECTORS.chooseOrganization(org))).toBeVisible();
   }
-  await page.locator('[data-account-action="choose"][data-organization-id="' + a.org_id + '"]').click();
-  await expect.poll(() => page.evaluate(() => state.organization?.id), { timeout: 25000 }).toBe(a.org_id);
+  await browserAccount.chooseOrganization(page, a.org_id);
   await page.evaluate(() => { location.hash = 'agents'; });
   await expect(page.getByText(a.agent.name, { exact: true }).first()).toBeVisible({ timeout: 25000 });
   await expect(page.getByText(b.agent.name, { exact: true })).toHaveCount(0);
@@ -318,13 +303,12 @@ test('T1-I10 real browser signs in as an account, chooses and switches organizat
   expect(new Set(tenantCalls.map((call) => call.organization))).toEqual(new Set([a.org_id]));
 
   const beforeSwitch = tenantCalls.length;
-  await page.evaluate(() => document.querySelector('#profile-menu-toggle').click());
-  await page.evaluate((org) => document.querySelector('[data-account-action="switch"][data-organization-id="' + org + '"]').click(), b.org_id);
-  await expect.poll(() => page.evaluate(() => state.organization?.id), { timeout: 25000 }).toBe(b.org_id);
+  await browserAccount.switchOrganization(page, b.org_id);
+  await expect.poll(() => browserAccount.currentOrganizationId(page), { timeout: 25000 }).toBe(b.org_id);
   await page.evaluate(() => { location.hash = 'agents'; });
   await expect(page.getByText(b.agent.name, { exact: true }).first()).toBeVisible({ timeout: 25000 });
   await expect(page.getByText(a.agent.name, { exact: true })).toHaveCount(0);
-  const html = await page.evaluate(() => document.documentElement.innerText + JSON.stringify(state));
+  const html = await browserAccount.appStateText(page);
   expect(html).not.toContain(a.agent.name);
   await page.waitForTimeout(1500);
   const afterSwitch = tenantCalls.slice(beforeSwitch).filter((call) => call.organization === a.org_id);

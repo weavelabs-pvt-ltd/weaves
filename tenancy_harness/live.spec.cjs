@@ -3,14 +3,9 @@ const fs = require('node:fs');
 const fixture = JSON.parse(fs.readFileSync(process.env.TENANCY_FIXTURE_FILE, 'utf8'));
 if (!fixture.live) throw new Error('Live test preparation and approval gate are required');
 const tenant = fixture.tenants.a;
-async function open(page, hash) {
-  await page.addInitScript(({ token, organization, workspace }) => {
-    sessionStorage.setItem('weaves.account', token);
-    sessionStorage.setItem('weaves.organization', organization);
-    sessionStorage.setItem('weaves.workspace', workspace);
-  }, { token: tenant.admin.headers.Authorization.slice(7), organization: tenant.org_id, workspace: tenant.workspace_id });
-  await page.goto('/#' + hash);
-}
+const browserAccount = require('./browser_account.cjs');
+// Sign in through the real Google redirect flow and choose the organization.
+const open = (page, hash) => browserAccount.openAsAccount(page, tenant, { route: hash });
 test('LIVE-I01 real Anthropic response appears in its task transcript', async ({ page }) => {
   await open(page, 'tasks/' + fixture.live.task_id);
   await expect(page.locator('.task-message-agent')).toContainText(fixture.live.marker);

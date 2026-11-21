@@ -4,11 +4,11 @@ import httpx
 
 from tenancy_harness.account_checks import (
     creation_checks,
-    linking_checks,
+    identity_checks,
     selection_checks,
     sign_in_checks,
 )
-from tenancy_harness.client import API, call
+from tenancy_harness.client import API, call, request
 from tenancy_harness.resources import tenant
 
 
@@ -22,14 +22,14 @@ def seed_diagnostics(fixtures):
 
 
 def account_fixture(fixtures, foreign_org_id):
-    """Run the account sign-in, selection and email-linking controls."""
+    """Run the Google sign-in, selection, identity and creation controls."""
     a, b = fixtures["tenants"]["a"], fixtures["tenants"]["b"]
-    bearer, signed_in = sign_in_checks(a, b)
+    session, signed_in = sign_in_checks(a, b)
     return {
         **signed_in,
-        **selection_checks(a, b, bearer, foreign_org_id),
-        **linking_checks(a, b, bearer),
-        **creation_checks(a, b, bearer),
+        **selection_checks(a, b, session, foreign_org_id),
+        **identity_checks(a),
+        **creation_checks(a, b, session),
     }
 
 
@@ -66,7 +66,7 @@ def lifecycle_fixture():
         {"name": "Lifecycle diagnostic", "task_instructions": "Run"},
     )
     call("PATCH", "/workspaces/" + t["workspace_id"], admin, {"status": "archived"})
-    denied = httpx.get(API + "/agents", headers=admin["headers"], timeout=10)
+    denied = request("GET", "/agents", admin["headers"])
     # Organization suspension has no public API yet. This is fixture setup only.
     from apps.runtime_wiring import open_process_runtime
     from contracts.v1 import OrganizationStatus

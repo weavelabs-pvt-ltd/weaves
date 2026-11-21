@@ -1,64 +1,85 @@
-"""Real-stack account controls: sign-in, organization selection, email linking."""
+"""Real-stack account controls: Google sign-in, organization selection, creation."""
 
 import httpx
 
-from tenancy_harness.client import API, mailbox
+from tenancy_harness.client import (
+    API,
+    account_session,
+    google_sign_in,
+    request,
+    source_for,
+)
+from tenancy_harness.operator import operator_bearer
 
-SOURCE = {"X-Forwarded-For": "198.20.0.77"}
-SECOND_EMAIL = "shared.person.second@tenancy.test"
+OUTSIDER = "outsider@outside.example"
+UNVERIFIED = "unverified.person@tenancy.test"
+DENIER = "denied.person@tenancy.test"
+REMOVAL = "identity.removal@tenancy.test"
+ERROR = "/#account-signin?error="
 
 
-def _post(path, headers, body):
-    return httpx.post(API + path, headers=headers, json=body, timeout=30)
+def refused_sign_in(email, code, **flags):
+    """True when sign-in ends in the fixed error redirect with no session cookie."""
+    location, token = google_sign_in(email, **flags)
+    return location == ERROR + code and not token
 
 
 def sign_in_checks(a, b):
-    """Prove one person signs in with real email proof; return (bearer, checks)."""
+    """Prove one person signs in through Google; return (session headers, checks)."""
     email = a["shared_person"]["email"]
-    before = mailbox(email)["count"]
-    started = _post("/account/email-code", SOURCE, {"email": email})
-    proof = mailbox(email)
-    verified = _post(
-        "/account/email-verify",
-        SOURCE,
-        {"challenge_id": started.json()["challenge_id"], "code": proof["code"]},
-    )
-    token = verified.json().get("access_token", "")
-    bearer = {"Authorization": "Bearer " + token}
-    me = httpx.get(API + "/account/me", headers=bearer, timeout=30)
+    session = account_session(email)
+    me = request("GET", "/account/browser/me", session)
     organizations = {
         item["organization_id"]
         for item in (me.json().get("memberships", []) if me.status_code == 200 else [])
     }
-    stranger = _post(
-        "/account/email-code", SOURCE, {"email": "nobody.at.all@tenancy.test"}
-    )
-    return bearer, {
-        "code_sent": started.status_code == 202 and proof["count"] == before + 1,
-        "signed_in": verified.status_code == 200 and token.startswith("wvs_acct_"),
+    service = a["service"]["headers"]
+    without_csrf = {k: v for k, v in session.items() if k != "X-Weaves-CSRF"}
+    return session, {
+        "signed_in": me.status_code == 200 and bool(me.json().get("csrf_token")),
         "one_account_two_organizations": organizations == {a["org_id"], b["org_id"]},
-        "account_token_denied_on_tenant_routes": all(
-            httpx.get(API + path, headers=bearer, timeout=30).status_code == 401
+        "session_without_organization_denied_on_tenant_routes": all(
+            request("GET", path, session).status_code == 401
             for path in ("/agents", "/workspaces", "/model-providers")
         ),
-        "tenant_token_denied_on_account_routes": httpx.get(
-            API + "/account/me", headers=a["service"]["headers"], timeout=30
+        "tenant_credential_denied_on_account_routes": all(
+            request("GET", path, service).status_code == 401
+            for path in ("/account/browser/me", "/account/me")
+        ),
+        "csrf_enforced": request(
+            "POST",
+            "/account/browser/organizations",
+            {**without_csrf, "Idempotency-Key": "harness-no-csrf"},
+            {"name": "No CSRF"},
         ).status_code
-        == 401,
-        "unknown_email_indistinguishable": stranger.status_code == started.status_code
-        and set(stranger.json()) == set(started.json()),
+        == 403,
+        **refusal_checks(),
     }
 
 
-def selection_checks(a, b, bearer, foreign_org_id):
+def refusal_checks():
+    """Prove disallowed, unverified and denied sign-ins fail and create nothing."""
+    return {
+        "email_outside_allowlist_not_allowed": refused_sign_in(OUTSIDER, "not_allowed"),
+        "email_outside_allowlist_creates_nothing": operator_bearer(OUTSIDER) is None,
+        "unverified_google_email_refused": refused_sign_in(
+            UNVERIFIED, "access_denied", verified=False
+        ),
+        "unverified_google_email_creates_nothing": operator_bearer(UNVERIFIED) is None,
+        "provider_denial_refused": refused_sign_in(DENIER, "access_denied", deny=True),
+        "provider_denial_creates_nothing": operator_bearer(DENIER) is None,
+    }
+
+
+def selection_checks(a, b, session, foreign_org_id):
     """Prove the organization is chosen per request and refusals look the same."""
 
     def names(org_id, actor_headers=None, workspace=None):
-        headers = dict(actor_headers or bearer)
+        headers = dict(actor_headers or session)
         headers["X-Organization-Id"] = org_id
         if workspace:
             headers["X-Workspace-ID"] = workspace
-        response = httpx.get(API + "/agents", headers=headers, timeout=30)
+        response = request("GET", "/agents", headers)
         body = response.json() if response.status_code == 200 else None
         return response, {item["name"] for item in body or []}
 
@@ -83,72 +104,58 @@ def selection_checks(a, b, bearer, foreign_org_id):
     }
 
 
-def _prove(path, email, headers):
-    """Request a proof code for an address and redeem it with the real mailbox."""
-    before = mailbox(email)["count"]
-    started = _post(path + "email-code", headers, {"email": email})
-    assert mailbox(email)["count"] == before + 1
-    return _post(
-        path + "email-verify",
-        headers,
-        {
-            "challenge_id": started.json()["challenge_id"],
-            "code": mailbox(email)["code"],
-        },
-    )
+def _identities(bearer):
+    """List an account's verified identities through the operator-issued bearer."""
+    return httpx.get(API + "/account/me", headers=bearer, timeout=30).json()[
+        "identities"
+    ]
 
 
-def linking_checks(a, b, bearer):
-    """Prove a second email needs proof and another account's email is refused."""
-    other_email = b["admin"]["email"]
-    other = _prove("/account/", other_email, {"X-Forwarded-For": "198.20.0.78"})
-    attached = _prove("/account/identities/", SECOND_EMAIL, {**SOURCE, **bearer})
-    conflict = _prove("/account/identities/", other_email, {**SOURCE, **bearer})
-    me_after = httpx.get(API + "/account/me", headers=bearer, timeout=30)
-    other_me = httpx.get(
-        API + "/account/me",
-        headers={"Authorization": "Bearer " + other.json()["access_token"]},
-        timeout=30,
-    )
+def _remove(bearer, identity):
+    """Ask the real route to detach one identity."""
+    return httpx.delete(
+        API + "/account/identities/" + identity["id"], headers=bearer, timeout=30
+    ).status_code
+
+
+def identity_checks(a):
+    """Prove removing an identity can never leave an account without a verified one."""
+    account_session(REMOVAL)
+    bearer = operator_bearer(REMOVAL)
+    other = operator_bearer(a["shared_person"]["email"])
+    assert bearer and other
+    listing, foreign = _identities(bearer), _identities(other)
+    first, last = listing[0], listing[1]
+    stolen = _remove(bearer, foreign[0])
+    removed = _remove(bearer, first)
+    kept = _remove(bearer, last)
     return {
-        "email_attached_after_proof": attached.status_code == 200
-        and len(attached.json()["identities"]) == 2,
-        "email_of_another_account_refused": conflict.status_code == 409,
-        "refusal_changed_nothing": me_after.status_code == 200
-        and len(me_after.json()["identities"]) == 2
-        and other_me.status_code == 200
-        and len(other_me.json()["identities"]) == 1,
+        "google_sign_in_adds_two_verified_identities": len(listing) == 2,
+        "other_account_identity_not_removable": stolen == 404,
+        "identity_removed_while_another_verified_remains": removed == 204,
+        "last_verified_identity_kept": kept == 409
+        and [item["id"] for item in _identities(bearer)] == [last["id"]],
+        "other_account_unchanged": len(_identities(other)) == len(foreign),
     }
 
 
-def creation_checks(a, b, bearer):
+def creation_checks(a, b, session):
     """Prove an account creates an organization once, idempotently and privately."""
-    headers = {**SOURCE, **bearer, "Idempotency-Key": "harness-create-1"}
+    source = source_for(a["shared_person"]["email"])
+    headers = {**session, "Idempotency-Key": "harness-create-1", **source}
+    path = "/account/browser/organizations"
     body = {"name": "Harness Created Organization"}
-    first = _post("/account/organizations", headers, body)
-    replay = _post("/account/organizations", headers, body)
-    changed = _post("/account/organizations", headers, {"name": "A Different Name"})
+    first = request("POST", path, headers, body)
+    replay = request("POST", path, headers, body)
+    changed = request("POST", path, headers, {"name": "A Different Name"})
     created = (
         first.json().get("organization", {}).get("id", "")
         if first.status_code == 201
         else ""
     )
-    selected = httpx.get(
-        API + "/agents",
-        headers={**bearer, "X-Organization-Id": created},
-        timeout=30,
-    )
-    stranger = _prove(
-        "/account/", b["user"]["email"], {"X-Forwarded-For": "198.20.0.79"}
-    )
-    refused = httpx.get(
-        API + "/agents",
-        headers={
-            "Authorization": "Bearer " + stranger.json()["access_token"],
-            "X-Organization-Id": created,
-        },
-        timeout=30,
-    )
+    selected = request("GET", "/agents", {**session, "X-Organization-Id": created})
+    stranger = account_session(b["user"]["email"])
+    refused = request("GET", "/agents", {**stranger, "X-Organization-Id": created})
     return {
         "organization_created": first.status_code == 201 and bool(created),
         "replay_returns_same_organization": replay.status_code == 200

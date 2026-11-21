@@ -8,7 +8,7 @@ from application.ports.product_repositories import ProductRepositorySet
 from contracts.v1 import (
     Account,
     AccountIdentity,
-    AccountLoginChallenge,
+    AccountOAuthState,
     AccountOrganizationRequest,
     AccountSession,
     AgentDefinition,
@@ -68,12 +68,7 @@ REPOSITORY_SPECS: tuple[tuple[str, str, str, type[ProductContract]], ...] = (
     ("accounts", "accounts", "id", Account),
     ("account_identities", "account_identities", "id", AccountIdentity),
     ("memberships", "memberships", "id", OrganizationMembership),
-    (
-        "account_login_challenges",
-        "account_login_challenges",
-        "challenge_id",
-        AccountLoginChallenge,
-    ),
+    ("account_oauth_states", "account_oauth_states", "id", AccountOAuthState),
     ("account_sessions", "account_sessions", "id", AccountSession),
     (
         "account_organization_requests",

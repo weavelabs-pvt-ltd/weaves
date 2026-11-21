@@ -9,8 +9,10 @@ example from the backend image:
 
 Idempotent: it creates the Account, a VERIFIED email identity, the organization
 (through ``provision_organization``, with an ACTIVE owner and no API
-credential) and the membership. Running it again changes nothing. It never
-prints or logs a secret and is not reachable over HTTP.
+credential) and the membership. Running it again changes nothing. Pass the
+owner's Google email: the first Google sign-in then resolves to this account
+through its verified email and lands in this organization. It never prints
+or logs a secret and is not reachable over HTTP.
 """
 
 from __future__ import annotations

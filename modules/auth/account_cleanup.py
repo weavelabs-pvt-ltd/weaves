@@ -1,4 +1,4 @@
-"""Bounded purge of expired login challenges and expired or revoked sessions."""
+"""Bounded purge of expired sign-in states and expired or revoked sessions."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from application.ports.repository import Repository
-from contracts.v1 import AccountLoginChallenge, AccountSession
+from contracts.v1 import AccountOAuthState, AccountSession
 from shared.clock import utc_now
 from shared.request_context import system_scoped
 
@@ -21,11 +21,11 @@ class AccountCleanup:
 
     def __init__(
         self,
-        challenges: Repository[AccountLoginChallenge],
+        states: Repository[AccountOAuthState],
         sessions: Repository[AccountSession],
     ) -> None:
-        """Bind the global challenge and session repositories."""
-        self._challenges = challenges
+        """Bind the global sign-in state and session repositories."""
+        self._states = states
         self._sessions = sessions
 
     @system_scoped("account")
@@ -41,7 +41,7 @@ class AccountCleanup:
         cutoff = (now or utc_now()) - PURGE_GRACE
         remaining = limit
         for repository, field, id_field in (
-            (self._challenges, "expires_at", "challenge_id"),
+            (self._states, "expires_at", "id"),
             (self._sessions, "expires_at", "id"),
             (self._sessions, "revoked_at", "id"),
         ):

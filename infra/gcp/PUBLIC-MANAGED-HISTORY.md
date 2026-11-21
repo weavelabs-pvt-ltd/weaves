@@ -34,9 +34,9 @@ links return to the main website. These behaviors use runtime frontend settings
 `WEAVES_WEBSITE_ORIGIN` and `WEAVES_APP_ORIGIN`; no second frontend service or
 additional load balancer is needed.
 
-Public organization onboarding is disabled. Existing password accounts work;
-SMTP and SSO are not configured. Provisioned teammates need one of those before
-they can use the email-code or provider sign-in flows. Do not assume an open
+Public organization onboarding is disabled. Existing password accounts work.
+Historical note: at the time of this record SMTP and SSO were not configured;
+email codes have since been removed and Google sign-in is the only method. Do not assume an open
 HTTPS endpoint means anonymous access to workspace data.
 
 ## Runtime and spending

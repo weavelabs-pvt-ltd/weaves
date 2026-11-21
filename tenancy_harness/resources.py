@@ -2,7 +2,7 @@
 
 from tenancy_harness.client import (
     PROVIDER,
-    account_sign_in,
+    account_session,
     actor,
     call,
     service_actor,
@@ -11,7 +11,7 @@ from tenancy_harness.client import (
 
 
 def member(tenant, role, email=None):
-    """Provision a member by admin route, then sign in as an account."""
+    """Provision a member by admin route, then sign in through Google."""
     email = email or f"{tenant['label']}.{role}@tenancy.test"
     roles = call("GET", "/roles", tenant["admin"])
     role_id = next(item["id"] for item in roles if item["system_role_key"] == role)
@@ -26,9 +26,9 @@ def member(tenant, role, email=None):
         },
     )
     # Signing in first links the membership; only then is the organization usable.
-    token = account_sign_in(email)
+    session = account_session(email)
     person = actor(
-        token,
+        session,
         tenant["org_id"],
         tenant["workspace_id"],
         result["principal"]["id"],
@@ -42,13 +42,13 @@ def tenant(label):
     """Create a real org through an owner account, with no local defaults seeded."""
     marker = "TENANCY_" + label.upper() + "_SENTINEL"
     email = f"{label}.admin@tenancy.test"
-    token = account_sign_in(email)
+    session = account_session(email)
     created = call(
         "POST",
-        "/account/organizations",
+        "/account/browser/organizations",
         {
             "headers": {
-                "Authorization": "Bearer " + token,
+                **session,
                 "Idempotency-Key": "tenancy-" + label,
                 **source_for(email),
             }
@@ -57,7 +57,7 @@ def tenant(label):
     )
     org_id, workspace_id = created["organization"]["id"], created["workspace"]["id"]
     admin = actor(
-        token, org_id, workspace_id, created["membership"]["principal_id"], email
+        session, org_id, workspace_id, created["membership"]["principal_id"], email
     )
     second = call("POST", "/workspaces", admin, {"name": marker + " second"})
     return {

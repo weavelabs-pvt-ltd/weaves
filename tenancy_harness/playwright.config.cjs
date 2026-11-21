@@ -2,7 +2,7 @@ const { defineConfig } = require('@playwright/test');
 const fs = require('node:fs');
 const fixture = process.env.TENANCY_FIXTURE_FILE;
 const url = new URL(process.env.WEAVES_E2E_APP_URL || 'http://invalid');
-if (!fixture || !fs.existsSync(fixture) || url.hostname !== '127.0.0.1' || !url.port) {
+if (!fixture || !fs.existsSync(fixture) || url.hostname !== 'localhost' || !url.port) {
   throw new Error('Required tenancy tests need the private disposable fixture and loopback app');
 }
 module.exports = defineConfig({

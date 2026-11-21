@@ -24,9 +24,8 @@ from shared.request_context import (
 
 _PUBLIC_EXACT_PATHS = {
     "/api/v0/health",
-    "/api/v0/account/email-code",
-    "/api/v0/account/email-verify",
-    "/api/v0/account/browser/email-verify",
+    "/api/v0/account/google/start",
+    "/api/v0/account/google/callback",
     "/api/v0/oauth/github/callback",
     "/api/v0/oauth/github/installation",
     "/api/v0/oauth/slack/callback",

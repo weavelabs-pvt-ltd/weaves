@@ -5,17 +5,12 @@ from datetime import timedelta
 import pytest
 
 from contracts.v1 import AccountIdentity, AccountIdentityKind
-from infrastructure.auth.throttle import InMemoryLoginRateLimiter
 from infrastructure.persistence.memory_repository import InMemoryRepository
 from modules.auth.account_cleanup import PURGE_GRACE
 from shared.clock import new_id, utc_now
-from tests.support.account_rows import challenge_row, session_row
-from tests.support.account_world import (
-    HMAC_KEY,
-    CapturedMail,
-    seed_member,
-    seed_organization,
-)
+from tests.support.account_rows import session_row, state_row
+from tests.support.account_session import sign_in
+from tests.support.account_world import seed_member, seed_organization
 from tests.support.runtime import LocalPlatformRuntime
 
 LONG_AGO = utc_now() - PURGE_GRACE - timedelta(minutes=5)
@@ -75,9 +70,6 @@ def world():
     runtime = LocalPlatformRuntime(postgres_store=None)
     runtime.bootstrap()
     service = runtime.account_sign_in_service
-    service.email_sender = CapturedMail()
-    service.email_login_hmac_key = HMAC_KEY
-    service.login_rate_limiter = InMemoryLoginRateLimiter(limit=50)
     yield runtime, service
     runtime.close()
 
@@ -85,11 +77,11 @@ def world():
 def test_purge_removes_only_finished_rows_and_is_idempotent(world):
     _, service = world
     now = utc_now()
-    challenges, sessions = service.challenges, service.sessions._sessions
+    states, sessions = service.oauth_states, service.sessions._sessions
     for i in range(2):
-        challenges.create(challenge_row(f"d{i}@example.test", LONG_AGO))
-    challenges.create(challenge_row("live@example.test", now + timedelta(minutes=5)))
-    challenges.create(challenge_row("recent@example.test", now - timedelta(minutes=5)))
+        states.create(state_row(f"d{i}", LONG_AGO))
+    states.create(state_row("live", now + timedelta(minutes=5)))
+    states.create(state_row("recent", now - timedelta(minutes=5)))
     expired = session_row("a", LONG_AGO)
     revoked = session_row("a", now + timedelta(hours=1), revoked_at=LONG_AGO)
     fresh_revoked = session_row("a", now + timedelta(hours=1), revoked_at=now)
@@ -98,10 +90,7 @@ def test_purge_removes_only_finished_rows_and_is_idempotent(world):
         sessions.create(row)
 
     assert service.purge_expired() == 4
-    assert {c.email for c in challenges.list()} == {
-        "live@example.test",
-        "recent@example.test",
-    }
+    assert {c.return_to for c in states.list()} == {"/live", "/recent"}
     assert {s.id for s in sessions.list()} == {fresh_revoked.id, active.id}
     assert service.purge_expired() == 0
 
@@ -109,11 +98,13 @@ def test_purge_removes_only_finished_rows_and_is_idempotent(world):
 def test_purge_deletes_at_most_the_limit_per_call(world):
     _, service = world
     for i in range(5):
-        service.challenges.create(challenge_row(f"x{i}@example.test", LONG_AGO))
+        service.oauth_states.create(state_row(f"x{i}", LONG_AGO))
     for _ in range(3):
         service.sessions._sessions.create(session_row("a", LONG_AGO))
     assert service.purge_expired(limit=3) == 3
-    assert len(service.challenges.list()) + len(service.sessions._sessions.list()) == 5
+    assert (
+        len(service.oauth_states.list()) + len(service.sessions._sessions.list()) == 5
+    )
     assert service.purge_expired(limit=3) == 3
     assert service.purge_expired(limit=3) == 2
     assert service.purge_expired(limit=3) == 0
@@ -122,8 +113,8 @@ def test_purge_deletes_at_most_the_limit_per_call(world):
 
 
 def _sign_in(service, email):
-    challenge = service.start_email_login(email, "198.51.100.1")
-    return service.verify_email_login(challenge, service.email_sender.code())
+    account, token = sign_in(service, email)
+    return account, None, token
 
 
 def _events(runtime, org_id):

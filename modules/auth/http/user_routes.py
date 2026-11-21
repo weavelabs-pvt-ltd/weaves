@@ -52,7 +52,7 @@ def _register_create_user(
             "user": dump(user),
             "principal": dump(principal),
             "role": dump(role),
-            "sign_in_method": "account_email_code",
+            "sign_in_method": "google",
             "access_ready": True,
         }
 
@@ -87,7 +87,7 @@ def _register_reactivate_user(
             raise HTTPException(status_code=404, detail="User not found") from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-        return {"user": dump(user), "sign_in_method": "account_email_code"}
+        return {"user": dump(user), "sign_in_method": "google"}
 
 
 def register_user_routes(

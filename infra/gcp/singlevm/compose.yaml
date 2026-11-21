@@ -37,6 +37,11 @@ services:
     environment:
       <<: *runtime
       WEAVES_BROWSER_SESSION_SECRET: ${WEAVES_BROWSER_SESSION_SECRET:-}
+      # Google is the only sign-in method; leave the client unset to disable it.
+      WEAVES_GOOGLE_CLIENT_ID: ${WEAVES_GOOGLE_CLIENT_ID:-}
+      WEAVES_GOOGLE_CLIENT_SECRET: ${WEAVES_GOOGLE_CLIENT_SECRET:-}
+      WEAVES_ACCOUNT_ALLOWED_EMAILS: ${WEAVES_ACCOUNT_ALLOWED_EMAILS:-}
+      WEAVES_ACCOUNT_ALLOWED_EMAIL_DOMAINS: ${WEAVES_ACCOUNT_ALLOWED_EMAIL_DOMAINS:-}
       WEAVES_PUBLIC_FRONTEND_URL: https://app.weave-studio.in
       WEAVES_PUBLIC_API_BASE_URL: https://api.weave-studio.in
       CORS_ORIGINS: https://app.weave-studio.in

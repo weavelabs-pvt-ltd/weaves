@@ -32,7 +32,7 @@ role presets, model defaults and an approval policy remain as system defaults.
 
 New owner login details are stored locally at
 `~/.config/weaves-public/login.json` with mode 0600. Public organization
-onboarding stays disabled. SMTP and SSO have not been configured.
+onboarding stays disabled. Google sign-in is the only sign-in method (see `singlevm/README.md`).
 
 Budget for light personal use: approximately ₹3,500–₹4,500/month before taxes,
 AI API usage and domain renewal. This is a planning range, not a spending cap.

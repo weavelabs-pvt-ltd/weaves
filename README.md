@@ -57,15 +57,28 @@ variables remain available for one environment-configured provider. Set
 path creates one provider profile at startup. Use the provider API when an
 organization needs multiple providers or profiles.
 
-A person authenticates only through an account: an emailed one-time code
-(`POST /api/v0/account/email-code` then `email-verify`, or the cookie variant
-under `/api/v0/account/browser/`) opens an account session, and tenant routes
-are called with that session plus `X-Organization-Id` (cookie sessions also need
-the CSRF header). Service accounts and API credentials (`/service-accounts`,
+A person authenticates only through an account, and Google is the only sign-in
+method: the browser visits `GET /api/v0/account/google/start?return_to=/path`,
+signs in at Google (authorization-code flow with PKCE, state and nonce) and
+returns to `GET /api/v0/account/google/callback`, which opens an account
+browser session cookie. Tenant routes are called with that session plus
+`X-Organization-Id` (cookie sessions also need the `X-Weaves-CSRF` header).
+Set `WEAVES_GOOGLE_CLIENT_ID`, `WEAVES_GOOGLE_CLIENT_SECRET` and
+`WEAVES_PUBLIC_FRONTEND_URL` (the redirect URI is
+`<that origin>/api/v0/account/google/callback`; the app and API must share one
+origin); without the client id and secret both routes return 404.
+`WEAVES_ACCOUNT_ALLOWED_EMAILS` (comma list) and
+`WEAVES_ACCOUNT_ALLOWED_EMAIL_DOMAINS` restrict who may sign in or create an
+account. **When neither is set, anyone with a verified Google email may sign in
+and gets an account**; set one of them for an internal deployment. An account
+that signs in with the email of an existing verified email identity (for
+example the operator-bootstrapped owner) lands in that account and its
+organizations. Bearer account sessions (`wvs_acct_`) exist only for non-browser
+tools and the operator break-glass script. Service accounts and API credentials (`/service-accounts`,
 `/credentials`) authenticate automation. Set `WEAVES_API_TOKEN` to map
 `Authorization: Bearer <token>` to the seeded local developer principal, or
 configure `WEAVES_API_TOKENS` to bind tokens to active principals. Health,
-account sign-in and the OAuth callbacks are public entrypoints; every other
+the Google sign-in routes and the OAuth callbacks are public entrypoints; every other
 credential is rejected with 401. Without a configured token, memory-only mode
 allows local development access. PostgreSQL mode requires bearer
 authentication for protected routes.
@@ -76,7 +89,7 @@ verified account sign-in links and activates that user. The first owner on a
 fresh deployment is created by an operator on the host with
 `infra/gcp/singlevm/bootstrap_account_owner.py`, and
 `infra/gcp/singlevm/issue_account_session.py` issues a short break-glass
-account session while no email delivery is configured (see
+account session (see
 `infra/gcp/singlevm/README.md`).
 
 ## Backend flows

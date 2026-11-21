@@ -822,15 +822,15 @@ Success criteria:
 The local v0 API supports operator-configured bearer tokens bound to active
 principals and admin-managed service-account credentials with persisted token
 digests, expiry, and revocation. People sign in only through accounts: an
-emailed one-time code opens a 12-hour account session that acts in one
-organization per request, and administrators provision members who are
+Google sign-in (OpenID Connect, PKCE) opens a 12-hour account session that acts
+in one organization per request, and administrators provision members who are
 activated by their first verified sign-in. Issued bearer tokens and sessions are
 stored as one-way digests. Role and workspace access is resolved from the
 authenticated principal on each request. PostgreSQL mode rejects unauthenticated
 requests to protected routes even when no environment token is configured;
-health, account sign-in and OAuth callbacks remain public. Sign-in throttling
-uses shared PostgreSQL fixed-window counters for address and source-address
-buckets; memory mode is process-local. MFA and SSO/OIDC remain open.
+health, the Google sign-in routes and OAuth callbacks remain public. Account
+organization creation is throttled with shared PostgreSQL fixed-window counters;
+memory mode is process-local. MFA remains open.
 
 Run creation accepts an optional `Idempotency-Key`, replays successful
 requests, and rejects conflicting reuse. PostgreSQL enforces the key with a

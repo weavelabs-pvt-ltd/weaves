@@ -5,7 +5,6 @@ from datetime import timedelta
 import pytest
 
 from contracts.v1 import AccountIdentity, AccountIdentityKind
-from infrastructure.auth.throttle import InMemoryLoginRateLimiter
 from infrastructure.database.pool import open_postgres_pool
 from infrastructure.database.store import ProductPostgresStore
 from infrastructure.persistence.product_repositories import (
@@ -20,13 +19,9 @@ from shared.request_context import (
     set_request_identity,
     system_scope,
 )
-from tests.support.account_rows import challenge_row, session_row
-from tests.support.account_world import (
-    HMAC_KEY,
-    CapturedMail,
-    seed_member,
-    seed_organization,
-)
+from tests.support.account_rows import session_row, state_row
+from tests.support.account_session import sign_in
+from tests.support.account_world import seed_member, seed_organization
 
 LONG_AGO = utc_now() - PURGE_GRACE - timedelta(minutes=5)
 
@@ -42,11 +37,10 @@ def stack(isolated_postgres_url):
     seed_member(seed.get("users"), seed.get("principals"), "org-a", "pat@example.test")
     seed_member(seed.get("users"), seed.get("principals"), "org-b", "bo@example.test")
     repos = create_product_repository_set(restricted)
-    mail = CapturedMail()
     service = AccountSignInService(
         accounts=repos.get("accounts"),
         identities=repos.get("account_identities"),
-        challenges=repos.get("account_login_challenges"),
+        oauth_states=repos.get("account_oauth_states"),
         sessions=repos.get("account_sessions"),
         memberships=repos.get("memberships"),
         users=repos.get("users"),
@@ -54,21 +48,18 @@ def stack(isolated_postgres_url):
         organizations=repos.get("organizations"),
         workspaces=repos.get("workspaces"),
         audit_events=repos.get("audit_events"),
-        email_sender=mail,
-        email_login_hmac_key=HMAC_KEY,
-        login_rate_limiter=InMemoryLoginRateLimiter(limit=50),
         unit_of_work=restricted.transaction,
     )
     require_tenant_context(True)
-    yield service, mail, repos, owner
+    yield service, repos, owner
     require_tenant_context(False)
     restricted.close()
     owner.close()
 
 
-def _sign_in(service, mail, email):
-    challenge = service.start_email_login(email, "198.51.100.7")
-    return service.verify_email_login(challenge, mail.code())
+def _sign_in(service, email):
+    account, token = sign_in(service, email)
+    return account, None, token
 
 
 def _link_events(repos, org_id):
@@ -97,7 +88,7 @@ def _identity(account_id, subject):
 
 
 def test_list_by_field_under_the_restricted_role(stack):
-    service, _, _, _owner = stack
+    service, _, _owner = stack
     rows = [
         _identity("acct-1", "b@example.test"),
         _identity("acct-1", "a@example.test"),
@@ -130,10 +121,8 @@ def test_purge_under_the_restricted_role_is_bounded_and_idempotent(stack):
     live_session = session_row("a", now + timedelta(hours=1))
     with system_scope("account"):
         for i in range(4):
-            service.challenges.create(challenge_row(f"x{i}@example.test", LONG_AGO))
-        service.challenges.create(
-            challenge_row("live@example.test", now + timedelta(minutes=5))
-        )
+            service.oauth_states.create(state_row(f"x{i}", LONG_AGO))
+        service.oauth_states.create(state_row("live", now + timedelta(minutes=5)))
         service.sessions._sessions.create(session_row("a", LONG_AGO))
         service.sessions._sessions.create(
             session_row("a", now + timedelta(hours=1), revoked_at=LONG_AGO)
@@ -143,14 +132,14 @@ def test_purge_under_the_restricted_role_is_bounded_and_idempotent(stack):
     assert service.purge_expired(limit=3) == 3
     assert service.purge_expired(limit=3) == 0
     with system_scope("account"):
-        assert [c.email for c in service.challenges.list()] == ["live@example.test"]
+        assert [c.return_to for c in service.oauth_states.list()] == ["/live"]
         assert [s.id for s in service.sessions._sessions.list()] == [live_session.id]
 
 
 def test_link_audit_is_written_for_the_right_organization_only(stack):
-    service, mail, repos, _owner = stack
+    service, repos, _owner = stack
     with system_scope("account"):
-        account, _, _ = _sign_in(service, mail, "pat@example.test")
+        account, _, _ = _sign_in(service, "pat@example.test")
     (event,) = _link_events(repos, "org-a")
     assert event.org_id == "org-a" and event.metadata == {"account_id": account.id}
     assert "pat@example.test" not in event.model_dump_json()
@@ -158,8 +147,8 @@ def test_link_audit_is_written_for_the_right_organization_only(stack):
 
 
 def test_audit_failure_rolls_the_membership_back(stack):
-    service, mail, repos, _owner = stack
-    audit = service._linker._audit_events
+    service, repos, _owner = stack
+    audit = service.linker._audit_events
     real_create = audit.create
 
     def broken(event):
@@ -168,10 +157,10 @@ def test_audit_failure_rolls_the_membership_back(stack):
     audit.create = broken
     with system_scope("account"):
         with pytest.raises(RuntimeError):
-            _sign_in(service, mail, "pat@example.test")
+            _sign_in(service, "pat@example.test")
         assert service.memberships.list() == ()
         audit.create = real_create
-        _sign_in(service, mail, "pat@example.test")
+        _sign_in(service, "pat@example.test")
         assert len(service.memberships.list()) == 1
     assert len(_link_events(repos, "org-a")) == 1
 
@@ -184,11 +173,11 @@ def test_audit_failure_rolls_the_membership_back(stack):
         ("memberships", "account_id", "acct-1"),
         ("memberships", "user_id", "user-1"),
         ("account_sessions", "account_id", "acct-1"),
-        ("account_login_challenges", "email", "a@example.test"),
+        ("account_oauth_states", "state_digest", "a" * 64),
     ],
 )
 def test_each_lookup_is_served_by_an_index(stack, collection, field, value):
-    _, _, _, owner = stack
+    _, _, owner = stack
     with owner.connection() as connection:
         connection.execute("SET LOCAL enable_seqscan = off")
         plan = "\n".join(
@@ -205,13 +194,13 @@ def test_each_lookup_is_served_by_an_index(stack, collection, field, value):
 @pytest.mark.parametrize(
     ("collection", "field"),
     [
-        ("account_login_challenges", "expires_at"),
+        ("account_oauth_states", "expires_at"),
         ("account_sessions", "expires_at"),
         ("account_sessions", "revoked_at"),
     ],
 )
 def test_purge_queries_are_served_by_an_index(stack, collection, field):
-    _, _, _, owner = stack
+    _, _, owner = stack
     with owner.connection() as connection:
         connection.execute("SET LOCAL enable_seqscan = off")
         plan = "\n".join(
@@ -228,7 +217,7 @@ def test_purge_queries_are_served_by_an_index(stack, collection, field):
 
 
 def test_user_email_lookup_is_served_by_an_index(stack):
-    _, _, _, owner = stack
+    _, _, owner = stack
     with owner.connection() as connection:
         connection.execute("SET LOCAL enable_seqscan = off")
         plan = "\n".join(

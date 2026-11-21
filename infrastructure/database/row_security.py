@@ -29,7 +29,7 @@ POLICY_FUNCTIONS: tuple[str, ...] = (
                'organizations', 'workspaces', 'users', 'principals',
                'api_credentials', 'roles', 'role_bindings',
                'audit_events', 'accounts', 'account_identities',
-               'memberships', 'account_login_challenges',
+               'memberships', 'account_oauth_states',
                'account_sessions'])
              WHEN 'queue' THEN coll = ANY (ARRAY[
                'execution_jobs', 'task_turns', 'tasks', 'task_messages',
@@ -48,7 +48,7 @@ POLICY_FUNCTIONS: tuple[str, ...] = (
                'canvas_settings', 'canvas_runs'])
              WHEN 'account' THEN coll = ANY (ARRAY[
                'accounts', 'account_identities', 'memberships',
-               'account_login_challenges', 'account_sessions',
+               'account_oauth_states', 'account_sessions',
                'account_organization_requests',
                'organizations', 'workspaces', 'users', 'principals'])
              WHEN 'catalog' THEN coll = ANY (ARRAY[
@@ -67,7 +67,7 @@ POLICY_FUNCTIONS: tuple[str, ...] = (
                THEN rid = nullif(current_setting('app.org_id', true), '')
                     OR weaves_system_allows(coll)
              WHEN coll IN ('accounts', 'account_identities',
-                         'account_login_challenges', 'account_sessions',
+                         'account_oauth_states', 'account_sessions',
                          'account_organization_requests')
                THEN weaves_system_allows(coll)
              WHEN row_org IS NULL THEN true

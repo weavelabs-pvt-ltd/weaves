@@ -31,11 +31,11 @@ def _configure_authentication_service(
 def _configure_account_sign_in_service(
     dependencies: RuntimeCompositionInputs, services: CapabilityServiceSet
 ) -> None:
-    """Compose global account email sign-in and account sessions."""
+    """Compose the global account directory and account sessions."""
     services.account_sign_in_service = AccountSignInService(
         accounts=dependencies.accounts,
         identities=dependencies.account_identities,
-        challenges=dependencies.account_login_challenges,
+        oauth_states=dependencies.account_oauth_states,
         sessions=dependencies.account_sessions,
         memberships=dependencies.memberships,
         users=dependencies.users,
@@ -43,9 +43,6 @@ def _configure_account_sign_in_service(
         organizations=dependencies.organizations,
         workspaces=dependencies.workspaces,
         audit_events=dependencies.audit_events,
-        email_sender=dependencies.email_sender,
-        email_login_hmac_key=dependencies.email_login_hmac_key,
-        login_rate_limiter=dependencies.login_rate_limiter,
         unit_of_work=dependencies._unit_of_work,
     )
 

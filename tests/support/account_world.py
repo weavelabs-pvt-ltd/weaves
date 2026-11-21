@@ -1,8 +1,6 @@
-"""Seed tenant users and capture sign-in mail for account sign-in tests."""
+"""Seed tenant organizations and users for account sign-in tests."""
 
 from __future__ import annotations
-
-import re
 
 from contracts.v1 import (
     Organization,
@@ -14,26 +12,6 @@ from contracts.v1 import (
     UserStatus,
 )
 from shared.clock import utc_now
-
-HMAC_KEY = "isolated-account-test-key-" * 2
-
-
-class CapturedMail:
-    """Record messages at the email transport boundary only."""
-
-    configured = True
-
-    def __init__(self):
-        """Start with an empty outbox."""
-        self.messages = []
-
-    def send(self, recipient, subject, body):
-        """Remember what an SMTP adapter would have been asked to send."""
-        self.messages.append((recipient, subject, body))
-
-    def code(self):
-        """Return the six-digit code from the latest message."""
-        return re.search(r"\b\d{6}\b", self.messages[-1][2]).group()
 
 
 def seed_organization(organizations, org_id, status=OrganizationStatus.ACTIVE):
