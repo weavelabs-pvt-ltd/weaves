@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels that pull request's older runs; runs on main are never cancelled.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -46,6 +51,8 @@ jobs:
 
   tenancy:
     name: Phase 0 real-stack tenancy foundation
+    # Heavy (10 to 15 minutes): proven on the pull request; not repeated on the merge commit to main.
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -109,7 +116,8 @@ jobs:
           retention-days: 7
 
   deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # Real-stack tenancy is skipped on pushes to main (it passed on the pull request); it must never have failed.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.verify.result == 'success' && (needs.tenancy.result == 'success' || needs.tenancy.result == 'skipped') }}
     needs: [verify, tenancy]
     runs-on: ubuntu-latest
     timeout-minutes: 30

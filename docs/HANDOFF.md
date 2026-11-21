@@ -175,7 +175,8 @@ sign-in). The real-stack suite is the main safety net.
 | PostgreSQL integration | `WEAVES_TEST_DATABASE_URL=postgresql://user:pw@host:port/db pytest tests -q` (each test creates its own schema). Includes tests under the restricted `weaves_app` role. Without the variable ~200 tests skip. |
 | Real stack | `python -m tenancy_harness.run --backend . --frontend <weaves-app checkout at the revision in tenancy_harness/pair.json> --candidate backend --allow-dirty` (Docker, Python 3.12+, Node, Playwright Chromium; 8 to 15 minutes). Required controls are listed in `tenancy_harness/pair.json` (`T0-*` foundation, `T1-*` isolation and accounts, `T4-*` Phase 4) and the run passes only if all are true. |
 | Paid AI stage | add `--live-anthropic-env <env file>`; spends real money through a budget-gated relay |
-| CI | `.github/workflows` runs verify (lint/types/size/tests with PostgreSQL), the real-stack job, then (main only) deploy |
+| Local gate | `scripts/check_local.sh` (lint, format, size, types, harness syntax, unit tests); `scripts/install_git_hooks.sh` runs it before every push |
+| CI | `.github/workflows/ci-deploy.yml`: `verify` (lint/types/size/tests with PostgreSQL) runs on pull requests and on main; the slow real-stack job runs on **pull requests and manual runs only** (it is not repeated on the merge commit); deploy runs on main after `verify` passes and `tenancy` has passed or been skipped. A new push to a pull request cancels its older runs |
 
 Environment notes: the repo `.venv` is Python 3.9 and unusable; use Python 3.14 (or 3.12+). The tests
 need PostgreSQL 16 (a disposable container is enough). The machine can run out of memory when Docker
