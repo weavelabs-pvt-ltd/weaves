@@ -51,6 +51,7 @@ POLICY_FUNCTIONS: tuple[str, ...] = (
              WHEN 'account' THEN coll = ANY (ARRAY[
                'accounts', 'account_identities', 'memberships',
                'account_login_challenges', 'account_sessions',
+               'account_organization_requests',
                'organizations', 'workspaces', 'users', 'principals'])
              WHEN 'catalog' THEN coll = ANY (ARRAY[
                'plugins', 'plugin_installations'])
@@ -68,7 +69,8 @@ POLICY_FUNCTIONS: tuple[str, ...] = (
                THEN rid = nullif(current_setting('app.org_id', true), '')
                     OR weaves_system_allows(coll)
              WHEN coll IN ('accounts', 'account_identities',
-                         'account_login_challenges', 'account_sessions')
+                         'account_login_challenges', 'account_sessions',
+                         'account_organization_requests')
                THEN weaves_system_allows(coll)
              WHEN row_org IS NULL THEN true
              ELSE row_org = nullif(current_setting('app.org_id', true), '')

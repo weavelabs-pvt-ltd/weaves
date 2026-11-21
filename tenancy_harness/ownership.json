@@ -573,6 +573,17 @@
       "scope_keys": [
         "account_id"
       ]
+    },
+    "account_organization_requests": {
+      "scope": "global_account",
+      "contract": "AccountOrganizationRequest",
+      "privacy": "idempotency key digest and request fingerprint per account; never returned to clients",
+      "system_access": "explicit account system scope only; never tenant or customer Admin access",
+      "lifecycle": "retained as the per-account organization quota ledger; removed only by audited account erasure",
+      "current_gap": null,
+      "scope_keys": [
+        "account_id"
+      ]
     }
   },
   "auxiliary_tables": {
@@ -607,6 +618,13 @@
     },
     {
       "method": "POST",
+      "path": "/api/v0/account/browser/organizations",
+      "scope": "account_identity",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "POST",
       "path": "/api/v0/account/browser/logout",
       "scope": "account_identity",
       "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
@@ -615,6 +633,13 @@
     {
       "method": "GET",
       "path": "/api/v0/account/browser/me",
+      "scope": "account_identity",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/account/organizations",
       "scope": "account_identity",
       "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
       "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"

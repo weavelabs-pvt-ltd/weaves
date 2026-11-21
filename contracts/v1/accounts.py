@@ -9,6 +9,7 @@ from pydantic import AwareDatetime, Field, StringConstraints, model_validator
 
 from contracts.v1.base import (
     DisplayName,
+    ImmutableProductContract,
     MutableOrgScopedContract,
     MutableProductContract,
     OpaqueId,
@@ -108,3 +109,22 @@ class AccountSession(MutableProductContract):
     channel: Literal["bearer", "browser"] = "bearer"
     expires_at: AwareDatetime
     revoked_at: AwareDatetime | None = None
+
+
+_Sha256 = Annotated[
+    str, StringConstraints(pattern=r"^[0-9a-f]{64}$", min_length=64, max_length=64)
+]
+
+
+class AccountOrganizationRequest(ImmutableProductContract):
+    """Idempotency and quota record for one account-created organization.
+
+    The id is derived from the account and key digest, so a repeated key can
+    never create a second record. The raw key and request body are not stored.
+    """
+
+    id: _Sha256
+    account_id: OpaqueId
+    key_digest: _Sha256
+    request_fingerprint: _Sha256
+    organization_id: OpaqueId

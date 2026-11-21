@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from apps.platform_runtime import LocalPlatformRuntime
 from modules.agents.runtime_lifecycle import AgentService
+from modules.auth.account_organizations import AccountOrganizationService
 from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.credential_service import CredentialService
@@ -38,6 +39,7 @@ class ApiRouteServices:
     user_administration: UserAdministrationService
     authentication: AuthenticationService
     accounts: AccountSignInService
+    account_organizations: AccountOrganizationService
     credential: CredentialService
     models: ModelService
     integration_admin: IntegrationAdminService
@@ -74,6 +76,7 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
         user_administration=runtime.user_administration_service,
         authentication=runtime.authentication_service,
         accounts=runtime.account_sign_in_service,
+        account_organizations=runtime.account_organization_service,
         credential=runtime.credential_service,
         models=runtime.model_service,
         integration_admin=runtime.integration_admin_service,

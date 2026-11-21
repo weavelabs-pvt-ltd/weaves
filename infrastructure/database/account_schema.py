@@ -59,6 +59,13 @@ ACCOUNT_SCHEMA: tuple[str, ...] = (
            ON product_records ((payload->>'revoked_at'), record_id)
            WHERE collection = 'account_sessions'
              AND payload->>'revoked_at' IS NOT NULL""",
+    # One idempotency record per account and key digest: a repeated key can
+    # never create a second organization. Its account_id prefix also serves the
+    # per-account quota count.
+    """CREATE UNIQUE INDEX IF NOT EXISTS account_org_request_key_uq
+           ON product_records
+             ((payload->>'account_id'), (payload->>'key_digest'))
+           WHERE collection = 'account_organization_requests'""",
     # Verified-email linking finds tenant users by normalized address.
     """CREATE INDEX IF NOT EXISTS user_email_lower_idx
            ON product_records ((lower(payload->>'email')))

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from apps.capability_services import CapabilityServiceSet
 from apps.runtime_composition_inputs import RuntimeCompositionInputs
+from modules.auth.account_organizations import AccountOrganizationService
 from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.bootstrap import IdentityBootstrapService
@@ -171,4 +172,19 @@ def _configure_organization_service(
             services.workspace_access_service.list_principal_workspaces
         ),
         unit_of_work=dependencies._unit_of_work,
+    )
+
+
+def _configure_account_organization_service(
+    dependencies: RuntimeCompositionInputs, services: CapabilityServiceSet
+) -> None:
+    """Compose account-created organizations over the tenant provisioner."""
+    services.account_organization_service = AccountOrganizationService(
+        organization_service=services.organization_service,
+        identities=dependencies.account_identities,
+        memberships=dependencies.memberships,
+        requests=dependencies.account_organization_requests,
+        login_rate_limiter=dependencies.login_rate_limiter,
+        unit_of_work=dependencies._unit_of_work,
+        advisory_transaction_lock=dependencies._advisory_transaction_lock,
     )
