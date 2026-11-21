@@ -27,3 +27,7 @@ class SecretStore(Protocol):
     def delete(self, secret_ref: str) -> None:
         """Delete the secret stored at an opaque reference."""
         ...
+
+    def purge_organization(self, limit: int) -> int:
+        """Delete up to ``limit`` secrets owned by the current organization."""
+        ...

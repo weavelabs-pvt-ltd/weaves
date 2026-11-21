@@ -19,7 +19,9 @@ from contracts.v1 import (
     AccountStatus,
     AuditEvent,
     Organization,
+    OrganizationLifecycle,
     OrganizationMembership,
+    OrganizationSettings,
     Principal,
     User,
     Workspace,
@@ -48,6 +50,9 @@ class AccountSignInService:
         workspaces: Repository[Workspace],
         audit_events: Repository[AuditEvent],
         unit_of_work: Callable[[], AbstractContextManager[None]],
+        lifecycle: Repository[OrganizationLifecycle] | None = None,
+        settings: Repository[OrganizationSettings] | None = None,
+        lock: Callable[[str], None] | None = None,
     ) -> None:
         """Bind global account repositories and the tenant directory."""
         self.accounts = accounts
@@ -55,6 +60,7 @@ class AccountSignInService:
         self.oauth_states = oauth_states
         self.memberships = memberships
         self.organizations = organizations
+        self.lifecycle = lifecycle
         self.unit_of_work = unit_of_work
         self.sessions = AccountSessions(sessions, accounts)
         self.selector = AccountOrganizationSelector(
@@ -62,6 +68,8 @@ class AccountSignInService:
             users=users,
             principals=principals,
             organizations=organizations,
+            lifecycle=lifecycle,
+            settings=settings,
         )
         self.linker = MembershipLinker(
             users=users,
@@ -71,6 +79,7 @@ class AccountSignInService:
             workspaces=workspaces,
             audit_events=audit_events,
             unit_of_work=unit_of_work,
+            lock=lock,
         )
         self._cleanup = AccountCleanup(oauth_states, sessions)
 

@@ -14,6 +14,7 @@ if str(SCRIPTS) not in sys.path:
 
 bootstrap_account_owner = importlib.import_module("bootstrap_account_owner")
 issue_account_session = importlib.import_module("issue_account_session")
+organization_lifecycle = importlib.import_module("organization_lifecycle")
 
 
 def run_script(

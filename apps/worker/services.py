@@ -27,3 +27,4 @@ class WorkerServices:
     tasks: TaskWorkerService
     studio: WorkflowStudioService | None = None
     purge_accounts: Callable[[], int] | None = None
+    purge_organizations: Callable[[], int] | None = None

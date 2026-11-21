@@ -12,6 +12,9 @@ from modules.agents.http.routes import register_agent_routes
 from modules.auth.http.organization_administration_routes import (
     register_organization_administration_routes,
 )
+from modules.auth.http.organization_lifecycle_routes import (
+    register_organization_lifecycle_routes,
+)
 from modules.auth.http.routes import register_identity_routes
 from modules.evaluations.http.routes import register_evaluation_routes
 from modules.governance.http.audit_routes import register_audit_routes
@@ -47,6 +50,9 @@ def register_v0_routes(app: FastAPI, services: ApiRouteServices) -> None:
     dump: Callable[[BaseModel], dict[str, Any]] = _dump
     register_organization_administration_routes(
         app, services.organization_administration
+    )
+    register_organization_lifecycle_routes(
+        app, services.organization_lifecycle, services.organization_export
     )
     register_identity_routes(
         app,

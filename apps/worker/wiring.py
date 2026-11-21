@@ -24,4 +24,5 @@ def build_worker_services() -> WorkerServices:
         tasks=runtime.task_worker_service,
         studio=runtime.workflow_studio_service,
         purge_accounts=runtime.account_sign_in_service.purge_expired,
+        purge_organizations=runtime.organization_purge_service.tick,
     )

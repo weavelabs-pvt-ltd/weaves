@@ -354,16 +354,26 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
                 within(owner)
 
     def resolve_principal_scope(
-        self, principal_id: str, workspace_id: str | None = None
+        self,
+        principal_id: str,
+        workspace_id: str | None = None,
+        *,
+        owner_recovery: bool = False,
     ) -> tuple[str, str]:
-        """Resolve an active principal to an authorized organization/workspace."""
+        """Resolve an active principal to an authorized organization/workspace.
+
+        ``owner_recovery`` is passed only by the middleware for the owner's
+        pending-deletion allow-list (after account selection admitted exactly
+        that owner and route). It skips the organization-active check and
+        accepts a missing workspace, because those routes use organization scope.
+        """
         if not self._bootstrapped():
             self.bootstrap()
         principal = self.principals.get(principal_id)
         if principal.status is not PrincipalStatus.ACTIVE:
             raise PermissionError("principal is not active")
         organization = self.organizations.get(principal.org_id)
-        if organization.status is not OrganizationStatus.ACTIVE:
+        if organization.status is not OrganizationStatus.ACTIVE and not owner_recovery:
             raise PermissionError("organization is not active")
         accessible_workspaces = self.list_principal_workspaces(principal_id)
         if workspace_id is not None:
@@ -376,4 +386,6 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
             return principal.org_id, workspace.id
         if accessible_workspaces:
             return principal.org_id, accessible_workspaces[0].id
+        if owner_recovery:
+            return principal.org_id, "lifecycle"
         raise PermissionError("principal has no active workspace access")

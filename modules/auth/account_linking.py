@@ -13,6 +13,7 @@ from contracts.v1 import (
     MembershipStatus,
     Organization,
     OrganizationMembership,
+    OrganizationStatus,
     Principal,
     PrincipalStatus,
     PrincipalType,
@@ -49,11 +50,13 @@ class MembershipLinker:
         workspaces: Repository[Workspace],
         audit_events: Repository[AuditEvent],
         unit_of_work: Callable[[], AbstractContextManager[None]],
+        lock: Callable[[str], None] | None = None,
     ) -> None:
         """Bind the tenant directory, the global memberships and the audit trail."""
         self._workspaces = workspaces
         self._audit_events = audit_events
         self._unit_of_work = unit_of_work
+        self._lock = lock
         self._users = users
         self._principals = principals
         self._organizations = organizations
@@ -97,12 +100,15 @@ class MembershipLinker:
         return principal
 
     def _organization_exists(self, org_id: str) -> bool:
-        """Report whether the user's organization record is still present."""
+        """Report whether the organization is present and still ACTIVE.
+
+        Suspended, deleting and deleted organizations never gain memberships.
+        """
         try:
-            self._organizations.get(org_id)
+            organization = self._organizations.get(org_id)
         except KeyError:
             return False
-        return True
+        return organization.status is OrganizationStatus.ACTIVE
 
     def _create(self, account: Account, user: User, principal: Principal) -> bool:
         """Insert one active membership; lose quietly to a concurrent writer."""
@@ -119,6 +125,10 @@ class MembershipLinker:
         )
         try:
             with self._unit_of_work():
+                if self._lock is not None:
+                    self._lock(f"weaves-org-administration:{user.org_id}")
+                if not self._organization_exists(user.org_id):
+                    return False
                 try:
                     self._memberships.create(membership)
                 except ValueError as exc:  # unique index: another request won

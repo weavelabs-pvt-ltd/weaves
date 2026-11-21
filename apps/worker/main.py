@@ -51,6 +51,19 @@ def _purge_account_rows(services: WorkerServices) -> None:
         logger.info("purged finished account rows count=%d", purged)
 
 
+def _purge_organizations(services: WorkerServices) -> None:
+    """Advance pending organization deletions; never disturb the loop."""
+    if services.purge_organizations is None:
+        return
+    try:
+        advanced = services.purge_organizations()
+    except Exception:
+        logger.exception("organization deletion tick failed")
+        return
+    if advanced:
+        logger.info("organization deletion advanced count=%d", advanced)
+
+
 def main() -> None:
     interval = float(os.environ.get("WEAVES_WORKER_POLL_SECONDS", "1"))
     if not 0.05 <= interval <= 60:
@@ -58,6 +71,9 @@ def main() -> None:
     schedule_interval = float(os.environ.get("WEAVES_SCHEDULE_POLL_SECONDS", "5"))
     if not 0.5 <= schedule_interval <= 60:
         raise ValueError("WEAVES_SCHEDULE_POLL_SECONDS must be between 0.5 and 60")
+    lifecycle_interval = float(os.environ.get("WEAVES_LIFECYCLE_POLL_SECONDS", "30"))
+    if not 0.5 <= lifecycle_interval <= 3600:
+        raise ValueError("WEAVES_LIFECYCLE_POLL_SECONDS must be between 0.5 and 3600")
     worker_id = os.environ.get("WEAVES_WORKER_ID", "").strip()
     worker_id = worker_id or f"{socket.gethostname()}-{uuid4().hex[:12]}"
     stopping = Event()
@@ -70,12 +86,16 @@ def main() -> None:
         logger.info("product execution worker started worker_id=%s", worker_id)
         last_recovery = time.monotonic()
         last_schedule_poll = 0.0
+        last_lifecycle = 0.0
         while not stopping.is_set():
             try:
                 if time.monotonic() - last_recovery >= 30:
                     _recover_worker_state(services)
                     _purge_account_rows(services)
                     last_recovery = time.monotonic()
+                if time.monotonic() - last_lifecycle >= lifecycle_interval:
+                    _purge_organizations(services)
+                    last_lifecycle = time.monotonic()
                 if time.monotonic() - last_schedule_poll >= schedule_interval:
                     scheduled_jobs = (
                         services.workflow_automation.dispatch_due_workflow_schedules()

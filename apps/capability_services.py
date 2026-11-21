@@ -9,6 +9,9 @@ from modules.auth.authentication_service import AuthenticationService
 from modules.auth.bootstrap import IdentityBootstrapService
 from modules.auth.credential_service import CredentialService
 from modules.auth.organization_administration import OrganizationAdministrationService
+from modules.auth.organization_export import OrganizationExportService
+from modules.auth.organization_lifecycle import OrganizationLifecycleService
+from modules.auth.organization_purge import OrganizationPurgeService
 from modules.auth.organization_service import OrganizationService
 from modules.auth.user_administration_service import UserAdministrationService
 from modules.auth.workspace_access_service import WorkspaceAccessService
@@ -57,6 +60,9 @@ class CapabilityServiceSet:
     model_service: ModelService
     organization_administration_service: OrganizationAdministrationService
     organization_service: OrganizationService
+    organization_lifecycle_service: OrganizationLifecycleService
+    organization_export_service: OrganizationExportService
+    organization_purge_service: OrganizationPurgeService
     recovery_service: ExecutionRecoveryService
     user_administration_service: UserAdministrationService
     workflow_automation_service: WorkflowAutomationService

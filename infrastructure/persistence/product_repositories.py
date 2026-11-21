@@ -27,6 +27,7 @@ from contracts.v1 import (
     ModelProfile,
     OAuthAuthorizationState,
     Organization,
+    OrganizationLifecycle,
     OrganizationMembership,
     OrganizationModelConfiguration,
     OrganizationSettings,
@@ -57,6 +58,10 @@ from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
 from infrastructure.database.store import ProductPostgresStore
 from infrastructure.persistence.memory_plugin_catalog import InMemoryPluginCatalog
 from infrastructure.persistence.memory_repository import InMemoryRepository
+from infrastructure.persistence.organization_data import (
+    MemoryOrganizationData,
+    PostgresOrganizationData,
+)
 from infrastructure.persistence.postgres_plugin_catalog import PostgresPluginCatalog
 from infrastructure.persistence.postgres_repository import PostgresRepository
 
@@ -67,6 +72,7 @@ TENANT_KEYED_COLLECTIONS = frozenset({"evaluation_suites", "evaluation_reports"}
 REPOSITORY_SPECS: tuple[tuple[str, str, str, type[ProductContract]], ...] = (
     ("organizations", "organizations", "id", Organization),
     ("organization_settings", "organization_settings", "id", OrganizationSettings),
+    ("organization_lifecycle", "organization_lifecycle", "id", OrganizationLifecycle),
     ("accounts", "accounts", "id", Account),
     ("account_identities", "account_identities", "id", AccountIdentity),
     ("memberships", "memberships", "id", OrganizationMembership),
@@ -193,7 +199,13 @@ def create_product_repository_set(
             )
         )
     )
-    return ProductRepositorySet(repositories)
+    repository_set = ProductRepositorySet(repositories)
+    repository_set.organization_data = (
+        PostgresOrganizationData(store)
+        if store is not None
+        else MemoryOrganizationData(repository_set)
+    )
+    return repository_set
 
 
 def _create_repository(

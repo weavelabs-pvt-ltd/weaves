@@ -28,6 +28,7 @@ from contracts.v1 import (
     ModelProfile,
     OAuthAuthorizationState,
     Organization,
+    OrganizationLifecycle,
     OrganizationMembership,
     OrganizationModelConfiguration,
     OrganizationSettings,
@@ -64,6 +65,7 @@ class RuntimeRepositoryBindingMixin:
     _repository_set: ProductRepositorySet
     organizations: Repository[Organization]
     organization_settings: Repository[OrganizationSettings]
+    organization_lifecycle: Repository[OrganizationLifecycle]
     workspaces: Repository[Workspace]
     users: Repository[User]
     principals: Repository[Principal]
@@ -112,6 +114,9 @@ class RuntimeRepositoryBindingMixin:
         """Attach one repository for each product collection."""
         self.organization_settings = self._repository(
             "organization_settings", OrganizationSettings
+        )
+        self.organization_lifecycle = self._repository(
+            "organization_lifecycle", OrganizationLifecycle
         )
         self.organizations = self._repository("organizations", Organization)
         self.workspaces = self._repository("workspaces", Workspace)
