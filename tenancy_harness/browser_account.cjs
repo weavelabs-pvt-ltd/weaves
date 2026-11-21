@@ -66,11 +66,54 @@ async function chooseOrganization(page, organizationId) {
   await expect.poll(() => currentOrganizationId(page), { timeout: 25000 }).toBe(organizationId);
 }
 
+// What the page shows right now, so a failed control explains itself (private run output only).
+async function describePage(page) {
+  try {
+    const text = await page.evaluate(() => document.body.innerText.replace(/\s+/g, ' ').slice(0, 400));
+    const me = await page.evaluate(async () => {
+      const response = await fetch('/api/v0/account/browser/me', { credentials: 'same-origin' });
+      return response.status + ' ' + (await response.text()).slice(0, 160);
+    });
+    const cookies = (await page.context().cookies()).map((cookie) => `${cookie.name}(${cookie.value.slice(0, 9)}..;${cookie.sameSite};${cookie.secure})`);
+    return `url=${page.url()} me=[${me}] cookies=${JSON.stringify(cookies)} text="${text}"`;
+  } catch (error) { return `unreadable page: ${error.message}`; }
+}
+
 // Sign in as `actor` (default the tenant's admin) and land in the tenant's organization.
 async function openAsAccount(page, tenant, { actor = tenant.admin, route = 'agents' } = {}) {
+  const seen = [];
+  const record = (response) => {
+    const url = new URL(response.url());
+    if (url.pathname.startsWith('/api/v0/')) seen.push(`${Date.now() % 100000} ${response.request().method()} ${url.pathname} ${response.status()}`);
+  };
+  page.on('response', record);
   await signInWithGoogle(page, actor.email);
-  await chooseOrganization(page, tenant.org_id);
+  try {
+    await chooseOrganization(page, tenant.org_id);
+  } catch (error) {
+    throw new Error(`${error.message} :: ${await describePage(page)} :: responses=${JSON.stringify(seen.slice(-14))}`);
+  } finally {
+    page.off('response', record);
+  }
+  // The app plays its entry transition and then lands on Home; only set the route once the
+  // shell exists, otherwise the transition resets the page.
+  try {
+    await expect(page.locator(SELECTORS.profileMenuToggle)).toBeVisible({ timeout: 40000 });
+  } catch (error) {
+    throw new Error(`shell not visible :: ${await describePage(page)}`);
+  }
+  // A person with several workspaces lands in the first one the app picks; select the intended one.
+  await page.evaluate((workspace) => sessionStorage.setItem('weaves.workspace', workspace), tenant.workspace_id);
   await page.evaluate((hash) => { location.hash = hash; }, route);
+  await page.reload();
+  try {
+    await expect(page.locator(SELECTORS.profileMenuToggle)).toBeVisible({ timeout: 40000 });
+  } catch (error) {
+    throw new Error(`shell not visible after reload :: ${await describePage(page)}`);
+  }
+  await page.waitForTimeout(1500);
+  const shown = await describePage(page);
+  if (process.env.TENANCY_BROWSER_DEBUG) console.log('opened as account', actor.email, shown);
 }
 
 async function switchOrganization(page, organizationId) {
@@ -118,5 +161,5 @@ const appStateText = (page) => page.evaluate(() => document.documentElement.inne
 module.exports = {
   SELECTORS, SESSION_COOKIE, chooseGoogleIdentity, signInWithGoogle, chooseOrganization, openAsAccount,
   switchOrganization, signOut, expectSignedOut, expectNoTokenInStorage, expectSessionCookie,
-  currentOrganizationId, plantPrivateState, appStateText,
+  currentOrganizationId, plantPrivateState, appStateText, describePage,
 };

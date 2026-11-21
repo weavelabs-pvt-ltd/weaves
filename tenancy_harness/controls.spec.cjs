@@ -91,7 +91,11 @@ test('T0-I10 actual frontend renders only the signed-in tenant catalogue', async
   const other = await context.newPage();
   try {
     await open(other, b);
-    await expect(other.getByText(b.agent.name, { exact: true }).first()).toBeVisible();
+    try {
+      await expect(other.getByText(b.agent.name, { exact: true }).first()).toBeVisible();
+    } catch (error) {
+      throw new Error('tenant B catalogue not shown :: ' + await browserAccount.describePage(other));
+    }
     await expect(other.getByText(a.agent.name, { exact: true })).toHaveCount(0);
   } finally { await context.close(); }
 });
@@ -207,15 +211,23 @@ test('T1-I05 session change tears down private browser state and ignores stale r
     try { await route.fulfill({ status: 401, contentType: 'application/json', body: '{"detail":"expired"}' }); } catch { /* aborted by the page */ }
   });
   await browserAccount.plantPrivateState(page, sentinel);
+  const browserSession = (await context.cookies()).find((cookie) => cookie.name === browserAccount.SESSION_COOKIE).value;
+  const withBrowserSession = () => request.get('/api/v0/agents', {
+    headers: { Cookie: browserAccount.SESSION_COOKIE + '=' + browserSession, 'X-Organization-Id': a.org_id, Origin: process.env.WEAVES_E2E_APP_URL },
+  });
+  expect((await withBrowserSession()).status()).toBe(200);
   await browserAccount.signOut(page);
   await browserAccount.expectSignedOut(page, context);
   // Sign-out revokes the server session, not just the browser's copy of it.
-  await expect.poll(async () => (await get(request, '/agents', a.builder)).status()).toBeGreaterThanOrEqual(401);
+  await expect.poll(async () => (await withBrowserSession()).status()).toBeGreaterThanOrEqual(401);
   expect((await get(request, '/agents', a.user)).status()).toBe(200);
   // The outstanding response settles after sign-out; it must not repopulate the page.
   release();
   await page.waitForTimeout(500);
   expect(await browserAccount.appStateText(page)).not.toContain(sentinel);
+  // The held-response interception only exists to prove a late response is ignored; the next
+  // person's Home page loads audit events normally.
+  await page.unroute('**/api/v0/audit-events**');
   // A different person signs in, in the same browser context, while the old drafts still exist.
   await open(page, a, 'agents', a.user);
   await browserAccount.expectSessionCookie(context);
