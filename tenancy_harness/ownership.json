@@ -540,6 +540,17 @@
         "org_id"
       ],
       "current_gap": null
+    },
+    "organization_lifecycle": {
+      "scope": "organization",
+      "contract": "OrganizationLifecycle",
+      "privacy": "owner and organization admins read state; only the owner (deletion request/cancel) and operator scripts write",
+      "system_access": "named 'lifecycle' system purpose: bounded discovery of pending deletions and per-organization state reads; operator scripts use the database owner connection",
+      "lifecycle": "retained after deletion as the tombstone accountability record (reason, actors, timestamps); never purged",
+      "scope_keys": [
+        "org_id"
+      ],
+      "current_gap": null
     }
   },
   "auxiliary_tables": {
@@ -1537,6 +1548,34 @@
       "scope": "organization",
       "rule": "validated per-request organization; org-scoped permission; account-authenticated owner for transfer; mutation guard and optimistic settings revision",
       "lifecycle": "active tenant; preserve global account and other memberships"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/organization/lifecycle",
+      "scope": "organization",
+      "rule": "validated per-request organization; account session; owner-only except the read view; recovery allow-list admits only the owner while deletion is pending",
+      "lifecycle": "state readable by an org admin while active and by the owner while deletion is pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/organization/deletion-request",
+      "scope": "organization",
+      "rule": "validated per-request organization; account session; owner-only except the read view; recovery allow-list admits only the owner while deletion is pending",
+      "lifecycle": "active tenant only; owner confirms the exact name"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/organization/deletion-cancel",
+      "scope": "organization",
+      "rule": "validated per-request organization; account session; owner-only except the read view; recovery allow-list admits only the owner while deletion is pending",
+      "lifecycle": "owner-requested deletion within the grace period only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/organization/export",
+      "scope": "organization",
+      "rule": "validated per-request organization; account session; owner-only except the read view; recovery allow-list admits only the owner while deletion is pending",
+      "lifecycle": "active or deletion-requested tenant; owner only; bounded size; no secrets"
     }
   ]
 }

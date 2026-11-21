@@ -67,6 +67,17 @@ class InMemorySecretStore:
                 self._values.pop(secret_ref, None)
                 self._owners.pop(secret_ref, None)
 
+    def purge_organization(self, limit: int) -> int:
+        """Delete up to ``limit`` secrets the current organization owns."""
+        with self._lock:
+            owned = sorted(
+                ref for ref, owner in self._owners.items() if _may_access(owner)
+            )[:limit]
+            for ref in owned:
+                self._values.pop(ref, None)
+                self._owners.pop(ref, None)
+            return len(owned)
+
 
 class UnavailableSecretStore:
     """Fail closed when durable mode has no encryption key configured."""
@@ -88,6 +99,10 @@ class UnavailableSecretStore:
 
     def delete(self, secret_ref: str) -> None:
         return None
+
+    def purge_organization(self, limit: int) -> int:
+        """No durable secrets exist without an encryption key."""
+        return 0
 
 
 # Ownership is inferred only when every record referencing a secret belongs to
@@ -242,6 +257,17 @@ class EncryptedPostgresSecretStore:
                 "DELETE FROM product_secrets WHERE secret_ref = %s AND org_id = %s",
                 (secret_ref, effective_org_id()),
             )
+
+    def purge_organization(self, limit: int) -> int:
+        """Delete up to ``limit`` secrets the current organization owns."""
+        with self._pool.connection() as connection:
+            result = connection.execute(
+                "DELETE FROM product_secrets WHERE secret_ref IN ("
+                "SELECT secret_ref FROM product_secrets WHERE org_id = %s "
+                "ORDER BY secret_ref LIMIT %s)",
+                (effective_org_id(), limit),
+            )
+        return int(result.rowcount)
 
 
 class StoreSecretResolver:

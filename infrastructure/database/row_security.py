@@ -51,6 +51,9 @@ POLICY_FUNCTIONS: tuple[str, ...] = (
                'account_oauth_states', 'account_sessions',
                'account_organization_requests',
                'organizations', 'workspaces', 'users', 'principals'])
+             WHEN 'lifecycle' THEN coll = ANY (ARRAY[
+               'organization_lifecycle', 'organization_settings',
+               'organizations'])
              WHEN 'catalog' THEN coll = ANY (ARRAY[
                'plugins', 'plugin_installations'])
              WHEN 'oauth' THEN coll = ANY (ARRAY[
@@ -101,4 +104,16 @@ ROW_SECURITY_MIGRATION: tuple[int, tuple[str, ...]] = (
 )
 
 
-REPEATABLE_STATEMENTS: tuple[str, ...] = (*POLICY_FUNCTIONS, *ACCOUNT_SCHEMA)
+# Index only (an older release can still roll back): the worker finds pending
+# deletions and the account views read each organization's lifecycle by id.
+LIFECYCLE_SCHEMA: tuple[str, ...] = (
+    """CREATE INDEX IF NOT EXISTS organization_lifecycle_state_idx
+           ON product_records ((payload->>'state'), record_id)
+           WHERE collection = 'organization_lifecycle'""",
+)
+
+REPEATABLE_STATEMENTS: tuple[str, ...] = (
+    *POLICY_FUNCTIONS,
+    *ACCOUNT_SCHEMA,
+    *LIFECYCLE_SCHEMA,
+)

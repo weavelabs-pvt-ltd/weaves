@@ -184,6 +184,8 @@ __all__ = [
     "ExecutionJob",
     "ExecutionJobStatus",
     "InvocationStatus",
+    "LifecycleActorKind",
+    "LifecycleHistoryEntry",
     "MembershipStatus",
     "ModelAccessMode",
     "ModelMessage",
@@ -200,6 +202,8 @@ __all__ = [
     "ModelUsage",
     "OAuthAuthorizationState",
     "Organization",
+    "OrganizationLifecycle",
+    "OrganizationLifecycleState",
     "OrganizationMembership",
     "OrganizationModelConfiguration",
     "OrganizationSettings",
@@ -254,4 +258,10 @@ __all__ = [
     "WorkspaceStatus",
 ]
 
+from contracts.v1.organization_lifecycle import (
+    LifecycleActorKind,
+    LifecycleHistoryEntry,
+    OrganizationLifecycle,
+    OrganizationLifecycleState,
+)
 from contracts.v1.organization_settings import OrganizationSettings

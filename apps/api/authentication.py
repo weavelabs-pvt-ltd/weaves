@@ -15,6 +15,7 @@ from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.credential_service import CredentialService
 from modules.auth.http.browser_sessions import ACCOUNT_COOKIE_NAME, request_refusal
+from modules.auth.lifecycle_state import is_recovery_request
 from modules.auth.organization_service import OrganizationService
 from shared.request_context import (
     reset_request_principal,
@@ -197,17 +198,22 @@ async def _account_tenant_request(
             status_code=401,
             headers={"WWW-Authenticate": "Bearer"},
         )
+    recovery = is_recovery_request(request.method, request.url.path)
     try:
         with system_scope("account"):
             account = services.accounts.sessions.authenticate(token, channel)
-            membership = services.accounts.selector.select(account, organization_id)
+            membership = services.accounts.selector.select(
+                account, organization_id, recovery=recovery
+            )
     except PermissionError:
         denied = "Organization not available"
         return JSONResponse(content={"detail": denied}, status_code=403)
     try:
         with system_scope("auth"):
             org_id, workspace_id = services.organizations.resolve_principal_scope(
-                membership.principal_id, request.headers.get("x-workspace-id")
+                membership.principal_id,
+                request.headers.get("x-workspace-id"),
+                owner_recovery=recovery,
             )
     except (KeyError, PermissionError):
         return JSONResponse(

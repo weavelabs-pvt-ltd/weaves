@@ -82,7 +82,10 @@ def _register_session(app: FastAPI, service: AccountSignInService) -> None:
             "account": account_summary(account),
             "identities": list_identities(account, service.identities),
             "memberships": list_memberships(
-                account, service.memberships, service.organizations
+                account,
+                service.memberships,
+                service.organizations,
+                service.lifecycle,
             ),
         }
 

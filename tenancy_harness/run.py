@@ -169,7 +169,7 @@ def run(args, harness):
     project = "weaves-tenancy-" + secrets.token_hex(6)
     root = args.output.resolve() / project
     root.mkdir(parents=True, mode=0o700)
-    private, envfile, port, values = setup_private(root, harness, project)
+    private, envfile, port, values = setup_private(root, harness, project, backend)
     live = live_configuration(args, private, project, envfile)
     compose = Compose(project, harness, envfile, live=bool(live))
     write_report(
@@ -202,6 +202,15 @@ def run(args, harness):
             "python",
             "-m",
             "tenancy_harness.observe",
+        )
+        compose.run(
+            "run",
+            "--rm",
+            "--no-deps",
+            "seed",
+            "python",
+            "-m",
+            "tenancy_harness.lifecycle_checks",
         )
         raw = browser(frontend, harness, private, port, api_only=args.api_only)
         if args.api_only:

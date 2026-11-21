@@ -51,7 +51,7 @@ def validate_pair(backend, frontend, candidate, allow_dirty, pair):
     return sources
 
 
-def setup_private(root, harness, project):
+def setup_private(root, harness, project, backend):
     """Create ephemeral secrets, local CA, and Compose's sole environment file."""
     private = root / "private"
     private.mkdir(parents=True, mode=0o700)
@@ -103,6 +103,9 @@ def setup_private(root, harness, project):
         "TEST_HARNESS_DIR": str(harness),
         "TEST_BACKEND_IMAGE": project + "-backend",
         "TEST_FRONTEND_IMAGE": project + "-frontend",
+        "TEST_OPERATOR_SCRIPT": str(
+            backend / "infra/gcp/singlevm/organization_lifecycle.py"
+        ),
     }
     envfile = private / "compose.env"
     envfile.write_text("\n".join(k + "=" + json.dumps(v) for k, v in values.items()))

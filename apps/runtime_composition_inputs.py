@@ -8,6 +8,7 @@ from datetime import datetime
 from threading import RLock
 from typing import Protocol
 
+from application.ports.product_repositories import ProductRepositorySet
 from application.ports.repository import Repository
 from application.ports.runtime_adapters import PluginDispatcher
 from application.ports.secrets import SecretStore
@@ -39,6 +40,7 @@ from contracts.v1 import (
     ModelProfile,
     ModelProviderType,
     Organization,
+    OrganizationLifecycle,
     OrganizationMembership,
     OrganizationModelConfiguration,
     OrganizationSettings,
@@ -111,6 +113,7 @@ class RuntimeCompositionInputs(Protocol):
     model_configurations: Repository[OrganizationModelConfiguration]
     organizations: Repository[Organization]
     organization_settings: Repository[OrganizationSettings]
+    organization_lifecycle: Repository[OrganizationLifecycle]
     plugins: Repository[PluginDescriptor]
     principals: Repository[Principal]
     providers: Repository[ModelProviderContract]
@@ -144,6 +147,7 @@ class RuntimeCompositionInputs(Protocol):
     openai_enabled: bool
     plugin_gateway: PluginDispatcher
     secret_store: SecretStore
+    _repository_set: ProductRepositorySet
     slack_plugin: SlackReadPlugin
 
     def authenticate_principal(self, principal_id: str) -> str:

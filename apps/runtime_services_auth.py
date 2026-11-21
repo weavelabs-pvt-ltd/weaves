@@ -44,6 +44,9 @@ def _configure_account_sign_in_service(
         workspaces=dependencies.workspaces,
         audit_events=dependencies.audit_events,
         unit_of_work=dependencies._unit_of_work,
+        lifecycle=dependencies.organization_lifecycle,
+        settings=dependencies.organization_settings,
+        lock=dependencies._advisory_transaction_lock,
     )
 
 

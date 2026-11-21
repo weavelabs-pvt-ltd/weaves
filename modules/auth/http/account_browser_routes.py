@@ -39,7 +39,10 @@ def register_account_browser_routes(
         return {
             "account": account_summary(account),
             "memberships": list_memberships(
-                account, service.memberships, service.organizations
+                account,
+                service.memberships,
+                service.organizations,
+                service.lifecycle,
             ),
             "csrf_token": csrf_token(request.cookies[ACCOUNT_COOKIE_NAME]),
         }
