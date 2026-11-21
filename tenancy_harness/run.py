@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import secrets
 import subprocess
 from contextlib import suppress
@@ -15,7 +16,7 @@ from tenancy_harness.live_host import (
     prepare_flow,
     verify_flow,
 )
-from tenancy_harness.report import summarize, verify_bundle, write_report
+from tenancy_harness.report import specs, summarize, verify_bundle, write_report
 from tenancy_harness.run_support import (
     Compose,
     execute,
@@ -23,8 +24,11 @@ from tenancy_harness.run_support import (
     validate_pair,
 )
 
+# Controls that need the signed-in frontend itself; --api-only leaves them out.
+BROWSER_CONTROLS = "T0-I10|T1-I05|T1-I10"
 
-def browser(frontend, harness, private, port, live=False):
+
+def browser(frontend, harness, private, port, live=False, api_only=False):
     """Run actual Chromium against the same-origin disposable application."""
     cli = frontend / "node_modules/@playwright/test/cli.js"
     if not cli.is_file():
@@ -32,9 +36,14 @@ def browser(frontend, harness, private, port, live=False):
     env = {
         "NODE_PATH": str(frontend / "node_modules"),
         "TENANCY_FIXTURE_FILE": str(private / "fixtures.json"),
-        "WEAVES_E2E_APP_URL": f"http://127.0.0.1:{port}",
+        "WEAVES_E2E_APP_URL": f"http://localhost:{port}",
+        "TENANCY_GOOGLE_DIR": str(private / "google"),
         "TENANCY_BROWSER_OUTPUT": str(private / "browser"),
     }
+    extra = []
+    if api_only:
+        env["TENANCY_API_ONLY"] = "1"
+        extra = ["--grep-invert", BROWSER_CONTROLS]
     with (
         (private / ("live-browser.json" if live else "browser.json")).open(
             "w"
@@ -49,6 +58,7 @@ def browser(frontend, harness, private, port, live=False):
                 "--config",
                 str(harness / ("live.config.cjs" if live else "playwright.config.cjs")),
                 "--reporter=json",
+                *extra,
             ],
             env=env,
             stdout=output,
@@ -107,6 +117,15 @@ def complete_checks(args, compose, frontend, harness, private, port, report, liv
         )
 
 
+def api_only_outcome(raw):
+    """Print per-control outcomes of a partial local run; it can never pass the gate."""
+    cases = {}
+    for item in specs(raw.get("suites", [])):
+        results = [r["status"] for t in item["tests"] for r in t.get("results", [])]
+        cases[item["title"].split()[0]] = results
+    print(json.dumps({"api_only": True, "foundation_passed": False, "cases": cases}))
+
+
 def live_configuration(args, private, project, envfile):
     """Require a funded existing ledger before enabling networked live testing."""
     config = load_config(args.live_anthropic_env)
@@ -121,8 +140,28 @@ def live_configuration(args, private, project, envfile):
     return config
 
 
+def build_images(backend, frontend, values, sources):
+    """Build both application images and record their content IDs."""
+    for component, path in (("BACKEND", backend), ("FRONTEND", frontend)):
+        execute(["docker", "build", "-t", values[f"TEST_{component}_IMAGE"], str(path)])
+        sources[component.lower()]["image_id"] = execute(
+            [
+                "docker",
+                "image",
+                "inspect",
+                values[f"TEST_{component}_IMAGE"],
+                "--format",
+                "{{.Id}}",
+            ],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+
 def run(args, harness):
     """Build, seed, execute, report, and always remove this run's containers."""
+    if args.api_only and (os.environ.get("CI") or args.live_anthropic_env):
+        raise RuntimeError("--api-only is a local debugging aid, never for CI or live")
     backend, frontend = args.backend.resolve(), args.frontend.resolve()
     pair = json.loads((harness / "pair.json").read_text())
     digest = verify_bundle(harness)
@@ -144,22 +183,7 @@ def run(args, harness):
         },
     )
     try:
-        for component, path in (("BACKEND", backend), ("FRONTEND", frontend)):
-            execute(
-                ["docker", "build", "-t", values[f"TEST_{component}_IMAGE"], str(path)]
-            )
-            sources[component.lower()]["image_id"] = execute(
-                [
-                    "docker",
-                    "image",
-                    "inspect",
-                    values[f"TEST_{component}_IMAGE"],
-                    "--format",
-                    "{{.Id}}",
-                ],
-                capture_output=True,
-                text=True,
-            ).stdout.strip()
+        build_images(backend, frontend, values, sources)
         if 20 in pair.get("fixture_migrations", []):
             with envfile.open("a") as output:
                 output.write(
@@ -179,7 +203,9 @@ def run(args, harness):
             "-m",
             "tenancy_harness.observe",
         )
-        raw = browser(frontend, harness, private, port)
+        raw = browser(frontend, harness, private, port, api_only=args.api_only)
+        if args.api_only:
+            return api_only_outcome(raw)
         if 20 in pair.get("fixture_migrations", []):
             compose.run(
                 "run",
@@ -209,6 +235,12 @@ def main():
     parser.add_argument("--frontend", type=Path, required=True)
     parser.add_argument("--candidate", choices=("backend", "frontend"), required=True)
     parser.add_argument("--allow-dirty", action="store_true")
+    parser.add_argument(
+        "--api-only",
+        action="store_true",
+        help="Local debugging only: omit the signed-in-frontend controls. Never passes "
+        "the gate, never writes a report, and is refused when CI is set.",
+    )
     parser.add_argument("--live-anthropic-env", type=Path)
     parser.add_argument("--canvas-probe", action="store_true")
     parser.add_argument("--output", type=Path, default=Path(".local/tenancy"))

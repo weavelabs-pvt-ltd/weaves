@@ -57,7 +57,7 @@ def setup_private(root, harness, project):
     private.mkdir(parents=True, mode=0o700)
     tls = private / "tls"
     tls.mkdir(mode=0o700)
-    (private / "mail").mkdir(mode=0o700)
+    (private / "google").mkdir(mode=0o700)
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         port = listener.getsockname()[1]
@@ -92,7 +92,10 @@ def setup_private(root, harness, project):
         "TEST_ENCRYPTION_KEY": base64.urlsafe_b64encode(
             secrets.token_bytes(32)
         ).decode(),
-        "TEST_EMAIL_KEY": secrets.token_hex(32),
+        "TEST_BROWSER_SECRET": secrets.token_urlsafe(48),
+        "TEST_GOOGLE_CLIENT_ID": "tenancy-" + secrets.token_hex(6) + ".fake.test",
+        "TEST_GOOGLE_CLIENT_SECRET": secrets.token_urlsafe(24),
+        "TEST_APP_ORIGIN": f"http://localhost:{port}",
         "TEST_HTTP_PORT": str(port),
         "TEST_UID": str(os.getuid()),
         "TEST_GID": str(os.getgid()),

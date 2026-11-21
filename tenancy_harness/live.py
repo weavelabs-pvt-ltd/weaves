@@ -6,10 +6,8 @@ import sys
 import time
 from pathlib import Path
 
-import httpx
-
 from tenancy_harness.budget import MAX_OUTPUT_TOKENS
-from tenancy_harness.client import API, call
+from tenancy_harness.client import call, request
 from tenancy_harness.live_records import capture_records, verify_records
 from tenancy_harness.seed import require_disposable_database
 
@@ -172,7 +170,7 @@ def verify(fixtures, config, path):
         records, live, t["org_skill"]["version"]["skill_version_id"]
     )
     for target in ("/agents/" + live["agent_id"], resource):
-        denied = httpx.get(API + target, headers=other["admin"]["headers"], timeout=10)
+        denied = request("GET", target, other["admin"]["headers"])
         if denied.status_code != 404:
             raise AssertionError("Live data crossed tenant boundaries")
     listings = json.dumps(call("GET", "/model-providers", t["admin"]))

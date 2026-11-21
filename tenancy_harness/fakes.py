@@ -1,69 +1,50 @@
-"""External provider/SMTP fakes on the isolated Docker network, not auth mocks."""
+"""External provider fakes (models, MCP, Google) on the isolated Docker network."""
 
 import asyncio
+import contextlib
 import hashlib
-import json
 import os
-import re
 from contextlib import asynccontextmanager
-from pathlib import Path
 
+import uvicorn
 from fastapi import FastAPI, Request
 
-MAIL: dict[str, list[str]] = {}
+from tenancy_harness.fake_google import router as google_router
+
 EGRESS: list[str] = []
 MODEL_EVENTS: list[dict[str, str]] = []
 
 
-async def smtp(reader, writer):
-    """Accept SMTP used by the real application email adapter without delivery."""
-    recipient = ""
-    writer.write(b"220 tenancy fixture\r\n")
-    await writer.drain()
-    try:
-        while line := await reader.readline():
-            command = line.decode().strip()
-            if command.upper().startswith("RCPT TO:"):
-                recipient = command.split(":", 1)[1].strip("<>").lower()
-            if command.upper() == "DATA":
-                writer.write(b"354 finish with dot\r\n")
-                await writer.drain()
-                body = []
-                while (line := await reader.readline()) not in {b".\r\n", b""}:
-                    body.append(line.decode())
-                MAIL.setdefault(recipient, []).append("".join(body))
-                save_mailbox(recipient)
-            if command.upper() == "QUIT":
-                writer.write(b"221 bye\r\n")
-                break
-            writer.write(b"250 ok\r\n")
-            await writer.drain()
-    finally:
-        writer.close()
-        await writer.wait_closed()
+class PlainServer(uvicorn.Server):
+    """A second listener inside this process; the primary server owns signals."""
 
-
-def save_mailbox(recipient):
-    """Mirror synthetic email proof into private test storage, never CI artifacts."""
-    root = Path(os.environ["TENANCY_MAIL_DIR"])
-    path = root / (hashlib.sha256(recipient.encode()).hexdigest() + ".json")
-    value = mail(recipient)
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(value))
-    temporary.chmod(0o600)
-    temporary.replace(path)
+    @contextlib.contextmanager
+    def capture_signals(self):
+        """Leave signal handling to the TLS server."""
+        yield
 
 
 @asynccontextmanager
 async def lifespan(app):
-    """Open an internal-only SMTP listener alongside HTTP provider fixtures."""
-    server = await asyncio.start_server(smtp, "0.0.0.0", 1025)
+    """Serve the same fakes over plain HTTP for the Google endpoints on 8081.
+
+    Google discovery must be plain HTTP because its authorization endpoint is the
+    harness reverse proxy, which is reachable by the browser only over HTTP.
+    """
+    config = uvicorn.Config(
+        app, host="0.0.0.0", port=8081, log_level="warning", lifespan="off"
+    )
+    server = PlainServer(config)
+    task = asyncio.create_task(server.serve())
+    while not server.started and not task.done():
+        await asyncio.sleep(0.05)
     yield
-    server.close()
-    await server.wait_closed()
+    server.should_exit = True
+    await task
 
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(google_router)
 
 
 @app.api_route("/v1/messages", methods=["POST"])
@@ -103,14 +84,6 @@ async def forward_live(request, endpoint):
 def health():
     """Identify the fake without requiring any external service."""
     return {"fixture": "tenancy-phase-0"}
-
-
-@app.get("/mail/{recipient}")
-def mail(recipient: str):
-    """Expose only synthetic mailbox proof to the private fixture process."""
-    messages = MAIL.get(recipient.lower(), [])
-    matches = re.findall(r"\b\d{6}\b", messages[-1] if messages else "")
-    return {"count": len(messages), "code": matches[0] if matches else None}
 
 
 @app.get("/v1/models")
