@@ -2,7 +2,7 @@
   "version": 1,
   "backend": {
     "repository": "weavelabs-pvt-ltd/weaves",
-    "revision": "88b41fe7bd8bc59fd3884171f52c4fa691fa5b6e"
+    "revision": "729feb5a49f4c37f36876dab4d6bcbda8ad88841"
   },
   "frontend": {
     "repository": "weavelabs-pvt-ltd/weaves-app",
