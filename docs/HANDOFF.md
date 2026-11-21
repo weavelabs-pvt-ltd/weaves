@@ -271,7 +271,7 @@ protocol" describes the stricter expand/contract process you should adopt before
 
 ## 11. Documentation index
 
-`docs/HANDOFF.md` (this), `docs/DATA_MODEL.md`, `MULTI_TENANCY_IMPLEMENTATION_PLAN.md`,
+`docs/HANDOFF.md` (this), `docs/STATUS_AND_BACKLOG.md` (what is done and what remains), `docs/DATA_MODEL.md`, `MULTI_TENANCY_IMPLEMENTATION_PLAN.md`,
 `TENANCY_ARCHITECTURE.md`, `tenancy_harness/README.md`, `infra/gcp/singlevm/README.md`, `README.md`,
 `QUALITY.md`, `AGENTS.md`; older product notes in `docs/` are historical context and may describe
 removed flows.
