@@ -17,7 +17,7 @@ from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.http.account_routes import (
     AccountEmailCodeRequest,
     AccountEmailVerifyRequest,
-    _throttled,
+    throttled_response,
 )
 from shared.errors import EmailDeliveryUnavailable, LoginThrottled
 from shared.request_context import system_scoped
@@ -45,7 +45,7 @@ def _register_code(app: FastAPI, linking: AccountEmailLinking) -> None:
                 account, payload.email, request.client.host if request.client else None
             )
         except LoginThrottled as exc:
-            raise _throttled(exc) from exc
+            raise throttled_response(exc) from exc
         except EmailDeliveryUnavailable as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         return {
@@ -68,7 +68,7 @@ def _register_verify(
         try:
             linking.verify(account, payload.challenge_id, payload.code)
         except LoginThrottled as exc:
-            raise _throttled(exc) from exc
+            raise throttled_response(exc) from exc
         except PermissionError as exc:
             # 400, not 401: the account session itself is still valid.
             raise HTTPException(

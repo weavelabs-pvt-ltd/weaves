@@ -35,7 +35,7 @@ class AccountEmailVerifyRequest(BaseModel):
     code: str = Field(min_length=1, max_length=16)
 
 
-def _throttled(exc: LoginThrottled) -> HTTPException:
+def throttled_response(exc: LoginThrottled) -> HTTPException:
     """Map throttling to 429 with the standard Retry-After header."""
     return HTTPException(
         status_code=429,
@@ -65,7 +65,7 @@ def _register_sign_in(app: FastAPI, service: AccountSignInService) -> None:
                 payload.email, request.client.host if request.client else None
             )
         except LoginThrottled as exc:
-            raise _throttled(exc) from exc
+            raise throttled_response(exc) from exc
         except EmailDeliveryUnavailable as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         return {
@@ -85,7 +85,7 @@ def _register_sign_in(app: FastAPI, service: AccountSignInService) -> None:
                 request.client.host if request.client else None,
             )
         except LoginThrottled as exc:
-            raise _throttled(exc) from exc
+            raise throttled_response(exc) from exc
         except PermissionError as exc:
             raise HTTPException(
                 status_code=401,
