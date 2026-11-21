@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const browserAccount = require('./browser_account.cjs');
+require('./browser_trace.cjs').install(test);
 const fixture = JSON.parse(fs.readFileSync(process.env.TENANCY_FIXTURE_FILE, 'utf8'));
 const { a, b } = fixture.tenants;
 const get = (request, resource, actor = a.admin) => request.get('/api/v0' + resource, { headers: actor.headers });
