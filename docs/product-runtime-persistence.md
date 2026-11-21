@@ -92,25 +92,25 @@ configured.
   immediately. `PUT /api/v0/api-credentials/{credential_id}/rotate` atomically
   revokes an active credential and issues a replacement for the same principal,
   preserving its expiry. The plaintext replacement is returned once.
-  People sign in only through accounts: an emailed one-time code opens an
-  account session (bearer, or an HttpOnly cookie with CSRF protection) that
+  People sign in only through accounts: Google sign-in opens an account
+  browser session (an HttpOnly cookie with CSRF protection; bearer account
+  sessions are issued only by the operator break-glass script) that
   acts in one organization per request through `X-Organization-Id`.
   `GET /api/v0/auth/me` shows the resolved identity. Account sessions are stored
   as digests, expire after 12 hours, and every request re-derives the
   membership, user, principal and organization state, so suspension applies
-  immediately. Sign-in attempts are throttled per address and per source address
-  with hashed bucket keys; PostgreSQL shares counters across API instances and
-  memory mode keeps bounded process-local counters. `Retry-After` is returned
-  without account-specific error text. Reverse-proxy deployments must configure
+  immediately. Account organization creation is throttled per account and
+  source address with hashed bucket keys; PostgreSQL shares counters across API
+  instances and memory mode keeps bounded process-local counters. `Retry-After`
+  is returned without account-specific error text. Reverse-proxy deployments must configure
   their ASGI server to trust only known proxies so `request.client.host` is
-  accurate. MFA, SSO/OIDC, refresh tokens and account recovery remain
-  unimplemented. API credentials remain active until separately revoked or
+  accurate. MFA, refresh tokens and account recovery remain unimplemented. API credentials remain active until separately revoked or
   expired. Permission checks and run/audit actors use the resolved principal.
   Without environment-configured tokens, the seeded local developer remains
   available only in memory-only local development. When PostgreSQL is
   configured, protected product routes require a bearer token even if no
-  environment token is configured; health, account sign-in and the OAuth
-  callbacks remain public entrypoints.
+  environment token is configured; health, the Google sign-in routes and
+  the OAuth callbacks remain public entrypoints.
 - OpenAI, Anthropic, Gemini, and OpenAI-compatible API-key providers are
   supported; provider and model-profile administration requires
   organization-level `models.manage` because those records are shared across

@@ -6,7 +6,6 @@ from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, Protocol
 
-from application.ports.email import EmailSender
 from clients.integrations.github import GitHubReadPlugin
 from clients.integrations.github_app_auth import GitHubAppTokenProvider
 from clients.integrations.jira import JiraReadPlugin
@@ -91,8 +90,6 @@ class RuntimeAdapterBundle:
     def __init__(
         self,
         *,
-        email_sender: EmailSender,
-        email_login_hmac_key: str,
         model: MockModelIdentifier,
         model_adapters: Mapping[ModelProviderType, ModelAdapter],
         model_gateway: ModelGateway,
@@ -110,8 +107,6 @@ class RuntimeAdapterBundle:
         environment_model_enabled: bool,
     ) -> None:
         """Store the constructed clients and model selection settings."""
-        self.email_sender = email_sender
-        self.email_login_hmac_key = email_login_hmac_key
         self.model = model
         self.model_adapters = model_adapters
         self.model_gateway = model_gateway

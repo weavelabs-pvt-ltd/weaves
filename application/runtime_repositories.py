@@ -9,7 +9,7 @@ from application.ports.repository import Repository
 from contracts.v1 import (
     Account,
     AccountIdentity,
-    AccountLoginChallenge,
+    AccountOAuthState,
     AccountOrganizationRequest,
     AccountSession,
     AgentDefinition,
@@ -102,7 +102,7 @@ class RuntimeRepositoryBindingMixin:
     accounts: Repository[Account]
     account_identities: Repository[AccountIdentity]
     memberships: Repository[OrganizationMembership]
-    account_login_challenges: Repository[AccountLoginChallenge]
+    account_oauth_states: Repository[AccountOAuthState]
     account_sessions: Repository[AccountSession]
     account_organization_requests: Repository[AccountOrganizationRequest]
 
@@ -175,8 +175,8 @@ class RuntimeRepositoryBindingMixin:
             "account_identities", AccountIdentity
         )
         self.memberships = self._repository("memberships", OrganizationMembership)
-        self.account_login_challenges = self._repository(
-            "account_login_challenges", AccountLoginChallenge
+        self.account_oauth_states = self._repository(
+            "account_oauth_states", AccountOAuthState
         )
         self.account_sessions = self._repository("account_sessions", AccountSession)
         self.account_organization_requests = self._repository(

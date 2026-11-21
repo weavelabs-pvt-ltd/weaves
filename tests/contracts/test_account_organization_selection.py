@@ -12,8 +12,7 @@ from contracts.v1 import (
     PrincipalStatus,
     UserStatus,
 )
-from infrastructure.auth.throttle import InMemoryLoginRateLimiter
-from tests.support.account_world import HMAC_KEY, CapturedMail
+from tests.support.account_session import sign_in
 from tests.support.organizations import create_organization
 
 SHARED = "shared.person@example.test"
@@ -26,10 +25,6 @@ def world():
     )
     runtime.bootstrap()
     service = runtime.account_sign_in_service
-    mail = CapturedMail()
-    service.email_sender = mail
-    service.email_login_hmac_key = HMAC_KEY
-    service.login_rate_limiter = InMemoryLoginRateLimiter(limit=50)
     org_a, ws_a, user_a, principal_a, owner_a = create_organization(
         runtime, name="Org A", email=SHARED, display_name="Shared A"
     )
@@ -39,8 +34,7 @@ def world():
     org_c, _, _, _, _ = create_organization(
         runtime, name="Org C", email="stranger@example.test", display_name="Stranger"
     )
-    challenge = service.start_email_login(SHARED, "198.51.100.1")
-    _, _, token = service.verify_email_login(challenge, mail.code(), "198.51.100.1")
+    _, token = sign_in(service, SHARED)
     client = TestClient(create_app(runtime), raise_server_exceptions=False)
     with client:
         yield {

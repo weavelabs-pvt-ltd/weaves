@@ -1,6 +1,5 @@
 """Cookie-backed account sessions create organizations with CSRF protection."""
 
-import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -8,11 +7,12 @@ from apps.api.app import create_app
 from apps.runtime_wiring import compose_platform_runtime
 from modules.auth.http.browser_sessions import ACCOUNT_COOKIE_NAME
 from tests.support.account_org_support import ENABLE, prepare
+from tests.support.account_session import configure_google, google_headers
+from tests.support.fake_google import FakeGoogle
 
 ORIGIN = "https://app.example.test"
 EMAIL = "browser.founder@example.test"
 URL = "/api/v0/account/browser/organizations"
-VERIFY = "/api/v0/account/browser/email-verify"
 
 
 @pytest.fixture
@@ -20,27 +20,22 @@ def world(monkeypatch):
     monkeypatch.setenv(ENABLE, "true")
     monkeypatch.setenv("WEAVES_PUBLIC_FRONTEND_URL", ORIGIN)
     monkeypatch.setenv("WEAVES_BROWSER_SESSION_SECRET", "browser-secret-" * 4)
+    configure_google(monkeypatch)
+    fake = FakeGoogle()
     runtime = compose_platform_runtime(
-        http_client=httpx.Client(), store=None, seed_local_defaults=False
+        http_client=fake.client(), store=None, seed_local_defaults=False
     )
     runtime.bootstrap()
     signer = prepare(runtime)
     client = TestClient(
         create_app(runtime), base_url=ORIGIN, raise_server_exceptions=False
     )
-    service = runtime.account_sign_in_service
-    challenge = service.start_email_login(EMAIL, "198.51.100.1")
     with client:
-        verified = client.post(
-            VERIFY,
-            json={"challenge_id": challenge, "code": signer.mail.code()},
-            headers={"Origin": ORIGIN},
-        )
-        assert verified.status_code == 200, verified.text
+        headers = google_headers(client, fake, EMAIL)
         yield {
             "runtime": runtime,
             "client": client,
-            "csrf": verified.json()["csrf_token"],
+            "csrf": headers["X-Weaves-CSRF"],
             "signer": signer,
         }
     runtime.close()

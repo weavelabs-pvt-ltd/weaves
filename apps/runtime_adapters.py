@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import secrets
 from dataclasses import dataclass
 
 import httpx
@@ -27,7 +26,6 @@ from clients.model_providers.gateway import (
 )
 from contracts.v1 import ModelProviderType
 from infrastructure.database.store import ProductPostgresStore
-from infrastructure.email.smtp import build_email_sender
 from infrastructure.integrations.plugin_gateway import PluginGateway
 from infrastructure.persistence.deterministic_model import (
     DeterministicMockModel,
@@ -38,20 +36,6 @@ from infrastructure.secrets.store import (
     InMemorySecretStore,
     UnavailableSecretStore,
 )
-
-
-def _email_login_hmac_key() -> str:
-    """Use a stable configured key or an ephemeral key in console-only dev mode."""
-    configured_key = os.environ.get("WEAVES_EMAIL_LOGIN_HMAC_KEY", "").strip()
-    if configured_key:
-        return configured_key
-    if os.environ.get("WEAVES_AUTH_EMAIL_CONSOLE", "").lower() in {
-        "1",
-        "true",
-        "yes",
-    }:
-        return secrets.token_urlsafe(48)
-    return ""
 
 
 def build_secret_store(store: ProductPostgresStore | None) -> SecretStore:
@@ -107,8 +91,6 @@ def build_runtime_adapters(
         },
     )
     return RuntimeAdapterBundle(
-        email_sender=build_email_sender(),
-        email_login_hmac_key=_email_login_hmac_key(),
         model=model,
         model_adapters=adapters,
         model_gateway=ModelGateway(adapters),

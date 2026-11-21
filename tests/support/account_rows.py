@@ -1,20 +1,25 @@
-"""Build account challenge and session rows with chosen expiry for hygiene tests."""
+"""Build account sign-in state and session rows with chosen expiry for hygiene tests."""
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime
 
-from contracts.v1 import AccountLoginChallenge, AccountSession
+from contracts.v1 import AccountOAuthState, AccountSession
 from shared.clock import new_id, utc_now
 
 
-def challenge_row(email: str, expires_at: datetime) -> AccountLoginChallenge:
-    """One challenge for an address that expires at the given moment."""
+def state_row(label: str, expires_at: datetime) -> AccountOAuthState:
+    """One Google sign-in state, distinguishable by label, expiring as given."""
     now = utc_now()
-    return AccountLoginChallenge(
-        challenge_id=new_id(),
-        email=email,
-        code_digest="a" * 64,
+    digest = hashlib.sha256(label.encode()).hexdigest()
+    return AccountOAuthState(
+        id=new_id(),
+        state_digest=digest,
+        binding_digest=digest,
+        nonce="n" * 24,
+        code_verifier="v" * 43,
+        return_to=f"/{label}",
         expires_at=expires_at,
         created_at=now,
         updated_at=now,

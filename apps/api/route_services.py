@@ -11,6 +11,8 @@ from modules.auth.account_organizations import AccountOrganizationService
 from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.credential_service import CredentialService
+from modules.auth.google_oidc import GoogleConfig, GoogleOidcProvider
+from modules.auth.google_sign_in import GoogleSignIn
 from modules.auth.organization_service import OrganizationService
 from modules.auth.user_administration_service import UserAdministrationService
 from modules.auth.workspace_access_service import WorkspaceAccessService
@@ -39,6 +41,7 @@ class ApiRouteServices:
     user_administration: UserAdministrationService
     authentication: AuthenticationService
     accounts: AccountSignInService
+    google_sign_in: GoogleSignIn | None
     account_organizations: AccountOrganizationService
     credential: CredentialService
     models: ModelService
@@ -53,6 +56,15 @@ class ApiRouteServices:
     governance: GovernanceService
     tasks: TaskService
     skills: SkillsService
+
+
+def _google_sign_in(runtime: LocalPlatformRuntime) -> GoogleSignIn | None:
+    """Build Google sign-in from the environment once, or None when unset."""
+    config = GoogleConfig.from_env()
+    if config is None:
+        return None
+    provider = GoogleOidcProvider(config, runtime.http_client)
+    return GoogleSignIn(config, provider, runtime.account_sign_in_service)
 
 
 def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
@@ -76,6 +88,7 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
         user_administration=runtime.user_administration_service,
         authentication=runtime.authentication_service,
         accounts=runtime.account_sign_in_service,
+        google_sign_in=_google_sign_in(runtime),
         account_organizations=runtime.account_organization_service,
         credential=runtime.credential_service,
         models=runtime.model_service,

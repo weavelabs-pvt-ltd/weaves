@@ -12,6 +12,7 @@ from apps.api.error_mapping import install_error_handlers
 from apps.api.router import register_v0_routes
 from apps.api.wiring import build_api_process_services
 from apps.platform_runtime import LocalPlatformRuntime
+from modules.auth.http.browser_sessions import CSRF_HEADER
 
 
 def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
@@ -59,8 +60,10 @@ def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
             "Idempotency-Key",
             "If-Match",
             "X-Workspace-ID",
-            "X-Weaves-Onboarding-Token",
+            "X-Organization-Id",
+            CSRF_HEADER,
         ],
+        expose_headers=["Retry-After"],
     )
     return app
 

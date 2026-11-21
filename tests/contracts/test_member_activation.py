@@ -145,7 +145,7 @@ def test_activation_rolls_back_with_the_membership_when_the_audit_write_fails(
     runtime, client, owner = world
     user, principal = _provision(runtime, client, owner)
     _set_state(runtime, user, principal, UserStatus.INVITED, PrincipalStatus.DISABLED)
-    audit = runtime.account_sign_in_service._linker._audit_events
+    audit = runtime.account_sign_in_service.linker._audit_events
 
     def broken(event):
         raise RuntimeError("audit store unavailable")

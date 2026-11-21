@@ -45,13 +45,15 @@ ACCOUNT_SCHEMA: tuple[str, ...] = (
     """CREATE INDEX IF NOT EXISTS account_session_account_idx
            ON product_records ((payload->>'account_id'))
            WHERE collection = 'account_sessions'""",
-    """CREATE INDEX IF NOT EXISTS account_challenge_email_idx
-           ON product_records ((payload->>'email'))
-           WHERE collection = 'account_login_challenges'""",
-    # Bounded purge of expired challenges and expired or revoked sessions.
-    """CREATE INDEX IF NOT EXISTS account_challenge_expiry_idx
+    # One Google sign-in attempt per state digest, so a callback finds it by an
+    # index and a replayed or colliding state can never match two rows.
+    """CREATE UNIQUE INDEX IF NOT EXISTS account_oauth_state_uq
+           ON product_records ((payload->>'state_digest'))
+           WHERE collection = 'account_oauth_states'""",
+    # Bounded purge of expired sign-in states and expired or revoked sessions.
+    """CREATE INDEX IF NOT EXISTS account_oauth_state_expiry_idx
            ON product_records ((payload->>'expires_at'), record_id)
-           WHERE collection = 'account_login_challenges'""",
+           WHERE collection = 'account_oauth_states'""",
     """CREATE INDEX IF NOT EXISTS account_session_expiry_idx
            ON product_records ((payload->>'expires_at'), record_id)
            WHERE collection = 'account_sessions'""",
