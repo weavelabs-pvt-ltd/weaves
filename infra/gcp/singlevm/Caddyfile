@@ -6,6 +6,14 @@
 	}
 }
 
+# Every route to the API replaces X-Forwarded-For with the real peer address, so
+# the API's rate limiter (uvicorn --proxy-headers) never trusts a client header.
+(api_upstream) {
+	reverse_proxy product-api:8000 {
+		header_up X-Forwarded-For {remote_host}
+	}
+}
+
 weave-studio.in, www.weave-studio.in, app.weave-studio.in {
 	import public_tls
 	encode zstd gzip
@@ -13,8 +21,17 @@ weave-studio.in, www.weave-studio.in, app.weave-studio.in {
 		host app.weave-studio.in
 		path /api/v0/*
 	}
+	# The public waitlist is the only API path the website host serves. It is
+	# same-origin (a relative URL on the website), so no CORS or cookie is used.
+	@waitlist_api {
+		host weave-studio.in www.weave-studio.in
+		path /api/v0/waitlist/*
+	}
 	handle @app_api {
-		reverse_proxy product-api:8000
+		import api_upstream
+	}
+	handle @waitlist_api {
+		import api_upstream
 	}
 	handle {
 		reverse_proxy frontend:8080
@@ -23,5 +40,5 @@ weave-studio.in, www.weave-studio.in, app.weave-studio.in {
 
 api.weave-studio.in {
 	import public_tls
-	reverse_proxy product-api:8000
+	import api_upstream
 }

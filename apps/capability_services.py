@@ -30,6 +30,7 @@ from modules.models.runtime import ModelService
 from modules.skills.service import SkillsService
 from modules.tasks.service import TaskService
 from modules.tasks.worker_service import TaskWorkerService
+from modules.waitlist.service import WaitlistService
 from modules.workflows.automation_service import WorkflowAutomationService
 from modules.workflows.definition_service import WorkflowDefinitionService
 from modules.workflows.execution_service import WorkflowExecutionService
@@ -73,3 +74,4 @@ class CapabilityServiceSet:
     task_worker_service: TaskWorkerService
     workspace_access_service: WorkspaceAccessService
     skills_service: SkillsService
+    waitlist_service: WaitlistService

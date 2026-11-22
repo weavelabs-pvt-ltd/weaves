@@ -42,6 +42,10 @@ KEEP_COLLECTIONS: frozenset[str] = frozenset(
         "account_oauth_states",
         "account_sessions",
         "audit_events",
+        # The public waitlist belongs to no organization: deletion never
+        # touches it (and an export never includes it).
+        "waitlist_entries",
+        "waitlist_submissions",
     }
 )
 

@@ -239,6 +239,13 @@ __all__ = [
     "ToolInvocation",
     "User",
     "UserStatus",
+    "WaitlistAnswer",
+    "WaitlistDomainType",
+    "WaitlistEntry",
+    "WaitlistHistoryEntry",
+    "WaitlistSource",
+    "WaitlistStatus",
+    "WaitlistSubmission",
     "WorkflowBundle",
     "WorkflowConditionOperator",
     "WorkflowDefinition",
@@ -265,3 +272,12 @@ from contracts.v1.organization_lifecycle import (
     OrganizationLifecycleState,
 )
 from contracts.v1.organization_settings import OrganizationSettings
+from contracts.v1.waitlist import (
+    WaitlistAnswer,
+    WaitlistDomainType,
+    WaitlistEntry,
+    WaitlistHistoryEntry,
+    WaitlistSource,
+    WaitlistStatus,
+    WaitlistSubmission,
+)

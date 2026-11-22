@@ -459,7 +459,7 @@ def test_postgres_put_cannot_transfer_ownership_or_change_it_in_place():
     assert "product_records.org_id IS NOT DISTINCT FROM EXCLUDED.org_id" in query
 
 
-def test_database_at_previous_head_applies_only_the_organization_identity_step():
+def test_database_at_previous_head_applies_only_the_waitlist_step():
     connection = RecordingConnection(
         rows=[(v,) for v in LISTED_VERSIONS if v < SCHEMA_HEAD_VERSION]
     )
@@ -473,14 +473,15 @@ def test_database_at_previous_head_applies_only_the_organization_identity_step()
         for sql, params in connection.statements
         if "INSERT INTO product_schema_migrations" in sql
     ]
-    assert versions == [23]
+    assert versions == [24]
     sql = "\n".join(statement for statement, _ in connection.statements)
-    assert "CREATE UNIQUE INDEX IF NOT EXISTS organization_slug_uq" in sql
-    assert "CREATE UNIQUE INDEX IF NOT EXISTS organization_email_domain_uq" in sql
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS waitlist_entry_email_uq" in sql
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS waitlist_submission_token_uq" in sql
+    assert "organization_slug_uq" not in sql
     assert "DROP TRIGGER IF EXISTS sso_identity_immutable" not in sql
 
 
 def test_migration_list_is_contiguous_append_only_history():
     # Version 20 is the operator-activated catalog step, recorded outside the list.
     assert [*range(1, 20), *range(21, SCHEMA_HEAD_VERSION + 1)] == LISTED_VERSIONS
-    assert SCHEMA_HEAD_VERSION == 23
+    assert SCHEMA_HEAD_VERSION == 24

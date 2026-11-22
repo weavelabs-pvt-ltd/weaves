@@ -59,6 +59,8 @@ from contracts.v1 import (
     TaskTurn,
     ToolInvocation,
     User,
+    WaitlistEntry,
+    WaitlistSubmission,
     WorkflowDefinition,
     WorkflowRun,
     WorkflowSchedule,
@@ -101,6 +103,8 @@ class RuntimeCompositionInputs(Protocol):
     account_oauth_states: Repository[AccountOAuthState]
     account_sessions: Repository[AccountSession]
     account_organization_requests: Repository[AccountOrganizationRequest]
+    waitlist_entries: Repository[WaitlistEntry]
+    waitlist_submissions: Repository[WaitlistSubmission]
     evaluation_executions: Repository[EvaluationExecution]
     evaluation_reports: Repository[EvaluationReportRecord]
     evaluation_suites: Repository[EvaluationSuiteRecord]

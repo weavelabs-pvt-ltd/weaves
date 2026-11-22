@@ -28,6 +28,7 @@ from modules.integrations.oauth_state_service import OAuthStateService
 from modules.models.runtime import ModelService
 from modules.skills.service import SkillsService
 from modules.tasks.service import TaskService
+from modules.waitlist.service import WaitlistService
 from modules.workflows.automation_service import WorkflowAutomationService
 from modules.workflows.definition_service import WorkflowDefinitionService
 from modules.workflows.studio_service import WorkflowStudioService
@@ -62,6 +63,7 @@ class ApiRouteServices:
     governance: GovernanceService
     tasks: TaskService
     skills: SkillsService
+    waitlist: WaitlistService
 
 
 def _google_sign_in(runtime: LocalPlatformRuntime) -> GoogleSignIn | None:
@@ -112,4 +114,5 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
         governance=runtime.governance_service,
         tasks=runtime.task_service,
         skills=runtime.skills_service,
+        waitlist=runtime.waitlist_service,
     )

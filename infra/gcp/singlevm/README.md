@@ -219,6 +219,53 @@ disallowed transition, wrong confirmation). Repeating an action is a no-op.
   removed. Backups taken before deletion still contain the data; restoring one
   needs the phase 6 retention procedure.
 * Time-limited support access is not provided: there is no operator HTTP surface.
+## Waitlist sign-ups (operator)
+
+The website's waitlist is public and only collects data (an email, consent and
+up to six optional answers). `waitlist.py` is how founders read, export, report
+on and erase it. Like the other scripts it opens the database owner's
+connection, refuses to run with local demo seeding, is never reachable over HTTP
+and is streamed into the running API container:
+
+```
+docker compose exec -T product-api python - list --status new < waitlist.py
+docker compose exec -T product-api python - list --answer company_location=europe < waitlist.py
+docker compose exec -T product-api python - export --csv --operator you@example.com < waitlist.py > waitlist.csv
+docker compose exec -T product-api python - stats < waitlist.py
+docker compose exec -T product-api python - \
+  set-status --email a@b.com --status contacted --operator you@example.com < waitlist.py
+docker compose exec -T product-api python - \
+  note --email a@b.com --text "met at an event" --operator you@example.com < waitlist.py
+docker compose exec -T product-api python - \
+  delete --email a@b.com --operator you@example.com < waitlist.py
+```
+
+`list` and `export` take `--status`, `--domain-type company|public`, `--since` and
+`--until` (UTC dates, on the first sign-up) and `--answer QUESTION=OPTION`; reports
+use each email's latest submission. `stats` prints sign-ups per day, completion
+and answer distribution per question and the company versus public share.
+`delete` erases the entry and every submission (right to erasure). Every action
+writes one secret-free JSON log line with `actor_kind` `operator`; `set-status` and
+`note` also append to the entry's own history. Resume tokens are stored only as
+digests and are never printed. CSV cells starting with `=`, `+`, `-` or `@` are
+quoted so a spreadsheet does not run them. Exit status 2 means refused.
+
+* Public routes: Caddy sends only `weave-studio.in/api/v0/waitlist/*` (and
+  `www.`) to the API; every other API path stays on `app.weave-studio.in`. The
+  website calls a relative URL, so there is no CORS or cookie involvement.
+* Client address: Caddy sets `X-Forwarded-For` to the real peer and uvicorn runs
+  with `--proxy-headers`, so the limiter sees that address. It is used only as a
+  hashed, short-lived rate-limit bucket (join 10/hour per address and 5/hour
+  per email, answers 60/hour per token). No address is stored.
+* Retention: the worker deletes submissions not updated for
+  `WEAVES_WAITLIST_RETENTION_DAYS` (default 365) and entries left with none,
+  hourly. A failure is logged and never stops the worker.
+* Question sets are repository files (`contracts/waitlist/questions/v<N>.json`,
+  pinned in `published.lock.json`); changing them is a reviewed pull request that
+  adds a new version, never an edit. After deploy, check `GET /api/v0/health`,
+  that migration 24 is recorded, then submit one test join and delete it with
+  `delete`.
+
 ## Schedule timezone backfill
 
 Records without a `timezone` already behave as `Asia/Kolkata`, so this step is

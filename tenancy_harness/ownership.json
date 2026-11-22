@@ -551,6 +551,28 @@
         "org_id"
       ],
       "current_gap": null
+    },
+    "waitlist_entries": {
+      "contract": "WaitlistEntry",
+      "scope": "global_waitlist",
+      "privacy": "public sign-up data readable only through its private token (answers) or the operator script; never by any tenant or account",
+      "system_access": "named waitlist system scope limited to the two waitlist collections; every other scope is refused by row policy",
+      "lifecycle": "bounded retention purge (WEAVES_WAITLIST_RETENTION_DAYS, default 365); operator erasure on request; never exported or purged with an organization",
+      "current_gap": null,
+      "scope_keys": [
+        "id"
+      ]
+    },
+    "waitlist_submissions": {
+      "contract": "WaitlistSubmission",
+      "scope": "global_waitlist",
+      "privacy": "public sign-up data readable only through its private token (answers) or the operator script; never by any tenant or account",
+      "system_access": "named waitlist system scope limited to the two waitlist collections; every other scope is refused by row policy",
+      "lifecycle": "bounded retention purge (WEAVES_WAITLIST_RETENTION_DAYS, default 365); operator erasure on request; never exported or purged with an organization",
+      "current_gap": null,
+      "scope_keys": [
+        "id"
+      ]
     }
   },
   "auxiliary_tables": {
@@ -1590,6 +1612,41 @@
       "scope": "account_identity",
       "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
       "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/waitlist/questions",
+      "scope": "public_waitlist",
+      "rule": "no sign-in, cookie or CSRF; a submission is reached only by its private X-Waitlist-Token; nothing touches accounts, organizations or the allowlist",
+      "lifecycle": "public; rate limited per source, email and token; bounded retention"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/waitlist/submissions",
+      "scope": "public_waitlist",
+      "rule": "no sign-in, cookie or CSRF; a submission is reached only by its private X-Waitlist-Token; nothing touches accounts, organizations or the allowlist",
+      "lifecycle": "public; rate limited per source, email and token; bounded retention"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/waitlist/submissions/current",
+      "scope": "public_waitlist",
+      "rule": "no sign-in, cookie or CSRF; a submission is reached only by its private X-Waitlist-Token; nothing touches accounts, organizations or the allowlist",
+      "lifecycle": "public; rate limited per source, email and token; bounded retention"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v0/waitlist/submissions/current/answers/{question_id}",
+      "scope": "public_waitlist",
+      "rule": "no sign-in, cookie or CSRF; a submission is reached only by its private X-Waitlist-Token; nothing touches accounts, organizations or the allowlist",
+      "lifecycle": "public; rate limited per source, email and token; bounded retention"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v0/waitlist/submissions/current/answers/{question_id}",
+      "scope": "public_waitlist",
+      "rule": "no sign-in, cookie or CSRF; a submission is reached only by its private X-Waitlist-Token; nothing touches accounts, organizations or the allowlist",
+      "lifecycle": "public; rate limited per source, email and token; bounded retention"
     }
   ]
 }

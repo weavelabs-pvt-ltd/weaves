@@ -337,3 +337,28 @@ def test_export_on_postgres_excludes_secrets_and_other_tenants(world):
         world["client"].post(EXPORT, headers=headers(world, "member_token")).status_code
         == 403
     )
+
+
+def test_waitlist_rows_are_neither_exported_nor_purged(world):
+    for index in range(2):
+        joined = world["client"].post(
+            "/api/v0/waitlist/submissions",
+            json={
+                "email": f"visitor{index}@waitlist-isolation.test",
+                "consent": True,
+                "consent_version": "v1",
+            },
+        )
+        assert joined.status_code == 201, joined.text
+    query = (
+        "SELECT count(*) FROM product_records "
+        "WHERE collection IN ('waitlist_entries', 'waitlist_submissions')"
+    )
+    assert sql(world, query)[0][0] == 4
+    exported = world["client"].post(EXPORT, headers=headers(world))
+    assert exported.status_code == 200 and "waitlist" not in exported.text
+    assert request_deletion(world).status_code == 200
+    assert op(world, "purge-now", "--confirm-organization-name", "Org A") == 0
+    drain(world["worker"])
+    assert state(world) == "deleted"
+    assert sql(world, query)[0][0] == 4

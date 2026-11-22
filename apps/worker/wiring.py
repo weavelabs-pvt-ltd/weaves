@@ -25,4 +25,5 @@ def build_worker_services() -> WorkerServices:
         studio=runtime.workflow_studio_service,
         purge_accounts=runtime.account_sign_in_service.purge_expired,
         purge_organizations=runtime.organization_purge_service.tick,
+        purge_waitlist=lambda: sum(runtime.waitlist_service.purge_stale()),
     )

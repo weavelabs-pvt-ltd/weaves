@@ -159,7 +159,8 @@ Stated candidly; see section 8 for the checklist.
    webhook secret digest) and several are per organization (user email, skill slug).
 5. `org_id` is a nullable column. A row with `org_id IS NULL` passes the RLS policy
    for every tenant (`WHEN row_org IS NULL THEN true` in `weaves_rls_allows`) except
-   for the collections the policy lists as account-scoped. Which collections may be
+   for the collections the policy lists as account-scoped and the two waitlist
+   collections (migration 24), which only the `waitlist` system purpose can see. Which collections may be
    unowned is a code convention (section 5).
 6. Two clocks. `product_records.updated_at` is `now()` on a plain `put`, but the
    compare-and-set updates write the application's `updated_at` from the payload.
@@ -206,6 +207,9 @@ bridge between the global and the tenant layers
 | `account_oauth_states` (`AccountOAuthState`, `id`) | account. Google sign-in attempt, single use | mutable. `state_digest`, `binding_digest`, `nonce`, `code_verifier`, `expires_at` (10 min) | none | kept; cleaned up after expiry, consumed on callback (`consume`). Not exported | scope `account` | `state_digest`, `expires_at` |
 | `account_organization_requests` (`AccountOrganizationRequest`, `id` = sha-256 of account id and key digest) | account. Idempotency record and per-account organization-creation quota ledger | immutable (`created_at` only). `key_digest`, `request_fingerprint`, `organization_id` | `account_id`, `organization_id` | kept forever on purpose (a deleted organization still counts toward the quota). Not exported | scope `account` | `account_id`, `key_digest` |
 | `memberships` (`OrganizationMembership`, `id`) | organization. It is the account-to-tenant link, so it carries both `account_id` and the tenant's `org_id` | mutable. `status` (`MembershipStatus`), `account_id`, `user_id`, `principal_id` | `account_id` to `accounts`; `user_id` to `users`; `principal_id` to `principals`. Organization owns it | purge position 36 (and a final sweep in `_finalize_when_clean`). Exported with fields id, user_id, principal_id, status, timestamps only (account ids withheld) | read and write `roles.manage` (`runtime_memberships.py`), `users.manage` for linking; sign-in code under scope `account` | `account_id`, `user_id` |
+
+| `waitlist_entries` (`WaitlistEntry`, `id` = `wle_` + sha-256 of the lower-cased email) | global (no `org_id`). One row per email; the derived id makes the primary key the race-safe uniqueness rule and the unique index `waitlist_entry_email_uq` on `lower(email)` the backstop | mutable. `email` lower-cased, 3..254; `email_domain`; `domain_type` company/public (`shared/organization_naming.py` plus `WEAVES_PUBLIC_EMAIL_DOMAINS`); `status` new/reviewed/contacted/converted; `notes` <=2000 (operator only); `first_joined_at`, `last_joined_at`, `submission_count`; `history` (<=50 operator actions: action, actor_kind `operator`, operator, time) | none outward. `waitlist_submissions.entry_id` points at it | bounded retention purge (an entry left with no submissions is deleted) and operator `delete`. Never exported and never touched by an organization purge (`KEEP_COLLECTIONS`) | system scope `waitlist` only (public waitlist routes, worker retention tick); operator script on the owner connection; every tenant and every other system purpose is refused by row policy | `email` (lower, unique) |
+| `waitlist_submissions` (`WaitlistSubmission`, `id`) | global (no `org_id`). One row per join from one browser | mutable. `token_hash` (sha-256 of the private `wlt_` resume token; the token is never stored), `token_expires_at` (30 days), `question_version`, `answers` by question id (`value` option id / ids / band / text, optional `other` <=60), `consent_version`, `consented_at`, `source` (page, referrer, utm_*), optional `idempotency_digest` | `entry_id` to `waitlist_entries` | deleted when not updated for `WEAVES_WAITLIST_RETENTION_DAYS` (default 365, worker tick hourly) and by operator `delete`. Never exported or purged with an organization | as `waitlist_entries` | `token_hash` (unique), `entry_id`, `created_at` |
 
 ### 2.2 Tenancy, access control and lifecycle
 
@@ -293,6 +297,19 @@ and revocation are separate immutable facts.
 
 ### 2.9 Names that exist in the database layer but have no repository
 
+### Public waitlist (migration 24)
+
+The waitlist stores two global collections in `product_records` with `org_id NULL`. Because the
+tenant policy lets null-org rows through, migration 24 (`infrastructure/database/waitlist_schema.py`)
+ships with a policy change (the repeatable `POLICY_FUNCTIONS`): `weaves_rls_allows` first routes the
+two waitlist collections to `weaves_system_allows`, `bootstrap` no longer allows them, and a new
+`waitlist` purpose allows exactly them and nothing else (it sees no other row, even null-org ones).
+Indexes: `waitlist_entry_email_uq`, `waitlist_submission_token_uq`, `waitlist_submission_entry_idx`,
+`waitlist_submission_created_idx`. The public routes (`/api/v0/waitlist/*`) are outside sign-in, cookies
+and CSRF and never touch accounts, organizations, users, sessions or the allowlist. Question sets and
+consent texts are immutable, locked files under `contracts/waitlist` (`published.lock.json`). Rate
+limiting reuses `product_login_throttle` with hashed buckets (no address is stored).
+
 ### Organization slug and email domain (migration 23)
 
 `organization_settings.slug` and `.email_domain` live in the tenant-owned settings payload
@@ -359,7 +376,7 @@ Where each rule is enforced: **code** (service layer), **repo** (repository SQL)
 | Ownership of a record never changes: a `put` that would change `org_id` or `workspace_id` of an existing row updates nothing and raises `OwnershipConflict` | repo (`ON CONFLICT ... DO UPDATE ... WHERE org_id IS NOT DISTINCT FROM EXCLUDED.org_id AND workspace_id IS NOT DISTINCT FROM ...`) | `postgres_repository.py::put` |
 | Compare-and-set writes (`put_if_*`) also pin `org_id` and `workspace_id` | repo | `postgres_repository.py` |
 | Scope predicate: scoped reads filter `org_id` (and `workspace_id`) in SQL; unscoped `get`, `list`, `find_by_field`, `list_by_field`, `delete`, `consume` rely on the row policy for tenant isolation | repo for scoped reads, policy for the rest | `postgres_repository.py`, `row_security.py` |
-| Tenant row visibility: a row is visible when `org_id = app.org_id`, when `org_id IS NULL`, or when the named system purpose lists the collection; account collections only by system purpose | policy `tenant_isolation` (only when `WEAVES_DB_APP_ROLE` is set; the policy is not forced on the table owner) | `row_security.py` |
+| Tenant row visibility: a row is visible when `org_id = app.org_id`, when `org_id IS NULL`, or when the named system purpose lists the collection; account collections and the two waitlist collections only by system purpose (`waitlist` for the latter; the `waitlist` purpose sees nothing else) | policy `tenant_isolation` (only when `WEAVES_DB_APP_ROLE` is set; the policy is not forced on the table owner) | `row_security.py` |
 | Tenant keys: `evaluation_suites` and `evaluation_reports` are stored as `org:id` | repo | `postgres_repository.py::_record_id` |
 | Idempotency: per `(org, workspace, requested_by_principal, idempotency_key)` for `workflow_runs`, `execution_jobs`, `tasks`, `task_turns`; a conflicting create raises `IdempotencyKeyAlreadyExists` and the service replays or raises `IdempotencyConflict` when the request content differs | index (4 partial unique indexes) plus code (fingerprint compare) | migrations 1, 14; `modules/tasks/creation_persistence.py` |
 | Per-account organization-creation idempotency and quota: id is `sha256(account_id, key_digest)`; unique `(account_id, key_digest)`; quota counts rows, default 3 (`WEAVES_ACCOUNT_ORGANIZATION_LIMIT`) | index plus code (`_enforce_quota` counts `list_by_field("account_id")` under `account-organization:{account_id}` advisory lock) | `account_organizations.py`, `account_schema.py` |
@@ -392,8 +409,8 @@ Where each rule is enforced: **code** (service layer), **repo** (repository SQL)
    `plugin_installations` (trigger). Any `workspace_id` string is accepted.
 5. Row-level security is inert unless `WEAVES_DB_APP_ROLE` is set; owner connections
    (migrations, operator scripts) bypass it. The table is not `FORCE ROW LEVEL SECURITY`.
-6. `org_id IS NULL` rows are visible to all tenants; nothing prevents a tenant-owned
-   collection from being written without an org.
+6. `org_id IS NULL` rows are visible to all tenants, except the account and waitlist
+   collections; nothing prevents a tenant-owned collection from being written without an org.
 7. Immutability of versions, frozen records and audit events is by convention. The
    only immutability triggers are the plugin descriptor/ownership guards (after
    migration 20). There is no protection against `UPDATE` or `DELETE` of

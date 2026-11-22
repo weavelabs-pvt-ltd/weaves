@@ -65,6 +65,7 @@ services:
     environment:
       <<: *runtime
       WEAVES_WORKER_POLL_SECONDS: "3"
+      WEAVES_WAITLIST_RETENTION_DAYS: ${WEAVES_WAITLIST_RETENTION_DAYS:-365}
     depends_on:
       product-api:
         condition: service_healthy

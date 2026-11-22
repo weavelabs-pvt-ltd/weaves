@@ -18,6 +18,8 @@ from modules.auth.organization_service import OrganizationService
 from modules.auth.organization_slugs import OrganizationSlugs
 from modules.auth.user_administration_service import UserAdministrationService
 from modules.auth.workspace_access_service import WorkspaceAccessService
+from modules.waitlist.questions import QuestionBank
+from modules.waitlist.service import WaitlistLimits, WaitlistService
 
 
 def _configure_authentication_service(
@@ -183,6 +185,20 @@ def _configure_account_organization_service(
         slug_rate_limiter=dependencies.login_rate_limiter.sibling(
             limit=SLUG_CHECK_LIMIT, window_seconds=SLUG_CHECK_WINDOW_SECONDS
         ),
+        unit_of_work=dependencies._unit_of_work,
+        advisory_transaction_lock=dependencies._advisory_transaction_lock,
+    )
+
+
+def _configure_waitlist_service(
+    dependencies: RuntimeCompositionInputs, services: CapabilityServiceSet
+) -> None:
+    """Compose the public waitlist over its own global repositories."""
+    services.waitlist_service = WaitlistService(
+        entries=dependencies.waitlist_entries,
+        submissions=dependencies.waitlist_submissions,
+        bank=QuestionBank.load(),
+        limits=WaitlistLimits.from_limiter(dependencies.login_rate_limiter),
         unit_of_work=dependencies._unit_of_work,
         advisory_transaction_lock=dependencies._advisory_transaction_lock,
     )

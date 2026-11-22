@@ -36,6 +36,11 @@ _PUBLIC_EXACT_PATHS = {
 }
 
 
+# The public waitlist is deliberately outside authentication, cookies and CSRF:
+# it never touches accounts or sessions (see ``modules/waitlist/http/routes.py``).
+WAITLIST_PUBLIC_PREFIX = "/api/v0/waitlist/"
+
+
 @dataclass(frozen=True)
 class AuthenticationServices:
     """Capability services and storage policy used by bearer middleware."""
@@ -322,6 +327,7 @@ def install_authentication(app: FastAPI) -> None:
             request.method == "OPTIONS"
             or request.url.path in _PUBLIC_EXACT_PATHS
             or request.url.path.startswith("/api/v0/webhooks/")
+            or request.url.path.startswith(WAITLIST_PUBLIC_PREFIX)
             or not request.url.path.startswith("/api/v0/")
         ):
             return await call_next(request)
