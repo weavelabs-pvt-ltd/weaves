@@ -180,6 +180,13 @@ def build_images(backend, frontend, values, sources):
         ).stdout.strip()
 
 
+def seed_module(compose, module):
+    """Run one harness module inside the disposable seed container."""
+    compose.run(
+        "run", "--rm", "--no-deps", "seed", "python", "-m", "tenancy_harness." + module
+    )
+
+
 def run(args, harness):
     """Build, seed, execute, report, and always remove this run's containers."""
     partial = args.api_only or bool(args.only_control)
@@ -217,24 +224,8 @@ def run(args, harness):
         compose.run("up", "-d", "postgres", "provider", "api", "frontend")
         compose.run("run", "--rm", "--no-deps", "seed")
         compose.run("up", "-d", "worker")
-        compose.run(
-            "run",
-            "--rm",
-            "--no-deps",
-            "seed",
-            "python",
-            "-m",
-            "tenancy_harness.observe",
-        )
-        compose.run(
-            "run",
-            "--rm",
-            "--no-deps",
-            "seed",
-            "python",
-            "-m",
-            "tenancy_harness.lifecycle_checks",
-        )
+        seed_module(compose, "observe")
+        seed_module(compose, "lifecycle_checks")
         raw = browser(
             frontend,
             harness,
