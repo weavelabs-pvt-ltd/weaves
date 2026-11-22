@@ -16,7 +16,13 @@ from tenancy_harness.live_host import (
     prepare_flow,
     verify_flow,
 )
-from tenancy_harness.report import specs, summarize, verify_bundle, write_report
+from tenancy_harness.report import (
+    failure_messages,
+    specs,
+    summarize,
+    verify_bundle,
+    write_report,
+)
 from tenancy_harness.run_support import (
     Compose,
     execute,
@@ -28,7 +34,9 @@ from tenancy_harness.run_support import (
 BROWSER_CONTROLS = "T0-I10|T1-I05|T1-I10"
 
 
-def browser(frontend, harness, private, port, live=False, api_only=False):
+def browser(
+    frontend, harness, private, port, live=False, api_only=False, only=None, repeat=1
+):
     """Run actual Chromium against the same-origin disposable application."""
     cli = frontend / "node_modules/@playwright/test/cli.js"
     if not cli.is_file():
@@ -44,6 +52,8 @@ def browser(frontend, harness, private, port, live=False, api_only=False):
     if api_only:
         env["TENANCY_API_ONLY"] = "1"
         extra = ["--grep-invert", BROWSER_CONTROLS]
+    if only:
+        extra += ["--grep", only, "--repeat-each", str(repeat)]
     with (
         (private / ("live-browser.json" if live else "browser.json")).open(
             "w"
@@ -119,11 +129,23 @@ def complete_checks(args, compose, frontend, harness, private, port, report, liv
 
 def api_only_outcome(raw):
     """Print per-control outcomes of a partial local run; it can never pass the gate."""
-    cases = {}
+    cases, messages = {}, {}
     for item in specs(raw.get("suites", [])):
-        results = [r["status"] for t in item["tests"] for r in t.get("results", [])]
-        cases[item["title"].split()[0]] = results
-    print(json.dumps({"api_only": True, "foundation_passed": False, "cases": cases}))
+        results = [r for t in item["tests"] for r in t.get("results", [])]
+        name = item["title"].split()[0]
+        cases.setdefault(name, []).extend(r["status"] for r in results)
+        if any(r["status"] != "passed" for r in results):
+            messages.setdefault(name, []).append(failure_messages(item, results))
+    print(
+        json.dumps(
+            {
+                "api_only": True,
+                "foundation_passed": False,
+                "cases": cases,
+                "failure_messages": messages,
+            }
+        )
+    )
 
 
 def live_configuration(args, private, project, envfile):
@@ -158,10 +180,18 @@ def build_images(backend, frontend, values, sources):
         ).stdout.strip()
 
 
+def seed_module(compose, module):
+    """Run one harness module inside the disposable seed container."""
+    compose.run(
+        "run", "--rm", "--no-deps", "seed", "python", "-m", "tenancy_harness." + module
+    )
+
+
 def run(args, harness):
     """Build, seed, execute, report, and always remove this run's containers."""
-    if args.api_only and (os.environ.get("CI") or args.live_anthropic_env):
-        raise RuntimeError("--api-only is a local debugging aid, never for CI or live")
+    partial = args.api_only or bool(args.only_control)
+    if partial and (os.environ.get("CI") or args.live_anthropic_env):
+        raise RuntimeError("--api-only/--only-control are local aids, never CI or live")
     backend, frontend = args.backend.resolve(), args.frontend.resolve()
     pair = json.loads((harness / "pair.json").read_text())
     digest = verify_bundle(harness)
@@ -194,26 +224,18 @@ def run(args, harness):
         compose.run("up", "-d", "postgres", "provider", "api", "frontend")
         compose.run("run", "--rm", "--no-deps", "seed")
         compose.run("up", "-d", "worker")
-        compose.run(
-            "run",
-            "--rm",
-            "--no-deps",
-            "seed",
-            "python",
-            "-m",
-            "tenancy_harness.observe",
+        seed_module(compose, "observe")
+        seed_module(compose, "lifecycle_checks")
+        raw = browser(
+            frontend,
+            harness,
+            private,
+            port,
+            api_only=args.api_only,
+            only=args.only_control,
+            repeat=args.repeat_each,
         )
-        compose.run(
-            "run",
-            "--rm",
-            "--no-deps",
-            "seed",
-            "python",
-            "-m",
-            "tenancy_harness.lifecycle_checks",
-        )
-        raw = browser(frontend, harness, private, port, api_only=args.api_only)
-        if args.api_only:
+        if partial:
             return api_only_outcome(raw)
         if 20 in pair.get("fixture_migrations", []):
             compose.run(
@@ -250,6 +272,13 @@ def main():
         help="Local debugging only: omit the signed-in-frontend controls. Never passes "
         "the gate, never writes a report, and is refused when CI is set.",
     )
+    parser.add_argument(
+        "--only-control",
+        help="Local debugging only: run just the controls matching this Playwright "
+        "--grep pattern (for example T4-I04), optionally many times in one stack "
+        "(--repeat-each). Default off; never passes the gate, refused when CI is set.",
+    )
+    parser.add_argument("--repeat-each", type=int, default=1)
     parser.add_argument("--live-anthropic-env", type=Path)
     parser.add_argument("--canvas-probe", action="store_true")
     parser.add_argument("--output", type=Path, default=Path(".local/tenancy"))
