@@ -228,6 +228,10 @@ pending occurrence. Validation adds unit, DST, property, golden, API,
 PostgreSQL restricted-role concurrency and backfill tests, and required
 real-stack control `T4-I03`.
 
+### Phase 4 progress: onboarding design parity
+
+Additive backend support for the onboarding screens, with no invitations, access requests, email or new sign-in methods. `Account.role_title` (PATCH `/account/me` and `/account/browser/me` accept `display_name` and/or `role_title`); each membership on the account views gains `is_owner`, `role_label` and `organization_slug`; organization creation persists the submitted IANA timezone and locale, accepts an optional `slug`, claims the creator's custom email domain, and returns all of them. The account views gain `organization_creation` (allowed, or why not). A person whose verified email domain is already claimed by an organization cannot create another one (409 `domain_belongs_to_organization`); public mailbox providers claim nothing. Slug availability is `GET /account/organization-slugs/{slug}` (and the `/account/browser` variant), throttled like creation and naming no organization. Error responses carry `X-Request-Id` (exposed through CORS), and throttling answers 429 with `Retry-After`. Migration 23 adds the settings fields' backfills and two partial unique indexes; failure-injection, race, backfill and restricted-role PostgreSQL tests cover it, and the account control in the real-stack suite asserts the new fields (the fixture domain `tenancy.test` is declared public; `custom-claim.test` exercises the domain rule).
+
 ### Phase 4 progress: schedule timezone editor control (T4-I04)
 
 The required real-stack suite now drives the actual schedule editor in Chromium: interval schedules show their own zone (a legacy record reads as Asia/Kolkata), a zone-only edit sends the loaded revision and leaves the pending UTC instant unchanged, a new schedule can name its own zone, and an unknown zone is refused by the server, shown inline and creates nothing. The harness pins the frontend change under review and is re-pinned to the merged frontend commit once it lands.

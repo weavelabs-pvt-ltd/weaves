@@ -4,12 +4,18 @@ from __future__ import annotations
 
 from apps.capability_services import CapabilityServiceSet
 from apps.runtime_composition_inputs import RuntimeCompositionInputs
-from modules.auth.account_organizations import AccountOrganizationService
+from modules.auth.account_organizations import (
+    SLUG_CHECK_LIMIT,
+    SLUG_CHECK_WINDOW_SECONDS,
+    AccountOrganizationService,
+)
 from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.authentication_service import AuthenticationService
 from modules.auth.bootstrap import IdentityBootstrapService
 from modules.auth.credential_service import CredentialService
+from modules.auth.organization_email_domains import OrganizationEmailDomains
 from modules.auth.organization_service import OrganizationService
+from modules.auth.organization_slugs import OrganizationSlugs
 from modules.auth.user_administration_service import UserAdministrationService
 from modules.auth.workspace_access_service import WorkspaceAccessService
 
@@ -47,6 +53,8 @@ def _configure_account_sign_in_service(
         lifecycle=dependencies.organization_lifecycle,
         settings=dependencies.organization_settings,
         lock=dependencies._advisory_transaction_lock,
+        roles=dependencies.roles,
+        role_bindings=dependencies.role_bindings,
     )
 
 
@@ -150,6 +158,10 @@ def _configure_organization_service(
             services.workspace_access_service.list_principal_workspaces
         ),
         unit_of_work=dependencies._unit_of_work,
+        slugs=OrganizationSlugs(
+            dependencies.organization_settings,
+            dependencies._advisory_transaction_lock,
+        ),
     )
 
 
@@ -162,7 +174,15 @@ def _configure_account_organization_service(
         identities=dependencies.account_identities,
         memberships=dependencies.memberships,
         requests=dependencies.account_organization_requests,
+        domains=OrganizationEmailDomains(
+            dependencies.organization_settings,
+            dependencies.organizations,
+            dependencies._advisory_transaction_lock,
+        ),
         login_rate_limiter=dependencies.login_rate_limiter,
+        slug_rate_limiter=dependencies.login_rate_limiter.sibling(
+            limit=SLUG_CHECK_LIMIT, window_seconds=SLUG_CHECK_WINDOW_SECONDS
+        ),
         unit_of_work=dependencies._unit_of_work,
         advisory_transaction_lock=dependencies._advisory_transaction_lock,
     )

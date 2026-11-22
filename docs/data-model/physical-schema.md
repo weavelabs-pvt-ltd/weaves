@@ -251,8 +251,13 @@ marked **history**: they are applied once and are not edited.
 | 20 | history, operator-activated | Catalog ownership (`plugin_ownership.py`, `plugin_ownership_sql.py`): two tables, guards, backfill of `org_id` onto descriptors, rollout evidence. Never applied by start-up; absent from a fresh database; requires versions 1 to 19 and a recorded reader image digest, takes `ACCESS EXCLUSIVE` on `product_records`, bounded to 10,000 records | yes once activated |
 | 21 | history | Row-level security (`row_security.py`): `weaves_app` role, policy functions, `ENABLE ROW LEVEL SECURITY`, `tenant_isolation` policy, grants | yes |
 | 22 | start-up | `legacy_purge.py`: deletes rows of the purged collections (`user_passwords`, `user_password_credentials`, `user_sessions`, `user_invitations`, `sso_connections`, `sso_external_identities`, `email_login_challenges`, `account_login_challenges`, `memory_items`, `knowledge_documents`); drops `product_records_user_session_digest_uq`, `product_records_user_invitation_digest_uq`, `sso_identity_subject_uq`, `sso_identity_user_connection_uq`, `sso_connections_org_provider_idx`, `account_challenge_email_idx`, `account_challenge_expiry_idx`, trigger `sso_identity_immutable` and function `reject_sso_identity_rewrite()` | yes (idempotent) |
+| 23 | start-up | `organization_identity.py`: backfills `organization_settings.slug` and `.email_domain` (idempotent, only rows still lacking a value); creates `organization_slug_uq` and `organization_email_domain_uq`, partial unique expression indexes on `lower(payload->>'slug')` and `lower(payload->>'email_domain')` for `organization_settings` | yes (idempotent) |
 | repeatable | every start | Policy functions (`CREATE OR REPLACE`), account-layer indexes (`account_schema.py`), `organization_lifecycle_state_idx` | yes, idempotent |
 | out of band | secret store start | `product_secrets` create/alter/policy/backfill | yes |
+
+### Version 23
+
+Migration 23 is in the table above; see `docs/DATA_MODEL.md` (organization slug and email domain).
 
 ### Version 22
 

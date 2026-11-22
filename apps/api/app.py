@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from apps.api.authentication import install_authentication
-from apps.api.error_mapping import install_error_handlers
+from apps.api.error_mapping import REQUEST_ID_HEADER, install_error_handlers
 from apps.api.router import register_v0_routes
 from apps.api.wiring import build_api_process_services
 from apps.platform_runtime import LocalPlatformRuntime
@@ -63,7 +63,7 @@ def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
             "X-Organization-Id",
             CSRF_HEADER,
         ],
-        expose_headers=["Retry-After"],
+        expose_headers=["Retry-After", REQUEST_ID_HEADER],
     )
     return app
 

@@ -19,6 +19,7 @@ from contracts.v1 import (
 )
 from modules.auth.account_organization_input import AccountOrganizationCommand
 from modules.auth.organization_guard import AdministrationConflict, OrganizationGuard
+from modules.auth.organization_slugs import OrganizationSlugs, SlugRejected
 from modules.auth.role_presets import build_role_preset
 from shared.clock import new_id, utc_now
 from shared.request_context import effective_org_id, effective_principal_id
@@ -34,8 +35,10 @@ class OrganizationAdministrationService:
         organizations: Repository[Organization],
         credentials: Repository[ApiCredential],
         authorize: Callable[[str, Permission], None],
+        slugs: OrganizationSlugs,
     ) -> None:
         """Bind tenant-scoped persistence and authorization ports."""
+        self.slugs = slugs
         self.guard = guard
         self.organizations = organizations
         self.credentials = credentials
@@ -89,14 +92,24 @@ class OrganizationAdministrationService:
         timezone: str,
         locale: str,
         expected_revision: int,
+        slug: str | None = None,
     ) -> dict[str, Any]:
-        """Commit preferences and audit together, rejecting stale submissions."""
-        command = AccountOrganizationCommand.build(
-            name=name,
-            timezone=timezone,
-            locale=locale,
-            owner_email="settings@example.invalid",
-        )
+        """Commit preferences and audit together, rejecting stale submissions.
+
+        ``slug`` is optional: omitted keeps the current one. A malformed or
+        reserved slug raises ``SlugRejected``; one held by another organization
+        raises ``SlugTaken``. The email domain is read-only here.
+        """
+        try:
+            command = AccountOrganizationCommand.build(
+                name=name,
+                timezone=timezone,
+                locale=locale,
+                owner_email="settings@example.invalid",
+                slug=slug,
+            )
+        except SlugRejected as exc:
+            raise self.slugs.explain(exc, effective_org_id()) from exc
         with self.guard.mutation():
             actor = self._authorize()
             settings = self.guard.current_settings()
@@ -106,14 +119,18 @@ class OrganizationAdministrationService:
                 "name": organization.name,
                 "timezone": settings.timezone,
                 "locale": settings.locale,
+                "slug": settings.slug,
             }
             after = {
                 "name": command.name,
                 "timezone": command.timezone,
                 "locale": command.locale,
+                "slug": command.slug or settings.slug,
             }
             if before == after:
                 return self.get()
+            if after["slug"] != before["slug"]:
+                self.slugs.reserve(str(after["slug"]), organization.id)
             now = utc_now()
             self.organizations.put(
                 organization.model_copy(
@@ -125,6 +142,7 @@ class OrganizationAdministrationService:
                     update={
                         "timezone": command.timezone,
                         "locale": command.locale,
+                        "slug": after["slug"],
                         "revision": settings.revision + 1,
                         "updated_at": now,
                     }

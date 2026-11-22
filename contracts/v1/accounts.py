@@ -23,11 +23,21 @@ class AccountStatus(StrEnum):
     DISABLED = "disabled"
 
 
+RoleTitle = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)
+]
+
+
 class Account(MutableProductContract):
-    """A global human identity with no implicit permission in any organization."""
+    """A global human identity with no implicit permission in any organization.
+
+    ``role_title`` is the person's own free-text "role or team" label. It is
+    profile text only: it grants nothing and is never copied into a tenant.
+    """
 
     id: OpaqueId
     display_name: DisplayName
+    role_title: RoleTitle | None = None
     status: AccountStatus
 
 

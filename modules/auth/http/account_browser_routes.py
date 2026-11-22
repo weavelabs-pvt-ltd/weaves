@@ -7,9 +7,14 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request, Response
 
 from contracts.v1 import Account
-from modules.auth.account_overview import account_summary, list_memberships
+from modules.auth.account_organizations import AccountOrganizationService
+from modules.auth.account_overview import account_summary
 from modules.auth.account_sign_in import AccountSignInService
-from modules.auth.http.account_routes import AccountPatchRequest, rename_account
+from modules.auth.http.account_routes import (
+    AccountPatchRequest,
+    account_view,
+    update_profile,
+)
 from modules.auth.http.browser_sessions import (
     ACCOUNT_COOKIE_NAME,
     clear_session_cookie,
@@ -27,7 +32,9 @@ def _current_account(request: Request) -> Account:
 
 
 def register_account_browser_routes(
-    app: FastAPI, service: AccountSignInService
+    app: FastAPI,
+    service: AccountSignInService,
+    organizations: AccountOrganizationService,
 ) -> None:
     """Register the account cookie routes; the middleware guards every one."""
 
@@ -37,13 +44,7 @@ def register_account_browser_routes(
         account = _current_account(request)
         response.headers["Cache-Control"] = "no-store"
         return {
-            "account": account_summary(account),
-            "memberships": list_memberships(
-                account,
-                service.memberships,
-                service.organizations,
-                service.lifecycle,
-            ),
+            **account_view(account, service, organizations),
             "csrf_token": csrf_token(request.cookies[ACCOUNT_COOKIE_NAME]),
         }
 
@@ -52,9 +53,7 @@ def register_account_browser_routes(
     def patch_account_browser_me(
         payload: AccountPatchRequest, request: Request, response: Response
     ) -> dict[str, Any]:
-        account = rename_account(
-            service, _current_account(request), payload.display_name
-        )
+        account = update_profile(service, _current_account(request), payload)
         response.headers["Cache-Control"] = "no-store"
         return {"account": account_summary(account)}
 

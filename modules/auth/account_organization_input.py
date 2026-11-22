@@ -8,6 +8,10 @@ import re
 from dataclasses import dataclass
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from modules.auth.organization_slugs import normalize_slug
+
+DEFAULT_TIMEZONE = "Asia/Kolkata"
+DEFAULT_LOCALE = "en"
 _LOCALE = re.compile(r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$")
 
 
@@ -23,8 +27,9 @@ class AccountOrganizationCommand:
     name: str
     owner_email: str | None = None
     display_name: str | None = None
-    timezone: str = "UTC"
-    locale: str = "en"
+    timezone: str = DEFAULT_TIMEZONE
+    locale: str = DEFAULT_LOCALE
+    slug: str | None = None
 
     @classmethod
     def build(
@@ -35,8 +40,12 @@ class AccountOrganizationCommand:
         display_name: str | None = None,
         timezone: str | None = None,
         locale: str | None = None,
+        slug: str | None = None,
     ) -> AccountOrganizationCommand:
-        """Validate and normalize raw input; raise ValueError when unusable."""
+        """Validate and normalize raw input; raise ValueError when unusable.
+
+        A malformed or reserved ``slug`` raises ``SlugRejected`` (a ValueError).
+        """
         raw_name = (name or "").strip()
         clean_name = " ".join(part for part in raw_name.split(" ") if part)
         if not 1 <= len(clean_name) <= 160 or not raw_name.isprintable():
@@ -48,15 +57,16 @@ class AccountOrganizationCommand:
         shown = _clean(display_name)
         if shown is not None and (len(shown) > 160 or not shown.isprintable()):
             raise ValueError("display_name must be at most 160 printable characters")
-        zone = _clean(timezone) or "UTC"
+        zone = _clean(timezone) or DEFAULT_TIMEZONE
         try:
             ZoneInfo(zone)
         except (ZoneInfoNotFoundError, ValueError, OSError) as exc:
             raise ValueError("timezone must be an IANA time zone name") from exc
-        tag = _clean(locale) or "en"
+        tag = _clean(locale) or DEFAULT_LOCALE
         if len(tag) > 35 or not _LOCALE.match(tag):
             raise ValueError("locale must be a language tag such as en or en-US")
-        return cls(clean_name, email, shown, zone, tag)
+        wanted = normalize_slug(slug or "") if _clean(slug) else None
+        return cls(clean_name, email, shown, zone, tag, wanted)
 
     def fingerprint(self) -> str:
         """Hash the normalized body; the raw request is never stored."""
@@ -67,6 +77,7 @@ class AccountOrganizationCommand:
                 "display_name": self.display_name,
                 "timezone": self.timezone,
                 "locale": self.locale,
+                "slug": self.slug,
             },
             sort_keys=True,
             separators=(",", ":"),

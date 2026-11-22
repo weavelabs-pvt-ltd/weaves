@@ -11,7 +11,7 @@ Scope is derived from the contract fields (`org_id`, `workspace_id`) that become
 | Collection | Contract | Id field | Scope from contract | Has updated_at | Tenant-keyed id | Export | Purge | Indexes |
 |---|---|---|---|---|---|---|---|---|
 | `organizations` | `Organization` | `id` | global/account | yes | no | no | keep | - |
-| `organization_settings` | `OrganizationSettings` | `id` | organization | yes | no | no | 40 | - |
+| `organization_settings` | `OrganizationSettings` | `id` | organization | yes | no | no | 40 | `organization_slug_uq`, `organization_email_domain_uq` |
 | `organization_lifecycle` | `OrganizationLifecycle` | `id` | organization | yes | no | no | keep | `organization_lifecycle_state_idx` |
 | `accounts` | `Account` | `id` | global/account | yes | no | no | keep | - |
 | `account_identities` | `AccountIdentity` | `id` | global/account | yes | no | no | keep | `account_identity_verified_uq`, `account_identity_owner_uq`, `account_identity_account_idx`, `account_identity_subject_idx` |
@@ -90,6 +90,8 @@ Contract `contracts.v1.organization_settings.OrganizationSettings`; `record_id` 
 | `owner_principal_id` | str | min_length=1, max_length=128 | required |
 | `timezone` | str | min_length=1, max_length=64 | default 'Asia/Kolkata' |
 | `locale` | str | min_length=2, max_length=35 | default 'en' |
+| `slug` | str? | - | default None |
+| `email_domain` | str? | - | default None |
 | `revision` | int | ge=1 | default 1 |
 
 Reference-like fields: `owner_principal_id`
@@ -132,6 +134,7 @@ Contract `contracts.v1.accounts.Account`; `record_id` = `id`.
 | `updated_at` | AwareDatetime | - | required |
 | `id` | str | min_length=1, max_length=128 | required |
 | `display_name` | str | min_length=1, max_length=160 | required |
+| `role_title` | str? | - | default None |
 | `status` | enum AccountStatus(active/disabled) | - | required |
 
 Reference-like fields: none
@@ -1131,6 +1134,8 @@ Parsed from the migration and repeatable statements. `collection` is the partial
 | `skills_version_number_unique_idx` | migration 17 | `product_records` | yes | `org_id, (payload->>'skill_id'), (payload->>'version')` | `collection = 'skill_versions'` |
 | `skills_publication_version_unique_idx` | migration 17 | `product_records` | yes | `org_id, (payload->>'skill_version_id')` | `collection = 'skill_publications'` |
 | `skills_revocation_version_unique_idx` | migration 18 | `product_records` | yes | `org_id, (payload->>'skill_version_id')` | `collection = 'skill_revocations'` |
+| `organization_slug_uq` | migration 23 | `product_records` | yes | `(lower(payload->>'slug'))` | `collection = 'organization_settings'` |
+| `organization_email_domain_uq` | migration 23 | `product_records` | yes | `(lower(payload->>'email_domain'))` | `collection = 'organization_settings'` |
 | `account_identity_verified_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities' AND payload->>'verified_at' IS NOT NULL` |
 | `account_identity_owner_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'account_id'), (payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities'` |
 | `membership_account_org_uq` | repeatable (account schema) | `product_records` | yes | `org_id, (payload->>'account_id')` | `collection = 'memberships'` |

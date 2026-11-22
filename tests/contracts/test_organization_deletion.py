@@ -254,3 +254,25 @@ def test_queued_work_of_a_non_active_organization_is_not_executed(world, capsys)
     assert len(runtime.runs.list_scoped(org)) == runs_before
     statuses = {j.status.value for j in runtime.execution_jobs.list_scoped(org)}
     assert "succeeded" not in statuses and "running" not in statuses
+
+
+def test_purge_completion_frees_the_slug_and_the_email_domain(world, capsys):
+    runtime, org = world["runtime"], world["a"][0].id
+    with system_scope("lifecycle"):
+        held = runtime.organization_settings.get_scoped(org, org)
+        runtime.organization_settings.put(
+            held.model_copy(update={"slug": "gone-soon", "email_domain": "gone.test"})
+        )
+        assert runtime.organization_settings.list_by_field(
+            "slug", "GONE-SOON", casefold=True
+        )
+    request_and_purge(world, capsys)
+    drain(runtime)
+    with system_scope("lifecycle"):
+        assert not runtime.organization_settings.list_by_field(
+            "slug", "gone-soon", casefold=True
+        )
+        assert not runtime.organization_settings.list_by_field(
+            "email_domain", "gone.test", casefold=True
+        )
+    assert runtime.account_organization_service.domains.claim_of("gone.test") is None

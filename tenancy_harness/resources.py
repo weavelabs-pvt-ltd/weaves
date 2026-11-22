@@ -53,7 +53,9 @@ def tenant(label, timezone=None):
                 **source_for(email),
             }
         },
-        {"name": marker, "display_name": marker}
+        # An explicit slug: the derived one would embed the label ("tenancy-a")
+        # and so appear wherever the account views list the organization.
+        {"name": marker, "display_name": marker, "slug": f"harness-org-{label}"}
         | ({"timezone": timezone} if timezone else {}),
     )
     org_id, workspace_id = created["organization"]["id"], created["workspace"]["id"]

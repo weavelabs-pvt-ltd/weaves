@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from contracts.v1 import Account
+from modules.auth.account_organizations import AccountOrganizationService
 from modules.auth.account_overview import (
     account_summary,
     list_identities,
@@ -24,28 +25,59 @@ class AccountPatchRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    display_name: str = Field(min_length=1, max_length=160)
+    display_name: str | None = Field(default=None, min_length=1, max_length=160)
+    role_title: str | None = Field(default=None, min_length=1, max_length=80)
 
-    @field_validator("display_name")
+    @field_validator("display_name", "role_title")
     @classmethod
-    def printable(cls, value: str) -> str:
+    def printable(cls, value: str | None) -> str | None:
         """Allow only printable characters, with no control or line breaks."""
-        if not value.isprintable():
-            raise ValueError("display_name must be printable text")
+        if value is not None and not value.isprintable():
+            raise ValueError("profile text must be printable")
         return value
 
+    @model_validator(mode="after")
+    def names_a_change(self) -> AccountPatchRequest:
+        """Require a field; only ``role_title`` may be cleared with null."""
+        if not self.model_fields_set:
+            raise ValueError("send display_name, role_title or both")
+        if "display_name" in self.model_fields_set and self.display_name is None:
+            raise ValueError("display_name cannot be cleared")
+        return self
 
-def rename_account(
-    service: AccountSignInService, account: Account, display_name: str
+
+def update_profile(
+    service: AccountSignInService, account: Account, payload: AccountPatchRequest
 ) -> Account:
-    """Persist a new display name and return the updated account."""
+    """Persist the sent profile fields and return the updated account.
+
+    The profile belongs to the global account: nothing is copied to a tenant.
+    """
+    changes = payload.model_dump(exclude_unset=True)
     updated = Account.model_validate(
-        account.model_copy(
-            update={"display_name": display_name, "updated_at": utc_now()}
-        ).model_dump()
+        account.model_copy(update={**changes, "updated_at": utc_now()}).model_dump()
     )
     service.accounts.put(updated)
     return updated
+
+
+def account_view(
+    account: Account,
+    service: AccountSignInService,
+    organizations: AccountOrganizationService,
+) -> dict[str, Any]:
+    """The profile, memberships and creation rule shared by both ``me`` routes."""
+    return {
+        "account": account_summary(account),
+        "memberships": list_memberships(
+            account,
+            service.memberships,
+            service.organizations,
+            service.lifecycle,
+            service.membership_roles,
+        ),
+        "organization_creation": organizations.creation_status(account),
+    }
 
 
 def throttled_response(exc: LoginThrottled) -> HTTPException:
@@ -65,7 +97,11 @@ def _bearer(authorization: str | None) -> str:
     return token
 
 
-def _register_session(app: FastAPI, service: AccountSignInService) -> None:
+def _register_session(
+    app: FastAPI,
+    service: AccountSignInService,
+    organizations: AccountOrganizationService,
+) -> None:
     """Register the authenticated account routes."""
 
     def current_account(request: Request) -> Account:
@@ -79,22 +115,14 @@ def _register_session(app: FastAPI, service: AccountSignInService) -> None:
     def get_account(request: Request) -> dict[str, Any]:
         account = current_account(request)
         return {
-            "account": account_summary(account),
+            **account_view(account, service, organizations),
             "identities": list_identities(account, service.identities),
-            "memberships": list_memberships(
-                account,
-                service.memberships,
-                service.organizations,
-                service.lifecycle,
-            ),
         }
 
     @app.patch("/api/v0/account/me")
     @system_scoped("account")
     def patch_account(payload: AccountPatchRequest, request: Request) -> dict[str, Any]:
-        account = rename_account(
-            service, current_account(request), payload.display_name
-        )
+        account = update_profile(service, current_account(request), payload)
         return {"account": account_summary(account)}
 
     @app.post("/api/v0/account/logout", status_code=204)
@@ -112,6 +140,10 @@ def _register_session(app: FastAPI, service: AccountSignInService) -> None:
         return Response(status_code=204)
 
 
-def register_account_routes(app: FastAPI, service: AccountSignInService) -> None:
+def register_account_routes(
+    app: FastAPI,
+    service: AccountSignInService,
+    organizations: AccountOrganizationService,
+) -> None:
     """Register account-level routes; none grants tenant resource access."""
-    _register_session(app, service)
+    _register_session(app, service, organizations)

@@ -250,8 +250,8 @@ protocol" describes the stricter expand/contract process you should adopt before
 ## 9. Known issues and deferred work
 
 - No staging environment, alerts, kill switch or off-host backups (Phase 6).
-- The chooser shows a "Manage deletion" action to any member of an organization pending deletion
-  (non-owners get a clean "not available"). Fix needs an owner flag on memberships.
+- The chooser can now hide "Manage deletion" from non-owners: each membership on the account views
+  carries `is_owner` (the frontend change that uses it is separate).
 - Lifecycle views say "the organization owner" or "operator", never a person's name.
 - Non-admin members see no organization-timezone default in the schedule editor (the server default
   still applies); needs a small read endpoint.

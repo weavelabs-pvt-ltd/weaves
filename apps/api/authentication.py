@@ -10,6 +10,7 @@ from typing import Any, Literal
 from fastapi import FastAPI, Request
 from starlette.responses import JSONResponse
 
+from apps.api.error_mapping import REQUEST_ID_HEADER, assign_request_id
 from modules.auth.account_sessions import ACCOUNT_TOKEN_PREFIX
 from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.authentication_service import AuthenticationService
@@ -309,6 +310,13 @@ def install_authentication(app: FastAPI) -> None:
 
     @app.middleware("http")
     async def require_api_token(request: Any, call_next: Any) -> Any:
+        """Authenticate the request; every response carries its request id."""
+        request_id = assign_request_id(request)
+        response = await _authenticated(request, call_next)
+        response.headers[REQUEST_ID_HEADER] = request_id
+        return response
+
+    async def _authenticated(request: Any, call_next: Any) -> Any:
         """Authenticate the request and propagate its principal."""
         if (
             request.method == "OPTIONS"

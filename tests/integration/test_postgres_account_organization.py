@@ -90,6 +90,7 @@ def test_one_transaction_writes_tenant_account_and_idempotency_rows(world):
     counts = _counts(world)
     assert counts == {
         "organizations": 1,
+        "organization_settings": 1,
         "workspaces": 1,
         "users": 1,
         "principals": 1,
@@ -229,6 +230,7 @@ def test_a_failure_at_any_step_rolls_back_everything_and_a_retry_succeeds(
         state = fail_on_write(patch, world["service"], step)
         failed = _post(world)
         assert failed.status_code == 500 and state["calls"] == step
+        assert failed.headers["x-request-id"] == failed.json()["request_id"]
     assert _counts(world) == baseline, f"partial tenant after failure at write {step}"
     assert "api_credentials" not in _counts(world)
     retry = _post(world)

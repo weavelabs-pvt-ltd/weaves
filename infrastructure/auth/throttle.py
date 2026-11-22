@@ -56,6 +56,12 @@ class InMemoryLoginRateLimiter:
         with self._lock:
             self._buckets.pop(bucket_key, None)
 
+    def sibling(self, *, limit: int, window_seconds: int) -> InMemoryLoginRateLimiter:
+        """A separate in-process limiter with its own budget."""
+        return InMemoryLoginRateLimiter(
+            limit=limit, window_seconds=window_seconds, max_buckets=self.max_buckets
+        )
+
     def _prune(self, now: datetime) -> None:
         for bucket_key, (window_started_at, _) in tuple(self._buckets.items()):
             if window_started_at + self.window <= now:
@@ -81,6 +87,7 @@ class PostgresLoginRateLimiter:
         self.limit = limit
         self.window_seconds = window_seconds
         self._prune_every = prune_every
+        self._prunes = True
         self._calls = 0
         self._prune_lock = Lock()
 
@@ -128,7 +135,22 @@ class PostgresLoginRateLimiter:
                 (bucket_key,),
             )
 
+    def sibling(self, *, limit: int, window_seconds: int) -> PostgresLoginRateLimiter:
+        """A limiter on the same table with its own budget.
+
+        It never prunes: pruning deletes by this limiter's own window, which
+        would drop the longer-lived buckets of the limiter it came from. The
+        original limiter keeps pruning every bucket.
+        """
+        limiter = PostgresLoginRateLimiter(
+            self._pool, limit=limit, window_seconds=window_seconds
+        )
+        limiter._prunes = False
+        return limiter
+
     def _maybe_prune(self, now: datetime) -> None:
+        if not self._prunes:
+            return
         with self._prune_lock:
             self._calls += 1
             if self._calls % self._prune_every:
