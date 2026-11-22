@@ -64,6 +64,22 @@ def _purge_organizations(services: WorkerServices) -> None:
         logger.info("organization deletion advanced count=%d", advanced)
 
 
+WAITLIST_PURGE_SECONDS = 3600
+
+
+def _purge_waitlist(services: WorkerServices) -> None:
+    """Drop stale waitlist submissions; failures are logged, never raised."""
+    if services.purge_waitlist is None:
+        return
+    try:
+        removed = services.purge_waitlist()
+    except Exception:
+        logger.exception("waitlist retention tick failed")
+        return
+    if removed:
+        logger.info("waitlist retention removed rows count=%d", removed)
+
+
 def main() -> None:
     interval = float(os.environ.get("WEAVES_WORKER_POLL_SECONDS", "1"))
     if not 0.05 <= interval <= 60:
@@ -87,6 +103,7 @@ def main() -> None:
         last_recovery = time.monotonic()
         last_schedule_poll = 0.0
         last_lifecycle = 0.0
+        last_waitlist = 0.0
         while not stopping.is_set():
             try:
                 if time.monotonic() - last_recovery >= 30:
@@ -96,6 +113,9 @@ def main() -> None:
                 if time.monotonic() - last_lifecycle >= lifecycle_interval:
                     _purge_organizations(services)
                     last_lifecycle = time.monotonic()
+                if time.monotonic() - last_waitlist >= WAITLIST_PURGE_SECONDS:
+                    last_waitlist = time.monotonic()
+                    _purge_waitlist(services)
                 if time.monotonic() - last_schedule_poll >= schedule_interval:
                     scheduled_jobs = (
                         services.workflow_automation.dispatch_due_workflow_schedules()

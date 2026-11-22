@@ -17,6 +17,7 @@ from infrastructure.database.row_security import (
     REPEATABLE_STATEMENTS,
     ROW_SECURITY_MIGRATION,
 )
+from infrastructure.database.waitlist_schema import WAITLIST_MIGRATION
 from shared.request_context import current_system_purpose, storage_org_scope
 
 _MIGRATION_LOCK_NAME = "weaves-product-schema-migrations"
@@ -346,6 +347,7 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     ROW_SECURITY_MIGRATION,
     LEGACY_PURGE_MIGRATION,
     ORGANIZATION_IDENTITY_MIGRATION,
+    WAITLIST_MIGRATION,
 )
 
 SCHEMA_HEAD_VERSION = _SCHEMA_MIGRATIONS[-1][0]

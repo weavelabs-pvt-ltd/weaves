@@ -58,6 +58,8 @@ Scope is derived from the contract fields (`org_id`, `workspace_id`) that become
 | `task_messages` | `TaskMessage` | `message_id` | workspace | no (frozen) | no | yes | 3 | `product_records_task_messages_page_idx` |
 | `task_turns` | `TaskTurn` | `turn_id` | workspace | yes | no | yes | 2 | `product_records_task_turn_idempotency_uq`, `product_records_task_turn_claim_idx`, `product_records_task_turn_stale_idx` |
 | `audit_events` | `AuditEvent` | `audit_event_id` | workspace | no (frozen) | no | yes | keep | `product_records_audit_event_org_page_idx`, `product_records_audit_event_workspace_page_idx` |
+| `waitlist_entries` | `WaitlistEntry` | `id` | global/account | yes | no | no | keep | `waitlist_entry_email_uq` |
+| `waitlist_submissions` | `WaitlistSubmission` | `id` | global/account | yes | no | no | keep | `waitlist_submission_token_uq`, `waitlist_submission_entry_idx`, `waitlist_submission_created_idx` |
 
 ## 2. Fields per collection
 
@@ -1103,6 +1105,50 @@ Contract `contracts.v1.execution_records.AuditEvent`; `record_id` = `audit_event
 
 Reference-like fields: `actor_principal_id`, `target_id`, `request_id`, `correlation_id`
 
+### `waitlist_entries`
+
+Contract `contracts.v1.waitlist.WaitlistEntry`; `record_id` = `id`.
+
+| Field | Type | Constraints | Presence |
+|---|---|---|---|
+| `schema_version` | literal(1) | - | default 1 |
+| `created_at` | AwareDatetime | - | required |
+| `updated_at` | AwareDatetime | - | required |
+| `id` | str | min_length=1, max_length=128 | required |
+| `email` | str | min_length=3, max_length=254 | required |
+| `email_domain` | str | min_length=1, max_length=253 | required |
+| `domain_type` | enum WaitlistDomainType(company/public) | - | required |
+| `status` | enum WaitlistStatus(new/reviewed/contacted/converted) | - | default <WaitlistStatus.NEW: 'new'> |
+| `notes` | str | max_length=2000 | default '' |
+| `first_joined_at` | AwareDatetime | - | required |
+| `last_joined_at` | AwareDatetime | - | required |
+| `submission_count` | int | ge=0 | default 1 |
+| `history` | list[WaitlistHistoryEntry] | max_length=50 | default factory |
+
+Reference-like fields: none
+
+### `waitlist_submissions`
+
+Contract `contracts.v1.waitlist.WaitlistSubmission`; `record_id` = `id`.
+
+| Field | Type | Constraints | Presence |
+|---|---|---|---|
+| `schema_version` | literal(1) | - | default 1 |
+| `created_at` | AwareDatetime | - | required |
+| `updated_at` | AwareDatetime | - | required |
+| `id` | str | min_length=1, max_length=128 | required |
+| `entry_id` | str | min_length=1, max_length=128 | required |
+| `token_hash` | str | pattern=^[0-9a-f]{64}$ | required |
+| `token_expires_at` | AwareDatetime | - | required |
+| `question_version` | int | ge=1 | required |
+| `answers` | dict[str, WaitlistAnswer] | - | default factory |
+| `consent_version` | int | ge=1 | required |
+| `consented_at` | AwareDatetime | - | required |
+| `source` | WaitlistSource | - | default factory |
+| `idempotency_digest` | str? | - | default None |
+
+Reference-like fields: `entry_id`
+
 ## 3. Index inventory
 
 Parsed from the migration and repeatable statements. `collection` is the partial-index predicate that scopes an index to one logical collection of `product_records`.
@@ -1136,6 +1182,10 @@ Parsed from the migration and repeatable statements. `collection` is the partial
 | `skills_revocation_version_unique_idx` | migration 18 | `product_records` | yes | `org_id, (payload->>'skill_version_id')` | `collection = 'skill_revocations'` |
 | `organization_slug_uq` | migration 23 | `product_records` | yes | `(lower(payload->>'slug'))` | `collection = 'organization_settings'` |
 | `organization_email_domain_uq` | migration 23 | `product_records` | yes | `(lower(payload->>'email_domain'))` | `collection = 'organization_settings'` |
+| `waitlist_entry_email_uq` | migration 24 | `product_records` | yes | `(lower(payload->>'email'))` | `collection = 'waitlist_entries'` |
+| `waitlist_submission_token_uq` | migration 24 | `product_records` | yes | `(payload->>'token_hash')` | `collection = 'waitlist_submissions'` |
+| `waitlist_submission_entry_idx` | migration 24 | `product_records` | no | `(payload->>'entry_id')` | `collection = 'waitlist_submissions'` |
+| `waitlist_submission_created_idx` | migration 24 | `product_records` | no | `(payload->>'created_at')` | `collection = 'waitlist_submissions'` |
 | `account_identity_verified_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities' AND payload->>'verified_at' IS NOT NULL` |
 | `account_identity_owner_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'account_id'), (payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities'` |
 | `membership_account_org_uq` | repeatable (account schema) | `product_records` | yes | `org_id, (payload->>'account_id')` | `collection = 'memberships'` |
@@ -1162,7 +1212,6 @@ From `weaves_system_allows` in `infrastructure/database/row_security.py`. A tran
 
 | Purpose | Collections it may read and write without a tenant match |
 |---|---|
-| `bootstrap` | `*all collections*` |
 | `auth` | `organizations`, `workspaces`, `users`, `principals`, `api_credentials`, `roles`, `role_bindings`, `audit_events`, `accounts`, `account_identities`, `memberships`, `account_oauth_states`, `account_sessions` |
 | `queue` | `execution_jobs`, `task_turns`, `tasks`, `task_messages`, `evaluation_executions`, `workflow_runs`, `agent_runs`, `audit_events`, `organizations`, `workspaces` |
 | `dispatch` | `workflow_schedules`, `workflow_triggers`, `execution_jobs`, `organizations`, `workspaces`, `principals`, `users`, `roles`, `role_bindings`, `audit_events` |
@@ -1172,6 +1221,7 @@ From `weaves_system_allows` in `infrastructure/database/row_security.py`. A tran
 | `lifecycle` | `organization_lifecycle`, `organization_settings`, `organizations` |
 | `catalog` | `plugins`, `plugin_installations` |
 | `oauth` | `oauth_authorization_states`, `organizations`, `workspaces`, `principals`, `users`, `roles`, `role_bindings` |
+| `waitlist` | `waitlist_entries`, `waitlist_submissions` |
 
 Collections handled by the account branch of `weaves_rls_allows` (visible only under a system purpose that lists them, never by tenant match): `account_identities`, `account_oauth_states`, `account_organization_requests`, `account_sessions`, `accounts`.
 

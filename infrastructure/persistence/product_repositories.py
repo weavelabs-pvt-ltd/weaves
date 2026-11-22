@@ -45,6 +45,8 @@ from contracts.v1 import (
     TaskTurn,
     ToolInvocation,
     User,
+    WaitlistEntry,
+    WaitlistSubmission,
     WorkflowDefinition,
     WorkflowRun,
     WorkflowSchedule,
@@ -178,6 +180,8 @@ REPOSITORY_SPECS: tuple[tuple[str, str, str, type[ProductContract]], ...] = (
     ("task_messages", "task_messages", "message_id", TaskMessage),
     ("task_turns", "task_turns", "turn_id", TaskTurn),
     ("audit_events", "audit_events", "audit_event_id", AuditEvent),
+    ("waitlist_entries", "waitlist_entries", "id", WaitlistEntry),
+    ("waitlist_submissions", "waitlist_submissions", "id", WaitlistSubmission),
 )
 
 

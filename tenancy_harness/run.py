@@ -226,6 +226,7 @@ def run(args, harness):
         compose.run("up", "-d", "worker")
         seed_module(compose, "observe")
         seed_module(compose, "lifecycle_checks")
+        seed_module(compose, "waitlist_checks")
         raw = browser(
             frontend,
             harness,

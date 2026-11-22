@@ -6,6 +6,8 @@ migration that backfills existing organizations must apply the same lists.
 
 from __future__ import annotations
 
+import os
+
 # Slugs no organization may take.
 RESERVED_SLUGS = frozenset(
     {
@@ -75,3 +77,13 @@ PUBLIC_EMAIL_DOMAINS: frozenset[str] = frozenset(
         "naver.com",
     }
 )
+
+PUBLIC_DOMAINS_ENV = "WEAVES_PUBLIC_EMAIL_DOMAINS"
+
+
+def public_email_domains() -> frozenset[str]:
+    """The built-in public providers plus the operator's comma-separated extras."""
+    extra = os.environ.get(PUBLIC_DOMAINS_ENV, "")
+    return PUBLIC_EMAIL_DOMAINS | {
+        item.strip().lower() for item in extra.split(",") if item.strip()
+    }

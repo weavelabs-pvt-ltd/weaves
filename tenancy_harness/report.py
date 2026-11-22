@@ -134,7 +134,7 @@ def summarize(raw, pair, sources, bundle_digest, fixture):
     messages = {}
     secrets = fixture_secrets(fixture)
     for item in items:
-        match = re.match(r"(T\d+-[ID]\d{2})\b", item["title"])
+        match = re.match(r"(T(?:\d+-[ID]\d{2}|W-\d{2}))\b", item["title"])
         if not match or match[1] in observed:
             raise RuntimeError("Unidentified or duplicate tenancy test ID")
         results = [r for test in item["tests"] for r in test.get("results", [])]

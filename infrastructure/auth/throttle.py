@@ -88,6 +88,9 @@ class PostgresLoginRateLimiter:
         self.window_seconds = window_seconds
         self._prune_every = prune_every
         self._prunes = True
+        # Windows of this limiter and its siblings: pruning must never drop a
+        # bucket that a longer-window sibling still counts against.
+        self._family_windows: list[int] = [window_seconds]
         self._calls = 0
         self._prune_lock = Lock()
 
@@ -146,6 +149,8 @@ class PostgresLoginRateLimiter:
             self._pool, limit=limit, window_seconds=window_seconds
         )
         limiter._prunes = False
+        limiter._family_windows = self._family_windows
+        self._family_windows.append(window_seconds)
         return limiter
 
     def _maybe_prune(self, now: datetime) -> None:
@@ -155,7 +160,7 @@ class PostgresLoginRateLimiter:
             self._calls += 1
             if self._calls % self._prune_every:
                 return
-        cutoff = now - timedelta(seconds=self.window_seconds * 2)
+        cutoff = now - timedelta(seconds=max(self._family_windows) * 2)
         with self._pool.connection() as connection:
             connection.execute(
                 "DELETE FROM product_login_throttle WHERE window_started_at < %s",

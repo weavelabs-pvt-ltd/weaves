@@ -141,6 +141,8 @@ Tech ownership moves to Snigdh. Everything below is merged to `main` unless it s
 - Onboarding backend (migration 23): account `role_title`; `is_owner` and `role_label` on every membership; organization `slug` (identifier only, no routing) with an availability endpoint; organization `email_domain` and the domain rule; creation records time zone and locale, returns request ids and `Retry-After`.
 - CI: the slow real-stack job runs on pull requests only, not again on `main`; deploy needs `verify` green and real-stack passed or skipped. Flaky control T4-I04 hardened and its failures now print their real message.
 
+- Waitlist backend (migration 24, branch `codex/waitlist-backend`, DRAFT PR): public `/api/v0/waitlist/*`, question sets as locked files in `contracts/waitlist`, row-policy `waitlist` purpose, operator script `infra/gcp/singlevm/waitlist.py`, retention tick, Caddy route for `weave-studio.in/api/v0/waitlist/*`, required control TW-01. The website flow (frontend) is not built yet; after merge: production check (health, migration 24 recorded, one test submission deleted with the operator script) and publish the privacy notice before the consent link goes live.
+
 ### Product decisions (owner), do not undo without asking
 - Sign-in is Google only. No email codes, no passwords, no SMTP.
 - NO invitation flow and NO "request access" flow. An admin adds a member's email in People; that person signs in with Google and is linked by verified email. No email is ever sent.

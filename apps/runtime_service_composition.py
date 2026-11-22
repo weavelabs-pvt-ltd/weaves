@@ -10,6 +10,7 @@ from apps.runtime_services_auth import (
     _configure_identity_bootstrap_service,
     _configure_organization_service,
     _configure_user_administration_service,
+    _configure_waitlist_service,
     _configure_workspace_access_service,
 )
 from apps.runtime_services_context import _configure_model_services
@@ -46,6 +47,7 @@ def configure_capability_services(
     _configure_workspace_access_service(dependencies, services)
     _configure_organization_service(dependencies, services)
     _configure_account_organization_service(dependencies, services)
+    _configure_waitlist_service(dependencies, services)
     _configure_execution_service(dependencies, services)
     _configure_integration_services(dependencies, services)
     _configure_workflow_automation_service(dependencies, services)

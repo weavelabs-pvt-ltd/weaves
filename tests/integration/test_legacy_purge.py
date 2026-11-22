@@ -237,6 +237,10 @@ INDEX_JUSTIFICATIONS = {
     "organization_lifecycle_state_idx": "worker finds pending deletions",
     "organization_slug_uq": "one organization per slug, compared without case",
     "organization_email_domain_uq": "one organization per claimed email domain",
+    "waitlist_entry_email_uq": "one waitlist entry per email, without case",
+    "waitlist_submission_token_uq": "resume token lookup, one submission per token",
+    "waitlist_submission_entry_idx": "submissions of a waitlist entry",
+    "waitlist_submission_created_idx": "waitlist sign-ups ordered by time",
 }
 
 

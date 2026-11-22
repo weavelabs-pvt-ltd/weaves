@@ -18,13 +18,22 @@ APP_ROLE_GRANTS = """DO $$
                END $$"""
 
 
+# The public waitlist's global rows. They have no organization, which the
+# tenant policy would otherwise let every tenant read, so they are hidden from
+# every tenant and system purpose except ``waitlist``, which sees nothing else.
+WAITLIST_COLLECTIONS: tuple[str, ...] = ("waitlist_entries", "waitlist_submissions")
+_WAITLIST_ARRAY = (
+    "ARRAY[" + ", ".join(f"'{name}'" for name in WAITLIST_COLLECTIONS) + "]"
+)
+
+
 # Re-applied on every start (CREATE OR REPLACE is idempotent), so a policy
 # change ships without a schema version. Keep every statement idempotent.
-POLICY_FUNCTIONS: tuple[str, ...] = (
+_POLICY_TEMPLATES: tuple[str, ...] = (
     """CREATE OR REPLACE FUNCTION weaves_system_allows(coll text)
            RETURNS boolean LANGUAGE sql STABLE AS $$
            SELECT CASE nullif(current_setting('app.system_purpose', true), '')
-             WHEN 'bootstrap' THEN true
+             WHEN 'bootstrap' THEN NOT (coll = ANY (%(waitlist)s))
              WHEN 'auth' THEN coll = ANY (ARRAY[
                'organizations', 'workspaces', 'users', 'principals',
                'api_credentials', 'roles', 'role_bindings',
@@ -59,6 +68,7 @@ POLICY_FUNCTIONS: tuple[str, ...] = (
              WHEN 'oauth' THEN coll = ANY (ARRAY[
                'oauth_authorization_states', 'organizations', 'workspaces',
                'principals', 'users', 'roles', 'role_bindings'])
+             WHEN 'waitlist' THEN coll = ANY (%(waitlist)s)
              ELSE false
            END
            $$""",
@@ -66,6 +76,9 @@ POLICY_FUNCTIONS: tuple[str, ...] = (
                coll text, rid text, row_org text)
            RETURNS boolean LANGUAGE sql STABLE AS $$
            SELECT CASE
+             WHEN coll = ANY (%(waitlist)s) THEN weaves_system_allows(coll)
+             WHEN nullif(current_setting('app.system_purpose', true), '')
+                  = 'waitlist' THEN false
              WHEN coll = 'organizations'
                THEN rid = nullif(current_setting('app.org_id', true), '')
                     OR weaves_system_allows(coll)
@@ -78,6 +91,11 @@ POLICY_FUNCTIONS: tuple[str, ...] = (
                   OR weaves_system_allows(coll)
            END
            $$""",
+)
+
+
+POLICY_FUNCTIONS: tuple[str, ...] = tuple(
+    template.replace("%(waitlist)s", _WAITLIST_ARRAY) for template in _POLICY_TEMPLATES
 )
 
 

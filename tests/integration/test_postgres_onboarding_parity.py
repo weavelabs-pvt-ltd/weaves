@@ -127,7 +127,7 @@ def _set(world, field, value, org_id):
 
 
 def test_the_database_refuses_a_second_holder_of_a_slug_or_domain(world):
-    assert SCHEMA_HEAD_VERSION == 23
+    assert SCHEMA_HEAD_VERSION == 24
     for field, held, wanted in (
         ("slug", "org-b", "ORG-B"),
         ("email_domain", "dup.test", "Dup.Test"),

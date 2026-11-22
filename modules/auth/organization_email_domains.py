@@ -19,10 +19,9 @@ from dataclasses import dataclass
 
 from application.ports.repository import Repository
 from contracts.v1 import Organization, OrganizationSettings
-from shared.organization_naming import PUBLIC_EMAIL_DOMAINS
+from shared.organization_naming import public_email_domains
 from shared.request_context import system_scope
 
-PUBLIC_DOMAINS_ENV = "WEAVES_PUBLIC_EMAIL_DOMAINS"
 ENFORCE_ENV = "WEAVES_ENFORCE_ORGANIZATION_DOMAINS"
 DOMAIN_CODE = "domain_belongs_to_organization"
 
@@ -34,11 +33,8 @@ def enforcement_enabled() -> bool:
 
 
 def public_domains() -> frozenset[str]:
-    """The built-in public providers plus the operator's comma-separated extras."""
-    extra = os.environ.get(PUBLIC_DOMAINS_ENV, "")
-    return PUBLIC_EMAIL_DOMAINS | {
-        item.strip().lower() for item in extra.split(",") if item.strip()
-    }
+    """The built-in public providers plus the operator's extras."""
+    return public_email_domains()
 
 
 def custom_domain(email: str) -> str | None:

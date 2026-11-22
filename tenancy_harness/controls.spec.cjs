@@ -332,6 +332,18 @@ test('T1-I11 an account creates an organization once, idempotently and privately
   }
 });
 
+test('TW-01 the public waitlist joins, answers, resumes and erases through the real API without any account', async () => {
+  const control = fixture.waitlist;
+  for (const key of ['questions_served', 'join_creates_submission', 'answer_saved', 'answer_changed',
+    'answer_cleared', 'resume_with_token_only', 'known_email_gets_a_new_submission', 'known_email_leaks_no_answers',
+    'first_token_still_has_its_answers', 'no_cookie_set', 'invalid_token_is_401', 'invalid_email_is_422',
+    'rate_limit_returns_429_with_retry_after', 'operator_list_matches_rows', 'operator_export_has_the_entry',
+    'operator_stats_count_entries', 'rows_are_global_and_hold_only_a_digest', 'operator_actions_are_audited',
+    'no_account_or_session_created', 'operator_delete_erases_entry', 'erased_token_stops_working']) {
+    expect(control[key], key).toBe(true);
+  }
+});
+
 test('T4-I01 organization settings and ownership handoff preserve other tenant access', async ({browser, request}) => {
   await require('./organization_administration.cjs').verify({browser, request}, fixture);
 });

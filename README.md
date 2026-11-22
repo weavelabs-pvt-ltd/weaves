@@ -128,6 +128,13 @@ account session (see
   the API; the server retains the definition snapshot and checks submitted
   scores against persisted run evidence. See
   [`docs/product-evaluations-v0.md`](docs/product-evaluations-v0.md).
+- The website's public waitlist uses unauthenticated, rate-limited routes under
+  `/api/v0/waitlist`: `GET /questions`, `POST /submissions` (email, consent,
+  optional source and `Idempotency-Key`), `GET /submissions/current`,
+  `PUT` and `DELETE /submissions/current/answers/{question_id}`. A submission is
+  reached only with its private `X-Waitlist-Token`. It never creates accounts or
+  sessions. Question sets live in `contracts/waitlist`; operators manage sign-ups
+  with `infra/gcp/singlevm/waitlist.py`.
 - A verified account creates organizations with
   `POST /api/v0/account/organizations`, limited per account and throttled per
   source address. PostgreSQL counters are shared across API instances;

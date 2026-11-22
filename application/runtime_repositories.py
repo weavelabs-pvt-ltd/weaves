@@ -46,6 +46,8 @@ from contracts.v1 import (
     TaskTurn,
     ToolInvocation,
     User,
+    WaitlistEntry,
+    WaitlistSubmission,
     WorkflowDefinition,
     WorkflowRun,
     WorkflowSchedule,
@@ -109,6 +111,8 @@ class RuntimeRepositoryBindingMixin:
     account_oauth_states: Repository[AccountOAuthState]
     account_sessions: Repository[AccountSession]
     account_organization_requests: Repository[AccountOrganizationRequest]
+    waitlist_entries: Repository[WaitlistEntry]
+    waitlist_submissions: Repository[WaitlistSubmission]
 
     def _bind_repositories(self) -> None:
         """Attach one repository for each product collection."""
@@ -191,6 +195,10 @@ class RuntimeRepositoryBindingMixin:
         self.account_sessions = self._repository("account_sessions", AccountSession)
         self.account_organization_requests = self._repository(
             "account_organization_requests", AccountOrganizationRequest
+        )
+        self.waitlist_entries = self._repository("waitlist_entries", WaitlistEntry)
+        self.waitlist_submissions = self._repository(
+            "waitlist_submissions", WaitlistSubmission
         )
 
     def _repository(
