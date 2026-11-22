@@ -20,6 +20,7 @@ from contracts.v1 import (
     Workspace,
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
+from modules.auth.organization_slugs import OrganizationSlugs
 from modules.auth.runtime_organizations import (
     MockModelIdentifier,
     OrganizationRuntimeMixin,
@@ -62,6 +63,7 @@ class OrganizationService(OrganizationRuntimeMixin):
         bootstrap: Callable[[], None],
         list_principal_workspaces: Callable[[str], tuple[Workspace, ...]],
         unit_of_work: Callable[[], AbstractContextManager[None]],
+        slugs: OrganizationSlugs | None = None,
     ) -> None:
         """Bind organization repositories and onboarding application ports."""
         self.api_credentials = api_credentials
@@ -74,6 +76,7 @@ class OrganizationService(OrganizationRuntimeMixin):
         self.providers = providers
         self.role_bindings = role_bindings
         self.roles = roles
+        self.slugs = slugs
         self.users = users
         self.workspaces = workspaces
         self.model = model

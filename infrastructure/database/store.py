@@ -10,6 +10,9 @@ from contextvars import ContextVar
 from typing import Any
 
 from infrastructure.database.legacy_purge import LEGACY_PURGE_MIGRATION
+from infrastructure.database.organization_identity import (
+    ORGANIZATION_IDENTITY_MIGRATION,
+)
 from infrastructure.database.row_security import (
     REPEATABLE_STATEMENTS,
     ROW_SECURITY_MIGRATION,
@@ -342,6 +345,7 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     ),
     ROW_SECURITY_MIGRATION,
     LEGACY_PURGE_MIGRATION,
+    ORGANIZATION_IDENTITY_MIGRATION,
 )
 
 SCHEMA_HEAD_VERSION = _SCHEMA_MIGRATIONS[-1][0]

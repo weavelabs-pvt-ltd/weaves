@@ -166,3 +166,69 @@ def creation_checks(a, b, session):
         "no_tenant_token_issued": "access_token" not in first.json()
         and "token" not in first.text.lower(),
     }
+
+
+CUSTOM_DOMAIN = "custom-claim.test"
+FIRST_OWNER = f"first.owner@{CUSTOM_DOMAIN}"
+LATER_PERSON = f"later.person@{CUSTOM_DOMAIN}"
+
+
+def _call(session, method, path, body=None, **headers):
+    return request(method, path, {**session, **headers}, body)
+
+
+def _first_organization(session):
+    """Create a custom domain's first organization with explicit onboarding input."""
+    body = {
+        "name": "Custom Claim Organization",
+        "slug": "Custom-Claim",
+        "timezone": "Asia/Tokyo",
+        "locale": "ja",
+    }
+    headers = {"Idempotency-Key": "harness-onboarding-1", **source_for(FIRST_OWNER)}
+    return _call(session, "POST", "/account/browser/organizations", body, **headers)
+
+
+def onboarding_checks():
+    """Prove the profile, role pill, slug and email-domain rules on the real stack."""
+    owner = account_session(FIRST_OWNER)
+    later = account_session(LATER_PERSON)
+    titled = _call(owner, "PATCH", "/account/browser/me", {"role_title": " Founder "})
+    created = _first_organization(owner)
+    org = created.json().get("organization", {}) if created.status_code == 201 else {}
+    me = _call(owner, "GET", "/account/browser/me").json()
+    row = next(iter(me.get("memberships", [])), {})
+    taken = _call(owner, "GET", "/account/browser/organization-slugs/custom-claim")
+    reserved = _call(owner, "GET", "/account/browser/organization-slugs/admin")
+    peer = _call(later, "GET", "/account/browser/me").json()["organization_creation"]
+    refused = _call(
+        later,
+        "POST",
+        "/account/browser/organizations",
+        {"name": "Second Custom Claim"},
+        **{"Idempotency-Key": "harness-onboarding-2", **source_for(LATER_PERSON)},
+    )
+    return {
+        "role_title_saved": titled.status_code == 200
+        and titled.json()["account"]["role_title"] == "Founder",
+        "creation_stores_slug_timezone_locale": (
+            org.get("slug"),
+            org.get("timezone"),
+            org.get("locale"),
+            org.get("email_domain"),
+        )
+        == ("custom-claim", "Asia/Tokyo", "ja", CUSTOM_DOMAIN),
+        "membership_is_owner_with_label": row.get("is_owner") is True
+        and row.get("role_label") == "Owner"
+        and row.get("organization_slug") == "custom-claim",
+        "slug_check_reports_taken_and_reserved": taken.json().get("reason") == "taken"
+        and bool(taken.json().get("suggestion"))
+        and reserved.json().get("reason") == "reserved",
+        "domain_peer_sees_the_claim": peer["allowed"] is False
+        and peer["reason"] == "domain_belongs_to_organization"
+        and peer["domain_membership"] == "not_member",
+        "domain_peer_cannot_create": refused.status_code == 409
+        and refused.json().get("code") == "domain_belongs_to_organization"
+        and refused.json().get("organization_name") == "Custom Claim Organization"
+        and bool(refused.headers.get("x-request-id")),
+    }

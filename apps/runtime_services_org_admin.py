@@ -13,6 +13,7 @@ from modules.auth.organization_lifecycle import (
     grace_days_from_env,
 )
 from modules.auth.organization_purge import OrganizationPurgeService
+from modules.auth.organization_slugs import OrganizationSlugs
 
 
 def configure_organization_administration(
@@ -37,6 +38,10 @@ def configure_organization_administration(
         organizations=dependencies.organizations,
         credentials=dependencies.api_credentials,
         authorize=dependencies.authorize_organization,
+        slugs=OrganizationSlugs(
+            dependencies.organization_settings,
+            dependencies._advisory_transaction_lock,
+        ),
     )
     lifecycle = OrganizationLifecycleService(
         guard=guard,

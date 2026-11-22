@@ -325,7 +325,9 @@ test('T1-I10 real browser signs in with Google, chooses and switches organizatio
 test('T1-I11 an account creates an organization once, idempotently and privately', async () => {
   const control = fixture.diagnostics.account;
   for (const key of ['organization_created', 'replay_returns_same_organization', 'key_reuse_with_other_body_conflicts',
-    'creator_can_select_it', 'another_account_is_refused', 'no_tenant_token_issued']) {
+    'creator_can_select_it', 'another_account_is_refused', 'no_tenant_token_issued',
+    'role_title_saved', 'creation_stores_slug_timezone_locale', 'membership_is_owner_with_label',
+    'slug_check_reports_taken_and_reserved', 'domain_peer_sees_the_claim', 'domain_peer_cannot_create']) {
     expect(control[key], key).toBe(true);
   }
 });

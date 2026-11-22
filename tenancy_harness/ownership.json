@@ -1576,6 +1576,20 @@
       "scope": "organization",
       "rule": "validated per-request organization; account session; owner-only except the read view; recovery allow-list admits only the owner while deletion is pending",
       "lifecycle": "active or deletion-requested tenant; owner only; bounded size; no secrets"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/account/organization-slugs/{slug}",
+      "scope": "account_identity",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/account/browser/organization-slugs/{slug}",
+      "scope": "account_identity",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
     }
   ]
 }

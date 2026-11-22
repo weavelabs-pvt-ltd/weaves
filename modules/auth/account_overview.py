@@ -16,6 +16,7 @@ from contracts.v1 import (
     OrganizationMembership,
     OrganizationStatus,
 )
+from modules.auth.account_membership_roles import MembershipRoleReader
 from modules.auth.lifecycle_state import effective_organization_state
 from shared.request_context import system_scope
 
@@ -64,8 +65,15 @@ def list_memberships(
     memberships: Repository[OrganizationMembership],
     organizations: Repository[Organization],
     lifecycle: Repository[OrganizationLifecycle] | None = None,
+    roles: MembershipRoleReader | None = None,
 ) -> list[dict[str, Any]]:
-    """List only this account's active or suspended memberships."""
+    """List only this account's active or suspended memberships.
+
+    Each row also says whether the account owns the organization, the label for
+    its role pill and the organization's slug, all about this account's own
+    principal (see ``account_membership_roles`` for the rule and the cost).
+    """
+    reader = roles or MembershipRoleReader()
     rows: list[dict[str, Any]] = []
     owned = memberships.list_by_field("account_id", account.id)
     for membership in sorted(owned, key=lambda m: m.created_at):
@@ -78,10 +86,14 @@ def list_memberships(
         if organization.status is OrganizationStatus.DELETED:
             continue
         state = _state(organization, lifecycle)
+        standing = reader.describe(membership)
         rows.append(
             {
                 "organization_id": organization.id,
                 "organization_name": organization.name,
+                "organization_slug": standing.organization_slug,
+                "is_owner": standing.is_owner,
+                "role_label": standing.role_label,
                 "organization_status": organization.status.value,
                 "lifecycle_state": state.value,
                 "deletion_scheduled_for": _scheduled(state, organization, lifecycle),
@@ -114,4 +126,8 @@ def list_identities(
 
 def account_summary(account: Account) -> dict[str, Any]:
     """The only account fields clients receive."""
-    return {"id": account.id, "display_name": account.display_name}
+    return {
+        "id": account.id,
+        "display_name": account.display_name,
+        "role_title": account.role_title,
+    }

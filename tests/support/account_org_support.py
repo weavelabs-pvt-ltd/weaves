@@ -10,11 +10,13 @@ from tests.support.account_session import sign_in
 URL = "/api/v0/account/organizations"
 ENABLE = "WEAVES_ALLOW_ACCOUNT_ORGANIZATION_CREATION"
 # One create call per row a successful provisioning writes, in order:
-# organization, workspace, user, principal, 3 roles, binding, provider, profile,
-# policy, audit event, membership, idempotency record.
-PROVISIONING_WRITES = 14
+# organization, settings (slug, email domain, timezone, locale, owner),
+# workspace, user, principal, 3 roles, binding, provider, profile, policy,
+# audit event, membership, idempotency record.
+PROVISIONING_WRITES = 15
 PROVISIONED_COLLECTIONS = (
     "organizations",
+    "organization_settings",
     "workspaces",
     "users",
     "principals",
@@ -64,6 +66,7 @@ def create_repositories(service) -> dict:
     provisioner = service._provisioner
     return {
         "organizations": provisioner.organizations,
+        "organization_settings": provisioner.organization_settings,
         "workspaces": provisioner.workspaces,
         "users": provisioner.users,
         "principals": provisioner.principals,

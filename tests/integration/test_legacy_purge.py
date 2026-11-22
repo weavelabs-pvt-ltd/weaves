@@ -235,6 +235,8 @@ INDEX_JUSTIFICATIONS = {
     "account_org_request_key_uq": "organization creation idempotency and quota",
     "user_email_lower_idx": "verified-email account linking",
     "organization_lifecycle_state_idx": "worker finds pending deletions",
+    "organization_slug_uq": "one organization per slug, compared without case",
+    "organization_email_domain_uq": "one organization per claimed email domain",
 }
 
 

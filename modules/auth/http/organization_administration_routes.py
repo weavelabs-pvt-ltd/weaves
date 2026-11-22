@@ -6,8 +6,10 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
+from modules.auth.http.account_organization_routes import slug_refusal
 from modules.auth.organization_administration import OrganizationAdministrationService
 from modules.auth.organization_guard import AdministrationConflict
+from modules.auth.organization_slugs import SlugRejected, SlugTaken
 
 
 class SettingsUpdate(BaseModel):
@@ -17,6 +19,7 @@ class SettingsUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     timezone: str = Field(min_length=1, max_length=64)
     locale: str = Field(min_length=2, max_length=35)
+    slug: str | None = Field(default=None, max_length=64)
     expected_revision: int = Field(ge=1)
 
 
@@ -32,6 +35,8 @@ class OwnershipTransfer(BaseModel):
 def _perform[T](operation: Callable[[], T]) -> T:
     try:
         return operation()
+    except SlugRejected:
+        raise
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except KeyError as exc:
@@ -56,8 +61,11 @@ def register_organization_administration_routes(
         return _perform(service.get)
 
     @app.patch("/api/v0/organization/settings")
-    def update_settings(payload: SettingsUpdate) -> dict[str, Any]:
-        return _perform(lambda: service.update(**payload.model_dump()))
+    def update_settings(payload: SettingsUpdate) -> Any:
+        try:
+            return _perform(lambda: service.update(**payload.model_dump()))
+        except (SlugRejected, SlugTaken) as exc:
+            return slug_refusal(exc)
 
     @app.post("/api/v0/organization/transfer-ownership")
     def transfer_ownership(

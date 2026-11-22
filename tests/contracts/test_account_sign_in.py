@@ -206,7 +206,11 @@ def _http_sign_in(service, email):
     account, _, token = _sign_in(service, email)
     return {
         "access_token": token,
-        "account": {"id": account.id, "display_name": account.display_name},
+        "account": {
+            "id": account.id,
+            "display_name": account.display_name,
+            "role_title": account.role_title,
+        },
     }
 
 
@@ -220,7 +224,7 @@ def test_http_me_returns_account_identities_and_memberships(client):
     _member(runtime, "org-b", "person@example.test")
     body = _http_sign_in(service, "Person@Example.test")
     assert body["access_token"].startswith("wvs_acct_")
-    assert set(body["account"]) == {"id", "display_name"}
+    assert set(body["account"]) == {"id", "display_name", "role_title"}
     me = http.get("/api/v0/account/me", headers=_bearer(body))
     memberships = me.json()["memberships"]
     assert {m["organization_id"] for m in memberships} == {"org-a", "org-b"}

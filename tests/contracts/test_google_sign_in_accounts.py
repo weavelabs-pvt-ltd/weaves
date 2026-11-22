@@ -52,7 +52,11 @@ def test_a_new_person_gets_an_account_with_oidc_and_email_identities(google_worl
     )
     assert all(i.verified_at for i in world.runtime.account_identities.list())
     me = world.client.get("/api/v0/account/browser/me").json()
-    assert me["account"] == {"id": account.id, "display_name": "Pat Person"}
+    assert me["account"] == {
+        "id": account.id,
+        "display_name": "Pat Person",
+        "role_title": None,
+    }
 
 
 def test_the_display_name_falls_back_to_the_email_local_part(google_world):

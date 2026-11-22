@@ -23,11 +23,14 @@ from contracts.v1 import (
     OrganizationMembership,
     OrganizationSettings,
     Principal,
+    Role,
+    RoleBinding,
     User,
     Workspace,
 )
 from modules.auth.account_cleanup import PURGE_BATCH, AccountCleanup
 from modules.auth.account_linking import MembershipLinker
+from modules.auth.account_membership_roles import MembershipRoleReader
 from modules.auth.account_selection import AccountOrganizationSelector
 from modules.auth.account_sessions import AccountSessions
 from shared.clock import new_id, utc_now
@@ -53,6 +56,8 @@ class AccountSignInService:
         lifecycle: Repository[OrganizationLifecycle] | None = None,
         settings: Repository[OrganizationSettings] | None = None,
         lock: Callable[[str], None] | None = None,
+        roles: Repository[Role] | None = None,
+        role_bindings: Repository[RoleBinding] | None = None,
     ) -> None:
         """Bind global account repositories and the tenant directory."""
         self.accounts = accounts
@@ -61,6 +66,8 @@ class AccountSignInService:
         self.memberships = memberships
         self.organizations = organizations
         self.lifecycle = lifecycle
+        self.settings = settings
+        self.membership_roles = MembershipRoleReader(settings, roles, role_bindings)
         self.unit_of_work = unit_of_work
         self.sessions = AccountSessions(sessions, accounts)
         self.selector = AccountOrganizationSelector(

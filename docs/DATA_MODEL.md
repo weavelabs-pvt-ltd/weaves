@@ -200,7 +200,7 @@ bridge between the global and the tenant layers
 
 | Collection (contract, id) | Scope and why | Mutability / key fields | References (lifetime owner) | Purge / export | Read / write permission | JSON paths in indexes |
 |---|---|---|---|---|---|---|
-| `accounts` (`Account`, `id`) | account. A person exists once across all organizations | mutable. `status`: active, disabled (`AccountStatus`); `display_name` 1..160 | none outward. Referenced by `account_identities.account_id`, `account_sessions.account_id`, `memberships.account_id`, `account_organization_requests.account_id` (account owns them) | kept; no deletion flow exists in code. Not exported | Sign-in and `/account` routes only, under system scope `account`/`auth`; no tenant permission | none |
+| `accounts` (`Account`, `id`) | account. A person exists once across all organizations | mutable. `status`: active, disabled (`AccountStatus`); `display_name` 1..160; optional `role_title` 1..80 trimmed, no control characters (None clears; global profile text, never copied into a tenant) | none outward. Referenced by `account_identities.account_id`, `account_sessions.account_id`, `memberships.account_id`, `account_organization_requests.account_id` (account owns them) | kept; no deletion flow exists in code. Not exported | Sign-in and `/account` routes only, under system scope `account`/`auth`; no tenant permission | none |
 | `account_identities` (`AccountIdentity`, `id`) | account. A verified login identity belongs to one account platform-wide | mutable. `kind` (`AccountIdentityKind`), `issuer`, `subject` 3..320, `verified_at` | `account_id` to `accounts` (account owns) | kept; removed only by identity removal (`account_identity_removal.py`). Not exported | Account routes under scope `account` | `kind`, `issuer`, `subject`, `verified_at`, `account_id` |
 | `account_sessions` (`AccountSession`, `id`) | account. Sessions are created before an organization is chosen | mutable. `token_digest` (sha-256 hex, 64), `channel` bearer/browser, `expires_at` (12 h, `ACCOUNT_SESSION_HOURS`), `revoked_at` | `account_id` to `accounts` | kept by purge; bounded cleanup of rows 1 h past expiry or revocation (`account_cleanup.py`, worker every 30 s). Not exported | scope `account` | `token_digest`, `account_id`, `expires_at`, `revoked_at` |
 | `account_oauth_states` (`AccountOAuthState`, `id`) | account. Google sign-in attempt, single use | mutable. `state_digest`, `binding_digest`, `nonce`, `code_verifier`, `expires_at` (10 min) | none | kept; cleaned up after expiry, consumed on callback (`consume`). Not exported | scope `account` | `state_digest`, `expires_at` |
@@ -212,7 +212,7 @@ bridge between the global and the tenant layers
 | Collection (contract, id) | Scope and why | Mutability / key fields | References (lifetime owner) | Purge / export | Read / write permission | JSON paths in indexes |
 |---|---|---|---|---|---|---|
 | `organizations` (`Organization`, `id`) | global row whose `record_id` is the organization id; RLS matches `rid = app.org_id` | mutable. `name` 1..160, `status` active/suspended/deleted. Status is a projection of lifecycle (`lifecycle_state.py`) | root of the tenant tree; everything else points to it by `org_id` | kept as a tombstone (name replaced by "deleted organization"). Not exported as a collection but included as `organization` in the document | `organizations.admin`; lifecycle code under scope `lifecycle` | none |
-| `organization_settings` (`OrganizationSettings`, `id` = org id) | organization. Owner, timezone, locale; one row per organization | mutable, optimistic `revision`. `owner_principal_id`, `timezone` default `Asia/Kolkata`, `locale` | `owner_principal_id` to `principals` | purge position 40. Included in export as `settings` | `organizations.admin`; owner transfer restricted to the current human owner | none |
+| `organization_settings` (`OrganizationSettings`, `id` = org id) | organization. Owner, timezone, locale, slug, claimed email domain; one row per organization | mutable, optimistic `revision`. `owner_principal_id`, `timezone` default `Asia/Kolkata`, `locale`, `slug` (3..40 of `[a-z0-9-]`, globally unique without case among non-deleted organizations, identifier only, no routing), `email_domain` (lowercase custom domain claimed at creation; unique; read-only) | `owner_principal_id` to `principals` | purge position 40. Included in export as `settings` | `organizations.admin`; owner transfer restricted to the current human owner | none |
 | `organization_lifecycle` (`OrganizationLifecycle`, `id` = org id) | organization. State machine record, separate from `Organization.status` so older readers stay valid | mutable. `state` active/suspended/deletion_requested/deleting/deleted; `grace_deadline`, `purge_now`, `purge_step`, `purged_rows`, `clean_ticks` 0..100, `revision`, `history` (max 200 entries) | `id` equals `organizations.id` | kept (accountability record). Exported inside the document as `lifecycle` | read: owner and organization admins; write: owner (request/cancel deletion) and operator scripts. Worker discovery under scope `lifecycle` | `state` |
 | `workspaces` (`Workspace`, `id`) | organization. Workspaces partition work inside an organization; the `workspace_id` column of workspace-scoped rows refers here | mutable. `name` 1..160, `environment`, `status` active/archived | `org_id` to `organizations` (organization owns) | purge position 39; exported | write `workspaces.admin`; read via role bindings (`list_principal_workspaces`) | none |
 | `users` (`User`, `id`) | organization. A tenant-local member profile | mutable. `email` 3..320, `display_name`, `status` active/invited/suspended/deleted | `org_id` | purge position 38; exported (id, display_name, email, status, timestamps) | `users.manage` | `email` (lowercased), `status` |
@@ -292,6 +292,30 @@ and revocation are separate immutable facts.
 | `evaluation_reports` (`EvaluationReportRecord`, `evaluation_id`; tenant-keyed) | workspace | immutable | `suite_id`, `agent_id`, `submitted_by_principal_id` | position 13; not exported | read `artifacts.read` | none |
 
 ### 2.9 Names that exist in the database layer but have no repository
+
+### Organization slug and email domain (migration 23)
+
+`organization_settings.slug` and `.email_domain` live in the tenant-owned settings payload
+and are made globally unique by two partial unique expression indexes
+(`organization_slug_uq`, `organization_email_domain_uq`, on the lowercase value). Migration 23
+(`infrastructure/database/organization_identity.py`) backfills existing organizations
+idempotently: slugs from the name (numeric suffix on collision or reserved word); an email
+domain only when the explicit owner's verified email is on a custom domain and exactly one
+organization would claim it (ambiguity is left unset and logged, never guessed).
+
+- Slug: lowercase `[a-z0-9-]`, 3..40, no leading, trailing or double hyphen; reserved:
+  admin api app www weaves support help login signin signup account settings static assets new.
+  Reserved atomically in the creation unit of work (advisory lock, then the index as backstop).
+  It is an identifier only: nothing is routed by it. A deleted organization's slug and domain
+  are freed when purge completes, because the settings row is purged.
+- Email domain rule: an organization owns its custom email domain. A person with a verified
+  email on a claimed domain cannot create any organization (409 `domain_belongs_to_organization`),
+  whether or not they are a member. Public mailbox providers (`shared/organization_naming.py`,
+  plus env `WEAVES_PUBLIC_EMAIL_DOMAINS`) claim nothing; `WEAVES_ENFORCE_ORGANIZATION_DOMAINS=false`
+  switches enforcement off. Changing or adding domains after creation is out of scope.
+- Account views: each membership adds `organization_slug`, `is_owner` and `role_label`
+  (Owner, else Admin > Builder > User, else first custom role name, else empty) and the payload
+  adds `organization_creation` with the reason creation is or is not allowed.
 
 Migration 22 (`infrastructure/database/legacy_purge.py`) deleted every row of the
 removed collections `user_passwords`, `user_password_credentials`, `user_sessions`,

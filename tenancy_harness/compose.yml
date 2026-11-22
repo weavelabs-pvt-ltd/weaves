@@ -41,8 +41,9 @@ services:
       WEAVES_GOOGLE_CLIENT_ID: ${TEST_GOOGLE_CLIENT_ID:?}
       WEAVES_GOOGLE_CLIENT_SECRET: ${TEST_GOOGLE_CLIENT_SECRET:?}
       WEAVES_GOOGLE_DISCOVERY_URL: http://provider:8081/google/.well-known/openid-configuration
-      WEAVES_ACCOUNT_ALLOWED_EMAIL_DOMAINS: tenancy.test
+      WEAVES_ACCOUNT_ALLOWED_EMAIL_DOMAINS: tenancy.test,custom-claim.test
       WEAVES_ALLOW_ACCOUNT_ORGANIZATION_CREATION: "true"
+      WEAVES_PUBLIC_EMAIL_DOMAINS: tenancy.test
       WEAVES_MODEL_CUSTOM_BASE_URLS: '["https://models.tenancy.test/v1","https://blocked-models.tenancy.test/v1","https://wrong-cert.tenancy.test/v1","https://models.tenancy.test/redirect/v1"]'
       WEAVES_MODEL_PRIVATE_NETWORKS: '{"wrong-cert.tenancy.test":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"],"models.tenancy.test":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"],"api.anthropic.com":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"],"api.openai.com":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"],"generativelanguage.googleapis.com":["172.16.0.0/12","192.168.0.0/16","10.0.0.0/8"]}'
       HTTPS_PROXY: http://provider:9999

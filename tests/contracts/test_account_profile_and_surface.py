@@ -50,7 +50,9 @@ def test_the_bearer_patch_renames_the_account(google_world):
         "/api/v0/account/me", json={"display_name": "  Dr. Pat  "}, headers=headers
     )
     assert done.status_code == 200
-    assert done.json() == {"account": {"id": account.id, "display_name": "Dr. Pat"}}
+    assert done.json() == {
+        "account": {"id": account.id, "display_name": "Dr. Pat", "role_title": None}
+    }
     me = world.client.get("/api/v0/account/me", headers=headers).json()
     assert me["account"]["display_name"] == "Dr. Pat"
     assert world.runtime.accounts.get(account.id).display_name == "Dr. Pat"
@@ -200,4 +202,6 @@ def test_cors_allows_the_organization_and_csrf_headers_and_exposes_retry_after(
     )
     assert retired.status_code == 400
     simple = world.client.get("/api/v0/health", headers={"Origin": origin})
-    assert simple.headers["access-control-expose-headers"] == "Retry-After"
+    exposed = simple.headers["access-control-expose-headers"]
+    assert exposed == "Retry-After, X-Request-Id"
+    assert simple.headers["x-request-id"]

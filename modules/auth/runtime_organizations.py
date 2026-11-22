@@ -37,6 +37,7 @@ from contracts.v1 import (
     WorkspaceStatus,
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
+from modules.auth.organization_slugs import OrganizationSlugs
 from modules.auth.role_presets import build_role_preset
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
@@ -89,6 +90,7 @@ class OrganizationRuntimeHost(ABC):
     providers: Repository[ModelProviderContract]
     role_bindings: Repository[RoleBinding]
     roles: Repository[Role]
+    slugs: OrganizationSlugs | None
     users: Repository[User]
     workspaces: Repository[Workspace]
 
@@ -132,6 +134,10 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
         under the new organization's own scope, so a caller can add records
         that must commit or roll back together with the tenant. Account-scoped
         callers switch to their system scope inside that callback.
+
+        The URL slug is reserved first, inside the same unit of work: the one in
+        ``audit_metadata["slug"]`` when given (``SlugTaken`` if it is held),
+        otherwise the first free slug derived from the name.
         """
         self.ensure_bootstrapped()
         normalized_email = email.strip().casefold()
@@ -311,6 +317,7 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
     ) -> None:
         """Atomically persist the organization, owner, defaults, and audit event."""
         with self._unit_of_work():
+            slug = self._reserve_slug(owner.organization.name, audit_metadata)
             self.organizations.create(owner.organization)
             self.organization_settings.create(
                 OrganizationSettings(
@@ -319,6 +326,8 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
                     owner_principal_id=owner.principal.id,
                     timezone=str(audit_metadata.get("timezone", "Asia/Kolkata")),
                     locale=str(audit_metadata.get("locale", "en")),
+                    slug=slug,
+                    email_domain=audit_metadata.get("email_domain"),
                     created_at=timestamp,
                     updated_at=timestamp,
                 )
@@ -352,6 +361,19 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
             )
             if within is not None:
                 within(owner)
+
+    def _reserve_slug(self, name: str, audit_metadata: dict[str, Any]) -> str | None:
+        """Hold the requested or derived slug and record it on the audit event."""
+        if self.slugs is None:
+            return None
+        requested = audit_metadata.get("slug")
+        slug = (
+            self.slugs.reserve(str(requested))
+            if requested
+            else self.slugs.reserve_derived(name)
+        )
+        audit_metadata["slug"] = slug
+        return slug
 
     def resolve_principal_scope(
         self,

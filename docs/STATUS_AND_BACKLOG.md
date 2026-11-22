@@ -44,7 +44,7 @@ Legend: DONE = merged to `main` and deployed; IN REVIEW = open PR; OPEN = not st
 - DONE `docs/DATA_MODEL.md` and `docs/data-model/` (regenerated for schema version 22 with `scripts/export_data_model.py`).
 
 ### Explicitly out of scope for Phase 4
-Time-limited operator support access (operators act only on the VM), public signup (stays off until Phase 6), deleted data in older backups (Phase 6), and owner-only visibility of lifecycle actions in the chooser.
+Time-limited operator support access (operators act only on the VM), public signup (stays off until Phase 6), deleted data in older backups (Phase 6).
 
 ## B. Owner decisions in force
 - Internal-only product; data not valuable; breakage acceptable; no backups required and no rollback compatibility for now.
@@ -80,7 +80,6 @@ Time-limited operator support access (operators act only on the VM), public sign
 - OPEN Organization-bound OIDC/SSO, verified domains, SSO-only policy on every session path, session policy revocation, optional MFA and SCIM.
 
 ### Known small items (any time)
-- Owner flag on memberships so the chooser hides deletion actions from non-owners.
 - Read endpoint exposing the organization timezone to non-admins.
 - Show a person's name instead of "owner" or "operator" in lifecycle views.
 - Persist the recovery screen across a reload.

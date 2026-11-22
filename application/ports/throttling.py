@@ -23,3 +23,10 @@ class LoginRateLimiter(Protocol):
     def clear(self, bucket_key: str) -> None:
         """Clear all attempt state for the bucket after successful auth."""
         ...
+
+    def sibling(self, *, limit: int, window_seconds: int) -> "LoginRateLimiter":
+        """A limiter over the same storage with a different budget.
+
+        Callers give its buckets their own key prefix, so the budgets never mix.
+        """
+        ...

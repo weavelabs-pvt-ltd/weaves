@@ -304,6 +304,13 @@ def test_a_failure_at_any_step_leaves_no_partial_tenant_and_a_retry_succeeds(
         fail_on_write(patch, world["service"], step)
         failed = _post(world)
         assert failed.status_code == 500
+        # The failure state shows this reference; nothing else leaks.
+        reference = failed.headers["x-request-id"]
+        assert failed.json() == {
+            "detail": "Internal server error",
+            "request_id": reference,
+        }
+        assert len(reference) >= 8 and "injected" not in failed.text
     assert {name: count for name, count in _rows(world).items() if count} == {}
     assert set(PROVISIONED_COLLECTIONS) >= set(_rows(world))
     retry = _post(world)
