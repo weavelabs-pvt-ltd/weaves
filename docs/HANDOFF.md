@@ -284,3 +284,6 @@ the Google OAuth client for `app.weave-studio.in` (the owner keeps the client fi
 paid-AI testing budget (the shared ledger lives only on the owner's machine under `~/.config/weaves-testing/`);
 and the owner's decisions listed in `docs/STATUS_AND_BACKLOG.md` section E2 (payment gateway, pricing, retention, legal).
 Add new documents under `/docs/` with `git add -f` (the directory is gitignored but tracked files exist).
+
+## 13. Handover to Snigdh (2026-11-22)
+Snigdh (`snigdhchandra23@gmail.com`) takes over technical ownership. Start with `docs/STATUS_AND_BACKLOG.md` sections H and I (what is left, product decisions, production facts), then the open draft PR in `weaves-app` (`codex/frontend-shared-components`, with `docs/handoff-specs/`). He is on the production sign-in allowlist and needs GCP IAM on project `weaves-510819` (Compute Viewer, IAP-secured Tunnel User, and Compute OS Admin Login or Instance Admin for `sudo`); the owner grants access. The Google OAuth client file stays with the owner and must never be committed.
