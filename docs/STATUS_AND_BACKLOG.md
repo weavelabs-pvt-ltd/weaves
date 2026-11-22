@@ -130,3 +130,47 @@ Start with `docs/HANDOFF.md`, then `MULTI_TENANCY_IMPLEMENTATION_PLAN.md` (Phase
 ## G. Repository notes for the next engineer
 - `/docs/` is listed in the backend `.gitignore` although it contains tracked files: add new documents with `git add -f`.
 - Frontend `main` deploys only if its real-stack job passes; a failed job leaves production on the previous frontend while the backend may already be ahead. After any merge check that the deploy ran (`gh run list`) and that new files are served.
+
+## H. State at handover (2026-11-22) and what is left
+
+Tech ownership moves to Snigdh. Everything below is merged to `main` unless it says draft.
+
+### Delivered since section A
+- Phase 4 complete and deployed: organization settings and ownership transfer, schedule time zones, lifecycle (suspend, resume, deletion with grace period, export), legacy schema purge (migration 22).
+- Sign-in page restored to the original split design (loom canvas, "Welcome back", one "Continue with Google", "New to Weaves? Onboard to Weaves"). "Onboard to Weaves" opens the chat Welcome step; the chat (name, path step "Where will you work?", organization, creating, first run) is one-time onboarding of a new organization.
+- Onboarding backend (migration 23): account `role_title`; `is_owner` and `role_label` on every membership; organization `slug` (identifier only, no routing) with an availability endpoint; organization `email_domain` and the domain rule; creation records time zone and locale, returns request ids and `Retry-After`.
+- CI: the slow real-stack job runs on pull requests only, not again on `main`; deploy needs `verify` green and real-stack passed or skipped. Flaky control T4-I04 hardened and its failures now print their real message.
+
+### Product decisions (owner), do not undo without asking
+- Sign-in is Google only. No email codes, no passwords, no SMTP.
+- NO invitation flow and NO "request access" flow. An admin adds a member's email in People; that person signs in with Google and is linked by verified email. No email is ever sent.
+- An organization owns its custom email domain: a person whose verified email domain already belongs to an organization cannot create another organization at all (backend enforces, frontend hides every create entry). Public mailbox domains (Gmail, Outlook, Yahoo, ...) claim nothing and can still create organizations; this is intentionally open while the product is internal and must be tightened before public launch (`WEAVES_ENFORCE_ORGANIZATION_DOMAINS`, `WEAVES_PUBLIC_EMAIL_DOMAINS`).
+- Sign-in is restricted by an allowlist on the VM (`WEAVES_ACCOUNT_ALLOWED_EMAILS`, optional `..._DOMAINS`). Anyone else sees "This account isn't allowed".
+- Only the common UI parts are to be unified (dialog, notice/error box, toast, loader, transition); page designs are not redone.
+
+### Left to do (in order)
+1. Shared components (frontend DRAFT PR `codex/frontend-shared-components`): finish, run the full browser suite, fix failures, review. Start with `docs/handoff-specs/shared-components-STATUS.md` in the frontend repo.
+2. Final onboarding pass against the design (`Weaves Onboarding.html`, extracts under `docs/handoff-specs/onboarding-design/` in the frontend repo), frontend only, using the shared components and the backend fields that already exist:
+   - Creating step: the four progress lines ("Creating <org>", "Making you the Owner", "Preparing your workspace"; the slug line is optional), the "Your organization is ready" ready state, the "That didn't finish ... Retrying is safe" failure state with the request id from `X-Request-Id`, "Retry safely".
+   - "Done" step: "N setup items are waiting for you on Home" and the woven transition "Opening your workspace as <role>..." (role from `role_label`).
+   - Home: the "Finish setting up" card with all five tasks (key, agent, first task, teammates optional, tool optional) and progress; today Home still shows an older three-step card.
+   - Banners: network ("Can't reach Weaves. Your answers are saved."), rate limit ("Too many requests ... try again in N seconds" from `Retry-After`), session expired.
+   - "About you" step: "Role or team (optional)" using `PATCH /account/(browser/)me {role_title}`.
+   - Organization step: show and edit the slug with the live availability check (`GET /account/(browser/)organization-slugs/{slug}`, "Available / Taken" and the suggestion), and the time zone and language fields; show the read-only organization URL.
+   - Organization cards: role pill from `role_label`; hide "Manage deletion" from non-owners using `is_owner`; "Join <Org>" sub-line should show the role (it shows "Active" until the frontend reads `role_label`).
+   - Step counter consistency in the reply card ("1 of 5" vs "2 of 6").
+3. Review passes the owner planned: security, bugs, optimization (backend and frontend), then the architect ER/schema review (start at `docs/DATA_MODEL.md`).
+4. Phases 5 to 8 (usage limits and fairness, backups and staging, plans and the payment gateway, enterprise SSO): see section C and `MULTI_TENANCY_IMPLEMENTATION_PLAN.md`.
+
+### Open questions for the owner
+- Is the owner's own organization allowed to keep Gmail-domain creation (today yes)? Decide before public launch.
+- Payment gateway choice and pricing (Phase 7).
+
+## I. Production facts learned during this work (read before touching the VM)
+- Production is project `weaves-510819`, VM `weaves-personal`, zone `asia-south1-a` (IAP SSH only). Application settings live in the root-only `/opt/weaves/singlevm/runtime.env`.
+- Values in `runtime.env` can be double-quoted (for example `WEAVES_ACCOUNT_ALLOWED_EMAILS="a@x.com,b@x.com"`). When editing, keep the quotes and put the whole comma list inside them; a malformed line breaks every `docker compose` command until fixed (this happened once and was repaired; `docker compose ... config -q` validates the file). Apply a change with `docker compose -p weaves-single --env-file /opt/weaves/singlevm/runtime.env -f /opt/weaves/singlevm/compose.yaml up -d product-api`.
+- The allowlist now contains the owner and `snigdhchandra23@gmail.com`. A leftover file `/opt/weaves/singlevm/runtime.env.bak-allowlist` (a pre-repair copy with a BROKEN allowlist line) and `/tmp/lc.py` (a copy of the organization lifecycle operator script) are on the VM; delete them.
+- On 2026-11-22 the owner's account rows (the account, its two identities and its membership; not the tenant user or organization) were deleted by hand with SQL to retest sign-in; no audit event was written for that. A later sign-in re-links the same email to the existing tenant user in "Weaves Personal" automatically (verified-email linking), so it lands in the app, not in the onboarding chat. To test the chat as a brand-new person use the Onboard path with an account that has no tenant user, or "Create a new organization" from the path step.
+- Migrations are forward-only; application images older than migration 22 cannot be rolled back onto this database. Head is 23.
+- Merging to `main` deploys to production for both repositories. The real-stack suite runs on pull requests only: wait for the PR to be green.
+- Frontend CI `deploy` only runs when `verify` passes; a red real-stack job on a pull request means do not merge.
