@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from types import SimpleNamespace
 
-from apps.worker.main import _purge_waitlist
+from apps.worker.ticks import _purge_waitlist
 from modules.waitlist.service import DEFAULT_RETENTION_DAYS, retention_days
 from tests.support.waitlist_world import client_for, memory_runtime
 
