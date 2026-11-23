@@ -16,17 +16,23 @@ def main():
     target = args.frontend.resolve() / "tenancy_harness"
     if not (args.frontend / "package.json").is_file():
         raise SystemExit("Target must be the explicit frontend checkout")
+    sources = sorted(
+        p
+        for p in source.rglob("*")
+        if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
+    )
     files = {
-        p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-        for p in sorted(source.iterdir())
-        if p.is_file() and p.name not in {"bundle.lock.json", "README.md"}
+        p.relative_to(source).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in sources
+        if p.relative_to(source).as_posix() not in {"bundle.lock.json", "README.md"}
     }
     lock = {"version": 1, "owner": "weaves/tenancy_harness", "files": files}
     (source / "bundle.lock.json").write_text(json.dumps(lock, indent=2) + "\n")
     target.mkdir(exist_ok=True)
-    for path in source.iterdir():
-        if path.is_file():
-            shutil.copy2(path, target / path.name)
+    for path in sources:
+        destination = target / path.relative_to(source)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, destination)
     print("Locked and synchronized portable tenancy harness.")
 
 

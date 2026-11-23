@@ -16,9 +16,12 @@ def verify_bundle(harness):
     """Verify the checked-in portable bundle rather than silently accepting drift."""
     lock = json.loads((harness / "bundle.lock.json").read_text())
     files = {
-        p.name
-        for p in harness.iterdir()
-        if p.is_file() and p.name not in {"bundle.lock.json", "README.md"}
+        p.relative_to(harness).as_posix()
+        for p in harness.rglob("*")
+        if p.is_file()
+        and "__pycache__" not in p.parts
+        and p.suffix != ".pyc"
+        and p.relative_to(harness).as_posix() not in {"bundle.lock.json", "README.md"}
     }
     if files != set(lock["files"]):
         raise RuntimeError("Tenancy bundle inventory differs; regenerate its lock")

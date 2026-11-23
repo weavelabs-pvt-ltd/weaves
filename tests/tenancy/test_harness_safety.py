@@ -131,9 +131,12 @@ def test_portable_bundle_lock_catches_missing_and_modified_sources(tmp_path):
     )
     with pytest.raises(RuntimeError, match="inventory"):
         verify_bundle(tmp_path)
-    for source in HARNESS.iterdir():
-        if source.is_file():
-            shutil.copy2(source, tmp_path / source.name)
+    shutil.copytree(
+        HARNESS,
+        tmp_path,
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
     (tmp_path / "pair.json").write_text("{}")
     with pytest.raises(RuntimeError, match="digest"):
         verify_bundle(tmp_path)

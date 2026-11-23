@@ -4,11 +4,12 @@ import logging
 import os
 import signal
 import socket
-import time
 from threading import Event
 from uuid import uuid4
 
-from apps.worker.services import WorkerServices
+from application.ports.limits import limit_policy_from_env
+from apps.worker.loop import WorkerLoop
+from apps.worker.ticks import build_tick_registry
 from apps.worker.wiring import build_worker_services
 
 logger = logging.getLogger("product.worker")
@@ -21,65 +22,6 @@ def configure_logging() -> None:
     )
 
 
-def _recover_worker_state(services: WorkerServices) -> None:
-    """Recover stale task turns, action calls, and execution records."""
-    recovered_task_turns = services.tasks.recover_stale_turns()
-    if recovered_task_turns:
-        logger.warning("recovered stale task turns count=%d", len(recovered_task_turns))
-    recovery = services.execution_recovery
-    recovery.recover_stale_runs()
-    recovered_jobs = recovery.recover_stale_execution_jobs()
-    recovered_actions = services.action_recovery.recover_stale_action_invocations()
-    if recovered_jobs:
-        logger.warning("recovered stale execution jobs count=%d", len(recovered_jobs))
-    if recovered_actions:
-        logger.warning(
-            "recovered stale action invocations count=%d", len(recovered_actions)
-        )
-
-
-def _purge_account_rows(services: WorkerServices) -> None:
-    """Drop a bounded batch of finished account rows; never disturb recovery."""
-    if services.purge_accounts is None:
-        return
-    try:
-        purged = services.purge_accounts()
-    except Exception:
-        logger.exception("account purge failed")
-        return
-    if purged:
-        logger.info("purged finished account rows count=%d", purged)
-
-
-def _purge_organizations(services: WorkerServices) -> None:
-    """Advance pending organization deletions; never disturb the loop."""
-    if services.purge_organizations is None:
-        return
-    try:
-        advanced = services.purge_organizations()
-    except Exception:
-        logger.exception("organization deletion tick failed")
-        return
-    if advanced:
-        logger.info("organization deletion advanced count=%d", advanced)
-
-
-WAITLIST_PURGE_SECONDS = 3600
-
-
-def _purge_waitlist(services: WorkerServices) -> None:
-    """Drop stale waitlist submissions; failures are logged, never raised."""
-    if services.purge_waitlist is None:
-        return
-    try:
-        removed = services.purge_waitlist()
-    except Exception:
-        logger.exception("waitlist retention tick failed")
-        return
-    if removed:
-        logger.info("waitlist retention removed rows count=%d", removed)
-
-
 def main() -> None:
     interval = float(os.environ.get("WEAVES_WORKER_POLL_SECONDS", "1"))
     if not 0.05 <= interval <= 60:
@@ -90,6 +32,7 @@ def main() -> None:
     lifecycle_interval = float(os.environ.get("WEAVES_LIFECYCLE_POLL_SECONDS", "30"))
     if not 0.5 <= lifecycle_interval <= 3600:
         raise ValueError("WEAVES_LIFECYCLE_POLL_SECONDS must be between 0.5 and 3600")
+    limits = limit_policy_from_env(os.environ)
     worker_id = os.environ.get("WEAVES_WORKER_ID", "").strip()
     worker_id = worker_id or f"{socket.gethostname()}-{uuid4().hex[:12]}"
     stopping = Event()
@@ -99,62 +42,21 @@ def main() -> None:
         if services.storage_mode != "postgres":
             raise RuntimeError("The execution worker requires DATABASE_URL")
         services.bootstrap()
-        logger.info("product execution worker started worker_id=%s", worker_id)
-        last_recovery = time.monotonic()
-        last_schedule_poll = 0.0
-        last_lifecycle = 0.0
-        last_waitlist = 0.0
-        while not stopping.is_set():
-            try:
-                if time.monotonic() - last_recovery >= 30:
-                    _recover_worker_state(services)
-                    _purge_account_rows(services)
-                    last_recovery = time.monotonic()
-                if time.monotonic() - last_lifecycle >= lifecycle_interval:
-                    _purge_organizations(services)
-                    last_lifecycle = time.monotonic()
-                if time.monotonic() - last_waitlist >= WAITLIST_PURGE_SECONDS:
-                    last_waitlist = time.monotonic()
-                    _purge_waitlist(services)
-                if time.monotonic() - last_schedule_poll >= schedule_interval:
-                    scheduled_jobs = (
-                        services.workflow_automation.dispatch_due_workflow_schedules()
-                    )
-                    if scheduled_jobs:
-                        logger.info(
-                            "workflow schedules dispatched count=%d",
-                            len(scheduled_jobs),
-                        )
-                    last_schedule_poll = time.monotonic()
-                if services.studio is not None:
-                    services.studio.tick()
-                job = services.execution.process_next_execution_job(worker_id)
-                turn = (
-                    None
-                    if stopping.is_set()
-                    else services.tasks.process_next_turn(worker_id)
-                )
-                if turn is not None:
-                    logger.info(
-                        "task turn finished turn_id=%s status=%s",
-                        turn.turn_id,
-                        turn.status.value,
-                    )
-                if job is None and turn is None:
-                    stopping.wait(interval)
-                    continue
-                if job is not None:
-                    logger.info(
-                        "product execution job finished job_id=%s status=%s run_id=%s",
-                        job.job_id,
-                        job.status.value,
-                        job.run_id,
-                    )
-            except KeyboardInterrupt:
-                raise
-            except Exception:
-                logger.exception("product execution worker iteration failed")
-                stopping.wait(interval)
+        logger.info(
+            "product execution worker started worker_id=%s limits_mode=%s",
+            worker_id,
+            limits.config.mode,
+        )
+        registry = build_tick_registry(
+            schedule_interval=schedule_interval, lifecycle_interval=lifecycle_interval
+        )
+        WorkerLoop(
+            services,
+            registry,
+            worker_id=worker_id,
+            poll_seconds=interval,
+            stopping=stopping,
+        ).run()
     except KeyboardInterrupt:
         logger.info("product execution worker stopped worker_id=%s", worker_id)
     finally:
