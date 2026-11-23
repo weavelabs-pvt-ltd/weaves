@@ -6,7 +6,7 @@ from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
-from application.http_pagination import PageParams
+from application.http.pagination import PageParams
 from application.pagination import respond
 from contracts.v1 import PluginInstallationStatus
 from modules.integrations.admin_service import IntegrationAdminService

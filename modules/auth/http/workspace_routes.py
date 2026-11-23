@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Response
 
-from application.http_pagination import PageParams
+from application.http.pagination import PageParams
 from application.pagination import respond
 from modules.auth.http.responses import DumpModel
 from modules.auth.http.schemas import (

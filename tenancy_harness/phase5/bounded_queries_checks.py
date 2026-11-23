@@ -59,7 +59,8 @@ def walk(actor, path, limit=PAGE, key="task_id"):
         suffix = f"&cursor={cursor}" if cursor else ""
         response = call(actor, f"{path}{joiner}paginate=true&limit={limit}{suffix}")
         if response.status_code != 200:
-            raise AssertionError(f"{path}: HTTP {response.status_code}")
+            detail = str(response.json().get("detail", ""))[:300]
+            raise AssertionError(f"{path}: HTTP {response.status_code} {detail}")
         body = response.json()
         ids += [item[key] for item in body["items"]]
         sizes.append(len(body["items"]))
@@ -107,9 +108,9 @@ def seed_history(template, org, workspace, principal):
             "audience_owner_principal_id": None,
             "private_skill_snapshots": [],
             "idempotency_key": None,
-            "run_idempotency_key": None,
         }
     )
+    turn_rewrite = json.dumps({**json.loads(rewrite), "run_idempotency_key": None})
     sql(
         """INSERT INTO product_records (collection, record_id, org_id, workspace_id,
                requested_by_principal_id, payload, created_at, updated_at)
@@ -150,7 +151,7 @@ def seed_history(template, org, workspace, principal):
         org,
         workspace,
         principal,
-        rewrite,
+        turn_rewrite,
         RECENT,
         RECENT + OLD,
         task["latest_turn_id"],

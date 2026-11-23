@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 
-from application.http_pagination import PageParams
+from application.http.pagination import PageParams
 from application.pagination import respond
 from modules.auth.credential_service import CredentialService
 from modules.auth.http.responses import DumpModel, credential_view

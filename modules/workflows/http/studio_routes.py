@@ -6,7 +6,7 @@ from typing import Any, Literal
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, JsonValue
 
-from application.http_pagination import RecentPageParams
+from application.http.pagination import RecentPageParams
 from application.pagination import encode_time_cursor
 from contracts.v1 import Permission
 from contracts.v1.timezones import ScheduleTimezone

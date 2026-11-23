@@ -10,7 +10,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, JsonValue, TypeAdapter, ValidationError
 
 from application import IdempotencyConflict
-from application.http_pagination import PageParams
+from application.http.pagination import PageParams
 from application.pagination import respond
 from contracts.v1 import (
     WorkflowSchedule,

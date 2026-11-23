@@ -8,7 +8,7 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from application import IdempotencyConflict
-from application.http_pagination import PageParams, RecentPageParams
+from application.http.pagination import PageParams, RecentPageParams
 from application.pagination import page_limits, recent_response, respond
 from contracts.v1 import EvaluationReport, EvaluationSuite
 from modules.evaluations.service import EvaluationService

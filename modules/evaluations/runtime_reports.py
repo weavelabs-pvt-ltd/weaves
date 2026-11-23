@@ -127,6 +127,10 @@ class EvaluationReportRuntimeMixin(EvaluationRuntimeHost):
             )
             if run.agent_id == suite_definition.agent_id
         }
+        # Task results name a task, not a run: resolve its latest turn's agent run.
+        for task_run in self._task_agent_runs(run_ids, org, workspace):
+            agent_runs[f"task:{task_run.agent_run_id}"] = task_run
+        run_ids = (*run_ids, *(item.run_id for item in agent_runs.values()))
         artifacts: dict[str, list[Artifact]] = {}
         for artifact in self.artifacts.list_by_field_in(
             "run_id", run_ids, org_id=org, workspace_id=workspace
@@ -148,6 +152,22 @@ class EvaluationReportRuntimeMixin(EvaluationRuntimeHost):
                 artifacts,
                 invocations,
             )
+
+    def _task_agent_runs(
+        self, ids: tuple[str, ...], org: str, workspace: str
+    ) -> tuple[AgentRun, ...]:
+        """Agent runs of the latest turns of the tasks named in ``ids``."""
+        agent_run_ids: list[str] = []
+        for task in self.tasks.get_many_scoped(ids, org, workspace):
+            if task.latest_turn_id is None:
+                continue
+            try:
+                turn = self.task_turns.get_scoped(task.latest_turn_id, org, workspace)
+            except KeyError:
+                continue
+            if turn.agent_run_id is not None:
+                agent_run_ids.append(turn.agent_run_id)
+        return self.agent_runs.get_many_scoped(tuple(agent_run_ids), org, workspace)
 
     def _validate_report_result(
         self,

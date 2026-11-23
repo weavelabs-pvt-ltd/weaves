@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from application.http_pagination import PageParams
+from application.http.pagination import PageParams
 from application.pagination import envelope, slice_page
 from modules.skills.errors import SkillRevisionConflict
 from modules.skills.service import SkillsService
