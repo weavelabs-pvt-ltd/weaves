@@ -10,8 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from apps.api.authentication import install_authentication
 from apps.api.error_mapping import REQUEST_ID_HEADER, install_error_handlers
 from apps.api.limit_errors import install_limit_error_handlers
-from apps.api.request_limits import install_request_limits
 from apps.api.metrics import install_metrics
+from apps.api.request_limits import install_request_limits
 from apps.api.router import register_v0_routes
 from apps.api.wiring import build_api_process_services
 from apps.platform_runtime import LocalPlatformRuntime
