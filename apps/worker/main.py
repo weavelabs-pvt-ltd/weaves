@@ -4,21 +4,29 @@ import logging
 import os
 import signal
 import socket
+from http.server import ThreadingHTTPServer
 from threading import Event
 from uuid import uuid4
 
 from application.ports.limits import limit_policy_from_env
 from apps.worker.loop import WorkerLoop
+from apps.worker.metrics_server import start_metrics_server
 from apps.worker.ticks import build_tick_registry
 from apps.worker.wiring import build_worker_services
+from shared.logging_setup import configure_logging as configure_json_logging
 
 logger = logging.getLogger("product.worker")
 
 
 def configure_logging() -> None:
-    logging.basicConfig(
-        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    if os.environ.get("WEAVES_LOG_FORMAT", "json").strip().lower() == "text":
+        logging.basicConfig(
+            level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+            format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        )
+        return
+    configure_json_logging(
+        "worker", level=os.environ.get("LOG_LEVEL", "INFO"), replace_root=True
     )
 
 
@@ -38,10 +46,14 @@ def main() -> None:
     stopping = Event()
     signal.signal(signal.SIGTERM, lambda *_: stopping.set())
     services = build_worker_services()
+    metrics_server: ThreadingHTTPServer | None = None
     try:
         if services.storage_mode != "postgres":
             raise RuntimeError("The execution worker requires DATABASE_URL")
         services.bootstrap()
+        metrics_port = int(os.environ.get("WEAVES_WORKER_METRICS_PORT", "0") or 0)
+        if metrics_port:
+            metrics_server = start_metrics_server(metrics_port)
         logger.info(
             "product execution worker started worker_id=%s limits_mode=%s",
             worker_id,
@@ -60,6 +72,8 @@ def main() -> None:
     except KeyboardInterrupt:
         logger.info("product execution worker stopped worker_id=%s", worker_id)
     finally:
+        if metrics_server is not None:
+            metrics_server.shutdown()
         services.close()
 
 

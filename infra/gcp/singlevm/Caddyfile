@@ -8,7 +8,11 @@
 
 # Every route to the API replaces X-Forwarded-For with the real peer address, so
 # the API's rate limiter (uvicorn --proxy-headers) never trusts a client header.
+# The API's internal metrics route is for the Docker network only; no public
+# host ever reaches it (the API also refuses requests that carry proxy headers).
 (api_upstream) {
+	@internal path /api/v0/internal/*
+	respond @internal 404
 	reverse_proxy product-api:8000 {
 		header_up X-Forwarded-For {remote_host}
 	}

@@ -933,6 +933,7 @@ Contract `contracts.v1.execution_records.ExecutionJob`; `record_id` = `job_id`.
 | `evaluation_suite_id` | str? | - | default None |
 | `retry_of_job_id` | str? | - | default None |
 | `idempotency_key` | str? | - | default None |
+| `request_id` | str? | - | default None |
 | `status` | enum ExecutionJobStatus(queued/running/cancel_requested/succeeded/failed/cancelled) | - | required |
 | `attempts` | int | ge=0, le=100 | default 0 |
 | `worker_id` | str? | - | default None |
@@ -941,7 +942,7 @@ Contract `contracts.v1.execution_records.ExecutionJob`; `record_id` = `job_id`.
 | `finished_at` | AwareDatetime? | - | default None |
 | `error` | ErrorSummary? | - | default None |
 
-Reference-like fields: `requested_by_principal_id`, `agent_id`, `workflow_id`, `workflow_version_id`, `thread_id`, `trigger_id`, `trigger_event_id`, `schedule_id`, `evaluation_id`, `evaluation_suite_id`, `retry_of_job_id`, `worker_id`, `run_id`
+Reference-like fields: `requested_by_principal_id`, `agent_id`, `workflow_id`, `workflow_version_id`, `thread_id`, `trigger_id`, `trigger_event_id`, `schedule_id`, `evaluation_id`, `evaluation_suite_id`, `retry_of_job_id`, `request_id`, `worker_id`, `run_id`
 
 ### `canvas_runs`
 
@@ -1073,6 +1074,7 @@ Contract `contracts.v1.tasks.TaskTurn`; `record_id` = `turn_id`.
 | `requested_by_principal_id` | str | min_length=1, max_length=128 | required |
 | `idempotency_key` | str? | - | default None |
 | `run_idempotency_key` | str? | - | default None |
+| `request_id` | str? | - | default None |
 | `status` | enum TaskTurnStatus(queued/running/succeeded/failed/cancelled) | - | required |
 | `attempts` | int | ge=0, le=100 | default 0 |
 | `worker_id` | str? | - | default None |
@@ -1081,7 +1083,7 @@ Contract `contracts.v1.tasks.TaskTurn`; `record_id` = `turn_id`.
 | `finished_at` | AwareDatetime? | - | default None |
 | `error` | ErrorSummary? | - | default None |
 
-Reference-like fields: `task_id`, `user_message_id`, `assistant_message_id`, `requested_by_principal_id`, `worker_id`, `agent_run_id`
+Reference-like fields: `task_id`, `user_message_id`, `assistant_message_id`, `requested_by_principal_id`, `request_id`, `worker_id`, `agent_run_id`
 
 ### `audit_events`
 

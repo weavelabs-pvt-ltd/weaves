@@ -911,6 +911,13 @@
       "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
     },
     {
+      "method": "GET",
+      "path": "/api/v0/internal/metrics",
+      "scope": "internal_network_only",
+      "rule": "answers only direct peers on the private network (any proxy header gets 404); optional bearer WEAVES_METRICS_TOKEN; output has no tenant, principal or request identifiers",
+      "lifecycle": "process-wide counters only; never tenant data"
+    },
+    {
       "method": "POST",
       "path": "/api/v0/mcp/discover",
       "scope": "workspace",

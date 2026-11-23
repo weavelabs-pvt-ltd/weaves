@@ -126,6 +126,7 @@ class TaskTurn(MutableWorkspaceScopedContract):
     requested_by_principal_id: OpaqueId
     idempotency_key: OpaqueId | None = None
     run_idempotency_key: OpaqueId | None = None
+    request_id: OpaqueId | None = None
     status: TaskTurnStatus
     attempts: int = Field(default=0, ge=0, le=100)
     worker_id: OpaqueId | None = None

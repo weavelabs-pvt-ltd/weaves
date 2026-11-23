@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from contextlib import AbstractContextManager
+from functools import partial
 from typing import Literal, cast
 
 import httpx
@@ -23,6 +24,7 @@ from apps.runtime_service_composition import configure_capability_services
 from contracts.v1.base import ProductContract
 from infrastructure.config.settings import PoolSettings, load_pool_settings
 from infrastructure.database.pool import open_postgres_pool
+from infrastructure.database.queue_metrics import publish_queue_gauges
 from infrastructure.database.store import ProductPostgresStore
 from infrastructure.http.model_egress import open_model_http_client
 from infrastructure.http.pool import open_http_client
@@ -31,6 +33,7 @@ from infrastructure.persistence.product_repositories import (
     create_product_repository_set,
 )
 from infrastructure.persistence.unit_of_work import InMemoryUnitOfWork
+from shared.metrics import register_collector
 from shared.request_context import require_tenant_context
 
 
@@ -50,6 +53,8 @@ def open_process_runtime(
     store: ProductPostgresStore | None = None
     try:
         store = _open_store(settings, app_role=app_role)
+        if store is not None and process == "worker":
+            register_collector(partial(publish_queue_gauges, store))
         seeds_local = local_seeds in {"true", "1", "yes"}
         runtime = compose_platform_runtime(
             http_client=http_client, store=store, seed_local_defaults=seeds_local

@@ -25,3 +25,10 @@ def test_each_planned_control_has_one_owning_module() -> None:
     for cid, (slice_, module) in PLANNED.items():
         loaded = importlib.import_module(f"tenancy_harness.phase5.{module}")
         assert (cid, slice_) == (loaded.CONTROL_ID, loaded.SLICE)
+
+
+def test_t5_i05_is_required_and_its_module_loads() -> None:
+    assert "T5-I05" in PAIR["required_controls"]
+    assert "T5-I05" not in PAIR["planned_controls"]
+    loaded = importlib.import_module("tenancy_harness.phase5.correlation_checks")
+    assert (loaded.CONTROL_ID, loaded.SLICE) == ("T5-I05", "5.5")

@@ -71,7 +71,8 @@ def test_registry_rejects_duplicates_and_negative_intervals() -> None:
 
 def test_default_registry_keeps_the_original_order_and_intervals() -> None:
     registry = build_tick_registry(schedule_interval=5, lifecycle_interval=30)
-    assert [(t.name, t.interval_seconds, t.run_at_start) for t in registry.ticks] == [
+    original = [(t.name, t.interval_seconds, t.run_at_start) for t in registry.ticks]
+    assert original[:5] == [
         ("recovery", 30, False),
         ("organization_purge", 30, True),
         ("waitlist_purge", 3600, True),

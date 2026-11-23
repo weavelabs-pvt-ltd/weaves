@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from shared.metrics import DB_POOL_IN_USE
+
 
 def open_postgres_pool(
     database_url: str,
@@ -23,4 +25,11 @@ def open_postgres_pool(
         kwargs={"application_name": application_name},
     )
     pool.open(wait=True)
+    DB_POOL_IN_USE.set_callback(lambda: _in_use(pool))
     return pool
+
+
+def _in_use(pool: Any) -> float:
+    """Connections checked out right now (open connections minus idle ones)."""
+    stats = pool.get_stats()
+    return float(stats["pool_size"] - stats["pool_available"])

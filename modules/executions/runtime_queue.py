@@ -23,6 +23,7 @@ from contracts.v1 import (
 from modules.limits.errors import LimitExceeded
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
+from shared.correlation import current_request_id
 from shared.errors import IdempotencyConflict, IdempotencyKeyAlreadyExists
 from shared.request_context import effective_org_id, effective_workspace_id
 
@@ -200,6 +201,7 @@ class ExecutionQueueMixin(RuntimeCapabilityHost):
             schedule_id=schedule_id,
             schedule_occurrence_at=schedule_occurrence_at,
             idempotency_key=idempotency_key,
+            request_id=current_request_id(),
             status=ExecutionJobStatus.QUEUED,
             created_at=timestamp,
             updated_at=timestamp,
