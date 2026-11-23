@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from threading import Event, RLock
+from threading import Event
 
 from application.runtime_host import RuntimeCapabilityHost
 from contracts.v1 import (
@@ -89,9 +89,7 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
     ) -> RuntimeResult:
         """Serialize idempotent requests and replay only matching runs."""
         lock_key = (requested_by_principal_id, key)
-        with self._idempotency_guard:
-            lock = self._idempotency_locks.setdefault(lock_key, RLock())
-        with lock:
+        with self._idempotency_locks.hold(lock_key):
             existing = self.runs.find_by_idempotency_key(
                 key,
                 requested_by_principal_id,

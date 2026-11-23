@@ -51,12 +51,12 @@ Scope is derived from the contract fields (`org_id`, `workspace_id`) that become
 | `tool_invocations` | `ToolInvocation` | `invocation_id` | workspace | yes | no | yes | 6 | `limits_tool_invocation_org_idx`, `tool_invocations_executing_idx`, `tool_invocations_approval_idx`, `tool_invocations_run_idx` |
 | `artifacts` | `Artifact` | `artifact_id` | workspace | yes | no | yes | 8 | `artifacts_run_idx` |
 | `conversation_threads` | `ConversationThread` | `thread_id` | workspace | yes | no | yes | 5 | - |
-| `execution_jobs` | `ExecutionJob` | `job_id` | workspace | yes | no | no | 1 | `product_records_execution_job_idempotency_uq`, `product_records_execution_job_claim_idx`, `limits_job_queued_org_idx`, `execution_jobs_leased_idx` |
+| `execution_jobs` | `ExecutionJob` | `job_id` | workspace | yes | no | no | 1 | `product_records_execution_job_idempotency_uq`, `product_records_execution_job_claim_idx`, `limits_job_queued_org_idx`, `product_records_execution_job_org_queued_idx`, `product_records_execution_job_org_running_idx`, `execution_jobs_leased_idx` |
 | `canvas_runs` | `CanvasRun` | `run_id` | workspace | yes | no | no | 11 | `canvas_runs_active_idx`, `canvas_runs_workflow_page_idx` |
 | `canvas_settings` | `CanvasSettings` | `workflow_id` | workspace | yes | no | no | 32 | `canvas_settings_due_idx` |
 | `tasks` | `Task` | `task_id` | workspace | yes | no | yes | 4 | `product_records_task_idempotency_uq`, `product_records_task_page_idx`, `tasks_status_idx` |
 | `task_messages` | `TaskMessage` | `message_id` | workspace | no (frozen) | no | yes | 3 | `product_records_task_messages_page_idx` |
-| `task_turns` | `TaskTurn` | `turn_id` | workspace | yes | no | yes | 2 | `product_records_task_turn_idempotency_uq`, `product_records_task_turn_claim_idx`, `product_records_task_turn_stale_idx`, `limits_turn_queued_org_idx`, `task_turns_task_idx`, `task_turns_active_idx`, `task_turns_recent_idx` |
+| `task_turns` | `TaskTurn` | `turn_id` | workspace | yes | no | yes | 2 | `product_records_task_turn_idempotency_uq`, `product_records_task_turn_claim_idx`, `product_records_task_turn_stale_idx`, `limits_turn_queued_org_idx`, `product_records_task_turn_org_queued_idx`, `product_records_task_turn_org_running_idx`, `task_turns_task_idx`, `task_turns_active_idx`, `task_turns_recent_idx` |
 | `audit_events` | `AuditEvent` | `audit_event_id` | workspace | no (frozen) | no | yes | keep | `product_records_audit_event_org_page_idx`, `product_records_audit_event_workspace_page_idx`, `audit_events_action_target_idx` |
 | `organization_limits` | `OrganizationLimitOverride` | `org_id` | organization | yes | no | no | none | - |
 | `waitlist_entries` | `WaitlistEntry` | `id` | global/account | yes | no | no | keep | `waitlist_entry_email_uq` |
@@ -1217,6 +1217,11 @@ Parsed from the migration and repeatable statements. `collection` is the partial
 | `limits_turn_queued_org_idx` | migration 25 | `product_records` | no | `org_id` | `collection = 'task_turns' AND payload->>'status' = 'queued'` |
 | `limits_job_queued_org_idx` | migration 25 | `product_records` | no | `org_id` | `collection = 'execution_jobs' AND payload->>'status' = 'queued'` |
 | `limits_tool_invocation_org_idx` | migration 25 | `product_records` | no | `org_id, created_at` | `collection = 'tool_invocations'` |
+| `tenant_scheduler_state_claimed_idx` | migration 26 | `tenant_scheduler_state` | no | `last_claimed_at` | `-` |
+| `product_records_execution_job_org_queued_idx` | migration 26 | `product_records` | no | `org_id, created_at, record_id` | `collection = 'execution_jobs' AND payload->>'status' = 'queued'` |
+| `product_records_task_turn_org_queued_idx` | migration 26 | `product_records` | no | `org_id, created_at, record_id` | `collection = 'task_turns' AND payload->>'status' = 'queued'` |
+| `product_records_execution_job_org_running_idx` | migration 26 | `product_records` | no | `org_id` | `collection = 'execution_jobs' AND payload->>'status' IN ('running', 'cancel_requested')` |
+| `product_records_task_turn_org_running_idx` | migration 26 | `product_records` | no | `org_id` | `collection = 'task_turns' AND payload->>'status' = 'running'` |
 | `workflow_runs_running_idx` | migration 28 | `product_records` | no | `updated_at, record_id` | `collection = 'workflow_runs' AND payload->>'status' = 'running'` |
 | `execution_jobs_leased_idx` | migration 28 | `product_records` | no | `updated_at, record_id` | `collection = 'execution_jobs' AND payload->>'status' IN ('running', 'cancel_requested')` |
 | `tool_invocations_executing_idx` | migration 28 | `product_records` | no | `updated_at, record_id` | `collection = 'tool_invocations' AND payload->>'status' = 'executing'` |

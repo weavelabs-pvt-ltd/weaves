@@ -70,7 +70,22 @@ services:
   worker:
     image: ${TEST_BACKEND_IMAGE:?}
     command: [python, -m, apps.worker.main]
-    environment: *runtime
+    environment: &worker_runtime
+      <<: *runtime
+      # Slice 5.2: four slots per worker and an enforced two-running cap per
+      # organization (the production defaults), so fair claiming is exercised.
+      WEAVES_LIMITS_MODE: enforce
+      WEAVES_WORKER_SLOTS: "4"
+      WEAVES_LIMIT_MAX_RUNNING_PER_ORG: "2"
+    volumes:
+      - ${TEST_PRIVATE_DIR:?}/tls/cert.pem:/trust/ca.pem:ro
+    depends_on:
+      api:
+        condition: service_started
+  worker2:
+    image: ${TEST_BACKEND_IMAGE:?}
+    command: [python, -m, apps.worker.main]
+    environment: *worker_runtime
     volumes:
       - ${TEST_PRIVATE_DIR:?}/tls/cert.pem:/trust/ca.pem:ro
     depends_on:

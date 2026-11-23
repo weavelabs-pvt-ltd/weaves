@@ -8,13 +8,18 @@ from typing import Any, Generic
 
 from application.ports.repository import TContract, _updated_at
 from contracts.v1.base import OpaqueId
+from infrastructure.persistence.postgres_fair_claim import PostgresFairClaimMixin
 from infrastructure.persistence.postgres_query_repository import (
     PostgresQueryRepositoryMixin,
 )
 from shared.errors import IdempotencyKeyAlreadyExists, OwnershipConflict
 
 
-class PostgresRepository(PostgresQueryRepositoryMixin[TContract], Generic[TContract]):
+class PostgresRepository(
+    PostgresFairClaimMixin[TContract],
+    PostgresQueryRepositoryMixin[TContract],
+    Generic[TContract],
+):
     """JSONB-backed repository with tenant scope stored as queryable columns."""
 
     def __init__(

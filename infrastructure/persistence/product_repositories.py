@@ -203,6 +203,10 @@ def create_product_repository_set(
         name: _create_repository(store, collection, id_field, record_type)
         for name, collection, id_field, record_type in REPOSITORY_SPECS
     }
+    if store is None:
+        jobs = cast(InMemoryRepository[ExecutionJob], repositories["execution_jobs"])
+        turns = cast(InMemoryRepository[TaskTurn], repositories["task_turns"])
+        jobs.share_fair_claims(turns)
     repositories["plugins"] = (
         PostgresPluginCatalog(store)
         if store is not None

@@ -21,6 +21,7 @@ from contracts.v1 import (
 from modules.executions.runtime_job_lifecycle import ExecutionJobLifecycleMixin
 from modules.executions.runtime_queue import ExecutionQueueMixin
 from modules.limits.service import AdmissionService, NullAdmission
+from shared.keyed_locks import KeyedLockRegistry
 
 
 class ExecutionService(ExecutionJobLifecycleMixin, ExecutionQueueMixin):
@@ -52,7 +53,7 @@ class ExecutionService(ExecutionJobLifecycleMixin, ExecutionQueueMixin):
         default_agent_id: Callable[[], str],
         unit_of_work: Callable[[], AbstractContextManager[None]],
         idempotency_guard: RLock,
-        execution_job_idempotency_locks: dict[tuple[str, str], RLock],
+        execution_job_idempotency_locks: KeyedLockRegistry,
         admission: AdmissionService | None = None,
     ) -> None:
         """Bind repositories and platform lifecycle ports for job operations."""

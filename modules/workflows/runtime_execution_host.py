@@ -23,6 +23,7 @@ from contracts.v1 import (
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
 from modules.workflows.runtime_result import RuntimeResult
+from shared.keyed_locks import KeyedLockRegistry
 
 
 class WorkflowExecutionRuntimeHost(ABC):
@@ -30,7 +31,7 @@ class WorkflowExecutionRuntimeHost(ABC):
 
     _bootstrapped: Callable[[], bool]
     _idempotency_guard: RLock
-    _idempotency_locks: dict[tuple[str, str], RLock]
+    _idempotency_locks: KeyedLockRegistry
     runs: Repository[WorkflowRun]
     workflows: Repository[WorkflowDefinition]
     workflow_versions: Repository[WorkflowVersion]

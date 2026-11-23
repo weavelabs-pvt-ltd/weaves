@@ -3,6 +3,8 @@
 from apps.platform_runtime import LocalPlatformRuntime
 from apps.runtime_wiring import open_process_runtime
 from apps.worker.services import WorkerServices
+from modules.executions.queue_health import QueueHealthService
+from shared.limits_config import LimitsConfig
 
 
 def build_platform_runtime() -> LocalPlatformRuntime:
@@ -10,7 +12,9 @@ def build_platform_runtime() -> LocalPlatformRuntime:
     return open_process_runtime(process="worker")
 
 
-def build_worker_services() -> WorkerServices:
+def build_worker_services(
+    queue_age_warn_seconds: int = LimitsConfig().queue_age_warn_seconds,
+) -> WorkerServices:
     """Build explicit worker dependencies and retain runtime-owned cleanup."""
     runtime = build_platform_runtime()
     return WorkerServices(
@@ -26,4 +30,9 @@ def build_worker_services() -> WorkerServices:
         purge_accounts=runtime.account_sign_in_service.purge_expired,
         purge_organizations=runtime.organization_purge_service.tick,
         purge_waitlist=lambda: sum(runtime.waitlist_service.purge_stale()),
+        queue_health=QueueHealthService(
+            execution_jobs=runtime.execution_worker_service.execution_jobs,
+            task_turns=runtime.task_worker_service.turns,
+            warn_seconds=queue_age_warn_seconds,
+        ),
     )

@@ -3,7 +3,9 @@
 import asyncio
 import contextlib
 import hashlib
+import json
 import os
+import re
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -141,6 +143,9 @@ async def completion(request: Request):
             ).hexdigest(),
         }
     )
+    slow = re.search(r"tenancy-slow=(\d{1,3})", json.dumps(body["messages"]))
+    if slow:  # slice 5.2: a deliberately slow model for fair-claim controls
+        await asyncio.sleep(min(int(slow.group(1)), 120))
     prompt = body["messages"][-1]["content"]
     return {
         "id": "fixture-completion",

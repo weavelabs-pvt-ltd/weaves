@@ -27,6 +27,7 @@ database foreign key (section 1.6).
 | `product_records` | Every product entity: 48 collections (section 2), one row per record, body in `payload jsonb` | migration 1, `infrastructure/database/store.py` |
 | `product_secrets` | Fernet ciphertext of provider keys and connector tokens, owned by one organization | `EncryptedPostgresSecretStore.__init__`, `infrastructure/secrets/store.py` (at start-up, only when `WEAVES_SECRET_ENCRYPTION_KEY` is configured, not by a numbered migration) |
 | `product_login_throttle` | Fixed-window attempt counters for sign-in and organization creation | migration 9 |
+| `tenant_scheduler_state` | Last claim time per organization, for round-robin worker claiming; no tenant content, pruned after a day, row security admits only the `queue` system purpose | migration 26 |
 | `product_schema_migrations` | Applied migration versions | `ProductPostgresStore._migrate` |
 | `product_plugin_ownership`, `product_plugin_ownership_rollout` | Explicit ownership of plugin descriptors, plus immutable rollout evidence | migration 20, applied only by an operator (`infrastructure/database/plugin_ownership.py`), never by start-up |
 

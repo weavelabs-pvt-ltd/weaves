@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from modules.executions.queue_health import QueueHealthService
 from modules.executions.recovery_service import ExecutionRecoveryService
 from modules.executions.worker_service import ExecutionWorkerService
 from modules.governance.action_recovery_service import ActionRecoveryService
@@ -29,3 +30,4 @@ class WorkerServices:
     purge_accounts: Callable[[], int] | None = None
     purge_organizations: Callable[[], int] | None = None
     purge_waitlist: Callable[[], int] | None = None
+    queue_health: QueueHealthService | None = None

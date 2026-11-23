@@ -29,6 +29,7 @@ from contracts.v1 import (
 from modules.evaluations.runtime import EvaluationRuntimeMixin
 from modules.limits.service import AdmissionService, NullAdmission
 from modules.workflows.runtime_result import RuntimeResult
+from shared.keyed_locks import KeyedLockRegistry
 
 
 class EvaluationService(EvaluationRuntimeMixin):
@@ -57,7 +58,7 @@ class EvaluationService(EvaluationRuntimeMixin):
         cancellation_requested: Callable[[str, Event], bool],
         run_agent: Callable[..., RuntimeResult],
         idempotency_guard: RLock,
-        execution_job_idempotency_locks: dict[tuple[str, str], RLock],
+        execution_job_idempotency_locks: KeyedLockRegistry,
         admission: AdmissionService | None = None,
     ) -> None:
         """Bind evaluation repositories and the execution operations it needs."""

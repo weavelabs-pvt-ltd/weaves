@@ -46,7 +46,7 @@ def _int(env: Mapping[str, str], name: str, default: int, low: int, high: int) -
 
 def _bool(env: Mapping[str, str], name: str, default: bool) -> bool:
     raw = env.get(name)
-    if raw is None:
+    if raw is None or not raw.strip():
         return default
     value = raw.strip().lower()
     if value in _TRUE:
@@ -84,6 +84,9 @@ class LimitsConfig:
     mode: LimitsMode = "observe"
     # Global (per worker process). Model calls are network bound. Used from 5.2.
     worker_slots: int = 4
+    # Round-robin claiming across organizations with the per-organization
+    # running cap. ``False`` restores the global oldest-first claim.
+    fair_claim: bool = True
     # Half of the slots, so one organization never takes the whole worker.
     max_running_per_org: int = 2
     # Bounds claim enumeration and drain time at two slots (minutes).
@@ -148,6 +151,7 @@ class LimitsConfig:
         return cls(
             mode=_mode(_text(env, "WEAVES_LIMITS_MODE") or d.mode),
             worker_slots=_int(env, "WEAVES_WORKER_SLOTS", d.worker_slots, 1, 32),
+            fair_claim=_bool(env, "WEAVES_FAIR_CLAIM", d.fair_claim),
             max_running_per_org=_int(
                 env, "WEAVES_LIMIT_MAX_RUNNING_PER_ORG", d.max_running_per_org, 1, 32
             ),

@@ -251,7 +251,7 @@ def run(args, harness):
                 )
         compose.run("up", "-d", "postgres", "provider", "api", "frontend")
         compose.run("run", "--rm", "--no-deps", "seed")
-        compose.run("up", "-d", "worker")
+        compose.run("up", "-d", "worker", "worker2")
         seed_module(compose, "observe")
         seed_module(compose, "lifecycle_checks")
         seed_module(compose, "waitlist_checks")
@@ -259,6 +259,7 @@ def run(args, harness):
         seed_module(compose, "phase5.correlation_checks")
         record_correlation_logs(compose, private)
         seed_module(compose, "phase5.bounded_queries_checks")
+        seed_module(compose, "phase5.fair_claim_checks")
         raw = browser(
             frontend,
             harness,

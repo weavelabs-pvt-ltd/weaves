@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from threading import Event, Thread
 
+from application.ports.fair_claim import log_over_cap
+from application.ports.limits import LimitPolicy
 from application.runtime_host import RuntimeCapabilityHost
 from contracts.v1 import ExecutionJob, ExecutionJobStatus
 from shared.clock import utc_now as _now
@@ -21,15 +23,29 @@ from shared.request_context import (
 class ExecutionWorkerMixin(RuntimeCapabilityHost):
     """Own execution worker operations."""
 
-    def process_next_execution_job(self, worker_id: str) -> ExecutionJob | None:
-        """Claim and process one durable job; return its terminal record."""
+    def process_next_execution_job(
+        self, worker_id: str, limits: LimitPolicy | None = None
+    ) -> ExecutionJob | None:
+        """Claim and process one durable job; return its terminal record.
+
+        With ``limits`` the claim is fair across organizations and honours each
+        organization's running cap; without it the oldest queued job wins.
+        """
         self._ensure_bootstrapped()
         if not worker_id.strip() or len(worker_id) > 128:
             raise ValueError("worker_id must contain 1 to 128 characters")
         with system_scope("queue"):
-            job = self.execution_jobs.claim_next_queued(
-                worker_id.strip(), _now(), None, None
-            )
+            if limits is None:
+                job = self.execution_jobs.claim_next_queued(
+                    worker_id.strip(), _now(), None, None
+                )
+            else:
+                fair = self.execution_jobs.claim_next_fair(
+                    worker_id.strip(), _now(), limits
+                )
+                job = None if fair is None else fair.record
+                if fair is not None:
+                    log_over_cap("execution job", fair.record.job_id, fair)
         if job is None:
             return None
         with bind_context(

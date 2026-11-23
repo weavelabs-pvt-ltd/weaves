@@ -72,6 +72,7 @@ from contracts.v1 import ModelProvider as ModelProviderContract
 from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
 from modules.auth.runtime_organizations import MockModelIdentifier
 from modules.limits.service import AdmissionService
+from shared.keyed_locks import KeyedLockRegistry
 
 
 class RuntimeCompositionInputs(Protocol):
@@ -81,9 +82,9 @@ class RuntimeCompositionInputs(Protocol):
     _advisory_transaction_lock: Callable[[str], None] | None
     _approval_lock: RLock
     _bootstrapped: bool
-    _execution_job_idempotency_locks: dict[tuple[str, str], RLock]
+    _execution_job_idempotency_locks: KeyedLockRegistry
     _idempotency_guard: RLock
-    _idempotency_locks: dict[tuple[str, str], RLock]
+    _idempotency_locks: KeyedLockRegistry
 
     def _unit_of_work(self) -> AbstractContextManager[None]:
         """Open the process-configured unit of work."""

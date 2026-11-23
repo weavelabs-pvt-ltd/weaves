@@ -35,6 +35,7 @@ from modules.agents.runtime_run_targets import AgentRunTargetsMixin
 from modules.integrations.admin_service import IntegrationAdminService
 from modules.limits.service import AdmissionService, NullAdmission
 from shared.clock import utc_now as _now
+from shared.keyed_locks import KeyedLockRegistry
 
 
 class AgentExecutionService(
@@ -93,7 +94,7 @@ class AgentExecutionService(
         authorize: Callable[[str, Permission], None],
         unit_of_work: Callable[[], AbstractContextManager[None]],
         idempotency_guard: RLock,
-        idempotency_locks: dict[tuple[str, str], RLock],
+        idempotency_locks: KeyedLockRegistry,
         default_agent_id: Callable[[], str],
         admission: AdmissionService | None = None,
     ) -> None:

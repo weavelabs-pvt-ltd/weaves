@@ -29,7 +29,7 @@ def load_pool_settings(*, process: Literal["api", "worker", "cli"]) -> PoolSetti
     if process not in {"api", "worker", "cli"}:
         raise ValueError("process must be 'api', 'worker', or 'cli'")
     min_size = _positive_int("WEAVES_DB_POOL_MIN_SIZE", 1)
-    max_size = _positive_int("WEAVES_DB_POOL_MAX_SIZE", 10)
+    max_size = _positive_int("WEAVES_DB_POOL_MAX_SIZE", _default_pool_max(process))
     if min_size > max_size:
         raise ValueError(
             "WEAVES_DB_POOL_MIN_SIZE cannot exceed WEAVES_DB_POOL_MAX_SIZE"
@@ -56,6 +56,15 @@ def load_pool_settings(*, process: Literal["api", "worker", "cli"]) -> PoolSetti
         http_max_connections=max_connections,
         http_max_keepalive_connections=keepalive,
     )
+
+
+def _default_pool_max(process: str) -> int:
+    """10, except the worker: ``slots * 2 + 4`` (executions, heartbeats, ticks)."""
+    if process != "worker":
+        return 10
+    from shared.limits_config import LimitsConfig
+
+    return LimitsConfig.from_env(os.environ).worker_slots * 2 + 4
 
 
 def _positive_int(name: str, default: int) -> int:

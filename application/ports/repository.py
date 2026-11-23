@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Protocol, TypeVar
 
+from application.ports.fair_claim import FairClaim
+from application.ports.limits import LimitPolicy
 from contracts.v1.base import OpaqueId, ProductContract
 
 TContract = TypeVar("TContract", bound=ProductContract)
@@ -210,6 +212,25 @@ class Repository(Protocol[TContract]):
         workspace_id: str | None,
     ) -> TContract | None:
         """Atomically claim the next eligible queued record."""
+        ...
+
+    def claim_next_fair(
+        self, worker_id: str, timestamp: datetime, limits: LimitPolicy
+    ) -> FairClaim[TContract] | None:
+        """Claim the next queued record fairly across organizations.
+
+        Organizations are served least recently claimed first, and an
+        organization already running ``max_running_per_org`` rows (jobs and
+        task turns together) is skipped while limits are enforced.
+        """
+        ...
+
+    def oldest_queued_at(self) -> datetime | None:
+        """Return the creation time of the oldest queued record, or None."""
+        ...
+
+    def prune_claim_state(self, claimed_before: datetime) -> int:
+        """Forget round-robin history older than a cutoff; return rows removed."""
         ...
 
     def list_scoped(

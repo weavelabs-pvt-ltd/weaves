@@ -23,6 +23,8 @@ WAITLIST_PURGE_SECONDS = 3600
 RECOVERY_SWEEP_SECONDS = 86_400
 RECOVERY_SECONDS = 30
 METRICS_GAUGE_SECONDS = 15
+QUEUE_HEALTH_SECONDS = 30
+CLAIM_STATE_PRUNE_SECONDS = 3600
 
 
 @dataclass(frozen=True)
@@ -143,6 +145,26 @@ def _metrics_gauges(_: WorkerServices) -> None:
     run_collectors()
 
 
+def _queue_age(services: WorkerServices) -> None:
+    """Warn when queued work waits too long; never disturb the loop."""
+    if services.queue_health is None:
+        return
+    try:
+        services.queue_health.oldest_queued_age_seconds()
+    except Exception:
+        logger.exception("queue age check failed")
+
+
+def _prune_claim_state(services: WorkerServices) -> None:
+    """Drop stale round-robin history; failures are logged, never raised."""
+    if services.queue_health is None:
+        return
+    try:
+        services.queue_health.prune_claim_state()
+    except Exception:
+        logger.exception("claim state prune failed")
+
+
 def build_tick_registry(
     *, schedule_interval: float, lifecycle_interval: float
 ) -> TickRegistry:
@@ -158,7 +180,11 @@ def build_tick_registry(
 
     # Phase 5 registrations. Each slice adds exactly one line in its own block.
 
-    # 5.2 fair claiming: supervisor ticks move here when claiming goes multi-slot.
+    # 5.2 fair claiming: supervisor ticks (slots execute, these keep running).
+    registry.register(Tick("queue_age", QUEUE_HEALTH_SECONDS, _queue_age))
+    registry.register(
+        Tick("claim_state_prune", CLAIM_STATE_PRUNE_SECONDS, _prune_claim_state)
+    )
 
     # 5.3 usage ledger: reservation recovery and retention purge.
 

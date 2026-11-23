@@ -41,6 +41,7 @@ def test_every_field_has_an_environment_setting() -> None:
     env = {
         "WEAVES_LIMITS_MODE": "ENFORCE",
         "WEAVES_WORKER_SLOTS": "2",
+        "WEAVES_FAIR_CLAIM": "false",
         "WEAVES_LIMIT_MAX_RUNNING_PER_ORG": "1",
         "WEAVES_LIMIT_MAX_QUEUED_PER_ORG": "7",
         "WEAVES_LIMIT_GLOBAL_MAX_QUEUED": "70",

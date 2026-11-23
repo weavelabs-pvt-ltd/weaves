@@ -23,6 +23,7 @@ from contracts.v1 import (
 )
 from modules.workflows.runtime_execution import WorkflowExecutionMixin
 from modules.workflows.runtime_result import RuntimeResult
+from shared.keyed_locks import KeyedLockRegistry
 
 
 class WorkflowExecutionService(WorkflowExecutionMixin):
@@ -57,7 +58,7 @@ class WorkflowExecutionService(WorkflowExecutionMixin):
         authorize: Callable[[str, Permission], None],
         unit_of_work: Callable[[], AbstractContextManager[None]],
         idempotency_guard: RLock,
-        idempotency_locks: dict[tuple[str, str], RLock],
+        idempotency_locks: KeyedLockRegistry,
         execute_agent_run: Callable[..., RuntimeResult],
         replay_idempotent_run: Callable[..., RuntimeResult],
     ) -> None:

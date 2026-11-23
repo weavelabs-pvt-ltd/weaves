@@ -26,6 +26,7 @@ from contracts.v1 import (
     ToolInvocation,
     WorkflowRun,
 )
+from shared.keyed_locks import KeyedLockRegistry
 
 if TYPE_CHECKING:
     from modules.limits.service import AdmissionService
@@ -37,7 +38,7 @@ class EvaluationRuntimeHost(ABC):
 
     _is_bootstrapped: Callable[[], bool]
     _idempotency_guard: RLock
-    _execution_job_idempotency_locks: dict[tuple[str, str], RLock]
+    _execution_job_idempotency_locks: KeyedLockRegistry
     agents: Repository[AgentDefinition]
     artifacts: Repository[Artifact]
     agent_runs: Repository[AgentRun]
