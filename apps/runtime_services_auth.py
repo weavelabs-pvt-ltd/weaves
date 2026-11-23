@@ -112,6 +112,7 @@ def _configure_user_administration_service(
         authorize=dependencies.authorize,
         authorize_organization=dependencies.authorize_organization,
         unit_of_work=dependencies._unit_of_work,
+        admission=dependencies.admission,
     )
 
 

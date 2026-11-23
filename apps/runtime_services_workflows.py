@@ -28,6 +28,7 @@ def _configure_workflow_automation_service(
         advisory_transaction_lock=dependencies._advisory_transaction_lock,
         enqueue_agent_run=dependencies.enqueue_agent_run,
         organization_settings=dependencies.organization_settings,
+        admission=dependencies.admission,
     )
 
 
@@ -45,6 +46,7 @@ def _configure_workflow_definition_service(
         bootstrap=dependencies.bootstrap,
         authorize=dependencies.authorize,
         unit_of_work=dependencies._unit_of_work,
+        admission=dependencies.admission,
     )
 
 
@@ -86,4 +88,5 @@ def _configure_agent_service(
             services.integration_admin_service.resolve_capability_installation
         ),
         unit_of_work=dependencies._unit_of_work,
+        admission=dependencies.admission,
     )

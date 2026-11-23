@@ -28,6 +28,7 @@ from contracts.v1 import (
 )
 
 if TYPE_CHECKING:
+    from modules.limits.service import AdmissionService
     from modules.workflows.runtime_result import RuntimeResult
 
 
@@ -47,6 +48,7 @@ class EvaluationRuntimeHost(ABC):
     execution_jobs: Repository[ExecutionJob]
     runs: Repository[WorkflowRun]
     tool_invocations: Repository[ToolInvocation]
+    admission: AdmissionService
     tasks: Repository[Task]
     task_turns: Repository[TaskTurn]
 

@@ -5,6 +5,7 @@ from contextlib import AbstractContextManager
 
 from application.ports.repository import Repository
 from contracts.v1 import ConversationThread, Task, TaskMessage, TaskTurn
+from modules.limits.errors import LimitExceeded
 from shared.errors import IdempotencyConflict, IdempotencyKeyAlreadyExists
 from shared.request_context import effective_org_id, effective_workspace_id
 
@@ -20,8 +21,14 @@ class TaskCreationPersistence:
         messages: Repository[TaskMessage],
         turns: Repository[TaskTurn],
         unit_of_work: Callable[[], AbstractContextManager[None]],
+        admit: Callable[[str], None] | None = None,
     ) -> None:
-        """Bind the task aggregate repositories and transaction port."""
+        """Bind the task aggregate repositories and transaction port.
+
+        ``admit(org_id)`` runs inside the creating transaction before any row
+        is written and raises ``LimitExceeded`` when the organization is full.
+        """
+        self._admit = admit
         self.tasks = tasks
         self.threads = threads
         self.messages = messages
@@ -75,11 +82,28 @@ class TaskCreationPersistence:
         """Persist the aggregate and resolve a concurrent idempotent winner."""
         try:
             with self._open_unit_of_work():
+                if self._admit is not None:
+                    self._admit(task.org_id)
                 self.tasks.create(task)
                 self.threads.create(thread)
                 self.messages.create(message)
                 self.turns.create(turn)
             return task
+        except LimitExceeded:
+            # A concurrent request with this key may have just filled the last
+            # slot; that is a replay, not a refusal.
+            replay = self._concurrent_replay(
+                task,
+                principal,
+                agent_id,
+                title,
+                description,
+                initial_message,
+                private,
+            )
+            if replay is None:
+                raise
+            return replay
         except IdempotencyKeyAlreadyExists as exc:
             existing = self.tasks.find_by_idempotency_key(
                 task.idempotency_key or "",
@@ -105,6 +129,41 @@ class TaskCreationPersistence:
                 )
             except IdempotencyConflict as conflict:
                 raise conflict from exc
+
+    def _concurrent_replay(
+        self,
+        task: Task,
+        principal: str,
+        agent_id: str,
+        title: str,
+        description: str,
+        initial_message: str,
+        private: bool,
+    ) -> Task | None:
+        """Return the winner of a racing idempotent creation, else None."""
+        if not task.idempotency_key:
+            return None
+        existing = self.tasks.find_by_idempotency_key(
+            task.idempotency_key,
+            principal,
+            effective_org_id(),
+            effective_workspace_id(),
+        )
+        if existing is None:
+            return None
+        return self._validate_replay(
+            existing,
+            agent_id,
+            title,
+            description,
+            initial_message,
+            private=private,
+            skill_version_ids=tuple(
+                item.source_skill_version_id
+                for item in task.private_skill_snapshots
+                if item.source_skill_version_id is not None
+            ),
+        )
 
     def _validate_replay(
         self,

@@ -19,6 +19,7 @@ from contracts.v1 import (
 )
 from modules.auth.organization_guard import OrganizationGuard
 from modules.auth.runtime_users import WorkspaceUserRuntimeMixin
+from modules.limits.service import AdmissionService
 
 
 class UserAdministrationService(WorkspaceUserRuntimeMixin):
@@ -48,8 +49,10 @@ class UserAdministrationService(WorkspaceUserRuntimeMixin):
         authorize: Callable[[str, Permission], None],
         authorize_organization: Callable[[str, Permission], None],
         unit_of_work: Callable[[], AbstractContextManager[None]],
+        admission: AdmissionService | None = None,
     ) -> None:
         """Bind user repositories and application lifecycle callbacks."""
+        self.admission = admission
         self.administration_guard = administration_guard
         self.api_credentials = api_credentials
         self.audit_events = audit_events

@@ -48,16 +48,17 @@ Scope is derived from the contract fields (`org_id`, `workspace_id`) that become
 | `approval_requests` | `ApprovalRequest` | `approval_request_id` | workspace | yes | no | yes | 7 | - |
 | `workflow_runs` | `WorkflowRun` | `run_id` | workspace | yes | no | yes | 10 | `product_records_run_idempotency_uq` |
 | `agent_runs` | `AgentRun` | `agent_run_id` | workspace | yes | no | yes | 9 | - |
-| `tool_invocations` | `ToolInvocation` | `invocation_id` | workspace | yes | no | yes | 6 | - |
+| `tool_invocations` | `ToolInvocation` | `invocation_id` | workspace | yes | no | yes | 6 | `limits_tool_invocation_org_idx` |
 | `artifacts` | `Artifact` | `artifact_id` | workspace | yes | no | yes | 8 | - |
 | `conversation_threads` | `ConversationThread` | `thread_id` | workspace | yes | no | yes | 5 | - |
-| `execution_jobs` | `ExecutionJob` | `job_id` | workspace | yes | no | no | 1 | `product_records_execution_job_idempotency_uq`, `product_records_execution_job_claim_idx` |
+| `execution_jobs` | `ExecutionJob` | `job_id` | workspace | yes | no | no | 1 | `product_records_execution_job_idempotency_uq`, `product_records_execution_job_claim_idx`, `limits_job_queued_org_idx` |
 | `canvas_runs` | `CanvasRun` | `run_id` | workspace | yes | no | no | 11 | - |
 | `canvas_settings` | `CanvasSettings` | `workflow_id` | workspace | yes | no | no | 32 | - |
 | `tasks` | `Task` | `task_id` | workspace | yes | no | yes | 4 | `product_records_task_idempotency_uq`, `product_records_task_page_idx` |
 | `task_messages` | `TaskMessage` | `message_id` | workspace | no (frozen) | no | yes | 3 | `product_records_task_messages_page_idx` |
-| `task_turns` | `TaskTurn` | `turn_id` | workspace | yes | no | yes | 2 | `product_records_task_turn_idempotency_uq`, `product_records_task_turn_claim_idx`, `product_records_task_turn_stale_idx` |
+| `task_turns` | `TaskTurn` | `turn_id` | workspace | yes | no | yes | 2 | `product_records_task_turn_idempotency_uq`, `product_records_task_turn_claim_idx`, `product_records_task_turn_stale_idx`, `limits_turn_queued_org_idx` |
 | `audit_events` | `AuditEvent` | `audit_event_id` | workspace | no (frozen) | no | yes | keep | `product_records_audit_event_org_page_idx`, `product_records_audit_event_workspace_page_idx` |
+| `organization_limits` | `OrganizationLimitOverride` | `org_id` | organization | yes | no | no | none | - |
 | `waitlist_entries` | `WaitlistEntry` | `id` | global/account | yes | no | no | keep | `waitlist_entry_email_uq` |
 | `waitlist_submissions` | `WaitlistSubmission` | `id` | global/account | yes | no | no | keep | `waitlist_submission_token_uq`, `waitlist_submission_entry_idx`, `waitlist_submission_created_idx` |
 
@@ -1105,6 +1106,31 @@ Contract `contracts.v1.execution_records.AuditEvent`; `record_id` = `audit_event
 
 Reference-like fields: `actor_principal_id`, `target_id`, `request_id`, `correlation_id`
 
+### `organization_limits`
+
+Contract `contracts.v1.limits.OrganizationLimitOverride`; `record_id` = `org_id`.
+
+| Field | Type | Constraints | Presence |
+|---|---|---|---|
+| `schema_version` | literal(1) | - | default 1 |
+| `created_at` | AwareDatetime | - | required |
+| `updated_at` | AwareDatetime | - | required |
+| `org_id` | str | min_length=1, max_length=128 | required |
+| `max_queued_per_org` | int? | ge=1, le=100000 | default None |
+| `requests_per_minute_org` | int? | ge=1, le=1000000 | default None |
+| `requests_per_minute_principal` | int? | ge=1, le=1000000 | default None |
+| `request_burst` | int? | ge=1, le=100000 | default None |
+| `seats` | int? | ge=1, le=100000 | default None |
+| `schedules` | int? | ge=0, le=100000 | default None |
+| `agents` | int? | ge=0, le=100000 | default None |
+| `workflows` | int? | ge=0, le=100000 | default None |
+| `tool_calls_per_day` | int? | ge=1, le=1000000000 | default None |
+| `storage_tasks` | int? | ge=1, le=1000000000 | default None |
+| `updated_by` | str | min_length=1, max_length=320 | required |
+| `reason` | str | min_length=1, max_length=500 | required |
+
+Reference-like fields: none
+
 ### `waitlist_entries`
 
 Contract `contracts.v1.waitlist.WaitlistEntry`; `record_id` = `id`.
@@ -1186,6 +1212,9 @@ Parsed from the migration and repeatable statements. `collection` is the partial
 | `waitlist_submission_token_uq` | migration 24 | `product_records` | yes | `(payload->>'token_hash')` | `collection = 'waitlist_submissions'` |
 | `waitlist_submission_entry_idx` | migration 24 | `product_records` | no | `(payload->>'entry_id')` | `collection = 'waitlist_submissions'` |
 | `waitlist_submission_created_idx` | migration 24 | `product_records` | no | `(payload->>'created_at')` | `collection = 'waitlist_submissions'` |
+| `limits_turn_queued_org_idx` | migration 25 | `product_records` | no | `org_id` | `collection = 'task_turns' AND payload->>'status' = 'queued'` |
+| `limits_job_queued_org_idx` | migration 25 | `product_records` | no | `org_id` | `collection = 'execution_jobs' AND payload->>'status' = 'queued'` |
+| `limits_tool_invocation_org_idx` | migration 25 | `product_records` | no | `org_id, created_at` | `collection = 'tool_invocations'` |
 | `account_identity_verified_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities' AND payload->>'verified_at' IS NOT NULL` |
 | `account_identity_owner_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'account_id'), (payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities'` |
 | `membership_account_org_uq` | repeatable (account schema) | `product_records` | yes | `org_id, (payload->>'account_id')` | `collection = 'memberships'` |

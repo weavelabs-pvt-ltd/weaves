@@ -23,6 +23,7 @@ from contracts.v1 import (
     WorkflowTrigger,
     WorkflowVersion,
 )
+from modules.limits.service import AdmissionService
 from modules.workflows.runtime_schedules import WorkflowScheduleRuntimeMixin
 from modules.workflows.runtime_triggers import WorkflowTriggerRuntimeMixin
 
@@ -77,8 +78,10 @@ class WorkflowAutomationService(
         advisory_transaction_lock: Callable[[str], None] | None,
         enqueue_agent_run: AgentRunEnqueuer,
         organization_settings: object | None = None,
+        admission: AdmissionService | None = None,
     ) -> None:
         """Bind repositories, request policies, and execution dispatch ports."""
+        self.admission = admission
         self.audit_events = audit_events
         self.workflow_triggers = workflow_triggers
         self.workflow_schedules = workflow_schedules

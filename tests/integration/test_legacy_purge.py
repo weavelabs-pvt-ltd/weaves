@@ -241,6 +241,9 @@ INDEX_JUSTIFICATIONS = {
     "waitlist_submission_token_uq": "resume token lookup, one submission per token",
     "waitlist_submission_entry_idx": "submissions of a waitlist entry",
     "waitlist_submission_created_idx": "waitlist sign-ups ordered by time",
+    "limits_turn_queued_org_idx": "queued task turns per organization (admission)",
+    "limits_job_queued_org_idx": "queued execution jobs per organization (admission)",
+    "limits_tool_invocation_org_idx": "tool calls per organization per day (admission)",
 }
 
 

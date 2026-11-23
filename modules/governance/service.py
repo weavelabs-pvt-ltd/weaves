@@ -22,6 +22,7 @@ from contracts.v1 import (
 )
 from modules.governance.runtime_approvals import GovernanceApprovalMixin
 from modules.governance.runtime_policy import GovernancePolicyMixin
+from modules.limits.service import AdmissionService, NullAdmission
 
 if TYPE_CHECKING:
     from application.ports.runtime_adapters import PluginDispatcher
@@ -56,8 +57,10 @@ class GovernanceService(GovernanceApprovalMixin, GovernancePolicyMixin):
         capability_installation: CapabilityInstallation,
         unit_of_work: Callable[[], AbstractContextManager[None]],
         approval_lock: RLock,
+        admission: AdmissionService | None = None,
     ) -> None:
         """Bind governance ports supplied by the process composition root."""
+        self.admission = admission or NullAdmission()
         self.approvals = approvals
         self.approval_policies = approval_policies
         self.audit_events = audit_events

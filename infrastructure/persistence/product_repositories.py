@@ -56,6 +56,7 @@ from contracts.v1 import (
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
 from contracts.v1.base import ProductContract
+from contracts.v1.limits import OrganizationLimitOverride
 from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
 from infrastructure.database.store import ProductPostgresStore
 from infrastructure.persistence.memory_plugin_catalog import InMemoryPluginCatalog
@@ -180,6 +181,7 @@ REPOSITORY_SPECS: tuple[tuple[str, str, str, type[ProductContract]], ...] = (
     ("task_messages", "task_messages", "message_id", TaskMessage),
     ("task_turns", "task_turns", "turn_id", TaskTurn),
     ("audit_events", "audit_events", "audit_event_id", AuditEvent),
+    ("organization_limits", "organization_limits", "org_id", OrganizationLimitOverride),
     ("waitlist_entries", "waitlist_entries", "id", WaitlistEntry),
     ("waitlist_submissions", "waitlist_submissions", "id", WaitlistSubmission),
 )

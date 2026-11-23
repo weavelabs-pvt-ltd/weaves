@@ -20,6 +20,7 @@ from contracts.v1 import (
     WorkflowStatus,
     WorkflowVersion,
 )
+from modules.limits.errors import LimitExceeded
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.errors import IdempotencyConflict, IdempotencyKeyAlreadyExists
@@ -143,7 +144,7 @@ class ExecutionQueueMixin(RuntimeCapabilityHost):
             self._persist_queued_execution_job(
                 job, version.agent_version_id, requested_by_principal_id
             )
-        except IdempotencyKeyAlreadyExists:
+        except (IdempotencyKeyAlreadyExists, LimitExceeded):
             if idempotency_key is None:
                 raise
             existing = self.execution_jobs.find_by_idempotency_key(
@@ -237,6 +238,7 @@ class ExecutionQueueMixin(RuntimeCapabilityHost):
     ) -> None:
         """Persist an execution job and its audit event atomically."""
         with self._unit_of_work():
+            self.admission.admit_work(job.org_id)
             self.execution_jobs.create(job)
             self.audit_events.create(
                 self._queued_execution_audit(job, agent_version_id, actor)

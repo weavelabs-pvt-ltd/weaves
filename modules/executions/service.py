@@ -20,6 +20,7 @@ from contracts.v1 import (
 )
 from modules.executions.runtime_job_lifecycle import ExecutionJobLifecycleMixin
 from modules.executions.runtime_queue import ExecutionQueueMixin
+from modules.limits.service import AdmissionService, NullAdmission
 
 
 class ExecutionService(ExecutionJobLifecycleMixin, ExecutionQueueMixin):
@@ -52,8 +53,10 @@ class ExecutionService(ExecutionJobLifecycleMixin, ExecutionQueueMixin):
         unit_of_work: Callable[[], AbstractContextManager[None]],
         idempotency_guard: RLock,
         execution_job_idempotency_locks: dict[tuple[str, str], RLock],
+        admission: AdmissionService | None = None,
     ) -> None:
         """Bind repositories and platform lifecycle ports for job operations."""
+        self.admission = admission or NullAdmission()
         self.agents = agents
         self.agent_versions = agent_versions
         self.audit_events = audit_events

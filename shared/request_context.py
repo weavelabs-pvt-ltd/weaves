@@ -142,3 +142,8 @@ def system_scoped[**P, R](purpose: str) -> Callable[[Callable[P, R]], Callable[P
 def current_system_purpose() -> str | None:
     """Return the active system purpose, or None for ordinary tenant work."""
     return _system_purpose.get()
+
+
+def current_request_identity() -> RequestIdentity | None:
+    """Return the validated identity bound to this request, or None."""
+    return _request_identity.get()

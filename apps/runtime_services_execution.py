@@ -35,6 +35,7 @@ def _configure_execution_service(
         unit_of_work=dependencies._unit_of_work,
         idempotency_guard=dependencies._idempotency_guard,
         execution_job_idempotency_locks=(dependencies._execution_job_idempotency_locks),
+        admission=dependencies.admission,
     )
 
 
@@ -67,6 +68,7 @@ def _configure_agent_execution_service(
         idempotency_guard=dependencies._idempotency_guard,
         idempotency_locks=dependencies._idempotency_locks,
         default_agent_id=lambda: default_active_agent_id(dependencies.agents),
+        admission=dependencies.admission,
     )
 
 
@@ -149,6 +151,7 @@ def _configure_evaluation_and_recovery_services(
         run_agent=services.agent_execution_service.run_agent,
         idempotency_guard=dependencies._idempotency_guard,
         execution_job_idempotency_locks=(dependencies._execution_job_idempotency_locks),
+        admission=dependencies.admission,
     )
     services.recovery_service = ExecutionRecoveryService(
         runs=dependencies.runs,
