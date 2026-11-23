@@ -147,6 +147,10 @@ Google is the only sign-in method; there is no email delivery on the VM. The fro
    `issue_account_session.py` (below) issues a short account bearer session for
    the owner's existing account; use it with `X-Organization-Id`.
 
+## Connectors
+
+GitHub, Slack, Jira, Notion and Datadog need provider apps and runtime settings; see [CONNECTORS.md](CONNECTORS.md).
+
 ## Operator account bootstrap
 
 Two operator-only scripts create and recover access. They open the database
