@@ -26,10 +26,15 @@ from contracts.v1 import (
     TaskTurn,
     TaskTurnStatus,
 )
+from modules.limits.errors import LimitExceeded
+from modules.limits.service import AdmissionService, NullAdmission
 from modules.tasks.creation_persistence import TaskCreationPersistence
 from modules.tasks.execution_summaries import TaskExecutionSummaries
 from modules.tasks.lifecycle import TaskLifecycleMixin
-from modules.tasks.private_skill_resolver import PrivateTaskSkillResolver
+from modules.tasks.private_skill_resolver import (
+    PrivateTaskSkillResolver,
+    validate_combined_skill_context,
+)
 from modules.tasks.query_service import TaskQueryService
 from shared.clock import new_id, utc_now
 from shared.errors import IdempotencyConflict, IdempotencyKeyAlreadyExists
@@ -60,8 +65,10 @@ class TaskService(TaskLifecycleMixin):
         authorize: Callable[[str, Permission], None],
         unit_of_work: Callable[[], AbstractContextManager[None]],
         agent_runs: Repository[AgentRun] | None = None,
+        admission: AdmissionService | None = None,
     ) -> None:
         """Bind task persistence, identity enforcement, and transaction ports."""
+        self.admission = admission or NullAdmission()
         self.agent_runs = agent_runs
         self.agents = agents
         self.agent_versions = agent_versions
@@ -94,6 +101,7 @@ class TaskService(TaskLifecycleMixin):
             messages=messages,
             turns=turns,
             unit_of_work=unit_of_work,
+            admit=self.admission.admit_task,
         )
 
     def create_task(
@@ -214,27 +222,11 @@ class TaskService(TaskLifecycleMixin):
             workflow_id=workflow_id,
             condition_only=condition_only,
         )
-        self._validate_combined_skill_context(version, snapshots)
+        validate_combined_skill_context(version, snapshots)
         if condition_only:
             version = self._condition_version(version)
             self.agent_versions.create(version)
         return version, snapshots
-
-    @staticmethod
-    def _validate_combined_skill_context(
-        version: AgentVersion, snapshots: tuple[AgentSkillSnapshot, ...]
-    ) -> None:
-        """Enforce count and byte limits across organization and private skills."""
-        skills = (*version.skills, *snapshots)
-        if len(skills) > 5:
-            raise ValueError("a task may use at most five combined skills")
-        size = sum(
-            len(skill.instructions.encode("utf-8"))
-            + sum(len(text.encode("utf-8")) for text in skill.files.values())
-            for skill in skills
-        )
-        if size > 131_072:
-            raise ValueError("combined task skills exceed the 128 KiB context limit")
 
     @staticmethod
     def _condition_version(version: AgentVersion) -> AgentVersion:
@@ -405,6 +397,7 @@ class TaskService(TaskLifecycleMixin):
         )
         try:
             with self._open_unit_of_work():
+                self.admission.admit_work(task.org_id)
                 self.messages.create(message)
                 self.turns.create(turn)
                 changed = self.tasks.put_if_task_state(
@@ -416,7 +409,7 @@ class TaskService(TaskLifecycleMixin):
                     self.messages.delete(message_id)
                     self.turns.delete(turn_id)
                     raise ValueError("this task already has a turn in progress")
-        except IdempotencyKeyAlreadyExists as exc:
+        except (IdempotencyKeyAlreadyExists, LimitExceeded) as exc:
             existing = self.turns.find_by_idempotency_key(
                 idempotency_key or "", principal, task.org_id, task.workspace_id
             )

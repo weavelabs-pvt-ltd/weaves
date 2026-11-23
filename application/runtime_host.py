@@ -52,6 +52,7 @@ if TYPE_CHECKING:
     from modules.integrations.admin_service import IntegrationAdminService
     from modules.integrations.bootstrap import IntegrationBootstrapService
     from modules.integrations.connection_service import IntegrationConnectionService
+    from modules.limits.service import AdmissionService
     from modules.models.bootstrap import ModelBootstrapService
     from modules.models.catalog import ModelCatalogService
     from modules.models.runtime import ModelService
@@ -91,6 +92,7 @@ class RuntimeCapabilityHost:
     integration_bootstrap_service: IntegrationBootstrapService
     identity_bootstrap_service: IdentityBootstrapService
     model_bootstrap_service: ModelBootstrapService
+    admission: AdmissionService
     _advisory_transaction_lock: Callable[[str], None] | None
     MAX_AGENT_CONTEXT_RECORDS: int
     MAX_AGENT_CONTEXT_SERIALIZED_CHARS: int

@@ -5,6 +5,8 @@ from datetime import UTC
 from contracts.v1 import (
     WorkflowStatus,
 )
+from contracts.v1.workflow_studio import CanvasRun
+from modules.limits.errors import LimitExceeded
 from modules.workflows.studio_context import WorkflowStudioContext
 from shared.clock import utc_now
 from shared.request_context import (
@@ -75,23 +77,30 @@ class WorkflowStudioSchedulingMixin(WorkflowStudioContext):
             finally:
                 reset_request_principal(token)
         for run in all_runs:
-            if run.status not in {"queued", "running"}:
-                continue
-            token = set_request_identity(
-                run.requested_by_principal_id, run.org_id, run.workspace_id
-            )
-            try:
-                self.advance(run)
-            except Exception as exc:
-                with self.guard(run.run_id):
-                    latest = self.runs.get(run.run_id)
-                    if latest.status in {"queued", "running"}:
-                        latest.status, latest.error, latest.finished_at = (
-                            "failed",
-                            str(exc)[:1000],
-                            utc_now(),
-                        )
-                        latest.updated_at = utc_now()
-                        self.runs.put(latest)
-            finally:
-                reset_request_principal(token)
+            if run.status in {"queued", "running"}:
+                self._advance_run(run)
+
+    def _advance_run(self, run: CanvasRun) -> None:
+        """Advance one persisted run, failing it only on a real error."""
+        token = set_request_identity(
+            run.requested_by_principal_id, run.org_id, run.workspace_id
+        )
+        try:
+            self.advance(run)
+        except LimitExceeded:
+            # The organization is at a limit: leave the run as it is and try
+            # again on the next tick (child task keys make the retry safe).
+            return
+        except Exception as exc:
+            with self.guard(run.run_id):
+                latest = self.runs.get(run.run_id)
+                if latest.status in {"queued", "running"}:
+                    latest.status, latest.error, latest.finished_at = (
+                        "failed",
+                        str(exc)[:1000],
+                        utc_now(),
+                    )
+                    latest.updated_at = utc_now()
+                    self.runs.put(latest)
+        finally:
+            reset_request_principal(token)

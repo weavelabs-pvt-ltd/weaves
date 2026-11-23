@@ -17,6 +17,7 @@ from contracts.v1 import (
     ExecutionJobStatus,
     Permission,
 )
+from modules.limits.errors import LimitExceeded
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.errors import IdempotencyConflict, IdempotencyKeyAlreadyExists
@@ -261,7 +262,7 @@ class ExecutionJobLifecycleMixin(RuntimeCapabilityHost):
         retry = self._build_execution_job_retry(original, actor, key)
         try:
             self._persist_execution_job_retry(original, retry, actor)
-        except IdempotencyKeyAlreadyExists:
+        except (IdempotencyKeyAlreadyExists, LimitExceeded):
             existing = self._find_execution_job_retry(key, actor, original.job_id)
             if existing is None:
                 raise
@@ -346,6 +347,7 @@ class ExecutionJobLifecycleMixin(RuntimeCapabilityHost):
     ) -> None:
         """Store the retry and audit record atomically."""
         with self._unit_of_work():
+            self.admission.admit_work(retry.org_id)
             self.execution_jobs.create(retry)
             self.audit_events.create(
                 self._execution_job_retry_audit(original, retry, actor)

@@ -18,6 +18,7 @@ from contracts.v1 import (
     ToolInvocation,
     WorkflowRun,
 )
+from modules.limits.errors import LimitExceeded
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.errors import PluginGatewayError
@@ -73,6 +74,11 @@ class AgentRunCapabilitiesMixin(RuntimeCapabilityHost):
                 # Write actions are proposed explicitly and run only after approval.
                 continue
             if context_invocation_count >= agent_version.budget.max_tool_calls:
+                skipped_capability_ids.append(capability_id)
+                continue
+            try:
+                self.admission.admit_tool_call(effective_org_id())
+            except LimitExceeded:
                 skipped_capability_ids.append(capability_id)
                 continue
             context_invocation_count += 1

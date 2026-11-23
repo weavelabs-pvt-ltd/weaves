@@ -17,6 +17,7 @@ from contracts.v1 import (
     Permission,
 )
 from modules.evaluations.runtime_host import EvaluationRuntimeHost
+from modules.limits.errors import LimitExceeded
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.errors import IdempotencyConflict, IdempotencyKeyAlreadyExists
@@ -88,9 +89,11 @@ class EvaluationQueueOperationsMixin(EvaluationRuntimeHost):
         evaluation, job = self._queued_records(suite, suite_id, key, actor, timestamp)
         try:
             self._persist_queued_execution(suite, evaluation, job, actor, timestamp)
-        except IdempotencyKeyAlreadyExists:
+        except (IdempotencyKeyAlreadyExists, LimitExceeded) as refusal:
             replay = self._existing_evaluation(suite_id, key, actor)
             if replay is None:
+                if isinstance(refusal, LimitExceeded):
+                    raise
                 raise IdempotencyConflict(
                     "Idempotency-Key was already used for a different execution request"
                 ) from None
@@ -164,6 +167,7 @@ class EvaluationQueueOperationsMixin(EvaluationRuntimeHost):
     ) -> None:
         """Atomically persist the queued records and corresponding audit event."""
         with self._unit_of_work():
+            self.admission.admit_work(suite.org_id)
             self.evaluation_executions.create(evaluation)
             self.execution_jobs.create(job)
             self.audit_events.create(

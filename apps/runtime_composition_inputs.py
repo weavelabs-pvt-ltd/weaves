@@ -71,11 +71,13 @@ from contracts.v1 import (
 from contracts.v1 import ModelProvider as ModelProviderContract
 from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
 from modules.auth.runtime_organizations import MockModelIdentifier
+from modules.limits.service import AdmissionService
 
 
 class RuntimeCompositionInputs(Protocol):
     """Define only the process ports consumed while building capabilities."""
 
+    admission: AdmissionService
     _advisory_transaction_lock: Callable[[str], None] | None
     _approval_lock: RLock
     _bootstrapped: bool

@@ -253,6 +253,7 @@ bridge between the global and the tenant layers
 | `model_providers` (`ModelProvider`, `id`) | organization. Customer-owned provider connection | replace. `provider_type` openai/anthropic/gemini/azure_openai/bedrock/openai_compatible/local, `status` active/disabled, `auth_ref` | `auth_ref` to `product_secrets.secret_ref` (the provider owns the secret and deletes it) | position 29; exported without `auth_ref` | read `models.view`, write `models.manage` | none |
 | `model_profiles` (`ModelProfile`, `id`) | organization | mutable. `status`, `model_traits`, optional input/output rates and per-run cost cap | `provider_id` to `model_providers`, `fallback_model_profile_id` | position 28; exported | `models.view` / `models.manage` | none |
 | `model_configurations` (`OrganizationModelConfiguration`, `org_id`) | organization. One row per organization; the record id is the org id | mutable. `mode` customer_managed/weaves_managed (may be unset) | `default_provider_id`, `default_model_profile_id` | position 30; exported | `models.manage` | none |
+| `organization_limits` (`OrganizationLimitOverride`, `org_id`) | organization. One row per organization; the record id is the org id | mutable. Optional caps (`max_queued_per_org`, `requests_per_minute_org`, `seats`, `schedules`, `agents`, `workflows`, `tool_calls_per_day`, `storage_tasks`), `updated_by`, `reason` | none | removed by the purge sweep; not exported | operator script only (owner connection); the organization's own role can read the row | none |
 
 `mode` can be `weaves_managed`, which presumably marks platform-provided models and
 is a likely hook for phases 5 and 7; there is currently no usage, quota or billing
@@ -296,6 +297,18 @@ and revocation are separate immutable facts.
 | `evaluation_reports` (`EvaluationReportRecord`, `evaluation_id`; tenant-keyed) | workspace | immutable | `suite_id`, `agent_id`, `submitted_by_principal_id` | position 13; not exported | read `artifacts.read` | none |
 
 ### 2.9 Names that exist in the database layer but have no repository
+
+### Tenant limits (migration 25)
+
+Per-organization limits are resolved from the `WEAVES_LIMIT_*` environment plus an optional operator override
+row in `organization_limits` (`OrganizationLimitOverride`, record id = org id, one row per organization, written
+only by `infra/gcp/singlevm/organization_limits.py` on the owner connection; removed with the organization by
+the purge sweep; not exported). Admission counts the stored rows inside the inserting transaction under
+`pg_advisory_xact_lock("limit:{org}:{resource}")`, so there is no counter table. Migration 25 adds three partial
+indexes for those counts (`limits_turn_queued_org_idx`, `limits_job_queued_org_idx` on queued `task_turns` and
+`execution_jobs` by `org_id`, and `limits_tool_invocation_org_idx` on `tool_invocations (org_id, created_at)`) and
+the `SECURITY DEFINER` function `weaves_global_queued_work()`, which returns only the global queued count for the
+emergency brake without giving the restricted role any cross-tenant row access.
 
 ### Public waitlist (migration 24)
 

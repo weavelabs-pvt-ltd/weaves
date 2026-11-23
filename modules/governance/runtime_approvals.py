@@ -213,6 +213,7 @@ class GovernanceApprovalMixin(RuntimeCapabilityHost):
         now: datetime,
     ) -> ToolInvocation:
         """Persist the decision, invoke the integration, and store its result."""
+        self.admission.admit_tool_call(approval.org_id)
         started, executing = self._start_approved_action(
             approval, invocation, resolved, decision_audit, now
         )

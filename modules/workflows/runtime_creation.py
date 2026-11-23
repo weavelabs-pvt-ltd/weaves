@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from application.ports.admission import WORKFLOWS
 from contracts.v1 import (
     AgentDefinition,
     AgentStatus,
@@ -252,6 +253,8 @@ class WorkflowCreationMixin(WorkflowDefinitionRuntimeHost):
     ) -> None:
         """Persist all workflow and agent publications atomically."""
         with self._unit_of_work():
+            if self.admission is not None:
+                self.admission.admit(workflow.org_id, WORKFLOWS)
             self._persist_agent_publications(
                 actor, selected, agent_updates, workflow.workflow_id, now
             )

@@ -15,6 +15,7 @@ from contracts.v1 import (
     WorkflowDefinition,
     WorkflowVersion,
 )
+from modules.limits.service import AdmissionService
 
 
 class WorkflowDefinitionRuntimeHost(ABC):
@@ -26,6 +27,7 @@ class WorkflowDefinitionRuntimeHost(ABC):
     audit_events: Repository[AuditEvent]
     workflow_versions: Repository[WorkflowVersion]
     workflows: Repository[WorkflowDefinition]
+    admission: AdmissionService | None
 
     @abstractmethod
     def bootstrap(self) -> None:

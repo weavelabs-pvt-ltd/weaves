@@ -7,6 +7,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import Any
 
+from application.ports.admission import SEATS
 from application.ports.repository import Repository
 from contracts.v1 import (
     ApiCredential,
@@ -25,6 +26,7 @@ from contracts.v1 import (
 from modules.auth.administration_transaction import serialized_administration
 from modules.auth.organization_guard import OrganizationGuard
 from modules.auth.role_presets import validate_role_preset_scope
+from modules.limits.service import AdmissionService
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.request_context import (
@@ -45,6 +47,7 @@ class WorkspaceUserRuntimeHost(ABC):
     role_bindings: Repository[RoleBinding]
     roles: Repository[Role]
     users: Repository[User]
+    admission: AdmissionService | None
 
     @abstractmethod
     def bootstrap(self) -> None:
@@ -178,6 +181,8 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
     ) -> None:
         """Persist a new workspace user and membership."""
         with self._unit_of_work():
+            if self.admission is not None:
+                self.admission.admit(user.org_id, SEATS)
             self.users.create(user)
             self.principals.create(principal)
             if role_id is None:

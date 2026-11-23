@@ -21,6 +21,7 @@ from modules.governance.http.audit_routes import register_audit_routes
 from modules.governance.http.routes import register_governance_routes
 from modules.integrations.http.oauth import register_oauth_routes
 from modules.integrations.http.routes import register_plugin_routes
+from modules.limits.http.routes import register_limits_routes
 from modules.models.http.routes import register_model_routes
 from modules.skills.http.routes import register_skill_routes
 from modules.tasks.http.routes import register_task_routes
@@ -55,6 +56,7 @@ def register_v0_routes(app: FastAPI, services: ApiRouteServices) -> None:
     register_organization_lifecycle_routes(
         app, services.organization_lifecycle, services.organization_export
     )
+    register_limits_routes(app, services.limits)
     register_identity_routes(
         app,
         services.organization,

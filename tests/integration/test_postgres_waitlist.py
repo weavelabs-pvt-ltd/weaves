@@ -254,7 +254,7 @@ def test_the_waitlist_purpose_sees_only_the_two_waitlist_collections(stack, mixe
 def test_migration_24_is_forward_only_and_idempotent(
     isolated_postgres_url, monkeypatch
 ):
-    assert SCHEMA_HEAD_VERSION == 24 and WAITLIST_MIGRATION[0] == 24
+    assert SCHEMA_HEAD_VERSION >= 24 and WAITLIST_MIGRATION[0] == 24
     previous = tuple(m for m in store_module._SCHEMA_MIGRATIONS if m[0] < 24)
     monkeypatch.setattr(store_module, "_SCHEMA_MIGRATIONS", previous)
     monkeypatch.setattr(
@@ -283,7 +283,7 @@ def test_migration_24_is_forward_only_and_idempotent(
                 "SELECT version FROM product_schema_migrations ORDER BY version"
             )
         ]
-    assert names <= found and versions[-2:] == [23, 24]
+    assert names <= found and {23, 24} <= set(versions)
 
 
 def _operator(stack, capsys, *args):

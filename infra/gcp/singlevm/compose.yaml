@@ -8,6 +8,11 @@ x-runtime: &runtime
   WEAVES_DB_APP_ROLE: ${WEAVES_DB_APP_ROLE:-}
   WEAVES_HTTP_MAX_CONNECTIONS: "20"
   WEAVES_HTTP_MAX_KEEPALIVE_CONNECTIONS: "10"
+  # Tenant limits. observe logs would-be refusals and changes nothing; set enforce in
+  # runtime.env after reading the log, and off to disable. The pause switch refuses
+  # new work only. Per-organization overrides use organization_limits.py.
+  WEAVES_LIMITS_MODE: ${WEAVES_LIMITS_MODE:-observe}
+  WEAVES_ADMISSIONS_PAUSED: ${WEAVES_ADMISSIONS_PAUSED:-false}
 # Connector settings. Empty values are harmless: the connector is then reported
 # as unavailable. The API starts OAuth flows and handles provider callbacks;
 # the worker refreshes tokens and mints runtime credentials, so it needs the

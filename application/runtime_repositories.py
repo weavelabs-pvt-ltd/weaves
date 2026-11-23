@@ -57,6 +57,7 @@ from contracts.v1 import (
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
 from contracts.v1.base import ProductContract
+from contracts.v1.limits import OrganizationLimitOverride
 
 TProduct = TypeVar("TProduct", bound=ProductContract)
 
@@ -113,6 +114,7 @@ class RuntimeRepositoryBindingMixin:
     account_organization_requests: Repository[AccountOrganizationRequest]
     waitlist_entries: Repository[WaitlistEntry]
     waitlist_submissions: Repository[WaitlistSubmission]
+    organization_limits: Repository[OrganizationLimitOverride]
 
     def _bind_repositories(self) -> None:
         """Attach one repository for each product collection."""
@@ -199,6 +201,9 @@ class RuntimeRepositoryBindingMixin:
         self.waitlist_entries = self._repository("waitlist_entries", WaitlistEntry)
         self.waitlist_submissions = self._repository(
             "waitlist_submissions", WaitlistSubmission
+        )
+        self.organization_limits = self._repository(
+            "organization_limits", OrganizationLimitOverride
         )
 
     def _repository(
