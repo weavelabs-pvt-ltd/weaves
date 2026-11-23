@@ -8,6 +8,18 @@ x-runtime: &runtime
   WEAVES_DB_APP_ROLE: ${WEAVES_DB_APP_ROLE:-}
   WEAVES_HTTP_MAX_CONNECTIONS: "20"
   WEAVES_HTTP_MAX_KEEPALIVE_CONNECTIONS: "10"
+# Connector settings. Empty values are harmless: the connector is then reported
+# as unavailable. The API starts OAuth flows and handles provider callbacks;
+# the worker refreshes tokens and mints runtime credentials, so it needs the
+# provider credentials too, but not the public URLs.
+x-connectors-worker: &connectors_worker
+  WEAVES_GITHUB_APP_ID: ${WEAVES_GITHUB_APP_ID:-}
+  WEAVES_GITHUB_APP_PRIVATE_KEY: ${WEAVES_GITHUB_APP_PRIVATE_KEY:-}
+  WEAVES_SLACK_OAUTH_CLIENT_ID: ${WEAVES_SLACK_OAUTH_CLIENT_ID:-}
+  WEAVES_SLACK_OAUTH_CLIENT_SECRET: ${WEAVES_SLACK_OAUTH_CLIENT_SECRET:-}
+  WEAVES_ATLASSIAN_OAUTH_CLIENT_ID: ${WEAVES_ATLASSIAN_OAUTH_CLIENT_ID:-}
+  WEAVES_ATLASSIAN_OAUTH_CLIENT_SECRET: ${WEAVES_ATLASSIAN_OAUTH_CLIENT_SECRET:-}
+  WEAVES_MCP_ALLOWED_HOSTS: ${WEAVES_MCP_ALLOWED_HOSTS:-}
 x-defaults: &defaults
   restart: unless-stopped
   logging:
@@ -35,7 +47,10 @@ services:
     image: ${BACKEND_IMAGE:?required}
     command: uvicorn apps.api.app:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*
     environment:
-      <<: *runtime
+      <<: [*runtime, *connectors_worker]
+      WEAVES_GITHUB_APP_CLIENT_ID: ${WEAVES_GITHUB_APP_CLIENT_ID:-}
+      WEAVES_GITHUB_APP_CLIENT_SECRET: ${WEAVES_GITHUB_APP_CLIENT_SECRET:-}
+      WEAVES_GITHUB_APP_SLUG: ${WEAVES_GITHUB_APP_SLUG:-}
       WEAVES_BROWSER_SESSION_SECRET: ${WEAVES_BROWSER_SESSION_SECRET:-}
       # Google is the only sign-in method; leave the client unset to disable it.
       WEAVES_GOOGLE_CLIENT_ID: ${WEAVES_GOOGLE_CLIENT_ID:-}
@@ -63,7 +78,7 @@ services:
     image: ${BACKEND_IMAGE:?required}
     command: python -m apps.worker.main
     environment:
-      <<: *runtime
+      <<: [*runtime, *connectors_worker]
       WEAVES_WORKER_POLL_SECONDS: "3"
       WEAVES_WAITLIST_RETENTION_DAYS: ${WEAVES_WAITLIST_RETENTION_DAYS:-365}
     depends_on:
