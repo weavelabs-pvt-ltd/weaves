@@ -27,7 +27,7 @@ function install(test) {
       return context;
     };
   });
-  test.afterEach(async ({}, testInfo) => {
+  test.afterEach(async (_fixtures, testInfo) => {
     const saved = state.get(testInfo);
     if (!saved) return;
     saved.browser.newContext = saved.original;
