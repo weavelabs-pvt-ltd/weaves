@@ -14,6 +14,7 @@ from contracts.v1 import (
     TaskTurn,
     TaskTurnStatus,
 )
+from modules.limits.service import AdmissionService
 from shared.clock import utc_now
 from shared.request_context import (
     effective_org_id,
@@ -31,6 +32,7 @@ class TaskLifecycleMixin:
     _open_unit_of_work: Callable[[], AbstractContextManager[None]]
     _ensure_ready: Callable[[], None]
     get_task: Callable[[str], Task]
+    admission: AdmissionService
 
     def cancel_turn(self, task_id: str, turn_id: str) -> None:
         """Cancel a workflow child task and revoke its active worker lease."""
@@ -124,6 +126,7 @@ class TaskLifecycleMixin:
             ).model_dump()
         )
         with self._open_unit_of_work():
+            self.admission.admit_work(task.org_id)
             changed = self.tasks.put_if_task_state(
                 updated_task,
                 expected_status=TaskStatus.OPEN.value,

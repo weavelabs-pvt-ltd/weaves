@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from application.ports.limits import LimitPolicy
 from apps.platform_runtime import LocalPlatformRuntime
 from modules.agents.runtime_lifecycle import AgentService
 from modules.auth.account_organizations import AccountOrganizationService
@@ -25,6 +26,7 @@ from modules.integrations.admin_service import IntegrationAdminService
 from modules.integrations.connection_service import IntegrationConnectionService
 from modules.integrations.http.oauth_context import OAuthRouteDependencies
 from modules.integrations.oauth_state_service import OAuthStateService
+from modules.limits.view import OrganizationLimitsView
 from modules.models.runtime import ModelService
 from modules.overview.service import OverviewService
 from modules.skills.service import SkillsService
@@ -66,6 +68,8 @@ class ApiRouteServices:
     overview: OverviewService
     skills: SkillsService
     waitlist: WaitlistService
+    limits: OrganizationLimitsView
+    limit_policy: LimitPolicy
 
 
 def _google_sign_in(runtime: LocalPlatformRuntime) -> GoogleSignIn | None:
@@ -118,4 +122,6 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
         overview=runtime.overview_service,
         skills=runtime.skills_service,
         waitlist=runtime.waitlist_service,
+        limits=OrganizationLimitsView(runtime.admission, runtime.authorize),
+        limit_policy=runtime.admission.policy,
     )

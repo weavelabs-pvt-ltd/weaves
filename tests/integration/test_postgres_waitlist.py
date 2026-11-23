@@ -283,7 +283,7 @@ def test_migration_24_is_forward_only_and_idempotent(
                 "SELECT version FROM product_schema_migrations ORDER BY version"
             )
         ]
-    assert names <= found and [v for v in versions if v >= 23][:2] == [23, 24]
+    assert names <= found and {23, 24} <= set(versions)
 
 
 def _operator(stack, capsys, *args):

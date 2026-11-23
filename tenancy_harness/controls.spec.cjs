@@ -344,6 +344,18 @@ test('TW-01 the public waitlist joins, answers, resumes and erases through the r
   }
 });
 
+test('T5-I01 tenant limits admit exactly the cap atomically, refuse the rest with 429 and cost no model call', async () => {
+  const control = fixture.limits;
+  for (const key of ['operator_override_sets_the_cap', 'exactly_the_cap_is_admitted',
+    'refusals_use_the_limit_exceeded_contract', 'queued_rows_never_exceed_the_cap', 'refusals_create_no_rows',
+    'other_organization_is_unaffected', 'same_key_in_another_tenant_is_a_separate_admission',
+    'replays_at_the_limit_return_the_existing_task', 'no_model_call_before_the_worker_runs',
+    'admitted_work_completes_in_the_worker', 'one_model_call_per_admitted_task', 'finished_work_frees_capacity',
+    'usage_view_matches_the_rows']) {
+    expect(control[key], key).toBe(true);
+  }
+});
+
 test('T4-I01 organization settings and ownership handoff preserve other tenant access', async ({browser, request}) => {
   await require('./organization_administration.cjs').verify({browser, request}, fixture);
 });

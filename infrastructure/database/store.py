@@ -11,6 +11,7 @@ from typing import Any
 
 from infrastructure.database.bounded_queries_schema import BOUNDED_QUERIES_MIGRATION
 from infrastructure.database.legacy_purge import LEGACY_PURGE_MIGRATION
+from infrastructure.database.limits_schema import LIMITS_MIGRATION
 from infrastructure.database.organization_identity import (
     ORGANIZATION_IDENTITY_MIGRATION,
 )
@@ -89,10 +90,7 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
                      AND payload->>'status' = 'queued'""",
         ),
     ),
-    (2, ()),
-    (3, ()),
-    (4, ()),
-    (5, ()),
+    *((version, ()) for version in range(2, 6)),
     (
         6,
         (
@@ -347,6 +345,7 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     LEGACY_PURGE_MIGRATION,
     ORGANIZATION_IDENTITY_MIGRATION,
     WAITLIST_MIGRATION,
+    LIMITS_MIGRATION,
     BOUNDED_QUERIES_MIGRATION,
 )
 

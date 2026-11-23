@@ -180,11 +180,28 @@ def build_images(backend, frontend, values, sources):
         ).stdout.strip()
 
 
-def seed_module(compose, module):
+def seed_module(compose, module, *args):
     """Run one harness module inside the disposable seed container."""
     compose.run(
-        "run", "--rm", "--no-deps", "seed", "python", "-m", "tenancy_harness." + module
+        "run",
+        "--rm",
+        "--no-deps",
+        "seed",
+        "python",
+        "-m",
+        "tenancy_harness." + module,
+        *args,
     )
+
+
+def limits_control(compose):
+    """T5-I01: race the queue cap with the worker frozen, then let it drain."""
+    compose.run("pause", "worker")
+    try:
+        seed_module(compose, "phase5.limits_checks", "burst")
+    finally:
+        compose.run("unpause", "worker")
+    seed_module(compose, "phase5.limits_checks", "settle")
 
 
 def run(args, harness):
@@ -227,6 +244,7 @@ def run(args, harness):
         seed_module(compose, "observe")
         seed_module(compose, "lifecycle_checks")
         seed_module(compose, "waitlist_checks")
+        limits_control(compose)
         seed_module(compose, "phase5.bounded_queries_checks")
         raw = browser(
             frontend,

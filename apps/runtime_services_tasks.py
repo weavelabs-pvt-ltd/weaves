@@ -28,6 +28,7 @@ def _configure_task_services(
         bootstrap=dependencies.bootstrap,
         authorize=dependencies.authorize,
         unit_of_work=dependencies._unit_of_work,
+        admission=dependencies.admission,
     )
     services.task_worker_service = TaskWorkerService(
         tasks=dependencies.tasks,

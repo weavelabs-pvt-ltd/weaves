@@ -223,6 +223,26 @@ disallowed transition, wrong confirmation). Repeating an action is a no-op.
   removed. Backups taken before deletion still contain the data; restoring one
   needs the phase 6 retention procedure.
 * Time-limited support access is not provided: there is no operator HTTP surface.
+## Tenant limits (operator)
+
+Per-organization limits (queued work, tasks, seats, schedules, agents, workflows, tool calls per day and request
+rate) are checked at admission, atomically with the insert, and `GET /api/v0/organization/limits` shows an
+organization's own usage. `WEAVES_LIMITS_MODE` in `runtime.env` decides what a breach does: `observe` (the
+default) logs `limit would be exceeded (observe mode)` and changes nothing, `enforce` answers HTTP 429
+`limit_exceeded`, `off` disables the checks. Read the log for a deploy before switching to `enforce`.
+`WEAVES_ADMISSIONS_PAUSED=true` refuses new work only (reads and cancellation keep working). Roll back by
+setting the mode back to `observe` or `off` and restarting; no migration is undone.
+`organization_limits.py` raises or lowers one organization's caps (it takes effect within about 30 seconds):
+
+```
+docker compose exec -T product-api python - \
+  set --organization-id ORG --operator you@example.com --reason "pilot" --seats 60 --max-queued 200 < organization_limits.py
+docker compose exec -T product-api python - show --organization-id ORG < organization_limits.py
+docker compose exec -T product-api python - \
+  clear --organization-id ORG --operator you@example.com --reason "pilot ended" < organization_limits.py
+docker compose exec -T product-api python - list < organization_limits.py
+```
+
 ## Waitlist sign-ups (operator)
 
 The website's waitlist is public and only collects data (an email, consent and

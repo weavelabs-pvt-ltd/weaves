@@ -54,6 +54,7 @@ services:
       WEAVES_WORKER_POLL_SECONDS: "0.1"
       WEAVES_SCHEDULE_POLL_SECONDS: "5"
       WEAVES_LIFECYCLE_POLL_SECONDS: "1"
+      WEAVES_LIMITS_MODE: enforce
       WEAVES_PUBLIC_FRONTEND_URL: ${TEST_APP_ORIGIN:?}
       CORS_ORIGINS: ${TEST_APP_ORIGIN:?}
       PYTHONPATH: /app:/suite
@@ -88,6 +89,7 @@ services:
       - ${TEST_PRIVATE_DIR:?}:/output
       - ${TEST_OPERATOR_SCRIPT:?}:/suite/operator/organization_lifecycle.py:ro
       - ${TEST_WAITLIST_SCRIPT:?}:/suite/operator/waitlist.py:ro
+      - ${TEST_LIMITS_SCRIPT:?}:/suite/operator/organization_limits.py:ro
       - ${TEST_PRIVATE_DIR:?}/tls/cert.pem:/trust/ca.pem:ro
   frontend:
     image: ${TEST_FRONTEND_IMAGE:?}

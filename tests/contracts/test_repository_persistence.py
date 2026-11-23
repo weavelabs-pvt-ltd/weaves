@@ -459,7 +459,7 @@ def test_postgres_put_cannot_transfer_ownership_or_change_it_in_place():
     assert "product_records.org_id IS NOT DISTINCT FROM EXCLUDED.org_id" in query
 
 
-def test_database_at_previous_head_applies_only_the_waitlist_step():
+def test_database_at_previous_head_applies_only_the_newest_step():
     connection = RecordingConnection(
         rows=[(v,) for v in LISTED_VERSIONS if v < SCHEMA_HEAD_VERSION]
     )
@@ -476,6 +476,7 @@ def test_database_at_previous_head_applies_only_the_waitlist_step():
     assert versions == [SCHEMA_HEAD_VERSION]
     sql = "\n".join(statement for statement, _ in connection.statements)
     assert "CREATE INDEX IF NOT EXISTS workflow_runs_running_idx" in sql
+    assert "limits_turn_queued_org_idx" not in sql
     assert "waitlist_entry_email_uq" not in sql
     assert "organization_slug_uq" not in sql
     assert "DROP TRIGGER IF EXISTS sso_identity_immutable" not in sql

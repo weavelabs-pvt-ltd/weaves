@@ -12,6 +12,7 @@ import httpx
 from application.ports.product_repositories import ProductRepositorySet
 from application.ports.secrets import SecretStore
 from application.ports.throttling import LoginRateLimiter
+from apps.limits_wiring import build_admission_service
 from apps.platform_runtime import LocalPlatformRuntime
 from apps.runtime_adapters import (
     build_login_rate_limiter,
@@ -137,6 +138,11 @@ def _compose_with_model_client(
         ),
         close_storage=store.close if store is not None else _noop,
         check_storage=store.check if store is not None else _noop,
+    )
+    runtime.admission = build_admission_service(
+        store=store,
+        repositories=repositories,
+        lock=store.acquire_advisory_transaction_lock if store is not None else None,
     )
     capability_services = configure_capability_services(runtime)
     runtime.attach_capability_services(capability_services)

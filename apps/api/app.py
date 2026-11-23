@@ -9,6 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from apps.api.authentication import install_authentication
 from apps.api.error_mapping import REQUEST_ID_HEADER, install_error_handlers
+from apps.api.limit_errors import install_limit_error_handlers
+from apps.api.request_limits import install_request_limits
 from apps.api.router import register_v0_routes
 from apps.api.wiring import build_api_process_services
 from apps.platform_runtime import LocalPlatformRuntime
@@ -26,6 +28,7 @@ def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
                 register_v0_routes(app, process_services.routes)
                 app.state.product_routes_registered = True
             app.state.authentication_services = process_services.authentication
+            app.state.limit_policy = process_services.routes.limit_policy
             process_services.bootstrap()
             yield
         finally:
@@ -40,6 +43,9 @@ def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     install_error_handlers(app)
+    install_limit_error_handlers(app)
+    # Inside authentication: the tenant identity is bound when it runs.
+    install_request_limits(app)
     install_authentication(app)
     allowed_origins = tuple(
         origin.strip().rstrip("/")

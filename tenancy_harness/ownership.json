@@ -155,6 +155,17 @@
       ],
       "current_gap": null
     },
+    "organization_limits": {
+      "scope": "organization",
+      "contract": "OrganizationLimitOverride",
+      "privacy": "readable only inside its own organization (row policy); written only by the operator script on the database owner connection, never over HTTP",
+      "system_access": "none: limits are resolved under the organization's own request or worker scope; operator scripts use the owner connection",
+      "lifecycle": "removed with the organization by the generic purge sweep; not exported (operator-set service terms, not customer content)",
+      "scope_keys": [
+        "org_id"
+      ],
+      "current_gap": null
+    },
     "plugins": {
       "scope": "mixed_catalog",
       "contract": "PluginDescriptor",
@@ -1556,6 +1567,13 @@
       "scope": "organization",
       "rule": "validated per-request organization; org-scoped permission; account-authenticated owner for transfer; mutation guard and optimistic settings revision",
       "lifecycle": "active tenant; preserve global account and other memberships"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/organization/limits",
+      "scope": "organization",
+      "rule": "validated per-request organization; organizations.admin permission; read-only; reports only the caller's own limits and usage",
+      "lifecycle": "active tenant"
     },
     {
       "method": "PATCH",

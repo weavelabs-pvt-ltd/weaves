@@ -33,6 +33,7 @@ from modules.agents.runtime_run_lifecycle import AgentRunLifecycleMixin
 from modules.agents.runtime_run_model import AgentRunModelMixin
 from modules.agents.runtime_run_targets import AgentRunTargetsMixin
 from modules.integrations.admin_service import IntegrationAdminService
+from modules.limits.service import AdmissionService, NullAdmission
 from shared.clock import utc_now as _now
 
 
@@ -94,8 +95,10 @@ class AgentExecutionService(
         idempotency_guard: RLock,
         idempotency_locks: dict[tuple[str, str], RLock],
         default_agent_id: Callable[[], str],
+        admission: AdmissionService | None = None,
     ) -> None:
         """Bind agent persistence, shared clients, and narrow runtime callbacks."""
+        self.admission = admission or NullAdmission()
         self.agents = agents
         self.agent_runs = agent_runs
         self.agent_versions = agent_versions

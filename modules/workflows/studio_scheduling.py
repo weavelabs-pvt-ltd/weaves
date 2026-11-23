@@ -6,6 +6,7 @@ from typing import Any
 from application.pagination import batches, drain, recovery_batch_size
 from contracts.v1 import WorkflowStatus
 from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
+from modules.limits.errors import LimitExceeded
 from modules.workflows.studio_context import WorkflowStudioContext
 from shared.clock import utc_now
 from shared.request_context import (
@@ -125,6 +126,10 @@ class WorkflowStudioSchedulingMixin(WorkflowStudioContext):
         )
         try:
             self.advance(run)
+        except LimitExceeded:
+            # The organization is at a limit: leave the run as it is and try
+            # again on the next tick (child task keys make the retry safe).
+            return
         except Exception as exc:
             with self.guard(run.run_id):
                 latest = self.runs.get(run.run_id)

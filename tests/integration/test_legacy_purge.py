@@ -260,6 +260,9 @@ INDEX_JUSTIFICATIONS = {
     "tasks_status_idx": "Home task counts by status",
     "task_turns_active_idx": "Home in-flight turn counts",
     "task_turns_recent_idx": "Home per-day run buckets",
+    "limits_turn_queued_org_idx": "queued task turns per organization (admission)",
+    "limits_job_queued_org_idx": "queued execution jobs per organization (admission)",
+    "limits_tool_invocation_org_idx": "tool calls per organization per day (admission)",
 }
 
 

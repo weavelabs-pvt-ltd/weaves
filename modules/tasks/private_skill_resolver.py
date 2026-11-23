@@ -7,6 +7,7 @@ from collections.abc import Callable
 from application.ports.repository import Repository
 from contracts.v1 import (
     AgentSkillSnapshot,
+    AgentVersion,
     CapabilityKind,
     Permission,
     PluginInstallation,
@@ -17,6 +18,22 @@ from contracts.v1 import (
     TaskAudience,
 )
 from shared.request_context import effective_org_id, effective_workspace_id
+
+
+def validate_combined_skill_context(
+    version: AgentVersion, snapshots: tuple[AgentSkillSnapshot, ...]
+) -> None:
+    """Enforce count and byte limits across organization and private skills."""
+    skills = (*version.skills, *snapshots)
+    if len(skills) > 5:
+        raise ValueError("a task may use at most five combined skills")
+    size = sum(
+        len(skill.instructions.encode("utf-8"))
+        + sum(len(text.encode("utf-8")) for text in skill.files.values())
+        for skill in skills
+    )
+    if size > 131_072:
+        raise ValueError("combined task skills exceed the 128 KiB context limit")
 
 
 class PrivateTaskSkillResolver:

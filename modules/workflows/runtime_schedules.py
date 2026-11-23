@@ -11,6 +11,7 @@ from threading import RLock
 
 from pydantic import JsonValue
 
+from application.ports.admission import SCHEDULES
 from application.ports.repository import Repository
 from contracts.v1 import (
     AuditEvent,
@@ -25,6 +26,8 @@ from contracts.v1 import (
     WorkflowVersion,
 )
 from contracts.v1.timezones import validate_timezone_name
+from modules.limits.errors import LimitExceeded
+from modules.limits.service import AdmissionService
 from modules.workflows.schedule_edit import build_schedule_update
 from modules.workflows.schedule_time import (
     effective_timezone,
@@ -55,6 +58,7 @@ class WorkflowScheduleRuntimeHost(ABC):
     workflow_versions: Repository[WorkflowVersion]
     workflows: Repository[WorkflowDefinition]
     organization_settings: object | None
+    admission: AdmissionService | None
 
     @abstractmethod
     def bootstrap(self) -> None:
@@ -169,6 +173,8 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
             updated_at=now,
         )
         with self._unit_of_work():
+            if self.admission is not None:
+                self.admission.admit(schedule.org_id, SCHEDULES)
             self.workflow_schedules.create(schedule)
             self._record_workflow_schedule_audit(
                 schedule,
@@ -384,6 +390,13 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
             return job
         except TenantInactive:
             self._skip_inactive_schedule_occurrence(schedule, timestamp)
+        except LimitExceeded as exc:
+            self._skip_inactive_schedule_occurrence(
+                schedule,
+                timestamp,
+                action="workflow.schedule.limited",
+                summary=f"Scheduled run skipped: limit reached for {exc.resource}",
+            )
         except PermissionError:
             self._fail_workflow_schedule(
                 schedule,
@@ -416,7 +429,12 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
         return None
 
     def _skip_inactive_schedule_occurrence(
-        self, schedule: WorkflowSchedule, timestamp: datetime
+        self,
+        schedule: WorkflowSchedule,
+        timestamp: datetime,
+        *,
+        action: str = "workflow.schedule.skipped",
+        summary: str = "Scheduled occurrence skipped because the tenant is not active",
     ) -> None:
         """Skip one occurrence while the tenant is inactive and keep the schedule.
 
@@ -437,8 +455,8 @@ class WorkflowScheduleRuntimeMixin(WorkflowScheduleRuntimeHost):
             self._record_workflow_schedule_audit(
                 updated,
                 schedule.created_by_principal_id,
-                "workflow.schedule.skipped",
-                "Scheduled occurrence skipped because the tenant is not active",
+                action,
+                summary,
                 metadata={"occurrence_at": schedule.next_run_at.isoformat()},
             )
 

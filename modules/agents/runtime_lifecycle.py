@@ -8,6 +8,7 @@ from datetime import datetime
 
 from pydantic import JsonValue
 
+from application.ports.admission import AGENTS
 from application.ports.repository import Repository
 from contracts.v1 import (
     AgentBudget,
@@ -40,6 +41,7 @@ from modules.agents.templates import (
     AgentTemplate,
     get_agent_template,
 )
+from modules.limits.service import AdmissionService
 from modules.models.defaults import configured_model_access_mode
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
@@ -75,8 +77,10 @@ class AgentService(AgentCatalogMixin):
         default_approval_policy_id: Callable[[], str],
         capability_installation: Callable[..., tuple[PluginInstallation, object]],
         unit_of_work: Callable[[], AbstractContextManager[None]],
+        admission: AdmissionService | None = None,
     ) -> None:
         """Bind agent repositories and the policies used during publishing."""
+        self.admission = admission
         self.agents = agents
         self.agent_versions = agent_versions
         self.audit_events = audit_events
@@ -323,6 +327,8 @@ class AgentService(AgentCatalogMixin):
     ) -> None:
         """Persist agent, initial workflow, and creation audit event."""
         with self._open_unit_of_work():
+            if self.admission is not None:
+                self.admission.admit(definition.org_id, AGENTS)
             self.agent_versions.create(version)
             self.agents.create(definition)
             self.workflow_versions.create(workflow_version)

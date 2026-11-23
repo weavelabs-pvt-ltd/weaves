@@ -107,6 +107,9 @@ def setup_private(root, harness, project, backend):
             backend / "infra/gcp/singlevm/organization_lifecycle.py"
         ),
         "TEST_WAITLIST_SCRIPT": str(backend / "infra/gcp/singlevm/waitlist.py"),
+        "TEST_LIMITS_SCRIPT": str(
+            backend / "infra/gcp/singlevm/organization_limits.py"
+        ),
     }
     envfile = private / "compose.env"
     envfile.write_text("\n".join(k + "=" + json.dumps(v) for k, v in values.items()))

@@ -27,4 +27,5 @@ def _configure_governance_service(
         ),
         unit_of_work=dependencies._unit_of_work,
         approval_lock=dependencies._approval_lock,
+        admission=dependencies.admission,
     )

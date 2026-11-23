@@ -14,6 +14,7 @@ from contracts.v1 import (
     WorkflowDefinition,
     WorkflowVersion,
 )
+from modules.limits.service import AdmissionService
 from modules.workflows.runtime_creation import WorkflowCreationMixin
 from modules.workflows.runtime_queries import WorkflowQueryMixin
 from modules.workflows.runtime_replacement import WorkflowReplacementMixin
@@ -47,8 +48,10 @@ class WorkflowDefinitionService(
         bootstrap: Callable[[], None],
         authorize: Callable[[str, Permission], None],
         unit_of_work: Callable[[], AbstractContextManager[None]],
+        admission: AdmissionService | None = None,
     ) -> None:
         """Bind workflow repositories and application lifecycle callbacks."""
+        self.admission = admission
         self.agent_versions = agent_versions
         self.agents = agents
         self.audit_events = audit_events
