@@ -2,6 +2,7 @@
 
 from apps.capability_services import CapabilityServiceSet
 from apps.runtime_composition_inputs import RuntimeCompositionInputs
+from modules.overview.service import OverviewService
 from modules.tasks.service import TaskService
 from modules.tasks.worker_service import TaskWorkerService
 
@@ -36,4 +37,12 @@ def _configure_task_services(
         runs=dependencies.runs,
         agent_execution=services.agent_execution_service,
         unit_of_work=dependencies._unit_of_work,
+    )
+    overview_data = dependencies._repository_set.overview_data
+    if overview_data is None:
+        raise RuntimeError("the repository set has no overview data adapter")
+    services.overview_service = OverviewService(
+        data=overview_data,
+        authorize=dependencies.authorize,
+        ensure_ready=services.task_service._ensure_ready,
     )

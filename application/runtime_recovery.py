@@ -24,10 +24,11 @@ class RuntimeRecoveryCompatibilityMixin:
         *,
         stale_after_seconds: int = STALE_RUN_AFTER_SECONDS,
         now: datetime | None = None,
+        sweep: bool = False,
     ) -> tuple[str, ...]:
         """Delegate stale run repair to the execution recovery service."""
         return self.recovery_service.recover_stale_runs(
-            stale_after_seconds=stale_after_seconds, now=now
+            stale_after_seconds=stale_after_seconds, now=now, sweep=sweep
         )
 
     @system_scoped("recovery")

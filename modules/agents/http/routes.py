@@ -7,6 +7,8 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
+from application.http_pagination import PageParams
+from application.pagination import respond
 from contracts.v1 import (
     AgentBudget,
     AgentStatus,
@@ -130,8 +132,8 @@ def _register_agent_routes_group_1(
             _dump(item) for item in integration_admin_service.list_plugin_descriptors()
         ]
 
-    def list_agents() -> list[dict[str, Any]]:
-        return [agent_view(item) for item in agent_service.list_agents()]
+    def list_agents(page: PageParams) -> Any:
+        return respond(agent_service.list_agents(), lambda a: a.id, page, agent_view)
 
     def list_agent_templates() -> list[dict[str, Any]]:
         try:

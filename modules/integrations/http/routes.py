@@ -6,6 +6,8 @@ from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
+from application.http_pagination import PageParams
+from application.pagination import respond
 from contracts.v1 import PluginInstallationStatus
 from modules.integrations.admin_service import IntegrationAdminService
 from modules.integrations.connection_service import IntegrationConnectionService
@@ -77,11 +79,13 @@ def _register_plugin_routes_group_1(
     def installation_view(installation: Any) -> dict[str, Any]:
         return _installation_view(installation, _dump)
 
-    def list_plugin_installations() -> list[dict[str, Any]]:
-        return [
-            installation_view(item)
-            for item in integration_admin_service.list_plugin_installations()
-        ]
+    def list_plugin_installations(page: PageParams) -> Any:
+        return respond(
+            integration_admin_service.list_plugin_installations(),
+            lambda item: item.plugin_installation_id,
+            page,
+            installation_view,
+        )
 
     def list_connector_catalog() -> list[dict[str, Any]]:
         return list(integration_admin_service.list_connector_catalog())

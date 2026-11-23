@@ -42,22 +42,22 @@ Scope is derived from the contract fields (`org_id`, `workspace_id`) that become
 | `workflow_triggers` | `WorkflowTrigger` | `trigger_id` | workspace | yes | no | yes | 16 | `product_records_workflow_trigger_secret_uq` |
 | `workflow_schedules` | `WorkflowSchedule` | `schedule_id` | workspace | yes | no | yes | 15 | `product_records_workflow_schedule_due_idx` |
 | `evaluation_suites` | `EvaluationSuiteRecord` | `suite_id` | workspace | yes | yes | no | 14 | - |
-| `evaluation_executions` | `EvaluationExecution` | `evaluation_id` | workspace | yes | no | no | 12 | - |
-| `evaluation_reports` | `EvaluationReportRecord` | `evaluation_id` | workspace | no (frozen) | yes | no | 13 | - |
+| `evaluation_executions` | `EvaluationExecution` | `evaluation_id` | workspace | yes | no | no | 12 | `evaluation_executions_page_idx` |
+| `evaluation_reports` | `EvaluationReportRecord` | `evaluation_id` | workspace | no (frozen) | yes | no | 13 | `evaluation_reports_page_idx` |
 | `approval_policies` | `ApprovalPolicy` | `approval_policy_id` | workspace | yes | no | yes | 31 | - |
-| `approval_requests` | `ApprovalRequest` | `approval_request_id` | workspace | yes | no | yes | 7 | - |
-| `workflow_runs` | `WorkflowRun` | `run_id` | workspace | yes | no | yes | 10 | `product_records_run_idempotency_uq` |
-| `agent_runs` | `AgentRun` | `agent_run_id` | workspace | yes | no | yes | 9 | - |
-| `tool_invocations` | `ToolInvocation` | `invocation_id` | workspace | yes | no | yes | 6 | - |
-| `artifacts` | `Artifact` | `artifact_id` | workspace | yes | no | yes | 8 | - |
+| `approval_requests` | `ApprovalRequest` | `approval_request_id` | workspace | yes | no | yes | 7 | `approval_requests_page_idx`, `approval_requests_pending_idx` |
+| `workflow_runs` | `WorkflowRun` | `run_id` | workspace | yes | no | yes | 10 | `product_records_run_idempotency_uq`, `workflow_runs_running_idx` |
+| `agent_runs` | `AgentRun` | `agent_run_id` | workspace | yes | no | yes | 9 | `agent_runs_run_idx` |
+| `tool_invocations` | `ToolInvocation` | `invocation_id` | workspace | yes | no | yes | 6 | `tool_invocations_executing_idx`, `tool_invocations_approval_idx`, `tool_invocations_run_idx` |
+| `artifacts` | `Artifact` | `artifact_id` | workspace | yes | no | yes | 8 | `artifacts_run_idx` |
 | `conversation_threads` | `ConversationThread` | `thread_id` | workspace | yes | no | yes | 5 | - |
-| `execution_jobs` | `ExecutionJob` | `job_id` | workspace | yes | no | no | 1 | `product_records_execution_job_idempotency_uq`, `product_records_execution_job_claim_idx` |
-| `canvas_runs` | `CanvasRun` | `run_id` | workspace | yes | no | no | 11 | - |
-| `canvas_settings` | `CanvasSettings` | `workflow_id` | workspace | yes | no | no | 32 | - |
-| `tasks` | `Task` | `task_id` | workspace | yes | no | yes | 4 | `product_records_task_idempotency_uq`, `product_records_task_page_idx` |
+| `execution_jobs` | `ExecutionJob` | `job_id` | workspace | yes | no | no | 1 | `product_records_execution_job_idempotency_uq`, `product_records_execution_job_claim_idx`, `execution_jobs_leased_idx` |
+| `canvas_runs` | `CanvasRun` | `run_id` | workspace | yes | no | no | 11 | `canvas_runs_active_idx`, `canvas_runs_workflow_page_idx` |
+| `canvas_settings` | `CanvasSettings` | `workflow_id` | workspace | yes | no | no | 32 | `canvas_settings_due_idx` |
+| `tasks` | `Task` | `task_id` | workspace | yes | no | yes | 4 | `product_records_task_idempotency_uq`, `product_records_task_page_idx`, `tasks_status_idx` |
 | `task_messages` | `TaskMessage` | `message_id` | workspace | no (frozen) | no | yes | 3 | `product_records_task_messages_page_idx` |
-| `task_turns` | `TaskTurn` | `turn_id` | workspace | yes | no | yes | 2 | `product_records_task_turn_idempotency_uq`, `product_records_task_turn_claim_idx`, `product_records_task_turn_stale_idx` |
-| `audit_events` | `AuditEvent` | `audit_event_id` | workspace | no (frozen) | no | yes | keep | `product_records_audit_event_org_page_idx`, `product_records_audit_event_workspace_page_idx` |
+| `task_turns` | `TaskTurn` | `turn_id` | workspace | yes | no | yes | 2 | `product_records_task_turn_idempotency_uq`, `product_records_task_turn_claim_idx`, `product_records_task_turn_stale_idx`, `task_turns_task_idx`, `task_turns_active_idx`, `task_turns_recent_idx` |
+| `audit_events` | `AuditEvent` | `audit_event_id` | workspace | no (frozen) | no | yes | keep | `product_records_audit_event_org_page_idx`, `product_records_audit_event_workspace_page_idx`, `audit_events_action_target_idx` |
 | `waitlist_entries` | `WaitlistEntry` | `id` | global/account | yes | no | no | keep | `waitlist_entry_email_uq` |
 | `waitlist_submissions` | `WaitlistSubmission` | `id` | global/account | yes | no | no | keep | `waitlist_submission_token_uq`, `waitlist_submission_entry_idx`, `waitlist_submission_created_idx` |
 
@@ -1186,6 +1186,25 @@ Parsed from the migration and repeatable statements. `collection` is the partial
 | `waitlist_submission_token_uq` | migration 24 | `product_records` | yes | `(payload->>'token_hash')` | `collection = 'waitlist_submissions'` |
 | `waitlist_submission_entry_idx` | migration 24 | `product_records` | no | `(payload->>'entry_id')` | `collection = 'waitlist_submissions'` |
 | `waitlist_submission_created_idx` | migration 24 | `product_records` | no | `(payload->>'created_at')` | `collection = 'waitlist_submissions'` |
+| `workflow_runs_running_idx` | migration 28 | `product_records` | no | `updated_at, record_id` | `collection = 'workflow_runs' AND payload->>'status' = 'running'` |
+| `execution_jobs_leased_idx` | migration 28 | `product_records` | no | `updated_at, record_id` | `collection = 'execution_jobs' AND payload->>'status' IN ('running', 'cancel_requested')` |
+| `tool_invocations_executing_idx` | migration 28 | `product_records` | no | `updated_at, record_id` | `collection = 'tool_invocations' AND payload->>'status' = 'executing'` |
+| `canvas_runs_active_idx` | migration 28 | `product_records` | no | `record_id` | `collection = 'canvas_runs' AND payload->>'status' IN ('queued', 'running')` |
+| `canvas_settings_due_idx` | migration 28 | `product_records` | no | `(payload->>'next_run_at'), record_id` | `collection = 'canvas_settings' AND payload->>'sched' = 'true' AND payload->>'next_run_at' IS NOT NULL` |
+| `agent_runs_run_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, (payload->>'run_id')` | `collection = 'agent_runs'` |
+| `task_turns_task_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, (payload->>'task_id')` | `collection = 'task_turns'` |
+| `tool_invocations_approval_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, (payload->>'approval_request_id')` | `collection = 'tool_invocations' AND payload->>'approval_request_id' IS NOT NULL` |
+| `artifacts_run_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, (payload->>'run_id')` | `collection = 'artifacts'` |
+| `tool_invocations_run_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, (payload->>'run_id')` | `collection = 'tool_invocations'` |
+| `audit_events_action_target_idx` | migration 28 | `product_records` | no | `org_id, (payload->>'action'), (payload->>'target_id')` | `collection = 'audit_events'` |
+| `approval_requests_page_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, created_at DESC, record_id DESC` | `collection = 'approval_requests'` |
+| `approval_requests_pending_idx` | migration 28 | `product_records` | no | `org_id, workspace_id` | `collection = 'approval_requests' AND payload->>'status' = 'pending'` |
+| `evaluation_executions_page_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, created_at DESC, record_id DESC` | `collection = 'evaluation_executions'` |
+| `evaluation_reports_page_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, created_at DESC, record_id DESC` | `collection = 'evaluation_reports'` |
+| `canvas_runs_workflow_page_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, (payload->>'workflow_id'), created_at DESC, record_id DESC` | `collection = 'canvas_runs'` |
+| `tasks_status_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, (payload->>'status')` | `collection = 'tasks'` |
+| `task_turns_active_idx` | migration 28 | `product_records` | no | `org_id, workspace_id` | `collection = 'task_turns' AND payload->>'status' IN ('queued', 'running')` |
+| `task_turns_recent_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, created_at` | `collection = 'task_turns'` |
 | `account_identity_verified_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities' AND payload->>'verified_at' IS NOT NULL` |
 | `account_identity_owner_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'account_id'), (payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities'` |
 | `membership_account_org_uq` | repeatable (account schema) | `product_records` | yes | `org_id, (payload->>'account_id')` | `collection = 'memberships'` |

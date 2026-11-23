@@ -10,6 +10,8 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, JsonValue, TypeAdapter, ValidationError
 
 from application import IdempotencyConflict
+from application.http_pagination import PageParams
+from application.pagination import respond
 from contracts.v1 import (
     WorkflowSchedule,
     WorkflowScheduleStatus,
@@ -83,12 +85,14 @@ def _register_list_workflow_triggers(
     _dump = dump
 
     @app.get("/api/v0/workflow-triggers")
-    def list_workflow_triggers() -> list[dict[str, Any]]:
+    def list_workflow_triggers(page: PageParams) -> Any:
         try:
-            return [
-                _workflow_trigger_view(item)
-                for item in automation_service.list_workflow_triggers()
-            ]
+            return respond(
+                automation_service.list_workflow_triggers(),
+                lambda item: item.trigger_id,
+                page,
+                _workflow_trigger_view,
+            )
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
 
@@ -147,12 +151,14 @@ def _register_list_workflow_schedules(
     _dump = dump
 
     @app.get("/api/v0/workflow-schedules")
-    def list_workflow_schedules() -> list[dict[str, Any]]:
+    def list_workflow_schedules(page: PageParams) -> Any:
         try:
-            return [
-                _schedule_view(_dump, item)
-                for item in automation_service.list_workflow_schedules()
-            ]
+            return respond(
+                automation_service.list_workflow_schedules(),
+                lambda item: item.schedule_id,
+                page,
+                lambda item: _schedule_view(_dump, item),
+            )
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
 

@@ -7,6 +7,8 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
+from application.http_pagination import PageParams
+from application.pagination import respond
 from contracts.v1 import (
     ModelAccessMode,
     ModelProfileStatus,
@@ -108,9 +110,10 @@ def _register_model_routes_group_1(
     def provider_view(provider: Any) -> dict[str, Any]:
         return _provider_view(provider, _dump)
 
-    def list_model_profiles() -> list[dict[str, Any]]:
-        profiles = model_service.list_model_profiles()
-        return [_dump(item) for item in profiles]
+    def list_model_profiles(page: PageParams) -> Any:
+        return respond(
+            model_service.list_model_profiles(), lambda item: item.id, page, _dump
+        )
 
     def update_model_profile(
         profile_id: str, patch: ModelProfilePatchRequest
@@ -130,8 +133,13 @@ def _register_model_routes_group_1(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return _dump(profile)
 
-    def list_model_providers() -> list[dict[str, Any]]:
-        return [provider_view(item) for item in model_service.list_model_providers()]
+    def list_model_providers(page: PageParams) -> Any:
+        return respond(
+            model_service.list_model_providers(),
+            lambda item: item.id,
+            page,
+            provider_view,
+        )
 
     def create_model_provider(request: ModelProviderCreateRequest) -> dict[str, Any]:
         try:

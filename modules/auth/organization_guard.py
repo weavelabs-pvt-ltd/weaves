@@ -145,11 +145,21 @@ class OrganizationGuard:
             return self.settings.get_scoped(org, org)
         except KeyError:
             pass
-        events = [
-            e
-            for e in self.audit.list_scoped(org)
-            if e.action == "organization.created" and e.target_id == org
-        ]
+        events = list(
+            self.audit.list_audit_page(
+                org,
+                None,
+                action="organization.created",
+                target_type=None,
+                target_id=org,
+                actor_principal_id=None,
+                created_after=None,
+                created_before=None,
+                cursor_created_at=None,
+                cursor_event_id=None,
+                limit=100,
+            )
+        )
         owners = {e.actor_principal_id for e in events}
         if org == "local-org" and not owners:
             owners = {

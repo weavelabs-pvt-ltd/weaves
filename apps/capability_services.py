@@ -27,6 +27,7 @@ from modules.integrations.connection_service import IntegrationConnectionService
 from modules.models.bootstrap import ModelBootstrapService
 from modules.models.catalog import ModelCatalogService
 from modules.models.runtime import ModelService
+from modules.overview.service import OverviewService
 from modules.skills.service import SkillsService
 from modules.tasks.service import TaskService
 from modules.tasks.worker_service import TaskWorkerService
@@ -71,6 +72,7 @@ class CapabilityServiceSet:
     workflow_studio_service: WorkflowStudioService
     workflow_execution_service: WorkflowExecutionService
     task_service: TaskService
+    overview_service: OverviewService
     task_worker_service: TaskWorkerService
     workspace_access_service: WorkspaceAccessService
     skills_service: SkillsService

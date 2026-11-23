@@ -19,6 +19,7 @@ from apps.worker.services import WorkerServices
 logger = logging.getLogger("product.worker")
 
 WAITLIST_PURGE_SECONDS = 3600
+RECOVERY_SWEEP_SECONDS = 86_400
 RECOVERY_SECONDS = 30
 
 
@@ -70,6 +71,14 @@ def _recover_worker_state(services: WorkerServices) -> None:
         logger.warning(
             "recovered stale action invocations count=%d", len(recovered_actions)
         )
+
+
+def _recovery_sweep(services: WorkerServices) -> None:
+    """Complete half-written recovery bookkeeping; never disturb the loop."""
+    try:
+        services.execution_recovery.recover_stale_runs(sweep=True)
+    except Exception:
+        logger.exception("recovery sweep failed")
 
 
 def _purge_account_rows(services: WorkerServices) -> None:
@@ -146,7 +155,10 @@ def build_tick_registry(
 
     # 5.3 usage ledger: reservation recovery and retention purge.
 
-    # 5.4 bounded queries: batched recovery and rollups.
+    # 5.4 bounded queries: the daily full sweep behind the indexed recovery tick.
+    registry.register(
+        Tick("recovery_sweep", RECOVERY_SWEEP_SECONDS, _recovery_sweep, False)
+    )
 
     # 5.5 metrics: periodic gauges (queue depth, oldest queued age).
 

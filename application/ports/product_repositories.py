@@ -6,6 +6,7 @@ from collections.abc import Iterator, Mapping
 from typing import TypeVar, cast
 
 from application.ports.organization_data import OrganizationData
+from application.ports.overview_data import OverviewData
 from application.ports.repository import Repository
 from contracts.v1.base import ProductContract
 
@@ -23,6 +24,7 @@ class ProductRepositorySet:
         """Bind the named repositories created for one platform process."""
         self._repositories = dict(repositories)
         self.organization_data = organization_data
+        self.overview_data: OverviewData | None = None
 
     def names(self) -> tuple[str, ...]:
         """Return every configured collection name."""

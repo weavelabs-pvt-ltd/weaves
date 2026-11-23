@@ -7,6 +7,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from datetime import datetime, timedelta
 
+from application.pagination import drain, recovery_batch_size
 from application.ports.repository import Repository
 from application.runtime_constants import STALE_ACTION_INVOCATION_AFTER_SECONDS
 from contracts.v1 import (
@@ -30,12 +31,14 @@ class ActionRecoveryService:
         approvals: Repository[ApprovalRequest],
         audit_events: Repository[AuditEvent],
         unit_of_work: Callable[[], AbstractContextManager[None]],
+        batch_size: int | None = None,
     ) -> None:
         """Bind write invocation repositories and transaction boundaries."""
         self._tool_invocations = tool_invocations
         self._approvals = approvals
         self._audit_events = audit_events
         self._open_unit_of_work = unit_of_work
+        self._batch_size = batch_size or recovery_batch_size()
 
     def recover_stale_action_invocations(
         self,
@@ -49,15 +52,22 @@ class ActionRecoveryService:
         timestamp = now or _now()
         stale_before = timestamp - timedelta(seconds=stale_after_seconds)
         recovered: list[str] = []
-        for invocation in self._tool_invocations.list():
-            if (
-                invocation.status is not InvocationStatus.EXECUTING
-                or invocation.updated_at > stale_before
-            ):
-                continue
-            audit = self._recover_invocation(invocation, timestamp, stale_before)
-            if audit:
-                recovered.append(invocation.invocation_id)
+
+        def handle(invocation: ToolInvocation) -> bool:
+            if not self._recover_invocation(invocation, timestamp, stale_before):
+                return False
+            recovered.append(invocation.invocation_id)
+            return True
+
+        drain(
+            lambda: self._tool_invocations.list_status_updated_before(
+                InvocationStatus.EXECUTING.value,
+                stale_before,
+                limit=self._batch_size,
+            ),
+            handle,
+            batch_size=self._batch_size,
+        )
         return tuple(recovered)
 
     def _recover_invocation(

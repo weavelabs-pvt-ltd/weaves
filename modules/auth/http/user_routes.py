@@ -6,6 +6,8 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 
+from application.http_pagination import PageParams
+from application.pagination import respond
 from modules.auth.http.responses import DumpModel
 from modules.auth.http.schemas import WorkspaceUserCreateRequest
 from modules.auth.user_administration_service import UserAdministrationService
@@ -17,15 +19,17 @@ def _register_list_users(
     """Expose members visible to the caller and whether each has linked an account."""
 
     @app.get("/api/v0/users")
-    def list_users() -> list[dict[str, Any]]:
-        return [
-            {
-                **dump(user),
-                "principal_id": principal_id,
-                "account_status": service.account_status(user),
-            }
-            for user, principal_id in service.list_workspace_members()
-        ]
+    def list_users(page: PageParams) -> Any:
+        return respond(
+            service.list_workspace_members(),
+            lambda member: f"{member[0].email}\x1f{member[0].id}",
+            page,
+            lambda member: {
+                **dump(member[0]),
+                "principal_id": member[1],
+                "account_status": service.account_status(member[0]),
+            },
+        )
 
 
 def _register_create_user(

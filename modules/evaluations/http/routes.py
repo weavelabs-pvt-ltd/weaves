@@ -4,10 +4,12 @@ import json
 from collections.abc import Callable
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from application import IdempotencyConflict
+from application.http_pagination import PageParams, RecentPageParams
+from application.pagination import page_limits, recent_response, respond
 from contracts.v1 import EvaluationReport, EvaluationSuite
 from modules.evaluations.service import EvaluationService
 
@@ -66,9 +68,14 @@ def _register_evaluation_routes_group_1(
     """Register evaluation routes on the product API application."""
     _dump = dump
 
-    def list_evaluation_suites() -> list[dict[str, Any]]:
+    def list_evaluation_suites(page: PageParams) -> Any:
         try:
-            return [_dump(item) for item in evaluation_service.list_evaluation_suites()]
+            return respond(
+                evaluation_service.list_evaluation_suites(),
+                lambda item: item.suite_id,
+                page,
+                _dump,
+            )
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
 
@@ -113,13 +120,19 @@ def _register_evaluation_routes_group_1(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    def list_evaluation_reports() -> list[dict[str, Any]]:
+    def list_evaluation_reports(page: RecentPageParams) -> Any:
+        legacy = page.limit is None and not page.envelope
         try:
-            return [
-                _dump(item) for item in evaluation_service.list_evaluation_reports()
-            ]
+            rows = evaluation_service.list_evaluation_reports(
+                limit=None if legacy else page.effective_limit + 1,
+                cursor_created_at=page.cursor_created_at,
+                cursor_id=page.cursor_id,
+            )
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
+        if legacy:
+            return [_dump(item) for item in rows]
+        return recent_response(rows, page, lambda item: item.evaluation_id, _dump)
 
     app.get("/api/v0/evaluation-suites")(list_evaluation_suites)
     app.post("/api/v0/evaluation-suites", status_code=201)(create_evaluation_suite)
@@ -207,16 +220,16 @@ def _register_evaluation_routes_group_3(
     """Register evaluation routes on the product API application."""
     _dump = dump
 
-    def list_evaluation_runs(
-        limit: int = Query(default=50, ge=1, le=100),
-    ) -> list[dict[str, Any]]:
+    def list_evaluation_runs(page: RecentPageParams) -> Any:
         try:
-            return [
-                _dump(item)
-                for item in evaluation_service.list_evaluation_executions(limit=limit)
-            ]
+            rows = evaluation_service.list_evaluation_executions(
+                limit=(page.limit or page_limits()[0]) + 1,
+                cursor_created_at=page.cursor_created_at,
+                cursor_id=page.cursor_id,
+            )
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
+        return recent_response(rows, page, lambda item: item.evaluation_id, _dump)
 
     def get_evaluation_run(evaluation_id: str) -> dict[str, Any]:
         try:

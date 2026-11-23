@@ -8,6 +8,8 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, ValidationError
 
+from application.http_pagination import PageParams
+from application.pagination import respond
 from contracts.v1 import (
     WorkflowConditionOperator,
     WorkflowJoinPolicy,
@@ -42,8 +44,13 @@ def _register_list_workflows(
     _dump = dump
 
     @app.get("/api/v0/workflows")
-    def list_workflows() -> list[dict[str, Any]]:
-        return [_dump(item) for item in definition_service.list_workflows()]
+    def list_workflows(page: PageParams) -> Any:
+        return respond(
+            definition_service.list_workflows(),
+            lambda item: item.workflow_id,
+            page,
+            _dump,
+        )
 
 
 def _register_get_workflow(

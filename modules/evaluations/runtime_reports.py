@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from contracts.v1 import (
     AgentRun,
     Artifact,
@@ -117,21 +119,22 @@ class EvaluationReportRuntimeMixin(EvaluationRuntimeHost):
             raise ValueError("each evaluation case must reference a distinct run")
 
         cases = {case.case_id: case for case in definition.cases}
+        org, workspace = effective_org_id(), effective_workspace_id()
         agent_runs = {
             run.run_id: run
-            for run in self.agent_runs.list_scoped(
-                effective_org_id(), effective_workspace_id()
+            for run in self.agent_runs.list_by_field_in(
+                "run_id", run_ids, org_id=org, workspace_id=workspace
             )
             if run.agent_id == suite_definition.agent_id
         }
         artifacts: dict[str, list[Artifact]] = {}
-        for artifact in self.artifacts.list_scoped(
-            effective_org_id(), effective_workspace_id()
+        for artifact in self.artifacts.list_by_field_in(
+            "run_id", run_ids, org_id=org, workspace_id=workspace
         ):
             artifacts.setdefault(artifact.run_id, []).append(artifact)
         invocations: dict[str, list[ToolInvocation]] = {}
-        for invocation in self.tool_invocations.list_scoped(
-            effective_org_id(), effective_workspace_id()
+        for invocation in self.tool_invocations.list_by_field_in(
+            "run_id", run_ids, org_id=org, workspace_id=workspace
         ):
             invocations.setdefault(invocation.run_id, []).append(invocation)
 
@@ -268,14 +271,34 @@ class EvaluationReportRuntimeMixin(EvaluationRuntimeHost):
                 "submitted result does not match the persisted task evidence"
             )
 
-    def list_evaluation_reports(self) -> tuple[EvaluationReportRecord, ...]:
-        """Return recent reports visible in the active workspace."""
+    def list_evaluation_reports(
+        self,
+        *,
+        limit: int | None = None,
+        cursor_created_at: datetime | None = None,
+        cursor_id: str | None = None,
+    ) -> tuple[EvaluationReportRecord, ...]:
+        """Return reports visible in the active workspace, newest first.
+
+        Without ``limit`` every report is returned (the historical behaviour);
+        with it, one bounded keyset page.
+        """
         if not self._is_bootstrapped():
             self.bootstrap()
 
         self.authorize(
             effective_principal_id("local-developer"), Permission.ARTIFACTS_READ
         )
+
+        if limit is not None:
+            return self.evaluation_reports.list_recent_page(
+                effective_org_id(),
+                effective_workspace_id(),
+                filters={},
+                cursor_created_at=cursor_created_at,
+                cursor_id=cursor_id,
+                limit=limit,
+            )
 
         records = self.evaluation_reports.list_scoped(
             effective_org_id(), effective_workspace_id()

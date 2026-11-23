@@ -64,6 +64,10 @@ from infrastructure.persistence.organization_data import (
     MemoryOrganizationData,
     PostgresOrganizationData,
 )
+from infrastructure.persistence.overview_data import (
+    MemoryOverviewData,
+    PostgresOverviewData,
+)
 from infrastructure.persistence.postgres_plugin_catalog import PostgresPluginCatalog
 from infrastructure.persistence.postgres_repository import PostgresRepository
 
@@ -204,6 +208,11 @@ def create_product_repository_set(
         )
     )
     repository_set = ProductRepositorySet(repositories)
+    repository_set.overview_data = (
+        PostgresOverviewData(store)
+        if store is not None
+        else MemoryOverviewData(repository_set)
+    )
     repository_set.organization_data = (
         PostgresOrganizationData(store)
         if store is not None

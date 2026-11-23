@@ -1230,6 +1230,13 @@
     },
     {
       "method": "GET",
+      "path": "/api/v0/overview",
+      "scope": "workspace",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "GET",
       "path": "/api/v0/tasks",
       "scope": "workspace",
       "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",

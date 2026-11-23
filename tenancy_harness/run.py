@@ -31,7 +31,7 @@ from tenancy_harness.run_support import (
 )
 
 # Controls that need the signed-in frontend itself; --api-only leaves them out.
-BROWSER_CONTROLS = "T0-I10|T1-I05|T1-I10"
+BROWSER_CONTROLS = "T0-I10|T1-I05|T1-I10|T5-I04"
 
 
 def browser(
@@ -227,6 +227,7 @@ def run(args, harness):
         seed_module(compose, "observe")
         seed_module(compose, "lifecycle_checks")
         seed_module(compose, "waitlist_checks")
+        seed_module(compose, "phase5.bounded_queries_checks")
         raw = browser(
             frontend,
             harness,

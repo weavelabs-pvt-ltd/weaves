@@ -352,10 +352,15 @@ class TaskWorkerService:
             turn.workspace_id,
         )
         agent_run = next(
-            (
-                item
-                for item in self.agent_runs.list_scoped(turn.org_id, turn.workspace_id)
-                if run is not None and item.run_id == run.run_id
+            iter(
+                self.agent_runs.list_by_field_in(
+                    "run_id",
+                    (run.run_id,),
+                    org_id=turn.org_id,
+                    workspace_id=turn.workspace_id,
+                )
+                if run is not None
+                else ()
             ),
             None,
         )

@@ -22,6 +22,7 @@ from modules.governance.http.routes import register_governance_routes
 from modules.integrations.http.oauth import register_oauth_routes
 from modules.integrations.http.routes import register_plugin_routes
 from modules.models.http.routes import register_model_routes
+from modules.overview.http.routes import register_overview_routes
 from modules.skills.http.routes import register_skill_routes
 from modules.tasks.http.routes import register_task_routes
 from modules.waitlist.http.routes import register_waitlist_routes
@@ -88,6 +89,7 @@ def register_v0_routes(app: FastAPI, services: ApiRouteServices) -> None:
     )
     register_studio_routes(app, services.workflow_studio)
     register_task_routes(app, services.tasks, dump)
+    register_overview_routes(app, services.overview)
     register_skill_routes(app, services.skills, dump)
     register_audit_routes(app, services.governance, dump)
     register_governance_routes(app, services.governance, dump)

@@ -77,6 +77,7 @@ def test_default_registry_keeps_the_original_order_and_intervals() -> None:
         ("waitlist_purge", 3600, True),
         ("schedule_dispatch", 5, True),
         ("studio", 0, True),
+        ("recovery_sweep", 86_400, False),
     ]
 
 

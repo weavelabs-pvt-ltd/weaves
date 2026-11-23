@@ -187,9 +187,18 @@ class EvaluationQueueOperationsMixin(EvaluationRuntimeHost):
             )
 
     def list_evaluation_executions(
-        self, requested_by_principal_id: str = "local-developer", limit: int = 50
+        self,
+        requested_by_principal_id: str = "local-developer",
+        limit: int = 50,
+        *,
+        cursor_created_at: datetime | None = None,
+        cursor_id: str | None = None,
     ) -> tuple[EvaluationExecution, ...]:
-        """List recent executions visible to the requesting principal."""
+        """List recent executions visible to the requesting principal.
+
+        Newest first, one keyset page: an administrator sees every execution of
+        the workspace, anyone else only their own, filtered in the query.
+        """
         if not self._is_bootstrapped():
             self.bootstrap()
 
@@ -197,29 +206,22 @@ class EvaluationQueueOperationsMixin(EvaluationRuntimeHost):
 
         self.authorize(actor, Permission.AGENTS_RUN)
 
-        if not 1 <= limit <= 100:
+        if not 1 <= limit <= 101:
             raise ValueError("limit must be between 1 and 100")
-
-        records = self.evaluation_executions.list_scoped(
-            effective_org_id(), effective_workspace_id()
-        )
 
         try:
             self.authorize(actor, Permission.USERS_MANAGE)
-
-            is_admin = True
-
+            filters: dict[str, str] = {}
         except PermissionError:
-            is_admin = False
+            filters = {"requested_by_principal_id": actor}
 
-        visible = [
-            record
-            for record in records
-            if is_admin or record.requested_by_principal_id == actor
-        ]
-
-        return tuple(
-            sorted(visible, key=lambda item: item.created_at, reverse=True)[:limit]
+        return self.evaluation_executions.list_recent_page(
+            effective_org_id(),
+            effective_workspace_id(),
+            filters=filters,
+            cursor_created_at=cursor_created_at,
+            cursor_id=cursor_id,
+            limit=limit,
         )
 
     def get_evaluation_execution(

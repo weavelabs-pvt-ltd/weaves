@@ -136,10 +136,15 @@ class WorkspaceUserRuntimeMixin(WorkspaceUserRuntimeHost):
     def _ensure_user_email_available(self, normalized_email: str) -> None:
         if not normalized_email or "@" not in normalized_email:
             raise ValueError("a valid user email is required")
-        if any(
-            item.email.casefold() == normalized_email
-            and item.status is not UserStatus.DELETED
-            for item in self.users.list_scoped(effective_org_id())
+        if (
+            self.users.find_scoped_by_field(
+                "email",
+                normalized_email,
+                org_id=effective_org_id(),
+                casefold=True,
+                exclude_status=UserStatus.DELETED.value,
+            )
+            is not None
         ):
             raise ValueError("email already belongs to a user in this organization")
 

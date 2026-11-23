@@ -6,6 +6,8 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Response
 
+from application.http_pagination import PageParams
+from application.pagination import respond
 from modules.auth.http.responses import DumpModel
 from modules.auth.http.schemas import (
     RoleBindingCreateRequest,
@@ -43,23 +45,17 @@ def _register_list_workspaces(
 
     @app.get("/api/v0/workspaces")
     def list_workspaces(
-        include_archived: bool = Query(default=False),
-    ) -> list[dict[str, Any]]:
+        page: PageParams, include_archived: bool = Query(default=False)
+    ) -> Any:
         principal_id = effective_principal_id("local-developer")
         if include_archived:
             try:
-                return [
-                    _dump(item)
-                    for item in workspace_access_service.list_managed_workspaces(
-                        principal_id
-                    )
-                ]
+                items = workspace_access_service.list_managed_workspaces(principal_id)
             except PermissionError as exc:
                 raise HTTPException(status_code=403, detail=str(exc)) from exc
-        return [
-            _dump(item)
-            for item in workspace_access_service.list_principal_workspaces(principal_id)
-        ]
+        else:
+            items = workspace_access_service.list_principal_workspaces(principal_id)
+        return respond(items, lambda item: item.id, page, _dump)
 
 
 def _register_create_workspace(
@@ -122,9 +118,14 @@ def _register_list_roles(
     _dump = dump
 
     @app.get("/api/v0/roles")
-    def list_roles() -> list[dict[str, Any]]:
+    def list_roles(page: PageParams) -> Any:
         try:
-            return [_dump(role) for role in workspace_access_service.list_roles()]
+            return respond(
+                workspace_access_service.list_roles(),
+                lambda role: role.id,
+                page,
+                _dump,
+            )
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
 
@@ -162,11 +163,14 @@ def _register_list_role_bindings(
     _dump = dump
 
     @app.get("/api/v0/role-bindings")
-    def list_role_bindings() -> list[dict[str, Any]]:
+    def list_role_bindings(page: PageParams) -> Any:
         try:
-            return [
-                _dump(item) for item in workspace_access_service.list_role_bindings()
-            ]
+            return respond(
+                workspace_access_service.list_role_bindings(),
+                lambda item: item.id,
+                page,
+                _dump,
+            )
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
 
