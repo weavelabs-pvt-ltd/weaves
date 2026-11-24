@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from threading import Event, RLock
+from threading import Event
 
 from contracts.v1 import Permission
 from modules.workflows.runtime_execution_host import WorkflowExecutionRuntimeHost
@@ -80,9 +80,7 @@ class WorkflowExecutionEntryMixin(WorkflowExecutionRuntimeHost):
                 cancellation_check=cancellation_check,
             )
         lock_key = (actor, idempotency_key)
-        with self._idempotency_guard:
-            lock = self._idempotency_locks.setdefault(lock_key, RLock())
-        with lock:
+        with self._idempotency_locks.hold(lock_key):
             replayed = self._find_replayed_workflow_run(
                 idempotency_key, actor, task, thread_id, workflow_id
             )

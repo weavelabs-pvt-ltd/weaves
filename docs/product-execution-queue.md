@@ -23,6 +23,35 @@ are committed together. Workflow jobs dispatch through the selected published
 workflow version. The API returns 503 for queue submission when it is using
 in-memory storage because another process cannot see that queue.
 
+## Fair claiming and worker slots (Phase 5.2)
+
+By default (`WEAVES_FAIR_CLAIM=true`) the worker no longer claims the globally
+oldest row. Each claim serves organizations round robin (least recently claimed
+first, recorded in `tenant_scheduler_state`) and takes that organization's oldest
+queued job or task turn with `FOR UPDATE SKIP LOCKED`. Under
+`WEAVES_LIMITS_MODE=enforce` an organization already running
+`WEAVES_LIMIT_MAX_RUNNING_PER_ORG` rows (jobs and turns together, counted from
+the rows, never from a stored counter) is skipped; under `observe` the claim
+proceeds and the would-be deferral is logged. A per-organization advisory lock
+makes the count-then-claim step race free across slots and worker processes.
+
+`WEAVES_WORKER_SLOTS` threads each claim and run one unit of work. The main thread
+is the supervisor: recovery, schedule dispatch, studio, purges, the queue-age
+warning (`WEAVES_QUEUE_AGE_WARN_SECONDS`) and claim-state pruning keep running
+while executions are in flight, and a slot thread that dies is restarted. A failing
+slot backs off exponentially up to 30 seconds. On SIGTERM no new work is claimed
+and every in-flight execution finishes before the process exits; a killed process
+leaves its rows `running` until the existing lease recovery fails them, which
+frees the organization's capacity. The worker database pool defaults to
+`slots * 2 + 4`; slots are reduced when an explicit pool is smaller than
+`slots + 2`. `WEAVES_WORKER_SLOTS=1 WEAVES_FAIR_CLAIM=false` restores the original
+single loop.
+
+Rollout is staged: production runs `WEAVES_WORKER_SLOTS=2` (pool 8) in
+`infra/gcp/singlevm/compose.yaml`; the code default of 4 (pool 12) is raised in
+production only after the slice 5.6 measurements, and 1 slot with
+`WEAVES_FAIR_CLAIM=false` remains the rollback.
+
 Workflow jobs persist the published workflow version selected when the request
 is accepted. Later edits do not change the queued request's agent sequence;
 retries preserve that same version. Revoking the workflow or disabling an agent

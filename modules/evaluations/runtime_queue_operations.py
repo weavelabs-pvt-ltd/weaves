@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from threading import RLock
 
 from contracts.v1 import (
     AgentStatus,
@@ -54,12 +53,7 @@ class EvaluationQueueOperationsMixin(EvaluationRuntimeHost):
         if not _idempotency_lock_held:
             lock_key = (actor, key)
 
-            with self._idempotency_guard:
-                lock = self._execution_job_idempotency_locks.setdefault(
-                    lock_key, RLock()
-                )
-
-            with lock:
+            with self._execution_job_idempotency_locks.hold(lock_key):
                 return self.enqueue_evaluation_run(
                     suite_id,
                     idempotency_key=key,

@@ -69,6 +69,17 @@ through `auth_ref` / `secret_ref`.
 
 Index `product_login_throttle_window_idx (window_started_at)`.
 
+### `tenant_scheduler_state` (migration 26)
+
+`org_id text PRIMARY KEY`, `last_claimed_at timestamptz NOT NULL`, index
+`tenant_scheduler_state_claimed_idx (last_claimed_at)`. One row per organization that
+recently had work claimed; the worker orders organizations by it (never claimed first)
+so a backlogged tenant cannot starve another. Row security allows only the `queue`
+system purpose. Rows older than a day are pruned by the worker; capacity is never
+stored, it is derived by counting running rows. Four partial indexes on `product_records`
+serve the claim: `product_records_{execution_job,task_turn}_org_queued_idx
+(org_id, created_at, record_id)` and `product_records_{execution_job,task_turn}_org_running_idx (org_id)`.
+
 ### `product_schema_migrations`
 
 `version integer PRIMARY KEY`, `applied_at timestamptz NOT NULL DEFAULT now()`.

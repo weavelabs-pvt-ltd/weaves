@@ -263,6 +263,12 @@ INDEX_JUSTIFICATIONS = {
     "limits_turn_queued_org_idx": "queued task turns per organization (admission)",
     "limits_job_queued_org_idx": "queued execution jobs per organization (admission)",
     "limits_tool_invocation_org_idx": "tool calls per organization per day (admission)",
+    "tenant_scheduler_state_pkey": "one round-robin row per organization",
+    "tenant_scheduler_state_claimed_idx": "prune old round-robin history",
+    "product_records_execution_job_org_queued_idx": "fair claim: oldest job of an org",
+    "product_records_task_turn_org_queued_idx": "fair claim: oldest turn of an org",
+    "product_records_execution_job_org_running_idx": "per-organization running cap",
+    "product_records_task_turn_org_running_idx": "per-organization running cap",
 }
 
 
@@ -287,6 +293,7 @@ def test_every_index_of_the_schema_is_justified(isolated_postgres_url):
         "product_records",
         "product_schema_migrations",
         "product_login_throttle",
+        "tenant_scheduler_state",
     }
     assert not _scalar(
         isolated_postgres_url,

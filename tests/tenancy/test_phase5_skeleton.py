@@ -12,9 +12,12 @@ PAIR = json.loads(
 
 
 def test_planned_controls_are_declared_but_not_required() -> None:
+    # A control is planned until its slice lands, then it is required instead.
+    landed = set(PAIR["required_controls"]) & set(PLANNED)
     assert PAIR["planned_controls"] == {
-        cid: slice_ for cid, (slice_, _) in PLANNED.items()
+        cid: slice_ for cid, (slice_, _) in PLANNED.items() if cid not in landed
     }
+    assert "T5-I02" in landed  # slice 5.2
     assert not set(PAIR["planned_controls"]) & set(PAIR["required_controls"])
     assert not set(PAIR["planned_controls"]) & set(PAIR["known_defects"])
 

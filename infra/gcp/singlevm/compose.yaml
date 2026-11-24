@@ -85,6 +85,15 @@ services:
     environment:
       <<: [*runtime, *connectors_worker]
       WEAVES_WORKER_POLL_SECONDS: "3"
+      # Phase 5.2: executions run in slots while the supervisor keeps recovery
+      # and dispatch going. Staged rollout: 2 slots first (pool = slots * 2 + 4),
+      # raise to 4 after the 5.6 measurements. Set WEAVES_WORKER_SLOTS=1 and
+      # WEAVES_FAIR_CLAIM=false in runtime.env to restore the single loop.
+      WEAVES_WORKER_SLOTS: ${WEAVES_WORKER_SLOTS:-2}
+      WEAVES_FAIR_CLAIM: ${WEAVES_FAIR_CLAIM:-true}
+      WEAVES_LIMIT_MAX_RUNNING_PER_ORG: ${WEAVES_LIMIT_MAX_RUNNING_PER_ORG:-2}
+      WEAVES_LIMITS_MODE: ${WEAVES_LIMITS_MODE:-observe}
+      WEAVES_DB_POOL_MAX_SIZE: ${WEAVES_WORKER_DB_POOL_MAX_SIZE:-8}
       WEAVES_WAITLIST_RETENTION_DAYS: ${WEAVES_WAITLIST_RETENTION_DAYS:-365}
     depends_on:
       product-api:

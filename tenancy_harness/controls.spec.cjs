@@ -367,6 +367,14 @@ test('T5-I05 a request id flows from the API response to the worker log and run 
   }
 });
 
+test('T5-I02 a backlogged organization cannot starve another and never exceeds its running cap', async () => {
+  const control = fixture.fair_claim;
+  for (const key of ['backlog_is_queued', 'backlogged_org_runs_at_its_cap', 'other_org_starts_within_the_bound',
+    'other_org_waits_less_than_one_slow_call', 'other_org_finishes', 'backlogged_org_never_exceeds_its_cap']) {
+    expect(control[key], key + ' ' + JSON.stringify(control.measured)).toBe(true);
+  }
+});
+
 test('T4-I01 organization settings and ownership handoff preserve other tenant access', async ({browser, request}) => {
   await require('./organization_administration.cjs').verify({browser, request}, fixture);
 });

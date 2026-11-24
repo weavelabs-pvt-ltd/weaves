@@ -8,6 +8,8 @@ from contextlib import AbstractContextManager
 from datetime import datetime, timedelta
 from threading import Event, Thread
 
+from application.ports.fair_claim import log_over_cap
+from application.ports.limits import LimitPolicy
 from application.ports.repository import Repository
 from contracts.v1 import (
     AgentRun,
@@ -58,10 +60,22 @@ class TaskWorkerService:
         self._open_unit_of_work = unit_of_work
         self.heartbeat_interval_seconds = heartbeat_interval_seconds
 
-    def process_next_turn(self, worker_id: str) -> TaskTurn | None:
-        """Claim and process the oldest queued turn from any workspace."""
+    def process_next_turn(
+        self, worker_id: str, limits: LimitPolicy | None = None
+    ) -> TaskTurn | None:
+        """Claim and process the next queued turn from any workspace.
+
+        With ``limits`` the claim is fair across organizations and honours each
+        organization's running cap; without it the oldest queued turn wins.
+        """
         with system_scope("queue"):
-            claimed = self.turns.claim_next_queued(worker_id, utc_now(), None, None)
+            if limits is None:
+                claimed = self.turns.claim_next_queued(worker_id, utc_now(), None, None)
+            else:
+                fair = self.turns.claim_next_fair(worker_id, utc_now(), limits)
+                claimed = None if fair is None else fair.record
+                if fair is not None:
+                    log_over_cap("task turn", fair.record.turn_id, fair)
         if claimed is None:
             return None
         with bind_context(

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import itertools
 import logging
 import time
 from collections.abc import Callable
 from threading import Event
 
+from application.ports.limits import LimitPolicy
+from apps.worker.executor import SlotPool
 from apps.worker.services import WorkerServices
 from apps.worker.ticks import TickRegistry
 
@@ -14,7 +17,13 @@ logger = logging.getLogger("product.worker")
 
 
 class WorkerLoop:
-    """Run registered ticks, then claim at most one job and one task turn."""
+    """Run registered ticks and claim work, inline or across supervised slots.
+
+    Without ``limits`` and with one slot this is the original single loop:
+    ticks, then the oldest job and the next turn, all on one thread. Otherwise
+    ``slots`` threads each claim and run work (fairly across organizations when
+    ``limits`` is given) while this thread keeps running ticks.
+    """
 
     def __init__(
         self,
@@ -25,8 +34,13 @@ class WorkerLoop:
         poll_seconds: float,
         stopping: Event,
         clock: Callable[[], float] = time.monotonic,
+        limits: LimitPolicy | None = None,
+        slots: int = 1,
     ) -> None:
         """Bind services and ticks; ``clock`` is injectable for tests."""
+        self._limits = limits
+        self._slots = slots
+        self._rotation = itertools.count()
         self._services = services
         self._registry = registry
         self._worker_id = worker_id
@@ -75,13 +89,82 @@ class WorkerLoop:
             )
         return job is not None or turn is not None
 
+    def claim_once(self, worker_id: str) -> bool:
+        """Claim and run at most one job or turn for one slot; True if any ran.
+
+        The queue tried first alternates so neither starves the other.
+        """
+        services = self._services
+        limits = self._limits
+        extra = {} if limits is None else {"limits": limits}
+        jobs_first = next(self._rotation) % 2 == 0
+        for kind in ("job", "turn") if jobs_first else ("turn", "job"):
+            if kind == "job":
+                job = services.execution.process_next_execution_job(worker_id, **extra)
+                if job is not None:
+                    logger.info(
+                        "product execution job finished job_id=%s status=%s run_id=%s",
+                        job.job_id,
+                        job.status.value,
+                        job.run_id,
+                    )
+                    return True
+            else:
+                turn = services.tasks.process_next_turn(worker_id, **extra)
+                if turn is not None:
+                    logger.info(
+                        "task turn finished turn_id=%s status=%s",
+                        turn.turn_id,
+                        turn.status.value,
+                    )
+                    return True
+            if self._stopping.is_set():
+                return False
+        return False
+
     def iterate(self) -> bool:
         """One loop pass. Returns True when work was done (no idle wait needed)."""
         self.run_ticks()
         return self.claim_and_run()
 
     def run(self) -> None:
-        """Loop until ``stopping`` is set, preserving the original error handling."""
+        """Loop until ``stopping`` is set (inline or supervised, see the class)."""
+        if self._slots > 1 or self._limits is not None:
+            self.run_supervised()
+        else:
+            self.run_inline()
+
+    def run_supervised(self) -> None:
+        """Run ticks here while slot threads execute; join them on shutdown."""
+        pool = SlotPool(
+            self.claim_once,
+            slots=self._slots,
+            base_worker_id=self._worker_id,
+            poll_seconds=self._poll_seconds,
+            stopping=self._stopping,
+        )
+        logger.info(
+            "worker slots started slots=%d fair_claim=%s",
+            self._slots,
+            self._limits is not None,
+        )
+        pool.start()
+        try:
+            while not self._stopping.is_set():
+                try:
+                    self.run_ticks()
+                    pool.revive()
+                except KeyboardInterrupt:
+                    raise
+                except Exception:
+                    logger.exception("product execution worker iteration failed")
+                self._stopping.wait(self._poll_seconds)
+        finally:
+            self._stopping.set()
+            pool.join()
+
+    def run_inline(self) -> None:
+        """Original single-thread loop, preserving its error handling."""
         while not self._stopping.is_set():
             try:
                 if not self.iterate():

@@ -8,6 +8,7 @@ from typing import Any, Generic, cast
 
 from application.ports.repository import TContract
 from contracts.v1.base import OpaqueId
+from infrastructure.persistence.memory_fair_claim import InMemoryFairClaimMixin
 from infrastructure.persistence.memory_field_queries import InMemoryFieldQueries
 from shared.errors import OwnershipConflict
 
@@ -25,7 +26,11 @@ def _same_owner(current: object, replacement: object) -> bool:
     )
 
 
-class InMemoryRepository(InMemoryFieldQueries[TContract], Generic[TContract]):
+class InMemoryRepository(
+    InMemoryFairClaimMixin[TContract],
+    InMemoryFieldQueries[TContract],
+    Generic[TContract],
+):
     """A local repository keyed by a contract's explicit identifier field."""
 
     def __init__(self, id_field: str, *, tenant_keyed: bool = False) -> None:
@@ -34,6 +39,7 @@ class InMemoryRepository(InMemoryFieldQueries[TContract], Generic[TContract]):
         self._id_field = id_field
         self._records: dict[str, TContract] = {}
         self._lock = RLock()
+        self._init_fair_claims()
 
     def snapshot_state(self) -> object:
         """Capture adapter state for an already-locked local unit of work."""

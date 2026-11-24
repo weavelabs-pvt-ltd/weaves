@@ -484,8 +484,8 @@ def test_database_at_previous_head_applies_only_the_newest_step():
 
 def test_migration_list_is_contiguous_append_only_history():
     # Version 20 is the operator-activated catalog step, recorded outside the list.
-    # 25-27 are reserved for the other Phase 5 slices until they merge.
+    # 27 is reserved for Phase 5.3 until it merges.
     full = [*range(1, 20), *range(21, SCHEMA_HEAD_VERSION + 1)]
     assert sorted(set(LISTED_VERSIONS)) == LISTED_VERSIONS
-    assert set(full) - set(LISTED_VERSIONS) <= {25, 26, 27}
+    assert set(full) - set(LISTED_VERSIONS) <= {27}
     assert SCHEMA_HEAD_VERSION == 28
