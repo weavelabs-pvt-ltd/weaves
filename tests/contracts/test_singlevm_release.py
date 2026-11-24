@@ -39,6 +39,7 @@ def host(tmp_path, monkeypatch):
         release, "run", lambda cmd: json.dumps(config) if "config" in cmd else ""
     )
     monkeypatch.setattr(release, "activate", lambda *args: None)
+    monkeypatch.setattr(release, "image_schema_version", lambda image: None)
     return tmp_path
 
 

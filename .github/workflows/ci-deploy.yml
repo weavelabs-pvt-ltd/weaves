@@ -178,3 +178,16 @@ jobs:
             --revision "$GITHUB_SHA" --project "$PROJECT_ID" --account "$DEPLOY_ACCOUNT" \
             --zone "$VM_ZONE" --vm "$VM_NAME"
           curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 https://api.weave-studio.in/api/v0/health
+      - name: Record release manifest line
+        if: steps.head.outputs.current == 'true'
+        env:
+          IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/backend@${{ steps.build.outputs.digest }}
+        run: |
+          printf '{"component":"backend","image":"%s","revision":"%s","time":"%s"}\n' \
+            "$IMAGE" "$GITHUB_SHA" "$(date -u +%FT%TZ)" | tee release-manifest.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7.0.2
+        if: steps.head.outputs.current == 'true'
+        with:
+          name: release-manifest
+          path: release-manifest.json
+          retention-days: 90
