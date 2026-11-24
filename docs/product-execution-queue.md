@@ -47,10 +47,11 @@ frees the organization's capacity. The worker database pool defaults to
 `slots + 2`. `WEAVES_WORKER_SLOTS=1 WEAVES_FAIR_CLAIM=false` restores the original
 single loop.
 
-Rollout is staged: production runs `WEAVES_WORKER_SLOTS=2` (pool 8) in
-`infra/gcp/singlevm/compose.yaml`; the code default of 4 (pool 12) is raised in
-production only after the slice 5.6 measurements, and 1 slot with
-`WEAVES_FAIR_CLAIM=false` remains the rollback.
+Rollout was staged 1, 2, then 4 slots. Slice 5.6 measured them (see
+`docs/capacity-envelope.md`) and production now defaults to
+`WEAVES_WORKER_SLOTS=4` (pool 8) in `infra/gcp/singlevm/compose.yaml`; the
+per-organization running cap only takes effect with `WEAVES_LIMITS_MODE=enforce`,
+and 1 slot with `WEAVES_FAIR_CLAIM=false` remains the rollback.
 
 Workflow jobs persist the published workflow version selected when the request
 is accepted. Later edits do not change the queued request's agent sequence;

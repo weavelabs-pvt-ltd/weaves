@@ -1,0 +1,55 @@
+# Slice 5.6 overlay: the harness stack shaped like the production e2-medium VM.
+#
+# SIMULATED LOCALLY, NOT MEASURED ON GCP. An e2-medium has 2 shared-core vCPU and
+# 4 GB for the whole host (PostgreSQL, API, worker, frontend, Caddy and the OS).
+# Here the three services that carry the load share two pinned CPUs (cpuset) and
+# are capped so their sum stays below 4 GB with room left for the frontend,
+# Caddy and the kernel. The fake provider and the load generator stand for the
+# internet and the users, so they run on other CPUs and are never the bottleneck.
+#
+# Production values are copied from infra/gcp/singlevm/compose.yaml (database
+# pool 4 for the API and 8 for the worker, HTTP limits, poll cadence). The
+# experiment variables are LOAD_WORKER_SLOTS, LOAD_LIMITS_MODE, LOAD_MAX_RUNNING
+# and LOAD_WORKER_POOL, set by tenancy_harness.phase5.load_run per phase.
+services:
+  postgres:
+    tmpfs: !reset []
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    cpuset: "0,1"
+    mem_limit: 1280m
+    memswap_limit: 1280m
+  api:
+    cpuset: "0,1"
+    mem_limit: 768m
+    memswap_limit: 768m
+    environment:
+      WEAVES_DB_POOL_MAX_SIZE: "4"
+      WEAVES_HTTP_MAX_CONNECTIONS: "20"
+      WEAVES_HTTP_MAX_KEEPALIVE_CONNECTIONS: "10"
+      WEAVES_WORKER_POLL_SECONDS: "3"
+      WEAVES_LIFECYCLE_POLL_SECONDS: "30"
+      WEAVES_LIMITS_MODE: ${LOAD_LIMITS_MODE:-enforce}
+  worker:
+    cpuset: "0,1"
+    mem_limit: 1024m
+    memswap_limit: 1024m
+    environment:
+      WEAVES_DB_POOL_MAX_SIZE: ${LOAD_WORKER_POOL:-8}
+      WEAVES_HTTP_MAX_CONNECTIONS: "20"
+      WEAVES_HTTP_MAX_KEEPALIVE_CONNECTIONS: "10"
+      WEAVES_WORKER_POLL_SECONDS: "3"
+      WEAVES_LIFECYCLE_POLL_SECONDS: "30"
+      WEAVES_LIMITS_MODE: ${LOAD_LIMITS_MODE:-enforce}
+      WEAVES_WORKER_SLOTS: ${LOAD_WORKER_SLOTS:-2}
+      WEAVES_LIMIT_MAX_RUNNING_PER_ORG: ${LOAD_MAX_RUNNING:-2}
+      WEAVES_FAIR_CLAIM: "true"
+      WEAVES_WORKER_METRICS_PORT: "9100"
+  provider:
+    cpuset: "2,3,4,5"
+    mem_limit: 768m
+  seed:
+    cpuset: "2,3,4,5"
+    mem_limit: 1024m
+volumes:
+  dbdata:

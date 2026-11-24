@@ -326,7 +326,7 @@ Unavoidable one-line conflicts, resolved by the integrator: the migration tuple 
 
 ## 3. Proposed default limits (all `WEAVES_*` env, per organization unless noted)
 
-Every value is an ASSUMPTION to be replaced by slice 5.6 measurements. Reasoning is sized for one `e2-medium` shared with Postgres and four slots.
+Every value below was an ASSUMPTION when this was written. Slice 5.6 measured the capacity-relevant ones (simulated locally on a stack capped to the `e2-medium` shape, not measured on GCP); the measured values, the changes they caused and the declared service envelope are in `capacity-envelope.md`, which supersedes this table where they differ. Reasoning is sized for one `e2-medium` shared with Postgres and four slots.
 
 | Setting | Default | Reasoning (ASSUMPTION) |
 |---|---|---|

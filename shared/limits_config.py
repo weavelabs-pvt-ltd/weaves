@@ -1,11 +1,13 @@
 """Environment-backed limit settings for Phase 5 (limits, fairness, usage).
 
-Every default below is an ASSUMPTION sized for one ``e2-medium`` VM (2 shared
-vCPU, 4 GB) that also runs PostgreSQL. Slice 5.6 replaces them with measured
-values by editing the defaults here; nothing else should hard-code a number.
-Slice 5.0 only reads and validates the settings. Nothing enforces them yet, and
-``WEAVES_LIMITS_MODE`` defaults to ``observe`` so a later slice that consults a
-limit logs the would-be refusal instead of changing behaviour.
+Defaults are sized for one ``e2-medium`` VM (2 shared vCPU, 4 GB) that also runs
+PostgreSQL. Slice 5.6 measured the capacity-relevant ones on a local stack
+capped to that shape (``docs/capacity-envelope.md``, simulated, not measured on
+GCP); each comment below says which defaults are measurement-backed and which are
+product policy that capacity does not decide. Nothing else should hard-code a
+number. ``WEAVES_LIMITS_MODE`` defaults to ``observe`` so a consulting slice logs
+the would-be refusal instead of changing behaviour; the per-organization running
+cap, and so tenant isolation, only takes effect in ``enforce``.
 """
 
 from __future__ import annotations
@@ -78,32 +80,43 @@ def _mode(raw: str) -> LimitsMode:
 
 @dataclass(frozen=True)
 class LimitsConfig:
-    """Every Phase 5 setting. All numbers are ASSUMPTIONS until slice 5.6."""
+    """Every Phase 5 setting; see the module docstring for what was measured."""
 
-    # Ship measuring first; flip to ``enforce`` per environment.
+    # Ship measuring first; flip to ``enforce`` per environment. Measured (5.6): with
+    # four slots, ``observe`` lets one organization hold every slot (another
+    # tenant's queue delay p95 20 s) while ``enforce`` keeps it at 1.2 s.
     mode: LimitsMode = "observe"
-    # Global (per worker process). Model calls are network bound. Used from 5.2.
+    # Global (per worker process). Measured (5.6): four slots with a running cap of
+    # two keep a normal tenant's queue delay p95 at 1.2 s beside a saturated one
+    # (18.6 s with two slots); worker memory stays near 55 MiB either way.
     worker_slots: int = 4
     # Round-robin claiming across organizations with the per-organization
     # running cap. ``False`` restores the global oldest-first claim.
     fair_claim: bool = True
-    # Half of the slots, so one organization never takes the whole worker.
+    # Half of the four slots, so one organization never takes the whole worker.
+    # With two slots use 1 (measured: p95 2.8 s, at half the hot tenant's rate).
     max_running_per_org: int = 2
-    # Bounds claim enumeration and drain time at two slots (minutes).
+    # Bounds claim enumeration and drain time: a full queue of 25 s calls drains in
+    # about 10 minutes at the running cap. Claim delay was flat from 10 to 200
+    # organizations with work queued, so the cap is policy, not a speed limit.
     max_queued_per_org: int = 50
-    # Emergency brake across all organizations.
+    # Emergency brake across all organizations (ten full organization queues).
     global_max_queued: int = 500
     # Operator kill switch for new work; reads and cancellation keep working.
     admissions_paused: bool = False
     # Home polls ~40/min per open tab; leave ten times headroom. Token bucket.
+    # Protection against one tenant, not an aggregate cap: measured (5.6) the
+    # single API process serves about 53 requests/s (about 3,200/min) of Home
+    # polling, so a handful of organizations at 600/min would saturate it.
     requests_per_minute_org: int = 600
     requests_per_minute_principal: int = 240
     request_burst: int = 100
-    # Beta teams are small; counts non-deleted users.
+    # Product policy (capacity does not decide it); counts non-deleted users.
     seats: int = 25
     # Each schedule can enqueue every few minutes.
     schedules: int = 20
-    # Bound catalog list cost (and the 5.4 page walks).
+    # Bound catalog list cost (and the 5.4 page walks); /agents answered in 40 ms
+    # p95 at 200 organizations.
     agents: int = 50
     workflows: int = 50
     # Per-run cap is <=100, so about 20 full runs of tool calls per day.
@@ -115,11 +128,16 @@ class LimitsConfig:
     # Stops a runaway loop on a priced profile; ``None`` rates are skipped.
     est_cost_usd_per_day: float | None = 25.0
     # Open plus archived tasks, a proxy for storage until a byte rollup exists.
+    # Measured (5.6) at 6,000 tasks: Home 41 ms p50, a page 45 ms; 10,000 untested
+    # beyond the index plans.
     storage_tasks: int = 10_000
     # Conservative estimate; settlement corrects it.
     reservation_input_chars_per_token: int = 3
-    # Starting point for the beta queue-delay envelope.
-    queue_age_warn_seconds: int = 120
+    # Oldest queued work across all tenants. A saturated tenant at its queue cap
+    # legitimately waits 5 to 7 minutes (measured 313 to 434 s), so the 120 s
+    # starting point would warn on healthy saturation; 900 s still catches a
+    # stuck worker. The service envelope itself is guarded by the running cap.
+    queue_age_warn_seconds: int = 900
     # Matches the existing task and audit pages.
     page_default: int = 50
     page_max: int = 100

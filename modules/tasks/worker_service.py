@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager
+from contextvars import copy_context
 from datetime import datetime, timedelta
 from threading import Event, Thread
 
@@ -150,9 +151,12 @@ class TaskWorkerService:
         )
         heartbeat_stop = Event()
         lease_lost = Event()
+        # The lease renewal must run as this tenant: a bare thread starts with an
+        # empty context, so under row-level security its update matched no row,
+        # the lease looked lost and any turn longer than the heartbeat failed.
         heartbeat = Thread(
-            target=self._heartbeat_loop,
-            args=(claimed, heartbeat_stop, lease_lost),
+            target=copy_context().run,
+            args=(self._heartbeat_loop, claimed, heartbeat_stop, lease_lost),
             daemon=True,
         )
         heartbeat.start()

@@ -4,7 +4,10 @@ Each slice 5.1 to 5.5 owns exactly one module here and one control id. Slice
 5.1's ``T5-I01`` is already required. The others are declared ``planned`` in
 ``pair.json`` (listed in ``PLANNED``) and are not required, so the runner
 ignores them until their slice moves the id into ``required_controls``. Slice
-5.6 adds the load and noisy-neighbour modules.
+5.6 adds the load modules (``load_run`` orchestrates ``noisy_neighbor``,
+``capacity_scale`` and ``reservation_recovery``; ``load_stats`` and
+``load_common`` are shared helpers). They are opt-in, take over an hour and are
+refused in CI, so they are not controls and never enter the required inventory.
 """
 
 # control id -> (owning slice, module in this package); an id leaves this table

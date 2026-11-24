@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from contextvars import copy_context
 from threading import Event, Thread
 
 from application.ports.fair_claim import log_over_cap
@@ -65,9 +66,15 @@ class ExecutionWorkerMixin(RuntimeCapabilityHost):
         )
         cancellation_requested = Event()
         stop_heartbeat = Event()
+        # Run the renewal in this tenant's context (see the task turn worker).
         heartbeat_thread = Thread(
-            target=self._renew_execution_job_lease,
-            args=(job, cancellation_requested, stop_heartbeat),
+            target=copy_context().run,
+            args=(
+                self._renew_execution_job_lease,
+                job,
+                cancellation_requested,
+                stop_heartbeat,
+            ),
             name=f"weaves-job-lease-{job.job_id[:12]}",
             daemon=True,
         )
