@@ -194,11 +194,8 @@ def test_restore_old_dump_then_reconcile(world, capsys):
     assert report["credentials"] == {credential_b.id: "revoked"}
     assert report["secrets"] == {ref_b: "deleted"}
     assert status_of(world, a) == "deleted"
-    token = set_request_identity("p", a, "x")
-    try:
-        assert world["operator"].organization_purge_service.remaining_rows(a) == 0
-    finally:
-        reset_request_principal(token)
+    # The operator ``status`` command calls this with no tenant bound.
+    assert world["operator"].organization_purge_service.remaining_rows(a) == 0
     assert credential_of(world, "b").status is ApiCredentialStatus.REVOKED
     assert_services_may_start(world["dir"])  # gate cleared
 

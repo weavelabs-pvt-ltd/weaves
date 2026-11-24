@@ -215,8 +215,17 @@ class OrganizationPurgeService:
         return True
 
     def remaining_rows(self, org_id: str) -> int:
-        """Rows still owned by the organization outside the retained set."""
-        return (
-            self.data.count_remaining(org_id, keep_collections=KEEP_COLLECTIONS)
-            + self.usage.remaining_rows()
-        )
+        """Rows still owned by the organization outside the retained set.
+
+        The usage ledger counts rows of the bound tenant, so a caller outside a
+        request (the operator ``status`` command) must bind the organization or a
+        strict process refuses with ``TenantContextRequired``.
+        """
+        token = set_request_identity(Actor.system().audit_id, org_id, "lifecycle")
+        try:
+            return (
+                self.data.count_remaining(org_id, keep_collections=KEEP_COLLECTIONS)
+                + self.usage.remaining_rows()
+            )
+        finally:
+            reset_request_principal(token)

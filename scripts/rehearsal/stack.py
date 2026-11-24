@@ -53,6 +53,8 @@ class Stack:
         self.key = base64.urlsafe_b64encode(os.urandom(32)).decode()
         self.api_port = 0
         self._running: dict[str, str] = {}
+        self.extra_env: dict[str, str] = {}
+        self.run_args: list[str] = []
 
     def __enter__(self) -> Self:
         """Create the network and database."""
@@ -69,7 +71,7 @@ class Stack:
         """Remove every container and the network."""
         for role in list(self._running):
             docker("rm", "-f", f"{self.name}-{role}", check=False)
-        docker("rm", "-f", f"{self.name}-pg", check=False)
+        docker("rm", "-f", "-v", f"{self.name}-pg", check=False)
         docker("network", "rm", self.name, check=False)
 
     def _environment(self) -> Mapping[str, str]:
@@ -80,7 +82,18 @@ class Stack:
             "WEAVES_DB_POOL_MAX_SIZE": "4",
             "WEAVES_MODEL_CUSTOM_BASE_URLS": json.dumps([CUSTOM_BASE_URL]),
             "WEAVES_WORKER_POLL_SECONDS": "1",
+            **self.extra_env,
         }
+
+    def run_flags(self) -> list[str]:
+        """``docker run`` flags (environment and extra mounts) for any one-off."""
+        env = [f"--env={k}={v}" for k, v in self._environment().items()]
+        return [*env, *self.run_args]
+
+    def reset_database(self) -> None:
+        """Destroy the database container and start an empty one (a lost disk)."""
+        docker("rm", "-f", "-v", f"{self.name}-pg", check=False)
+        self._run_postgres()
 
     def _run_postgres(self) -> None:
         env = {
@@ -127,11 +140,10 @@ class Stack:
             ],
             "worker": ["python", "-m", "apps.worker.main"],
         }[role]
-        env = [f"--env={k}={v}" for k, v in self._environment().items()]
         publish = ["--publish", "127.0.0.1::8000"] if role == "api" else []
         docker(
             "run", "-d", "--name", f"{self.name}-{role}", "--network", self.name,
-            *env, *publish, image, *command,
+            *self.run_flags(), *publish, image, *command,
         )  # fmt: skip
         self._running[role] = image
         if role == "api":

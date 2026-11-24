@@ -27,10 +27,10 @@ function install(test) {
       return context;
     };
   });
-  test.afterEach(async ({}, testInfo) => {
+  test.afterEach(async ({ browser }, testInfo) => {
     const saved = state.get(testInfo);
     if (!saved) return;
-    saved.browser.newContext = saved.original;
+    browser.newContext = saved.original;
     if (testInfo.status !== 'passed' && saved.events.length) {
       testInfo.annotations.push({ type: 'browser-summary', description: saved.events.join('\n') });
     }

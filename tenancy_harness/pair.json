@@ -2,11 +2,11 @@
   "version": 1,
   "backend": {
     "repository": "weavelabs-pvt-ltd/weaves",
-    "revision": "88848d2e14757b368388035a3d083645d3689bdc"
+    "revision": "15cd11ced7a1391795fb2a9a7aaf5daee850b0b9"
   },
   "frontend": {
     "repository": "weavelabs-pvt-ltd/weaves-app",
-    "revision": "6a1edb54ef35c87fa0593430227438dbd726736c"
+    "revision": "0e90b15d01f9d91db9cbffb5d47cc23250dc56ef"
   },
   "candidate_policy": "The triggering repository uses its checked-out candidate; the counterpart uses this exact revision. Record both actual revisions and dirty state.",
   "phase": 4,
