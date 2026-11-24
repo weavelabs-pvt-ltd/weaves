@@ -79,6 +79,7 @@ def test_default_registry_keeps_the_original_order_and_intervals() -> None:
         ("schedule_dispatch", 5, True),
         ("studio", 0, True),
     ]
+    assert ("recovery_sweep", 86_400, False) in original
 
 
 def test_ticks_run_in_order_when_due_and_respect_intervals() -> None:

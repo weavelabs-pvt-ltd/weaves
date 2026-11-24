@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
+from infrastructure.database.bounded_queries_schema import BOUNDED_QUERIES_MIGRATION
 from infrastructure.database.legacy_purge import LEGACY_PURGE_MIGRATION
 from infrastructure.database.limits_schema import LIMITS_MIGRATION
 from infrastructure.database.organization_identity import (
@@ -24,14 +25,12 @@ from shared.request_context import current_system_purpose, storage_org_scope
 _MIGRATION_LOCK_NAME = "weaves-product-schema-migrations"
 
 # Migrations are append-only and forward-only. Never edit or delete a released
-# entry: a database that already recorded its version will not run it again,
-# and a new database must reach the same schema by replaying the whole list.
-# Change the schema by appending the next version (a destructive change gets
-# its own migration, e.g. ``legacy_purge``). Versions 2-5 were recorded by the
-# original bootstrap without DDL and stay reserved. Version 20 is the
-# operator-activated catalog ownership step (``plugin_ownership``); it is
-# recorded outside this list and is the only version allowed to be missing
-# from it.
+# entry: a recorded version is never run again, and a new database must reach
+# the same schema by replaying the whole list. Change the schema by appending
+# the next version (a destructive change gets its own, e.g. ``legacy_purge``).
+# Versions 2-5 were recorded without DDL and stay reserved. Version 20 is the
+# operator-activated catalog ownership step (``plugin_ownership``), recorded
+# outside this list; it is the only version allowed to be missing from it.
 CATALOG_OWNERSHIP_VERSION = 20
 
 
@@ -347,6 +346,7 @@ _SCHEMA_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     ORGANIZATION_IDENTITY_MIGRATION,
     WAITLIST_MIGRATION,
     LIMITS_MIGRATION,
+    BOUNDED_QUERIES_MIGRATION,
 )
 
 SCHEMA_HEAD_VERSION = _SCHEMA_MIGRATIONS[-1][0]

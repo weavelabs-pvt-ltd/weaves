@@ -6,6 +6,8 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 
+from application.http.pagination import PageParams
+from application.pagination import respond
 from modules.auth.credential_service import CredentialService
 from modules.auth.http.responses import DumpModel, credential_view
 
@@ -17,9 +19,13 @@ def _register_list_api_credentials(
     _dump = dump
 
     @app.get("/api/v0/api-credentials")
-    def list_api_credentials() -> list[dict[str, Any]]:
-        credentials = credential_service.list_api_credentials()
-        return [credential_view(item) for item in credentials]
+    def list_api_credentials(page: PageParams) -> Any:
+        return respond(
+            credential_service.list_api_credentials(),
+            lambda item: item.id,
+            page,
+            credential_view,
+        )
 
 
 def _register_revoke_api_credential(

@@ -51,24 +51,25 @@ class TaskExecutionSummaries:
         self, tasks: tuple[Task, ...], org: str, workspace: str
     ) -> list[TaskTurn]:
         """Load turns only for the requested visible tasks."""
-        task_ids = {task.task_id for task in tasks}
-        return [
-            turn
-            for turn in self._turns.list_scoped(org, workspace)
-            if turn.task_id in task_ids
-        ]
+        return list(
+            self._turns.list_by_field_in(
+                "task_id",
+                tuple({task.task_id for task in tasks}),
+                org_id=org,
+                workspace_id=workspace,
+            )
+        )
 
     def _visible_runs(
         self, turns: list[TaskTurn], org: str, workspace: str
     ) -> dict[str, AgentRun]:
-        """Load agent runs referenced by the selected turns."""
-        run_ids = {turn.agent_run_id for turn in turns if turn.agent_run_id}
+        """Load agent runs referenced by the selected turns by primary key."""
+        run_ids = tuple({turn.agent_run_id for turn in turns if turn.agent_run_id})
         if self._agent_runs is None:
             return {}
         return {
             run.agent_run_id: run
-            for run in self._agent_runs.list_scoped(org, workspace)
-            if run.agent_run_id in run_ids
+            for run in self._agent_runs.get_many_scoped(run_ids, org, workspace)
         }
 
     @staticmethod

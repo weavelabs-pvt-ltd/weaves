@@ -154,10 +154,8 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
         agent_runs = self._validate_replayed_run_request(
             run, task, agent_id, thread_id, workflow_id, agent_version_id
         )
-        artifacts = tuple(
-            item
-            for item in self.artifacts.list_scoped(run.org_id, run.workspace_id)
-            if item.run_id == run.run_id
+        artifacts = self.artifacts.list_by_field_in(
+            "run_id", (run.run_id,), org_id=run.org_id, workspace_id=run.workspace_id
         )
         if len(artifacts) != len(agent_runs):
             raise RuntimeError("idempotent workflow has invalid step artifacts")
@@ -168,15 +166,21 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
             )
         except KeyError as exc:
             raise RuntimeError("idempotent workflow has an unlinked artifact") from exc
-        invocations = tuple(
-            item
-            for item in self.tool_invocations.list_scoped(run.org_id, run.workspace_id)
-            if item.run_id == run.run_id
+        invocations = self.tool_invocations.list_by_field_in(
+            "run_id", (run.run_id,), org_id=run.org_id, workspace_id=run.workspace_id
         )
-        audit_events = tuple(
-            item
-            for item in self.audit_events.list_scoped(run.org_id, run.workspace_id)
-            if item.target_id == run.run_id and item.action == "agent.run.succeeded"
+        audit_events = self.audit_events.list_audit_page(
+            run.org_id,
+            run.workspace_id,
+            action="agent.run.succeeded",
+            target_type=None,
+            target_id=run.run_id,
+            actor_principal_id=None,
+            created_after=None,
+            created_before=None,
+            cursor_created_at=None,
+            cursor_event_id=None,
+            limit=100,
         )
         if not audit_events:
             raise RuntimeError("idempotent run has no completion audit event")
@@ -203,12 +207,11 @@ class AgentRunEntrypointMixin(RuntimeCapabilityHost):
         """Verify the saved run matches the original idempotent request."""
         agent_runs = tuple(
             sorted(
-                (
-                    item
-                    for item in self.agent_runs.list_scoped(
-                        run.org_id, run.workspace_id
-                    )
-                    if item.run_id == run.run_id
+                self.agent_runs.list_by_field_in(
+                    "run_id",
+                    (run.run_id,),
+                    org_id=run.org_id,
+                    workspace_id=run.workspace_id,
                 ),
                 key=lambda item: int(item.input_summary.get("workflow_step_index", 0)),
             )

@@ -8,6 +8,7 @@ from contextlib import AbstractContextManager
 from datetime import datetime, timedelta
 from typing import Any
 
+from application.pagination import drain, recovery_batch_size
 from application.ports.repository import Repository
 from application.runtime_constants import (
     STALE_EXECUTION_JOB_AFTER_SECONDS,
@@ -44,6 +45,7 @@ class ExecutionRecoveryService:
         is_bootstrapped: Callable[[], bool],
         bootstrap: Callable[[], None],
         unit_of_work: Callable[[], AbstractContextManager[None]],
+        batch_size: int | None = None,
     ) -> None:
         """Bind recovery repositories and cross-capability use cases."""
         self.runs = runs
@@ -55,6 +57,7 @@ class ExecutionRecoveryService:
         self._is_bootstrapped = is_bootstrapped
         self._bootstrap = bootstrap
         self._open_unit_of_work = unit_of_work
+        self._batch_size = batch_size or recovery_batch_size()
 
     def _unit_of_work(self) -> AbstractContextManager[None]:
         """Open the configured transaction for a recovery write."""
@@ -65,88 +68,124 @@ class ExecutionRecoveryService:
         *,
         stale_after_seconds: int = STALE_RUN_AFTER_SECONDS,
         now: datetime | None = None,
+        sweep: bool = False,
     ) -> tuple[str, ...]:
-        """Fail runs with no execution heartbeat beyond the bounded call window."""
+        """Fail runs with no execution heartbeat beyond the bounded call window.
+
+        Only ``running`` rows past their lease are read (an indexed, bounded
+        query). ``sweep`` additionally walks every already-failed interrupted
+        run and completes any half-written recovery (running agent runs, missing
+        audit); that walk grows with history, so it runs at process start and
+        once a day, never on the regular recovery tick.
+        """
         if stale_after_seconds < 1:
             raise ValueError("stale_after_seconds must be positive")
         timestamp = now or _now()
         stale_before = timestamp - timedelta(seconds=stale_after_seconds)
         recovered: list[str] = []
-        for run in self.runs.list():
-            newly_recovered = False
-            with self._unit_of_work():
-                error = run.error
-                if run.status is RunStatus.RUNNING and run.updated_at <= stale_before:
-                    error = ErrorSummary(
-                        code="runtime.interrupted",
-                        summary=(
-                            "Run was marked failed after its execution "
-                            "heartbeat became stale."
-                        ),
-                        retryable=True,
-                    )
-                    failed_run = WorkflowRun.model_validate(
-                        run.model_copy(
-                            update={
-                                "status": RunStatus.FAILED,
-                                "error": error,
-                                "finished_at": timestamp,
-                                "updated_at": timestamp,
-                            }
-                        ).model_dump()
-                    )
-                    if not self.runs.put_if_status_and_stale(
-                        failed_run,
-                        expected_status=RunStatus.RUNNING.value,
-                        updated_before=stale_before,
-                    ):
-                        continue
-                    newly_recovered = True
-                elif not (
-                    run.status is RunStatus.FAILED
-                    and error is not None
-                    and error.code == "runtime.interrupted"
-                ):
-                    continue
-                if error is None:
-                    raise RuntimeError("recovered run is missing its failure summary")
-                for agent_run in self.agent_runs.list_scoped(
-                    run.org_id, run.workspace_id
-                ):
-                    if (
-                        agent_run.run_id != run.run_id
-                        or agent_run.status is not RunStatus.RUNNING
-                    ):
-                        continue
-                    failed_agent_run = AgentRun.model_validate(
-                        agent_run.model_copy(
-                            update={
-                                "status": RunStatus.FAILED,
-                                "error": error,
-                                "finished_at": timestamp,
-                                "updated_at": timestamp,
-                            }
-                        ).model_dump()
-                    )
-                    self.agent_runs.put(failed_agent_run)
-                self._ensure_run_recovery_audit(run, error, timestamp)
-            if newly_recovered:
+
+        def handle(run: WorkflowRun) -> bool:
+            if self._recover_run(run, timestamp, stale_before):
                 recovered.append(run.run_id)
+                return True
+            return False
+
+        drain(
+            lambda: self.runs.list_status_updated_before(
+                RunStatus.RUNNING.value, stale_before, limit=self._batch_size
+            ),
+            handle,
+            batch_size=self._batch_size,
+        )
+        if sweep:
+            self._sweep_interrupted_runs(timestamp)
         return tuple(recovered)
+
+    def _sweep_interrupted_runs(self, timestamp: datetime) -> None:
+        """Complete recovery bookkeeping of failed runs, one keyset page at a time."""
+        after: str | None = None
+        while True:
+            page = self.runs.list_by_status(
+                RunStatus.FAILED.value, limit=self._batch_size, after_id=after
+            )
+            for run in page:
+                if run.error is not None and run.error.code == "runtime.interrupted":
+                    with self._unit_of_work():
+                        self._finish_interrupted_run(run, run.error, timestamp)
+            if len(page) < self._batch_size:
+                return
+            after = page[-1].run_id
+
+    def _recover_run(
+        self, run: WorkflowRun, timestamp: datetime, stale_before: datetime
+    ) -> bool:
+        """Fail one stale run and its running agent runs atomically."""
+        with self._unit_of_work():
+            error = ErrorSummary(
+                code="runtime.interrupted",
+                summary=(
+                    "Run was marked failed after its execution heartbeat became stale."
+                ),
+                retryable=True,
+            )
+            failed_run = WorkflowRun.model_validate(
+                run.model_copy(
+                    update={
+                        "status": RunStatus.FAILED,
+                        "error": error,
+                        "finished_at": timestamp,
+                        "updated_at": timestamp,
+                    }
+                ).model_dump()
+            )
+            if not self.runs.put_if_status_and_stale(
+                failed_run,
+                expected_status=RunStatus.RUNNING.value,
+                updated_before=stale_before,
+            ):
+                return False
+            self._finish_interrupted_run(run, error, timestamp)
+        return True
+
+    def _finish_interrupted_run(
+        self, run: WorkflowRun, error: ErrorSummary, timestamp: datetime
+    ) -> None:
+        """Fail the run's still-running agent runs and ensure its audit event."""
+        for agent_run in self.agent_runs.list_by_field_in(
+            "run_id",
+            (run.run_id,),
+            org_id=run.org_id,
+            workspace_id=run.workspace_id,
+        ):
+            if agent_run.status is not RunStatus.RUNNING:
+                continue
+            self.agent_runs.put(
+                AgentRun.model_validate(
+                    agent_run.model_copy(
+                        update={
+                            "status": RunStatus.FAILED,
+                            "error": error,
+                            "finished_at": timestamp,
+                            "updated_at": timestamp,
+                        }
+                    ).model_dump()
+                )
+            )
+        self._ensure_run_recovery_audit(run, error, timestamp)
 
     def _ensure_run_recovery_audit(
         self, run: WorkflowRun, error: ErrorSummary, timestamp: datetime
     ) -> None:
-        existing = any(
-            event.target_id == run.run_id and event.action == "agent.run.recovered"
-            for event in self.audit_events.list_scoped(run.org_id, run.workspace_id)
+        audit_event_id = (
+            "recovery-" + hashlib.sha256(run.run_id.encode()).hexdigest()[:32]
         )
-        if existing:
+        try:
+            self.audit_events.get_scoped(audit_event_id, run.org_id, run.workspace_id)
             return
+        except KeyError:
+            pass
         audit_event = AuditEvent(
-            audit_event_id=(
-                "recovery-" + hashlib.sha256(run.run_id.encode()).hexdigest()[:32]
-            ),
+            audit_event_id=audit_event_id,
             org_id=run.org_id,
             target_scope=AuditTargetScope.WORKSPACE,
             workspace_id=run.workspace_id,
@@ -180,75 +219,90 @@ class ExecutionRecoveryService:
         self, recovered: list[str], stale_before: datetime, timestamp: datetime
     ) -> None:
         """Fail execution jobs whose heartbeat is stale."""
-        for job in self.execution_jobs.list():
-            if (
-                job.status
-                not in {
+
+        def fetch() -> list[ExecutionJob]:
+            return [
+                job
+                for state in (
                     ExecutionJobStatus.RUNNING,
                     ExecutionJobStatus.CANCEL_REQUESTED,
-                }
-                or job.updated_at > stale_before
-            ):
-                continue
-            run, report, status, error, summary, action = (
-                self._resolve_stale_execution_job(job)
-            )
-            repaired = ExecutionJob.model_validate(
-                job.model_copy(
-                    update={
-                        "status": status,
-                        "run_id": run.run_id if run is not None else None,
-                        "error": error,
-                        "finished_at": timestamp,
-                        "updated_at": timestamp,
-                    }
-                ).model_dump()
-            )
-            with self._unit_of_work():
-                if not self.execution_jobs.put_if_status_and_stale(
-                    repaired,
-                    expected_status=job.status.value,
-                    updated_before=stale_before,
-                ):
-                    continue
-                if job.evaluation_id is not None:
-                    self.evaluation_service.finish_queued_evaluation(
-                        job,
-                        status=status,
-                        report=report,
-                        error=error,
-                        finished_at=timestamp,
-                    )
-                self.audit_events.put(
-                    AuditEvent(
-                        audit_event_id=(
-                            "recovery-"
-                            + hashlib.sha256(job.job_id.encode()).hexdigest()[:32]
-                        ),
-                        org_id=job.org_id,
-                        target_scope=AuditTargetScope.WORKSPACE,
-                        workspace_id=job.workspace_id,
-                        actor_principal_id=job.requested_by_principal_id,
-                        action=action,
-                        target_type=(
-                            "evaluation_execution"
-                            if job.evaluation_id is not None
-                            else "execution_job"
-                        ),
-                        target_id=job.evaluation_id or job.job_id,
-                        summary=summary,
-                        request_id=job.job_id,
-                        metadata=(
-                            {"evaluation_id": job.evaluation_id}
-                            if job.evaluation_id is not None
-                            else {"run_id": run.run_id}
-                            if run is not None
-                            else {}
-                        ),
-                        created_at=timestamp,
-                    )
                 )
-            recovered.append(job.job_id)
+                for job in self.execution_jobs.list_status_updated_before(
+                    state.value, stale_before, limit=self._batch_size
+                )
+            ]
+
+        def handle(job: ExecutionJob) -> bool:
+            if self._recover_job(job, stale_before, timestamp):
+                recovered.append(job.job_id)
+                return True
+            return False
+
+        drain(fetch, handle, batch_size=self._batch_size)
+
+    def _recover_job(
+        self, job: ExecutionJob, stale_before: datetime, timestamp: datetime
+    ) -> bool:
+        """Repair one stale job; ``False`` when its lease was renewed meanwhile."""
+        run, report, status, error, summary, action = self._resolve_stale_execution_job(
+            job
+        )
+        repaired = ExecutionJob.model_validate(
+            job.model_copy(
+                update={
+                    "status": status,
+                    "run_id": run.run_id if run is not None else None,
+                    "error": error,
+                    "finished_at": timestamp,
+                    "updated_at": timestamp,
+                }
+            ).model_dump()
+        )
+        with self._unit_of_work():
+            if not self.execution_jobs.put_if_status_and_stale(
+                repaired,
+                expected_status=job.status.value,
+                updated_before=stale_before,
+            ):
+                return False
+            if job.evaluation_id is not None:
+                self.evaluation_service.finish_queued_evaluation(
+                    job,
+                    status=status,
+                    report=report,
+                    error=error,
+                    finished_at=timestamp,
+                )
+            self.audit_events.put(
+                AuditEvent(
+                    audit_event_id=(
+                        "recovery-"
+                        + hashlib.sha256(job.job_id.encode()).hexdigest()[:32]
+                    ),
+                    org_id=job.org_id,
+                    target_scope=AuditTargetScope.WORKSPACE,
+                    workspace_id=job.workspace_id,
+                    actor_principal_id=job.requested_by_principal_id,
+                    action=action,
+                    target_type=(
+                        "evaluation_execution"
+                        if job.evaluation_id is not None
+                        else "execution_job"
+                    ),
+                    target_id=job.evaluation_id or job.job_id,
+                    summary=summary,
+                    request_id=job.job_id,
+                    metadata=(
+                        {"evaluation_id": job.evaluation_id}
+                        if job.evaluation_id is not None
+                        else {"run_id": run.run_id}
+                        if run is not None
+                        else {}
+                    ),
+                    created_at=timestamp,
+                )
+            )
+        return True
 
     def _resolve_stale_execution_job(
         self, job: ExecutionJob

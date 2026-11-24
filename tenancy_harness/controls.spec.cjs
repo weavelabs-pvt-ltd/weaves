@@ -396,3 +396,8 @@ test('T4-I05 the lifecycle screens export, request deletion and cancel through t
   test.setTimeout(240000);
   await require('./lifecycle_ui.cjs').verify({browser}, fixture);
 });
+
+test('T5-I04 Home and every list stay bounded on a large history and match the database', async ({browser}) => {
+  test.setTimeout(240000);
+  await require('./bounded_queries_ui.cjs').verify({browser}, fixture);
+});

@@ -175,7 +175,10 @@ def test_canvas_http_immutable_versions_permissions_and_scope(runtime):
         assert len(snapshot["configuration"]["canvas"]["steps"]) == 1
         test = client.post(f"/api/v0/workflows/{wid}/studio/test-webhook")
         assert test.json() == {"received": True, "run_started": False}
-        assert client.get(f"/api/v0/workflows/{wid}/runs").json() == {"items": []}
+        assert client.get(f"/api/v0/workflows/{wid}/runs").json() == {
+            "items": [],
+            "next_cursor": None,
+        }
         launched = client.post(
             f"/api/v0/workflows/{wid}/runs", json={"instructions": "Run"}
         )

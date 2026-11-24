@@ -6,6 +6,8 @@ from typing import Any
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from application.http.pagination import PageParams
+from application.pagination import envelope, slice_page
 from modules.skills.errors import SkillRevisionConflict
 from modules.skills.service import SkillsService
 
@@ -88,21 +90,29 @@ class SkillRouteHandlers:
         self._service = service
         self._dump = dump
 
-    def list_skills(self) -> list[dict[str, Any]]:
+    def list_skills(self, page: PageParams) -> Any:
         """Return caller-visible catalog entries and their pinned versions."""
         try:
-            visible = self._service.list_visible()
+            visible = tuple(self._service.list_visible())
+            if page.envelope:
+                rows, next_cursor = slice_page(
+                    visible, lambda entry: entry[0].skill_id, page
+                )
+            else:
+                rows = list(visible if page.limit is None else visible[: page.limit])
+                next_cursor = None
             authors = self._service.author_display_names(
-                tuple(version for _, version in visible)
+                tuple(version for _, version in rows)
             )
-            return [
+            items = [
                 {
                     "skill": self._dump(definition),
                     "version": self._dump(version),
                     "author_display_name": authors[version.author_principal_id],
                 }
-                for definition, version in visible
+                for definition, version in rows
             ]
+            return envelope(items, next_cursor) if page.envelope else items
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
 

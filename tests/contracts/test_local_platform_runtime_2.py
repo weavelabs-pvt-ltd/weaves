@@ -131,7 +131,7 @@ def test_concurrent_stale_recovery_claims_and_audits_a_run_once():
     assert len(recovery_events) == 1
     runtime.audit_events.delete(recovery_events[0].audit_event_id)
 
-    runtime.recover_stale_runs()
+    runtime.recover_stale_runs(sweep=True)
 
     assert (
         sum(

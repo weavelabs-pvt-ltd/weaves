@@ -28,6 +28,7 @@ from modules.integrations.http.oauth_context import OAuthRouteDependencies
 from modules.integrations.oauth_state_service import OAuthStateService
 from modules.limits.view import OrganizationLimitsView
 from modules.models.runtime import ModelService
+from modules.overview.service import OverviewService
 from modules.skills.service import SkillsService
 from modules.tasks.service import TaskService
 from modules.waitlist.service import WaitlistService
@@ -64,6 +65,7 @@ class ApiRouteServices:
     workflow_automation: WorkflowAutomationService
     governance: GovernanceService
     tasks: TaskService
+    overview: OverviewService
     skills: SkillsService
     waitlist: WaitlistService
     limits: OrganizationLimitsView
@@ -117,6 +119,7 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
         workflow_automation=runtime.workflow_automation_service,
         governance=runtime.governance_service,
         tasks=runtime.task_service,
+        overview=runtime.overview_service,
         skills=runtime.skills_service,
         waitlist=runtime.waitlist_service,
         limits=OrganizationLimitsView(runtime.admission, runtime.authorize),

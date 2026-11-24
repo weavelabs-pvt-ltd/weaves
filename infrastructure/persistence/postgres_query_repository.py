@@ -108,7 +108,12 @@ class PostgresQueryRepositoryMixin[TContract]:
         return tuple(self._deserialize(row[0]) for row in rows)
 
     def list_before(
-        self, field: str, before: datetime, *, limit: int
+        self,
+        field: str,
+        before: datetime,
+        *,
+        limit: int,
+        equals: dict[str, str] | None = None,
     ) -> tuple[TContract, ...]:
         """Return a bounded page of records whose timestamp field is past due."""
         field = self._checked_field(field)
@@ -117,12 +122,17 @@ class PostgresQueryRepositoryMixin[TContract]:
         if before.tzinfo is None or before.utcoffset() is None:
             raise ValueError("before must include a timezone")
         cutoff = before.astimezone(UTC).isoformat().replace("+00:00", "Z")
+        extra = ""
+        params: tuple[object, ...] = (self._collection, cutoff)
+        for name, value in (equals or {}).items():
+            extra += f" AND payload ->> '{self._checked_field(name)}' = %s"
+            params += (value,)
         with self._pool.connection() as connection:
             rows = connection.execute(
                 f"""SELECT payload FROM product_records
-                        WHERE collection = %s AND payload ->> '{field}' < %s
+                        WHERE collection = %s AND payload ->> '{field}' < %s{extra}
                         ORDER BY payload ->> '{field}', record_id LIMIT %s""",
-                (self._collection, cutoff, limit),
+                (*params, limit),
             ).fetchall()
         return tuple(self._deserialize(row[0]) for row in rows)
 
@@ -214,15 +224,144 @@ class PostgresQueryRepositoryMixin[TContract]:
         """Return a bounded stale-record page for worker recovery."""
         if limit < 1:
             raise ValueError("limit must be positive")
-        with self._pool.connection() as connection:
-            rows = connection.execute(
-                """SELECT payload FROM product_records
+        query = """SELECT payload FROM product_records
                        WHERE collection = %s AND payload->>'status' = %s
-                         AND updated_at <= %s
-                       ORDER BY updated_at, record_id LIMIT %s""",
-                (self._collection, status, updated_before, limit),
-            ).fetchall()
+                         AND updated_at <= %s"""
+        params: tuple[object, ...] = (self._collection, status, updated_before)
+        query += " ORDER BY updated_at, record_id LIMIT %s"
+        with self._pool.connection() as connection:
+            rows = connection.execute(query, (*params, limit)).fetchall()
         return tuple(self._deserialize(row[0]) for row in rows)
+
+    def list_by_status(
+        self, status: str, *, limit: int, after_id: str | None = None
+    ) -> tuple[TContract, ...]:
+        """Return a bounded, identifier-ordered page of records in one status."""
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        query = """SELECT payload FROM product_records
+                       WHERE collection = %s AND payload->>'status' = %s"""
+        params: tuple[object, ...] = (self._collection, status)
+        if after_id is not None:
+            query += " AND record_id > %s"
+            params += (after_id,)
+        query += " ORDER BY record_id LIMIT %s"
+        with self._pool.connection() as connection:
+            rows = connection.execute(query, (*params, limit)).fetchall()
+        return tuple(self._deserialize(row[0]) for row in rows)
+
+    def list_recent_page(
+        self,
+        org_id: OpaqueId,
+        workspace_id: OpaqueId | None,
+        *,
+        filters: dict[str, str],
+        cursor_created_at: datetime | None,
+        cursor_id: str | None,
+        limit: int,
+    ) -> tuple[TContract, ...]:
+        """Return one newest-first keyset page of a tenant's records.
+
+        ``filters`` are equality predicates on contract fields (for example
+        ``status``). Order is ``(created_at, record_id)`` descending.
+        """
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        query = """SELECT payload FROM product_records
+                       WHERE collection = %s AND org_id = %s"""
+        params: tuple[object, ...] = (self._collection, str(org_id))
+        if workspace_id is not None:
+            query += " AND workspace_id = %s"
+            params += (str(workspace_id),)
+        for field, value in filters.items():
+            query += f" AND payload->>'{self._checked_field(field)}' = %s"
+            params += (value,)
+        if cursor_created_at is not None:
+            if cursor_id is None:
+                raise ValueError("cursor record ID is required")
+            if getattr(self, "_tenant_keyed", False):
+                cursor_id = f"{org_id}:{cursor_id}"
+            query += " AND (created_at, record_id) < (%s, %s)"
+            params += (cursor_created_at, cursor_id)
+        query += " ORDER BY created_at DESC, record_id DESC LIMIT %s"
+        with self._pool.connection() as connection:
+            rows = connection.execute(query, (*params, limit)).fetchall()
+        return tuple(self._deserialize(row[0]) for row in rows)
+
+    def get_many_scoped(
+        self,
+        record_ids: tuple[str, ...],
+        org_id: OpaqueId,
+        workspace_id: OpaqueId | None = None,
+    ) -> tuple[TContract, ...]:
+        """Return the tenant's records among ``record_ids`` (missing ones skipped)."""
+        if not record_ids:
+            return ()
+        query = """SELECT payload FROM product_records
+                       WHERE collection = %s AND record_id = ANY(%s) AND org_id = %s"""
+        params: tuple[object, ...] = (self._collection, list(record_ids), str(org_id))
+        if workspace_id is not None:
+            query += " AND workspace_id = %s"
+            params += (str(workspace_id),)
+        with self._pool.connection() as connection:
+            rows = connection.execute(query + " ORDER BY record_id", params).fetchall()
+        return tuple(self._deserialize(row[0]) for row in rows)
+
+    def list_by_field_in(
+        self,
+        field: str,
+        values: tuple[str, ...],
+        *,
+        org_id: OpaqueId,
+        workspace_id: OpaqueId | None = None,
+    ) -> tuple[TContract, ...]:
+        """Return a tenant's records whose field equals any of ``values``."""
+        field = self._checked_field(field)
+        if not values:
+            return ()
+        query = f"""SELECT payload FROM product_records
+                        WHERE collection = %s AND org_id = %s
+                          AND payload ->> '{field}' = ANY(%s)"""
+        params: tuple[object, ...] = (self._collection, str(org_id), list(values))
+        if workspace_id is not None:
+            query = query.replace("org_id = %s", "org_id = %s AND workspace_id = %s")
+            params = (self._collection, str(org_id), str(workspace_id), list(values))
+        with self._pool.connection() as connection:
+            rows = connection.execute(query + " ORDER BY record_id", params).fetchall()
+        return tuple(self._deserialize(row[0]) for row in rows)
+
+    def find_scoped_by_field(
+        self,
+        field: str,
+        value: str,
+        *,
+        org_id: OpaqueId,
+        casefold: bool = False,
+        exclude_status: str | None = None,
+    ) -> TContract | None:
+        """Return one record of an organization whose field equals ``value``.
+
+        ``exclude_status`` repeats a partial unique index's predicate (for
+        example ``deleted`` users) so the lookup is a single index probe.
+        """
+        field = self._checked_field(field)
+        match = (
+            f"lower(payload ->> '{field}') = lower(%s)"
+            if casefold
+            else f"payload ->> '{field}' = %s"
+        )
+        params: tuple[object, ...] = (self._collection, str(org_id), value)
+        if exclude_status is not None:
+            match += " AND payload->>'status' <> %s"
+            params += (exclude_status,)
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                f"""SELECT payload FROM product_records
+                        WHERE collection = %s AND org_id = %s AND {match}
+                        ORDER BY record_id LIMIT 1""",
+                params,
+            ).fetchone()
+        return self._deserialize(row[0]) if row is not None else None
 
     def claim_next_queued(
         self,

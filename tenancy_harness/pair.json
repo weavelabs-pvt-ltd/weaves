@@ -2,11 +2,11 @@
   "version": 1,
   "backend": {
     "repository": "weavelabs-pvt-ltd/weaves",
-    "revision": "729feb5a49f4c37f36876dab4d6bcbda8ad88841"
+    "revision": "437a97cd73e0eaa5defedbd7a32073edd1d29b36"
   },
   "frontend": {
     "repository": "weavelabs-pvt-ltd/weaves-app",
-    "revision": "0db68cfa89f97c6445ed750b8d306b07133a0aa1"
+    "revision": "6a1edb54ef35c87fa0593430227438dbd726736c"
   },
   "candidate_policy": "The triggering repository uses its checked-out candidate; the counterpart uses this exact revision. Record both actual revisions and dirty state.",
   "phase": 4,
@@ -36,14 +36,14 @@
     "T4-I03",
     "T4-I04",
     "T4-I05",
+    "TW-01",
     "T5-I01",
     "T5-I05",
-    "TW-01"
+    "T5-I04"
   ],
   "planned_controls": {
     "T5-I02": "5.2",
-    "T5-I03": "5.3",
-    "T5-I04": "5.4"
+    "T5-I03": "5.3"
   },
   "planned_controls_policy": "Declared by Phase 5 slice 5.0. Not required and not run until the owning slice moves the id into required_controls.",
   "known_defects": {},

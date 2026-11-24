@@ -27,3 +27,15 @@ test('LIVE-I03 another organization cannot inspect the live run', async ({ reque
   const denied = await request.get(path, { headers: fixture.tenants.b.admin.headers });
   expect(denied.status()).toBe(404);
 });
+test('LIVE-I04 Home and the overview show the real run', async ({ page, request }) => {
+  const response = await request.get('/api/v0/overview', { headers: tenant.admin.headers });
+  expect(response.status()).toBe(200);
+  const overview = await response.json();
+  expect(overview.tasks.total).toBeGreaterThanOrEqual(1);
+  expect(overview.daily.reduce((sum, day) => sum + day.succeeded, 0)).toBeGreaterThanOrEqual(1);
+  await open(page, 'overview');
+  const tile = page.locator('.home-metric').first();
+  await expect(tile).toContainText('Tasks run');
+  await expect(tile.locator('strong')).not.toHaveText('\u2014');
+  expect(Number((await tile.locator('strong').innerText()).replace(/[^0-9]/g, ''))).toBeGreaterThanOrEqual(1);
+});

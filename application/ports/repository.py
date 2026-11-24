@@ -115,6 +115,61 @@ class Repository(Protocol[TContract]):
         """Return a bounded set of records with a stale status lease."""
         ...
 
+    def list_by_status(
+        self, status: str, *, limit: int, after_id: str | None = None
+    ) -> tuple[TContract, ...]:
+        """Return a bounded, identifier-ordered page of records in one status."""
+        ...
+
+    def list_recent_page(
+        self,
+        org_id: OpaqueId,
+        workspace_id: OpaqueId | None,
+        *,
+        filters: dict[str, str],
+        cursor_created_at: datetime | None,
+        cursor_id: str | None,
+        limit: int,
+    ) -> tuple[TContract, ...]:
+        """Return one newest-first keyset page of a tenant's records.
+
+        ``filters`` are equality predicates on contract fields. Order is
+        ``(created_at, record_id)`` descending.
+        """
+        ...
+
+    def get_many_scoped(
+        self,
+        record_ids: tuple[str, ...],
+        org_id: OpaqueId,
+        workspace_id: OpaqueId | None = None,
+    ) -> tuple[TContract, ...]:
+        """Return the tenant's records among ``record_ids`` (missing ones skipped)."""
+        ...
+
+    def list_by_field_in(
+        self,
+        field: str,
+        values: tuple[str, ...],
+        *,
+        org_id: OpaqueId,
+        workspace_id: OpaqueId | None = None,
+    ) -> tuple[TContract, ...]:
+        """Return a tenant's records whose field equals any of ``values``."""
+        ...
+
+    def find_scoped_by_field(
+        self,
+        field: str,
+        value: str,
+        *,
+        org_id: OpaqueId,
+        casefold: bool = False,
+        exclude_status: str | None = None,
+    ) -> TContract | None:
+        """Return one record of an organization whose field equals ``value``."""
+        ...
+
     def find_by_field(self, field: str, value: str) -> TContract | None:
         """Find the first record matching a validated contract field."""
         ...
@@ -130,9 +185,17 @@ class Repository(Protocol[TContract]):
         ...
 
     def list_before(
-        self, field: str, before: datetime, *, limit: int
+        self,
+        field: str,
+        before: datetime,
+        *,
+        limit: int,
+        equals: dict[str, str] | None = None,
     ) -> tuple[TContract, ...]:
         """Return up to ``limit`` records whose timestamp field is before a cutoff.
+
+        ``equals`` adds equality predicates on other fields (booleans compare as
+        ``true``/``false``).
 
         Records with no value for the field are skipped. Order is the field
         value, then identifier, so repeated bounded calls make progress.

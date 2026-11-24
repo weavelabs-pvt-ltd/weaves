@@ -1,11 +1,13 @@
 """HTTP surface for complete canvas publication and durable run inspection."""
 
 from collections.abc import Callable
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, JsonValue
 
+from application.http.pagination import RecentPageParams
+from application.pagination import encode_time_cursor
 from contracts.v1 import Permission
 from contracts.v1.timezones import ScheduleTimezone
 from contracts.v1.workflow_studio import Calendar, CanvasPlan, CanvasRun, CanvasSettings
@@ -70,8 +72,24 @@ def register_studio_routes(app: FastAPI, studio: WorkflowStudioService) -> None:
         )
 
     @app.get("/api/v0/workflows/{workflow_id}/runs")
-    def runs(workflow_id: str) -> dict[str, list[CanvasRun]]:
-        return {"items": call(studio.list_runs, workflow_id)}
+    def runs(workflow_id: str, page: RecentPageParams) -> dict[str, Any]:
+        bound = page.limit or 100
+        rows = call(
+            studio.list_runs,
+            workflow_id,
+            limit=bound + 1,
+            cursor_created_at=page.cursor_created_at,
+            cursor_id=page.cursor_id,
+        )
+        page_rows = rows[:bound]
+        return {
+            "items": page_rows,
+            "next_cursor": encode_time_cursor(
+                page_rows[-1].created_at, page_rows[-1].run_id
+            )
+            if len(rows) > bound
+            else None,
+        }
 
     @app.post("/api/v0/workflows/{workflow_id}/runs", status_code=202)
     def launch(

@@ -32,7 +32,7 @@ class RuntimeBootstrapMixin(RuntimeCapabilityHost):
         if self.seed_local_defaults:
             self.agent_bootstrap_service.seed_local_assistant(now)
         self.model_bootstrap_service.repair_profile_allowlists()
-        self.recover_stale_runs()
+        self.recover_stale_runs(sweep=True)
         self.recover_stale_execution_jobs()
         self.recover_stale_action_invocations()
         self._bootstrapped = True

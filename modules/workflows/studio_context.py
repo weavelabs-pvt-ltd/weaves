@@ -142,21 +142,27 @@ class WorkflowStudioContext(ABC):
             )
         )
 
-    def list_runs(self, workflow_id: str) -> list[CanvasRun]:
-        """Return the workflow's durable runs newest first."""
+    def list_runs(
+        self,
+        workflow_id: str,
+        *,
+        limit: int = 100,
+        cursor_created_at: datetime | None = None,
+        cursor_id: str | None = None,
+    ) -> list[CanvasRun]:
+        """Return one newest-first keyset page of the workflow's durable runs."""
         self.authorize(Permission.WORKFLOWS_VIEW)
         self.definitions.get_workflow(workflow_id)
-        return sorted(
-            (
-                r
-                for r in self.runs.list_scoped(
-                    effective_org_id(), effective_workspace_id()
-                )
-                if r.workflow_id == workflow_id
-            ),
-            key=lambda r: r.created_at,
-            reverse=True,
-        )[:100]
+        return list(
+            self.runs.list_recent_page(
+                effective_org_id(),
+                effective_workspace_id(),
+                filters={"workflow_id": workflow_id},
+                cursor_created_at=cursor_created_at,
+                cursor_id=cursor_id,
+                limit=limit,
+            )
+        )
 
     def get_run(self, workflow_id: str, run_id: str) -> CanvasRun:
         """Prevent cross-workflow and cross-tenant run inspection."""

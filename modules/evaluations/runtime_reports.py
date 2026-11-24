@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from contracts.v1 import (
     AgentRun,
     Artifact,
@@ -117,21 +119,26 @@ class EvaluationReportRuntimeMixin(EvaluationRuntimeHost):
             raise ValueError("each evaluation case must reference a distinct run")
 
         cases = {case.case_id: case for case in definition.cases}
+        org, workspace = effective_org_id(), effective_workspace_id()
         agent_runs = {
             run.run_id: run
-            for run in self.agent_runs.list_scoped(
-                effective_org_id(), effective_workspace_id()
+            for run in self.agent_runs.list_by_field_in(
+                "run_id", run_ids, org_id=org, workspace_id=workspace
             )
             if run.agent_id == suite_definition.agent_id
         }
+        # Task results name a task, not a run: resolve its latest turn's agent run.
+        for task_run in self._task_agent_runs(run_ids, org, workspace):
+            agent_runs[f"task:{task_run.agent_run_id}"] = task_run
+        run_ids = (*run_ids, *(item.run_id for item in agent_runs.values()))
         artifacts: dict[str, list[Artifact]] = {}
-        for artifact in self.artifacts.list_scoped(
-            effective_org_id(), effective_workspace_id()
+        for artifact in self.artifacts.list_by_field_in(
+            "run_id", run_ids, org_id=org, workspace_id=workspace
         ):
             artifacts.setdefault(artifact.run_id, []).append(artifact)
         invocations: dict[str, list[ToolInvocation]] = {}
-        for invocation in self.tool_invocations.list_scoped(
-            effective_org_id(), effective_workspace_id()
+        for invocation in self.tool_invocations.list_by_field_in(
+            "run_id", run_ids, org_id=org, workspace_id=workspace
         ):
             invocations.setdefault(invocation.run_id, []).append(invocation)
 
@@ -145,6 +152,22 @@ class EvaluationReportRuntimeMixin(EvaluationRuntimeHost):
                 artifacts,
                 invocations,
             )
+
+    def _task_agent_runs(
+        self, ids: tuple[str, ...], org: str, workspace: str
+    ) -> tuple[AgentRun, ...]:
+        """Agent runs of the latest turns of the tasks named in ``ids``."""
+        agent_run_ids: list[str] = []
+        for task in self.tasks.get_many_scoped(ids, org, workspace):
+            if task.latest_turn_id is None:
+                continue
+            try:
+                turn = self.task_turns.get_scoped(task.latest_turn_id, org, workspace)
+            except KeyError:
+                continue
+            if turn.agent_run_id is not None:
+                agent_run_ids.append(turn.agent_run_id)
+        return self.agent_runs.get_many_scoped(tuple(agent_run_ids), org, workspace)
 
     def _validate_report_result(
         self,
@@ -268,14 +291,34 @@ class EvaluationReportRuntimeMixin(EvaluationRuntimeHost):
                 "submitted result does not match the persisted task evidence"
             )
 
-    def list_evaluation_reports(self) -> tuple[EvaluationReportRecord, ...]:
-        """Return recent reports visible in the active workspace."""
+    def list_evaluation_reports(
+        self,
+        *,
+        limit: int | None = None,
+        cursor_created_at: datetime | None = None,
+        cursor_id: str | None = None,
+    ) -> tuple[EvaluationReportRecord, ...]:
+        """Return reports visible in the active workspace, newest first.
+
+        Without ``limit`` every report is returned (the historical behaviour);
+        with it, one bounded keyset page.
+        """
         if not self._is_bootstrapped():
             self.bootstrap()
 
         self.authorize(
             effective_principal_id("local-developer"), Permission.ARTIFACTS_READ
         )
+
+        if limit is not None:
+            return self.evaluation_reports.list_recent_page(
+                effective_org_id(),
+                effective_workspace_id(),
+                filters={},
+                cursor_created_at=cursor_created_at,
+                cursor_id=cursor_id,
+                limit=limit,
+            )
 
         records = self.evaluation_reports.list_scoped(
             effective_org_id(), effective_workspace_id()

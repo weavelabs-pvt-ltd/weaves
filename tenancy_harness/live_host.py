@@ -59,14 +59,14 @@ def browser_outcomes(browser_report):
     from tenancy_harness.report import specs
 
     cases = specs(browser_report.get("suites", []))
-    expected = {"LIVE-I01", "LIVE-I02", "LIVE-I03"}
+    expected = {"LIVE-I01", "LIVE-I02", "LIVE-I03", "LIVE-I04"}
     observed = {}
     for case in cases:
         results = [r for test in case["tests"] for r in test.get("results", [])]
         observed[case["title"].split()[0]] = bool(results) and all(
             result["status"] == "passed" for result in results
         )
-    if len(cases) != 3 or set(observed) != expected or not all(observed.values()):
+    if len(cases) != 4 or set(observed) != expected or not all(observed.values()):
         raise RuntimeError("Live browser verification failed; inspect private report")
     return observed
 
