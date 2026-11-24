@@ -68,7 +68,6 @@ class AgentBootstrapService:
                 "State when context is insufficient."
             ),
             model_profile_id=self.default_model_profile_id,
-            approval_policy_id="local-approval-policy",
             allowed_capability_ids=(),
             allowed_workflow_ids=("local-assistant-workflow",),
             created_at=now,

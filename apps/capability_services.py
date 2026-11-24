@@ -19,7 +19,6 @@ from modules.evaluations.service import EvaluationService
 from modules.executions.recovery_service import ExecutionRecoveryService
 from modules.executions.service import ExecutionService
 from modules.executions.worker_service import ExecutionWorkerService
-from modules.governance.action_recovery_service import ActionRecoveryService
 from modules.governance.service import GovernanceService
 from modules.integrations.admin_service import IntegrationAdminService
 from modules.integrations.bootstrap import IntegrationBootstrapService
@@ -46,7 +45,6 @@ class CapabilityServiceSet:
 
     account_organization_service: AccountOrganizationService
     account_sign_in_service: AccountSignInService
-    action_recovery_service: ActionRecoveryService
     agent_bootstrap_service: AgentBootstrapService
     agent_execution_service: AgentExecutionService
     agent_service: AgentService

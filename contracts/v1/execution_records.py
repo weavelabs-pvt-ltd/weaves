@@ -23,7 +23,6 @@ from contracts.v1.base import (
 )
 from contracts.v1.executions import (
     MAX_AGENT_RUN_OUTPUT_SUMMARY_BYTES,
-    ApprovalStatus,
     ArtifactSensitivity,
     ArtifactStatus,
     AuditTargetScope,
@@ -259,7 +258,6 @@ class ToolInvocation(MutableWorkspaceScopedContract):
     capability_id: Identifier
     status: InvocationStatus
     risk_level: RiskLevel
-    approval_request_id: OpaqueId | None = None
     input_artifact_ids: tuple[OpaqueId, ...] = Field(
         default_factory=tuple, max_length=100
     )
@@ -293,7 +291,7 @@ class ToolInvocation(MutableWorkspaceScopedContract):
 
     @model_validator(mode="after")
     def invocation_fields_match_outcome(self) -> ToolInvocation:
-        """Validate invocation timing, approval, and error fields."""
+        """Validate invocation timing and error fields."""
         execution_terminal = self.status in {
             InvocationStatus.SUCCEEDED,
             InvocationStatus.FAILED,
@@ -324,18 +322,6 @@ class ToolInvocation(MutableWorkspaceScopedContract):
         ):
             raise ValueError(
                 "only failed and timed-out invocations may include an error summary"
-            )
-        if (
-            self.status
-            in {
-                InvocationStatus.AWAITING_APPROVAL,
-                InvocationStatus.DENIED,
-                InvocationStatus.APPROVED,
-            }
-            and self.approval_request_id is None
-        ):
-            raise ValueError(
-                "approval-related invocation states require approval_request_id"
             )
         if (
             self.started_at is not None
@@ -381,37 +367,6 @@ class Artifact(MutableWorkspaceScopedContract):
             raise ValueError(
                 "deleted artifacts require deleted_at; available artifacts must omit it"
             )
-        return self
-
-
-class ApprovalRequest(MutableWorkspaceScopedContract):
-    """Human decision record for a proposed write capability."""
-
-    approval_request_id: OpaqueId
-    run_id: OpaqueId
-    requested_by_agent_run_id: OpaqueId | None = None
-    requested_by_principal_id: OpaqueId
-    capability_id: Identifier
-    action_summary: str = Field(min_length=1, max_length=1000)
-    risk_level: RiskLevel
-    status: ApprovalStatus
-    requested_at: AwareDatetime
-    resolved_by_principal_id: OpaqueId | None = None
-    resolved_at: AwareDatetime | None = None
-    decision_comment: str | None = Field(default=None, max_length=1000)
-
-    @model_validator(mode="after")
-    def decision_has_actor_and_time(self) -> ApprovalRequest:
-        """Require actor and timestamp only for resolved approvals."""
-        resolved = self.status is not ApprovalStatus.PENDING
-        if resolved != (
-            self.resolved_by_principal_id is not None and self.resolved_at is not None
-        ):
-            raise ValueError("resolved approvals require both decision actor and time")
-        if not resolved and (
-            self.resolved_by_principal_id is not None or self.resolved_at is not None
-        ):
-            raise ValueError("pending approvals cannot have decision actor or time")
         return self
 
 

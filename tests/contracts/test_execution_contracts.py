@@ -5,8 +5,6 @@ from pydantic import ValidationError
 
 from contracts.v1 import (
     AgentRun,
-    ApprovalRequest,
-    ApprovalStatus,
     Artifact,
     ArtifactProvenance,
     ArtifactSensitivity,
@@ -191,8 +189,6 @@ def test_invocation_records_distinguish_governance_and_execution_states(status):
         "created_at": NOW,
         "updated_at": NOW,
     }
-    if status in {InvocationStatus.DENIED, InvocationStatus.APPROVED}:
-        values["approval_request_id"] = "approval-1"
     if status in {
         InvocationStatus.DENIED,
         InvocationStatus.SUCCEEDED,
@@ -235,28 +231,6 @@ def test_artifact_requires_provenance_and_retention_class():
         Artifact(**(values | {"retention_class": "unknown"}))
 
 
-def test_approval_decisions_require_actor_and_time():
-    values = {
-        "approval_request_id": "approval-1",
-        "org_id": "org-1",
-        "workspace_id": "workspace-1",
-        "run_id": "run-1",
-        "requested_by_principal_id": "principal-1",
-        "capability_id": "ticket.create",
-        "action_summary": "Create ticket",
-        "risk_level": RiskLevel.HIGH,
-        "status": ApprovalStatus.APPROVED,
-        "requested_at": NOW,
-        "resolved_by_principal_id": "principal-2",
-        "resolved_at": NOW,
-        "created_at": NOW,
-        "updated_at": NOW,
-    }
-    assert ApprovalRequest(**values).resolved_by_principal_id == "principal-2"
-    with pytest.raises(ValidationError, match="decision actor and time"):
-        ApprovalRequest(**(values | {"resolved_at": None}))
-
-
 def test_audit_events_are_immutable_and_workspace_targets_are_scoped():
     event = AuditEvent(
         audit_event_id="audit-1",
@@ -293,7 +267,6 @@ def test_execution_contracts_do_not_expose_raw_credential_fields():
         AgentRun,
         ToolInvocation,
         Artifact,
-        ApprovalRequest,
         AuditEvent,
     ):
         assert not {

@@ -68,7 +68,6 @@ class Permission(StrEnum):
     SKILLS_REVOKE = "skills.revoke"
     ARTIFACTS_READ = "artifacts.read"
     ACTIONS_APPROVE = "actions.approve"
-    APPROVAL_POLICIES_MANAGE = "approval_policies.manage"
     AUDIT_READ = "audit.read"
 
 

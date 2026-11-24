@@ -16,13 +16,12 @@ from contracts.v1.base import (
     OpaqueId,
     StrEnum,
 )
-from contracts.v1.plugins import Identifier, RiskLevel
+from contracts.v1.plugins import Identifier
 
 if TYPE_CHECKING:
     from contracts.v1.execution_records import (
         AgentRun,
         AgentRunBundle,
-        ApprovalRequest,
         Artifact,
         ArtifactProvenance,
         AuditEvent,
@@ -61,33 +60,6 @@ class InvocationStatus(StrEnum):
     FAILED = "failed"
     TIMED_OUT = "timed_out"
     SKIPPED = "skipped"
-
-
-class ApprovalStatus(StrEnum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    EXPIRED = "expired"
-    CANCELLED = "cancelled"
-
-
-class ApprovalPolicy(MutableWorkspaceScopedContract):
-    """Workspace policy deciding which capability risks require human review."""
-
-    approval_policy_id: OpaqueId
-    name: str = Field(min_length=1, max_length=160)
-    required_risk_levels: tuple[RiskLevel, ...] = Field(
-        default=(RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.CRITICAL),
-        max_length=4,
-    )
-    allow_self_approval: bool = False
-    enabled: bool = True
-
-    @model_validator(mode="after")
-    def risk_levels_are_unique(self) -> "ApprovalPolicy":
-        if len(self.required_risk_levels) != len(set(self.required_risk_levels)):
-            raise ValueError("required risk levels must be unique")
-        return self
 
 
 class ArtifactStatus(StrEnum):
@@ -202,8 +174,6 @@ def _validate_execution_timestamps(
 __all__ = [
     "AgentRun",
     "AgentRunBundle",
-    "ApprovalRequest",
-    "ApprovalStatus",
     "Artifact",
     "ArtifactProvenance",
     "ArtifactSensitivity",
@@ -227,7 +197,6 @@ __all__ = [
 from contracts.v1.execution_records import (  # noqa: E402
     AgentRun,
     AgentRunBundle,
-    ApprovalRequest,
     Artifact,
     ArtifactProvenance,
     AuditEvent,

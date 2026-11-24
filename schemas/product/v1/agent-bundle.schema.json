@@ -252,20 +252,6 @@
           "title": "Allowed Workflow Ids",
           "type": "array"
         },
-        "approval_policy_id": {
-          "anyOf": [
-            {
-              "maxLength": 128,
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Approval Policy Id"
-        },
         "budget": {
           "$ref": "#/$defs/AgentBudget"
         },

@@ -233,14 +233,14 @@ bridge between the global and the tenant layers
 | Collection (contract, id) | Scope and why | Mutability / key fields | References (lifetime owner) | Purge / export | Read / write permission | JSON paths in indexes |
 |---|---|---|---|---|---|---|
 | `agents` (`AgentDefinition`, `id`) | workspace | mutable. `status` draft/active/archived | `current_version_id` to `agent_versions` (agent owns versions) | position 20; exported | read `agents.view`, write `agents.manage` | none |
-| `agent_versions` (`AgentVersion`, `agent_version_id`) | workspace. Frozen snapshot used by runs | immutable | `agent_id`, `model_profile_id`, `allowed_workflow_ids`, `allowed_capability_ids`, `approval_policy_id`, `budget_policy_id` | position 19; exported | `agents.manage` / `agents.view` | none |
+| `agent_versions` (`AgentVersion`, `agent_version_id`) | workspace. Frozen snapshot used by runs | immutable | `agent_id`, `model_profile_id`, `allowed_workflow_ids`, `allowed_capability_ids`, `budget_policy_id` | position 19; exported | `agents.manage` / `agents.view` | none |
 | `workflows` (`WorkflowDefinition`, `workflow_id`) | workspace | mutable. `status` draft/active/archived | `current_version_id` to `workflow_versions` | position 18; exported | `workflows.view` / `workflows.manage` | none |
 | `workflow_versions` (`WorkflowVersion`, `workflow_version_id`) | workspace | immutable | `workflow_id`, `agent_version_ids`, `required_capability_ids` | position 17; exported | `workflows.manage` | none |
 | `workflow_triggers` (`WorkflowTrigger`, `trigger_id`) | workspace. Webhook triggers | mutable. `trigger_type` webhook, `status` active/disabled, `secret_digest` | `workflow_id`, `created_by_principal_id` | position 16; exported (digest scrubbed) | `workflows.manage`, `workflows.run`, `agents.run` | `secret_digest` |
 | `workflow_schedules` (`WorkflowSchedule`, `schedule_id`) | workspace. Calendar occurrences | mutable. `status` active/disabled/error, `next_run_at`, timezone | `workflow_id`, `created_by_principal_id` | position 15; exported | `workflows.manage` | `status`, `next_run_at` |
 | `workflow_runs` (`WorkflowRun`, `run_id`) | workspace. One execution of a workflow version | mutable. `status` queued/running/succeeded/failed/cancelled; `idempotency_key` (also a column) | `workflow_id`, `workflow_version_id`, `requested_by_principal_id`, `trigger_ref` | position 10; exported. Grows unbounded | `workflows.run`, `agents.run`; reads `artifacts.read` | idempotency columns (not JSON) |
 | `agent_runs` (`AgentRun`, `agent_run_id`) | workspace. One agent execution, child of a workflow run | mutable. `status` as `RunStatus`; `resolved_provider_id`, `resolved_model_id`, usage and estimated cost | `run_id` to `workflow_runs`, `agent_id`, `agent_version_id`, `model_profile_id` | position 9; exported. Grows unbounded | `agents.run` | none |
-| `tool_invocations` (`ToolInvocation`, `invocation_id`) | workspace. Each capability call in an agent run | mutable. `status` pending/awaiting_approval/denied/approved/executing/succeeded/failed/timed_out/skipped, `risk_level` | `run_id`, `agent_run_id`, `plugin_installation_id`, `capability_id`, `approval_request_id`, artifact id lists | position 6; exported | `agents.run`; approvals need `actions.approve` | none |
+| `tool_invocations` (`ToolInvocation`, `invocation_id`) | workspace. Each capability call in an agent run | mutable. `status` pending/awaiting_approval/denied/approved/executing/succeeded/failed/timed_out/skipped, `risk_level` | `run_id`, `agent_run_id`, `plugin_installation_id`, `capability_id`, artifact id lists | position 6; exported | `agents.run` | none |
 | `artifacts` (`Artifact`, `artifact_id`) | workspace. Output metadata of a run | mutable. `sensitivity`, `retention_class` ephemeral/standard/regulated/locked, `status` available/deleted, `content_ref` | `run_id`, `agent_run_id`, `created_by_agent_run_id` | position 8; exported (metadata only; `content_ref` kept) | `artifacts.read` | none |
 | `conversation_threads` (`ConversationThread`, `thread_id`) | workspace | mutable. `status` open/closed | `agent_id` | position 5; exported | via task and agent permissions | none |
 | `tasks` (`Task`, `task_id`) | workspace. Product-level unit of user work, may be private | mutable. `audience` workspace/private (`audience_owner_principal_id`), `status` open/completed/archived, `active_turn_id`, `latest_turn_id`, `private_skill_snapshots`, idempotency key column | `agent_id`, `agent_version_id`, `thread_id`, `creation_message_id`, `active_turn_id`, `created_by_principal_id` | position 4; exported (others' private tasks withheld) | `tasks.view`, `tasks.create`, `tasks.manage`, plus `agents.run` | idempotency columns; paging on `created_at` column |
@@ -282,12 +282,10 @@ and revocation are separate immutable facts.
 | `skill_publications` (`SkillPublication`, `publication_id`) | organization | immutable. `self_review_confirmed` must be true | `skill_id`, `skill_version_id`, `publisher_principal_id` | position 22; exported | `skills.org.publish` | `skill_version_id` |
 | `skill_revocations` (`SkillRevocation`, `revocation_id`) | organization | immutable | `skill_id`, `skill_version_id`, `revoked_by_principal_id` | position 21; exported | `skills.revoke` | `skill_version_id` |
 
-### 2.7 Governance, approvals and audit
+### 2.7 Audit
 
 | Collection (contract, id) | Scope and why | Mutability / key fields | References (lifetime owner) | Purge / export | Read / write permission | JSON paths in indexes |
 |---|---|---|---|---|---|---|
-| `approval_policies` (`ApprovalPolicy`, `approval_policy_id`) | workspace | mutable. `required_risk_levels` | referenced by `agent_versions.approval_policy_id` | position 31; exported | `approval_policies.manage` | none |
-| `approval_requests` (`ApprovalRequest`, `approval_request_id`) | workspace | mutable. `status` pending/approved/rejected/expired/cancelled, `risk_level` | `run_id`, `requested_by_agent_run_id`, `capability_id`, `resolved_by_principal_id` | position 7; exported | read and decide `actions.approve` | none |
 | `audit_events` (`AuditEvent`, `audit_event_id`) | organization or workspace according to `target_scope`; `workspace_id` is null for organization-level events | immutable. `action` and `target_type` match `^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`, `metadata` free JSON, `created_at` is also the column used for paging | `actor_principal_id`, `target_id` (a free-form id of any collection), `request_id`, `correlation_id` | kept: purge removes all events except actions `organization.lifecycle.*` and `organization.exported`; exported | read `audit.read`; written by services in the same unit of work as the change | none (column indexes: `org_id`, `workspace_id`, `created_at`, `record_id`) |
 
 ### 2.8 Execution queue and evaluations
@@ -325,6 +323,20 @@ Indexes: `waitlist_entry_email_uq`, `waitlist_submission_token_uq`, `waitlist_su
 and CSRF and never touch accounts, organizations, users, sessions or the allowlist. Question sets and
 consent texts are immutable, locked files under `contracts/waitlist` (`published.lock.json`). Rate
 limiting reuses `product_login_throttle` with hashed buckets (no address is stored).
+
+### Removed: approval policies and approval requests (migration 31)
+
+The "Approvals & Policy" and "Artifacts & Audit" app sections were removed (owner decision,
+2026-11-25). Migration 31 (`infrastructure/database/approvals_removal.py`) deleted every
+`approval_policies` and `approval_requests` row, the `tool_invocations` rows that carried an
+`approval_request_id` (only the retired decision flow wrote them), and the retired keys
+`tool_invocations.approval_request_id`, `agent_versions.approval_policy_id` and the permission
+`approval_policies.manage` inside stored `roles`; it dropped `approval_requests_page_idx`,
+`approval_requests_pending_idx` and `tool_invocations_approval_idx`. Kept: `audit_events` (still
+written by every service and readable at `GET /api/v0/audit-events[/export]`, `audit.read`),
+`artifacts`, and workflow approval steps (state inside `workflow_runs`, decided in the run view with
+`actions.approve`). Images older than migration 31 refuse this database
+(`min_rollback_schema_version` is 31).
 
 ### Platform controls, operator audit and quarantine (migration 30)
 
@@ -568,7 +580,7 @@ from `api_credentials.token_digest` under scope `auth`.
    organization's scope: `organizations`, `organization_settings`, `workspaces`
    (default workspace), `users`, `principals`, `roles` (admin, builder, user presets),
    `role_bindings`, optionally `api_credentials`, `model_providers` (deterministic local
-   provider), `model_profiles`, `approval_policies`, and an `audit_events` row
+   provider), `model_profiles`, and an `audit_events` row
    `organization.created`. No `organization_lifecycle` row is written (the lifecycle
    service treats a missing record as ACTIVE and creates the row at the first change).
 4. Callback `within` (same transaction): `memberships` and the
@@ -588,7 +600,7 @@ from `api_credentials.token_digest` under scope `auth`.
    (`put_if_worker_owned`) and the task (`put_if_task_state`) in one transaction,
    heartbeats `task_turns.updated_at` every 15 s, and runs the agent
    (`AgentExecutionService`): `workflow_runs`, `agent_runs`, `tool_invocations`,
-   `approval_requests` (when a policy requires approval), `artifacts`, `audit_events`.
+   `artifacts`, `audit_events`.
 4. Success: one unit of work creates the assistant `task_messages`, finishes the turn
    and clears the task's active turn. Failure stores a sanitised error and keeps the
    task retryable.
@@ -632,7 +644,7 @@ Growth without a bound (nothing deletes them except organization purge):
 `audit_events` (every administrative action, run and sign-in link), `task_messages`,
 `task_turns`, `tasks`, `workflow_runs`, `agent_runs`, `tool_invocations`, `artifacts`
 (metadata), `execution_jobs`, `canvas_runs`, `evaluation_executions`,
-`evaluation_reports`, `conversation_threads`, `approval_requests`. There is no
+`evaluation_reports`, `conversation_threads`. There is no
 retention or archival job for any of them. Bounded: `account_sessions` and
 `account_oauth_states` (cleanup of expired rows in batches of 200 with a 1-hour
 grace), `product_login_throttle` (pruned on write by `_maybe_prune`).
@@ -645,7 +657,6 @@ worker in system scope):
 |---|---|---|
 | `modules/executions/recovery_service.py::recover_stale_runs` (`self.runs.list()`) | `workflow_runs` | every 30 s |
 | `recovery_service.py::_recover_stale_execution_job_records` (`execution_jobs.list()`) | `execution_jobs` | every 30 s |
-| `modules/governance/action_recovery_service.py` (`_tool_invocations.list()`) | `tool_invocations` | every 30 s |
 | `modules/workflows/studio_scheduling.py::tick` (`settings.list()`, `runs.list()`) | `canvas_settings`, `canvas_runs` | every worker loop iteration (about every second when busy; `WEAVES_WORKER_POLL_SECONDS` when idle) |
 | `modules/auth/bootstrap.py`, `organization_lifecycle.py::operator_list` (`organizations.list()`) | `organizations` | start-up and operator listing |
 | `modules/models/bootstrap.py` (`profiles.list()`, `providers.list()`) | `model_profiles`, `model_providers` | start-up |

@@ -1,4 +1,4 @@
-"""Seed built-in connector descriptors and the default approval policy."""
+"""Seed built-in connector descriptors."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ from typing import TypeVar, cast
 
 from application.ports.repository import Repository
 from contracts.v1 import (
-    ApprovalPolicy,
     CapabilityKind,
     CapabilitySpec,
     PluginDescriptor,
@@ -72,17 +71,15 @@ def _github_search_capabilities() -> tuple[CapabilitySpec, CapabilitySpec]:
 
 
 class IntegrationBootstrapService:
-    """Create built-in integration descriptors and local policy records."""
+    """Create built-in integration descriptors."""
 
     def __init__(
         self,
         *,
         plugins: Repository[PluginDescriptor],
-        approval_policies: Repository[ApprovalPolicy],
     ) -> None:
         """Bind the repositories owned by integration and governance modules."""
         self.plugins = plugins
-        self.approval_policies = approval_policies
 
     @staticmethod
     def _seed(
@@ -121,14 +118,12 @@ class IntegrationBootstrapService:
             except ValueError:
                 return repository.get(record_id)
 
-    def seed(self, now: datetime, *, seed_local_policy: bool = True) -> None:
-        """Seed built-in connector descriptors and the default approval policy."""
+    def seed(self, now: datetime) -> None:
+        """Seed built-in connector descriptors."""
         jira_comment, jira_search = self._seed_builtin_capabilities()
         self._seed_github_plugin()
         self._seed_slack_plugin()
         self._seed_jira_plugin(jira_comment, jira_search)
-        if seed_local_policy:
-            self._seed_default_policy(now)
 
     def _seed_builtin_capabilities(
         self,
@@ -301,27 +296,5 @@ class IntegrationBootstrapService:
                     "additionalProperties": False,
                 },
                 status=PluginDescriptorStatus.ACTIVE,
-            ),
-        )
-
-    def _seed_default_policy(self, now: datetime) -> None:
-        """Seed the default approval policy."""
-        self._seed(
-            self.approval_policies,
-            "approval_policy_id",
-            ApprovalPolicy(
-                approval_policy_id="local-approval-policy",
-                org_id="local-org",
-                workspace_id="local-workspace",
-                name="Require review for medium and high risk actions",
-                required_risk_levels=(
-                    RiskLevel.MEDIUM,
-                    RiskLevel.HIGH,
-                    RiskLevel.CRITICAL,
-                ),
-                allow_self_approval=True,
-                enabled=True,
-                created_at=now,
-                updated_at=now,
             ),
         )

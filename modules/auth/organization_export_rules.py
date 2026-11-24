@@ -4,7 +4,7 @@ Included: the organization, settings, lifecycle history, workspaces, users
 (display name, email, status), roles and bindings, membership status only (never
 account ids), agents and versions, workflows with versions, triggers (without
 secret digests) and schedules, tasks with messages and turns, runs, artifact
-metadata, approvals and policies, model providers and profiles (``auth_ref`` is
+metadata, model providers and profiles (``auth_ref`` is
 removed; ``credential_last4`` stays), plugin installations without credentials,
 skills and audit events.
 
@@ -44,8 +44,6 @@ EXPORT_COLLECTIONS: tuple[str, ...] = (
     "agent_runs",
     "tool_invocations",
     "artifacts",
-    "approval_requests",
-    "approval_policies",
     "model_providers",
     "model_profiles",
     "model_configurations",
@@ -148,7 +146,6 @@ class Withheld:
             "workflow_runs": lambda: row.get("run_id") not in self.runs,
             "tool_invocations": lambda: row.get("run_id") not in self.runs,
             "artifacts": lambda: row.get("run_id") not in self.runs,
-            "approval_requests": lambda: row.get("run_id") not in self.runs,
             "skill_definitions": lambda: row.get("skill_id") not in self.skills,
             "skill_versions": lambda: row.get("skill_id") not in self.skills,
             "skill_publications": lambda: (

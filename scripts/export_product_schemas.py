@@ -10,8 +10,6 @@ from contracts.v1 import (
     AgentSkillSnapshot,
     AgentVersion,
     ApiCredential,
-    ApprovalPolicy,
-    ApprovalRequest,
     Artifact,
     ArtifactProvenance,
     AuditEvent,
@@ -116,8 +114,6 @@ CONTRACTS = {
     "tool-invocation": ToolInvocation,
     "artifact-provenance": ArtifactProvenance,
     "artifact": Artifact,
-    "approval-policy": ApprovalPolicy,
-    "approval-request": ApprovalRequest,
     "audit-event": AuditEvent,
 }
 

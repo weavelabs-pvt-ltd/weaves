@@ -6,7 +6,7 @@ collection (including collections this release no longer reads, via a final
 sweep), the organization's encrypted secrets (through the secret store), API
 credentials (revoked first, then deleted), OAuth setup states, private and
 organization skills with their versions and snapshots, tasks, turns, jobs,
-runs, artifacts, approvals, tenant-local users/principals/roles and this
+runs, artifacts, tenant-local users/principals/roles and this
 organization's memberships. The global ``Account`` and its other memberships are
 untouched; an account left with no membership simply remains.
 
@@ -65,7 +65,6 @@ PURGE_ORDER: tuple[str, ...] = (
     "tasks",
     "conversation_threads",
     "tool_invocations",
-    "approval_requests",
     "artifacts",
     "agent_runs",
     "workflow_runs",
@@ -89,7 +88,6 @@ PURGE_ORDER: tuple[str, ...] = (
     "model_profiles",
     "model_providers",
     "model_configurations",
-    "approval_policies",
     "canvas_settings",
     "api_credentials",
     "role_bindings",

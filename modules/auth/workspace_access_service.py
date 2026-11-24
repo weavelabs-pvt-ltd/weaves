@@ -7,7 +7,6 @@ from contextlib import AbstractContextManager
 
 from application.ports.repository import Repository
 from contracts.v1 import (
-    ApprovalPolicy,
     AuditEvent,
     Permission,
     Principal,
@@ -25,7 +24,6 @@ from modules.auth.runtime_workspaces import WorkspaceRuntimeMixin
 class WorkspaceAccessService(WorkspaceRuntimeMixin, MembershipRuntimeMixin):
     """Manage workspace defaults, roles, and membership using injected ports."""
 
-    approval_policies: Repository[ApprovalPolicy]
     audit_events: Repository[AuditEvent]
     principals: Repository[Principal]
     role_bindings: Repository[RoleBinding]
@@ -36,7 +34,6 @@ class WorkspaceAccessService(WorkspaceRuntimeMixin, MembershipRuntimeMixin):
         self,
         *,
         administration_guard: OrganizationGuard,
-        approval_policies: Repository[ApprovalPolicy],
         audit_events: Repository[AuditEvent],
         principals: Repository[Principal],
         role_bindings: Repository[RoleBinding],
@@ -51,7 +48,6 @@ class WorkspaceAccessService(WorkspaceRuntimeMixin, MembershipRuntimeMixin):
     ) -> None:
         """Bind workspace repositories and identity lifecycle operations."""
         self.administration_guard = administration_guard
-        self.approval_policies = approval_policies
         self.audit_events = audit_events
         self.principals = principals
         self.role_bindings = role_bindings

@@ -31,7 +31,6 @@ def _shape(
     tasks: dict[str, int],
     queued: int,
     running: int,
-    pending: int | None,
     daily: dict[str, dict[str, Any]],
     setup: tuple[bool, bool],
 ) -> dict[str, Any]:
@@ -39,7 +38,6 @@ def _shape(
     return {
         "tasks": {"total": sum(tasks.values()), "by_status": tasks},
         "turns": {"queued": queued, "running": running},
-        "pending_approvals": pending,
         "daily": [
             {
                 "date": day,
@@ -70,7 +68,6 @@ class PostgresOverviewData:
         *,
         now: datetime,
         tz_offset_minutes: int,
-        include_approvals: bool,
     ) -> dict[str, Any]:
         """Return the aggregates in a handful of bounded statements."""
         since = now - timedelta(days=DAILY_HISTORY_DAYS + 1)
@@ -81,22 +78,11 @@ class PostgresOverviewData:
             daily = self._daily(
                 connection, scope, principal_id, since, tz_offset_minutes
             )
-            pending = None
-            if include_approvals:
-                pending = int(
-                    connection.execute(
-                        """SELECT count(*) FROM product_records
-                               WHERE collection = 'approval_requests'
-                                 AND org_id = %s AND workspace_id = %s
-                                 AND payload->>'status' = 'pending'""",
-                        scope,
-                    ).fetchone()[0]
-                )
             setup = (
                 self._has_active(connection, "agents", scope),
                 self._has_active(connection, "plugin_installations", scope),
             )
-        return _shape(tasks, active[0], active[1], pending, daily, setup)
+        return _shape(tasks, active[0], active[1], daily, setup)
 
     @staticmethod
     def _task_counts(
@@ -192,7 +178,6 @@ class MemoryOverviewData:
         *,
         now: datetime,
         tz_offset_minutes: int,
-        include_approvals: bool,
     ) -> dict[str, Any]:
         """Compute the aggregates by walking the workspace's records."""
         get: Callable[[str], Any] = self._repositories.get
@@ -228,19 +213,10 @@ class MemoryOverviewData:
             if run is not None and run.estimated_cost_usd is not None:
                 row["cost"] += run.estimated_cost_usd
                 row["priced"] += 1
-        pending = (
-            sum(
-                item.status.value == "pending"
-                for item in get("approval_requests").list_scoped(org_id, workspace_id)
-            )
-            if include_approvals
-            else None
-        )
         return _shape(
             dict(by_status),
             queued,
             running,
-            pending,
             daily,
             (
                 any(

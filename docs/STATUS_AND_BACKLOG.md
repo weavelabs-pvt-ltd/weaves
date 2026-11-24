@@ -143,6 +143,8 @@ Tech ownership moves to Snigdh. Everything below is merged to `main` unless it s
 
 - Waitlist backend (migration 24, branch `codex/waitlist-backend`, DRAFT PR): public `/api/v0/waitlist/*`, question sets as locked files in `contracts/waitlist`, row-policy `waitlist` purpose, operator script `infra/gcp/singlevm/waitlist.py`, retention tick, Caddy route for `weave-studio.in/api/v0/waitlist/*`, required control TW-01. The website flow (frontend) is not built yet; after merge: production check (health, migration 24 recorded, one test submission deleted with the operator script) and publish the privacy notice before the consent link goes live.
 
+- Removed the app sections "Approvals & Policy" and "Artifacts & Audit" (owner decision 2026-11-25; backend migration 31, frontend PR). Gone: `/approval-policies`, `/approvals`, `/approvals/{id}/decision`, the approval-policy and approval-request contracts, action recovery of approved writes, `pending_approvals` in `GET /api/v0/overview`, the `approval_policies.manage` permission and the data listed in `docs/DATA_MODEL.md` (migration 31). Kept: the audit trail (still written everywhere; `GET /api/v0/audit-events[/export]` stays for operators and tests), artifacts, and workflow approval steps (approve/reject in the workflow run view, permission `actions.approve`).
+
 ### Product decisions (owner), do not undo without asking
 - Sign-in is Google only. No email codes, no passwords, no SMTP.
 - NO invitation flow and NO "request access" flow. An admin adds a member's email in People; that person signs in with Google and is linked by verified email. No email is ever sent.

@@ -38,27 +38,21 @@ class OverviewService:
         self._ensure_ready = ensure_ready
         self._monotonic = monotonic
         self._cache: OrderedDict[
-            tuple[str, str, str, int, bool], tuple[float, dict[str, Any]]
+            tuple[str, str, str, int], tuple[float, dict[str, Any]]
         ] = OrderedDict()
         self._lock = Lock()
 
     def overview(self, *, tz_offset_minutes: int = 0) -> dict[str, Any]:
         """Return the caller's Home metrics, cached per caller for a few seconds.
 
-        Requires task visibility. The pending-approval count is ``None`` unless
-        the caller may approve actions, and private tasks of other principals
-        never contribute to any number.
+        Requires task visibility. Private tasks of other principals never
+        contribute to any number.
         """
         self._ensure_ready()
         principal = effective_principal_id("local-developer")
         self._authorize(principal, Permission.TASKS_VIEW)
-        try:
-            self._authorize(principal, Permission.ACTIONS_APPROVE)
-            approvals = True
-        except PermissionError:
-            approvals = False
         org, workspace = effective_org_id(), effective_workspace_id()
-        key = (org, workspace, principal, tz_offset_minutes, approvals)
+        key = (org, workspace, principal, tz_offset_minutes)
         now = self._monotonic()
         with self._lock:
             cached = self._cache.get(key)
@@ -72,7 +66,6 @@ class OverviewService:
             principal,
             now=generated_at,
             tz_offset_minutes=tz_offset_minutes,
-            include_approvals=approvals,
         )
         body["generated_at"] = generated_at.isoformat().replace("+00:00", "Z")
         with self._lock:

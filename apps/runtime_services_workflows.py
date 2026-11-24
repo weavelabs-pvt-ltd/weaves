@@ -81,9 +81,6 @@ def _configure_agent_service(
         default_model_profile=lambda: default_active_model_profile(
             dependencies.model_profiles, dependencies.model_configurations
         ),
-        default_approval_policy_id=(
-            services.governance_service.default_approval_policy_id
-        ),
         capability_installation=(
             services.integration_admin_service.resolve_capability_installation
         ),

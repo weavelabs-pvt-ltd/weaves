@@ -38,9 +38,7 @@ def test_organization_onboarding_scopes_requests_and_runs_agent():
     with client:
         organization = _onboard_organization(client)
         _verify_owner_access_and_agent_run(client, runtime, organization)
-        runner_role_id = _verify_approval_policy_management(
-            client, organization.headers, organization.workspace_id
-        )
+        runner_role_id = _create_runner_role(client, organization.headers)
         workspace = _create_secondary_workspace(
             client, organization.headers, organization.workspace_id
         )
@@ -139,33 +137,7 @@ def _verify_run_audit_and_range_validation(
     assert invalid_range.status_code == 422
 
 
-def _verify_approval_policy_management(
-    client: TestClient, headers: dict[str, str], workspace_id: str
-) -> str:
-    policies = client.get("/api/v0/approval-policies", headers=headers)
-    assert policies.status_code == 200
-    policy = client.post(
-        "/api/v0/approval-policies",
-        headers=headers,
-        json={
-            "name": "High risk requires review",
-            "required_risk_levels": ["high", "critical"],
-            "allow_self_approval": False,
-        },
-    )
-    assert policy.status_code == 201, policy.text
-    policy_id = policy.json()["approval_policy_id"]
-    assert policy.json()["workspace_id"] == workspace_id
-    fetched = client.get(f"/api/v0/approval-policies/{policy_id}", headers=headers)
-    assert fetched.status_code == 200
-    updated = client.patch(
-        f"/api/v0/approval-policies/{policy_id}",
-        headers=headers,
-        json={"allow_self_approval": True},
-    )
-    assert updated.status_code == 200
-    assert updated.json()["allow_self_approval"] is True
-    _verify_policy_admin_access(client, headers)
+def _create_runner_role(client: TestClient, headers: dict[str, str]) -> str:
     runner_role = client.post(
         "/api/v0/roles",
         headers=headers,
@@ -176,31 +148,6 @@ def _verify_approval_policy_management(
     )
     assert runner_role.status_code == 201, runner_role.text
     return runner_role.json()["id"]
-
-
-def _verify_policy_admin_access(
-    client: TestClient, owner_headers: dict[str, str]
-) -> None:
-    admin = client.post(
-        "/api/v0/users",
-        headers=owner_headers,
-        json={
-            "email": "policy-admin@example.com",
-            "display_name": "Policy Admin",
-            "permissions": ["approval_policies.manage"],
-        },
-    )
-    assert admin.status_code == 201, admin.text
-    admin_user = admin.json()["user"]
-    headers = account_headers(client, admin_user["email"], admin_user["org_id"])
-    listing = client.get("/api/v0/approval-policies", headers=headers)
-    assert listing.status_code == 200
-    created = client.post(
-        "/api/v0/approval-policies",
-        headers=headers,
-        json={"name": "Admin managed policy"},
-    )
-    assert created.status_code == 201
 
 
 def _create_secondary_workspace(
@@ -277,12 +224,6 @@ def _verify_member_scope_restrictions(
     )
     assert archived.status_code == 403
     assert client.get("/api/v0/agents", headers=member.headers).status_code == 403
-    denied_policy = client.post(
-        "/api/v0/approval-policies",
-        headers=member.headers,
-        json={"name": "Unauthorized policy"},
-    )
-    assert denied_policy.status_code == 403
     task = client.post(
         "/api/v0/tasks",
         headers=member.headers,

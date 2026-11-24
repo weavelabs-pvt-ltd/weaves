@@ -8,7 +8,6 @@ from contextlib import AbstractContextManager
 from application.ports.repository import Repository
 from contracts.v1 import (
     ApiCredential,
-    ApprovalPolicy,
     AuditEvent,
     ModelProfile,
     Organization,
@@ -32,7 +31,6 @@ class OrganizationService(OrganizationRuntimeMixin):
     """Provision organizations and resolve workspace scope through explicit ports."""
 
     api_credentials: Repository[ApiCredential]
-    approval_policies: Repository[ApprovalPolicy]
     audit_events: Repository[AuditEvent]
     model_profiles: Repository[ModelProfile]
     organizations: Repository[Organization]
@@ -47,7 +45,6 @@ class OrganizationService(OrganizationRuntimeMixin):
         self,
         *,
         api_credentials: Repository[ApiCredential],
-        approval_policies: Repository[ApprovalPolicy],
         audit_events: Repository[AuditEvent],
         model_profiles: Repository[ModelProfile],
         organizations: Repository[Organization],
@@ -67,7 +64,6 @@ class OrganizationService(OrganizationRuntimeMixin):
     ) -> None:
         """Bind organization repositories and onboarding application ports."""
         self.api_credentials = api_credentials
-        self.approval_policies = approval_policies
         self.audit_events = audit_events
         self.model_profiles = model_profiles
         self.organizations = organizations

@@ -8,7 +8,6 @@ from contextlib import AbstractContextManager
 
 from application.ports.repository import Repository
 from contracts.v1 import (
-    ApprovalPolicy,
     AuditEvent,
     AuditTargetScope,
     Permission,
@@ -36,7 +35,6 @@ class MembershipRuntimeHost(ABC):
 
     administration_guard: OrganizationGuard
     _bootstrapped: Callable[[], bool]
-    approval_policies: Repository[ApprovalPolicy]
     audit_events: Repository[AuditEvent]
     principals: Repository[Principal]
     role_bindings: Repository[RoleBinding]

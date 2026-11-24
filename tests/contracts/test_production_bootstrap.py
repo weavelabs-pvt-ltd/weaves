@@ -16,7 +16,6 @@ def test_production_bootstrap_omits_demo_accounts_and_work():
         assert not runtime.organizations.list()
         assert not runtime.users.list()
         assert not runtime.providers.list()
-        assert not runtime.approval_policies.list()
         assert runtime.plugins.list()
         owner = create_organization(
             runtime,

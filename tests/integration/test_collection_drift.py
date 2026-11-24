@@ -8,6 +8,7 @@ from pathlib import Path
 import httpx
 import psycopg
 from cryptography.fernet import Fernet
+from infrastructure.database.approvals_removal import REMOVED_COLLECTIONS
 
 from apps.runtime_wiring import compose_platform_runtime
 from infrastructure.database.legacy_purge import PURGED_COLLECTIONS
@@ -41,7 +42,7 @@ def test_populated_database_holds_only_registered_collections(
     store.close()
     assert len(stored) > 20
     assert stored <= REGISTRY, f"unregistered collections: {stored - REGISTRY}"
-    assert not stored & set(PURGED_COLLECTIONS)
+    assert not stored & (set(PURGED_COLLECTIONS) | set(REMOVED_COLLECTIONS))
 
 
 def test_sql_and_retention_lists_name_only_registered_collections():
@@ -54,5 +55,5 @@ def test_sql_and_retention_lists_name_only_registered_collections():
             named |= set(re.findall(r"collection\s*=\s*'([a-z_]+)'", text))
     # Migrations 6, 15, 19 and 22 name purged collections as history; the rest
     # of the code must not.
-    unknown = named - REGISTRY - set(PURGED_COLLECTIONS)
+    unknown = named - REGISTRY - set(PURGED_COLLECTIONS) - set(REMOVED_COLLECTIONS)
     assert not unknown, f"SQL names unknown collections: {unknown}"

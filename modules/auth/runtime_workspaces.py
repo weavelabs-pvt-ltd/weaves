@@ -9,11 +9,9 @@ from typing import Any
 
 from application.ports.repository import Repository
 from contracts.v1 import (
-    ApprovalPolicy,
     AuditEvent,
     AuditTargetScope,
     Permission,
-    RiskLevel,
     Workspace,
     WorkspaceStatus,
 )
@@ -27,7 +25,6 @@ class WorkspaceRuntimeHost(ABC):
 
     _bootstrapped: Callable[[], bool]
     _advisory_transaction_lock: Callable[[str], None] | None
-    approval_policies: Repository[ApprovalPolicy]
     audit_events: Repository[AuditEvent]
     workspaces: Repository[Workspace]
 
@@ -91,10 +88,8 @@ class WorkspaceRuntimeMixin(WorkspaceRuntimeHost):
             created_at=timestamp,
             updated_at=timestamp,
         )
-        policy = self._build_workspace_defaults(workspace, timestamp)
         with self._unit_of_work():
             self.workspaces.create(workspace)
-            self.approval_policies.create(policy)
             self.audit_events.create(
                 AuditEvent(
                     audit_event_id=_id(),
@@ -112,23 +107,6 @@ class WorkspaceRuntimeMixin(WorkspaceRuntimeHost):
                 )
             )
         return workspace
-
-    @staticmethod
-    def _build_workspace_defaults(
-        workspace: Workspace, timestamp: Any
-    ) -> ApprovalPolicy:
-        policy = ApprovalPolicy(
-            approval_policy_id=_id(),
-            org_id=workspace.org_id,
-            workspace_id=workspace.id,
-            name="Require review for medium and high risk actions",
-            required_risk_levels=(RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.CRITICAL),
-            allow_self_approval=False,
-            enabled=True,
-            created_at=timestamp,
-            updated_at=timestamp,
-        )
-        return policy
 
     def update_workspace(
         self,

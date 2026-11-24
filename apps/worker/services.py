@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from modules.executions.queue_health import QueueHealthService
 from modules.executions.recovery_service import ExecutionRecoveryService
 from modules.executions.worker_service import ExecutionWorkerService
-from modules.governance.action_recovery_service import ActionRecoveryService
 from modules.tasks.worker_service import TaskWorkerService
 from modules.workflows.automation_service import WorkflowAutomationService
 from modules.workflows.studio_service import WorkflowStudioService
@@ -23,7 +22,6 @@ class WorkerServices:
     close: Callable[[], None]
     execution: ExecutionWorkerService
     execution_recovery: ExecutionRecoveryService
-    action_recovery: ActionRecoveryService
     workflow_automation: WorkflowAutomationService
     tasks: TaskWorkerService
     studio: WorkflowStudioService | None = None

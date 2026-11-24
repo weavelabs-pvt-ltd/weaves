@@ -21,9 +21,8 @@ class OverviewData(Protocol):
         *,
         now: datetime,
         tz_offset_minutes: int,
-        include_approvals: bool,
     ) -> dict[str, Any]:
-        """Return task, turn, approval, daily-run and first-run aggregates.
+        """Return task, turn, daily-run and first-run aggregates.
 
         Private tasks of other principals never contribute. ``tz_offset_minutes``
         shifts day boundaries to the caller's local time.

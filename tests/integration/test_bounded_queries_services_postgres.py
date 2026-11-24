@@ -12,11 +12,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from contracts.v1 import (
-    ApprovalRequest,
-    ApprovalStatus,
     ExecutionJobStatus,
     Permission,
-    RiskLevel,
     RunStatus,
     TaskAudience,
 )
@@ -97,7 +94,7 @@ def test_recovery_walks_batches_and_matches_the_old_full_scan(isolated_postgres_
         store.close()
 
 
-def test_stale_actions_and_jobs_recover_in_batches(isolated_postgres_url):
+def test_stale_jobs_recover_in_batches(isolated_postgres_url):
     store = ProductPostgresStore(isolated_postgres_url)
     try:
         runtime = LocalPlatformRuntime(postgres_store=store)
@@ -120,7 +117,6 @@ def test_stale_actions_and_jobs_recover_in_batches(isolated_postgres_url):
             ExecutionJobStatus.FAILED,
             ExecutionJobStatus.SUCCEEDED,
         }
-        assert runtime.recover_stale_action_invocations() == ()
     finally:
         store.close()
 
@@ -142,7 +138,6 @@ def test_overview_matches_the_in_memory_oracle_on_real_records(isolated_postgres
         args = {
             "now": datetime.now(UTC),
             "tz_offset_minutes": 330,
-            "include_approvals": True,
         }
         real = PostgresOverviewData(store).snapshot(
             task.org_id, task.workspace_id, "local-developer", **args
@@ -180,65 +175,5 @@ def test_email_availability_is_a_single_indexed_probe(isolated_postgres_url):
                 role_id=None,
             )
         assert user.email == "dana@example.com"
-    finally:
-        store.close()
-
-
-def test_a_cursor_minted_for_one_tenant_never_exposes_another(isolated_postgres_url):
-    store = ProductPostgresStore(isolated_postgres_url)
-    try:
-        runtime = LocalPlatformRuntime(postgres_store=store)
-        runtime.bootstrap()
-        base = datetime(2026, 11, 1, tzinfo=UTC)
-        for org in ("org-one", "org-two"):
-            for index in range(25):
-                stamp = base + timedelta(minutes=index)
-                runtime.approvals.create(
-                    ApprovalRequest(
-                        approval_request_id=f"{org}-approval-{index:02d}",
-                        run_id=f"run-{org}-{index}",
-                        requested_by_principal_id="p",
-                        capability_id="slack.messages.post",
-                        action_summary="post",
-                        risk_level=RiskLevel.HIGH,
-                        status=ApprovalStatus.PENDING,
-                        requested_at=stamp,
-                        org_id=org,
-                        workspace_id=f"ws-{org}",
-                        created_at=stamp,
-                        updated_at=stamp,
-                    )
-                )
-        first = runtime.approvals.list_recent_page(
-            "org-one",
-            "ws-org-one",
-            filters={},
-            cursor_created_at=None,
-            cursor_id=None,
-            limit=10,
-        )
-        last = first[-1]
-        replay = runtime.approvals.list_recent_page(
-            "org-two",
-            "ws-org-two",
-            filters={},
-            cursor_created_at=last.created_at,
-            cursor_id=last.approval_request_id,
-            limit=100,
-        )
-        assert len(first) == 10 and all(item.org_id == "org-one" for item in first)
-        assert replay and all(item.org_id == "org-two" for item in replay)
-        assert len(replay) == 15  # only org-two's own rows older than the cursor
-        assert (
-            runtime.approvals.list_recent_page(
-                "org-two",
-                "ws-org-one",
-                filters={},
-                cursor_created_at=None,
-                cursor_id=None,
-                limit=100,
-            )
-            == ()
-        )
     finally:
         store.close()

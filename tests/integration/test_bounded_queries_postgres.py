@@ -62,17 +62,9 @@ _SEED = (
             generate_series(1, 2) t""",
     """INSERT INTO product_records (collection, record_id, org_id, workspace_id,
            payload, created_at, updated_at)
-       SELECT 'approval_requests', 'appr-'||o||'-'||n, 'org-'||o, 'ws-'||o,
-              jsonb_build_object('approval_request_id', 'appr-'||o||'-'||n,
-                  'status', CASE WHEN n %% 10 = 0 THEN 'pending' ELSE 'approved' END),
-              now() - make_interval(mins => n), now()
-       FROM generate_series(1, %(orgs)s) o, generate_series(1, 100) n""",
-    """INSERT INTO product_records (collection, record_id, org_id, workspace_id,
-           payload, created_at, updated_at)
        SELECT 'tool_invocations', 'inv-'||o||'-'||n, 'org-'||o, 'ws-'||o,
               jsonb_build_object('invocation_id', 'inv-'||o||'-'||n,
                   'run_id', 'run-'||o||'-'||n,
-                  'approval_request_id', 'appr-'||o||'-'||n,
                   'status', CASE WHEN n = 7 THEN 'executing' ELSE 'succeeded' END),
               now() - make_interval(mins => n), now() - make_interval(hours => 9)
        FROM generate_series(1, %(orgs)s) o, generate_series(1, 100) n""",
@@ -164,17 +156,9 @@ HEAVY = (
        FROM generate_series(1, 20000) n""",
     """INSERT INTO product_records (collection, record_id, org_id, workspace_id,
            payload, created_at, updated_at)
-       SELECT 'approval_requests', 'heavy-appr-'||n, 'org-7', 'ws-7',
-              jsonb_build_object('approval_request_id', 'heavy-appr-'||n,
-                  'status', CASE WHEN n %% 50 = 0 THEN 'pending' ELSE 'approved' END),
-              now() - make_interval(secs => n), now()
-       FROM generate_series(1, 5000) n""",
-    """INSERT INTO product_records (collection, record_id, org_id, workspace_id,
-           payload, created_at, updated_at)
        SELECT 'tool_invocations', 'heavy-inv-'||n, 'org-7', 'ws-7',
               jsonb_build_object('invocation_id', 'heavy-inv-'||n,
                   'run_id', 'heavy-run-'||n,
-                  'approval_request_id', 'heavy-appr-'||(n %% 5000 + 1),
                   'status', 'succeeded'),
               now() - make_interval(secs => n), now()
        FROM generate_series(1, 20000) n""",
@@ -256,7 +240,14 @@ def test_migration_28_is_the_schema_head_and_creates_every_index(
             for statement in BOUNDED_QUERIES_MIGRATION[1]
         }
         assert len(created) == len(BOUNDED_QUERIES_MIGRATION[1]) == 19
-        assert created <= names
+        # Migration 31 dropped the indexes of the removed approvals queries.
+        dropped = {
+            "approval_requests_page_idx",
+            "approval_requests_pending_idx",
+            "tool_invocations_approval_idx",
+        }
+        assert created - dropped <= names
+        assert not dropped & names
     finally:
         store.close()
 
@@ -305,12 +296,12 @@ def test_point_lookups_replace_whole_tenant_scans(seeded):
     _assert_indexed(seeded, agent_runs, "agent_runs_run_idx")
     invocations = _repo("tool_invocations", "invocation_id")
     invocations[0].list_by_field_in(
-        "approval_request_id",
-        tuple(f"appr-7-{n}" for n in range(1, 51)),
+        "run_id",
+        tuple(f"run-7-{n}" for n in range(1, 51)),
         org_id="org-7",
         workspace_id="ws-7",
     )
-    _assert_indexed(seeded, invocations, "tool_invocations_approval_idx")
+    _assert_indexed(seeded, invocations, "tool_invocations_run_idx")
     users = _repo("users", "id")
     users[0].find_scoped_by_field(
         "email",
@@ -338,29 +329,6 @@ def test_point_lookups_replace_whole_tenant_scans(seeded):
 
 
 def test_list_pages_use_their_keyset_indexes(seeded):
-    approvals = _repo("approval_requests", "approval_request_id")
-    approvals[0].list_recent_page(
-        "org-7",
-        "ws-7",
-        filters={"status": "pending"},
-        cursor_created_at=None,
-        cursor_id=None,
-        limit=51,
-    )
-    _assert_indexed(
-        seeded,
-        approvals,
-        ("approval_requests_pending_idx", "approval_requests_page_idx"),
-    )
-    approvals[0].list_recent_page(
-        "org-7",
-        "ws-7",
-        filters={},
-        cursor_created_at=datetime.now(UTC),
-        cursor_id="appr-7-5",
-        limit=51,
-    )
-    _assert_indexed(seeded, approvals, "approval_requests_page_idx")
     canvas = _repo("canvas_runs", "run_id")
     canvas[0].list_recent_page(
         "org-7",
@@ -375,15 +343,6 @@ def test_list_pages_use_their_keyset_indexes(seeded):
 
 def test_overview_statements_are_indexed_and_a_snapshot_is_a_few_statements(seeded):
     with seeded.pool.connection() as connection:
-        pending = _plan(
-            seeded,
-            """SELECT count(*) FROM product_records
-                   WHERE collection = 'approval_requests'
-                     AND org_id = %s AND workspace_id = %s
-                     AND payload->>'status' = 'pending'""",
-            ("org-7", "ws-7"),
-        )
-        assert "approval_requests_pending_idx" in pending
         active = _plan(
             seeded,
             """SELECT count(*) FROM product_records t
@@ -411,10 +370,9 @@ def test_overview_statements_are_indexed_and_a_snapshot_is_a_few_statements(seed
         "owner-7",
         now=datetime.now(UTC),
         tz_offset_minutes=330,
-        include_approvals=True,
     )
     assert first["tasks"]["total"] == TASKS_PER_ORG
-    assert first["pending_approvals"] == 10 + 100  # seeded plus the heavy tenant
+    assert "pending_approvals" not in first
     # Only this tenant's turns are aggregated, not the 60k seeded in total.
     assert sum(day["total"] for day in first["daily"]) == 2 * TASKS_PER_ORG + 20_000
     stranger = overview.snapshot(
@@ -423,17 +381,14 @@ def test_overview_statements_are_indexed_and_a_snapshot_is_a_few_statements(seed
         "someone-else",
         now=datetime.now(UTC),
         tz_offset_minutes=0,
-        include_approvals=False,
     )
     assert stranger["tasks"]["total"] == TASKS_PER_ORG - TASKS_PER_ORG // 50
-    assert stranger["pending_approvals"] is None
     other_org = overview.snapshot(
         "org-8",
         "ws-8",
         "owner-8",
         now=datetime.now(UTC),
         tz_offset_minutes=0,
-        include_approvals=True,
     )
     assert other_org["tasks"]["total"] == TASKS_PER_ORG
     assert sum(day["total"] for day in other_org["daily"]) == 2 * TASKS_PER_ORG

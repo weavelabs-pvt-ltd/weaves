@@ -63,20 +63,15 @@ class TickRegistry:
 
 
 def _recover_worker_state(services: WorkerServices) -> None:
-    """Recover stale task turns, action calls, and execution records."""
+    """Recover stale task turns and execution records."""
     recovered_task_turns = services.tasks.recover_stale_turns()
     if recovered_task_turns:
         logger.warning("recovered stale task turns count=%d", len(recovered_task_turns))
     recovery = services.execution_recovery
     recovery.recover_stale_runs()
     recovered_jobs = recovery.recover_stale_execution_jobs()
-    recovered_actions = services.action_recovery.recover_stale_action_invocations()
     if recovered_jobs:
         logger.warning("recovered stale execution jobs count=%d", len(recovered_jobs))
-    if recovered_actions:
-        logger.warning(
-            "recovered stale action invocations count=%d", len(recovered_actions)
-        )
 
 
 def _recovery_sweep(services: WorkerServices) -> None:

@@ -9,8 +9,6 @@ from contracts.v1 import (
     AgentRunBundle,
     AgentVersion,
     ApiCredential,
-    ApprovalPolicy,
-    ApprovalRequest,
     Artifact,
     ArtifactProvenance,
     AuditEvent,
@@ -79,8 +77,6 @@ MODELS = {
     "tool-invocation": ToolInvocation,
     "artifact-provenance": ArtifactProvenance,
     "artifact": Artifact,
-    "approval-policy": ApprovalPolicy,
-    "approval-request": ApprovalRequest,
     "audit-event": AuditEvent,
 }
 

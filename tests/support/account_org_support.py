@@ -11,9 +11,9 @@ URL = "/api/v0/account/organizations"
 ENABLE = "WEAVES_ALLOW_ACCOUNT_ORGANIZATION_CREATION"
 # One create call per row a successful provisioning writes, in order:
 # organization, settings (slug, email domain, timezone, locale, owner),
-# workspace, user, principal, 3 roles, binding, provider, profile, policy,
+# workspace, user, principal, 3 roles, binding, provider, profile,
 # audit event, membership, idempotency record.
-PROVISIONING_WRITES = 15
+PROVISIONING_WRITES = 14
 PROVISIONED_COLLECTIONS = (
     "organizations",
     "organization_settings",
@@ -25,7 +25,6 @@ PROVISIONED_COLLECTIONS = (
     "api_credentials",
     "model_providers",
     "model_profiles",
-    "approval_policies",
     "audit_events",
     "memberships",
     "account_organization_requests",
@@ -75,7 +74,6 @@ def create_repositories(service) -> dict:
         "api_credentials": provisioner.api_credentials,
         "model_providers": provisioner.providers,
         "model_profiles": provisioner.model_profiles,
-        "approval_policies": provisioner.approval_policies,
         "audit_events": provisioner.audit_events,
         "memberships": service._memberships,
         "account_organization_requests": service._requests,

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
-from threading import RLock
 
 import httpx
 
@@ -63,7 +62,6 @@ class RuntimeFoundationMixin(RuntimeRepositoryBindingMixin, RuntimeCoordinationM
         self._configure_coordination()
         self._bind_runtime_adapters(runtime_adapters)
         self._bootstrapped = False
-        self._approval_lock = RLock()
 
     def _bind_runtime_adapters(self, adapters: RuntimeAdapterBundle) -> None:
         """Attach clients and gateways composed by the API or worker process."""

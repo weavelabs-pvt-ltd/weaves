@@ -133,13 +133,6 @@ def _populate(client: TestClient, runtime: object, scope: Scope) -> None:
         ),
         202,
     )["task_id"]
-    ids["policy"] = _ok(
-        client.post(
-            "/api/v0/approval-policies",
-            headers=h,
-            json={"name": f"Policy {scope.name}"},
-        )
-    )["approval_policy_id"]
     _automation(client, scope)
     _canvas_and_suite(client, scope)
     ids["installation"] = _install(runtime, scope)

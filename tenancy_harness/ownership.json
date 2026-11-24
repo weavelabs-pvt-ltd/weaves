@@ -307,30 +307,6 @@
       ],
       "current_gap": null
     },
-    "approval_policies": {
-      "scope": "workspace",
-      "contract": "ApprovalPolicy",
-      "privacy": "role permission within declared scope",
-      "system_access": "explicit bounded dispatcher/recovery or migration; not customer Admin bypass",
-      "lifecycle": "deny new tenant work when suspended/deleted or workspace archived; allow audited cleanup",
-      "scope_keys": [
-        "org_id",
-        "workspace_id"
-      ],
-      "current_gap": null
-    },
-    "approval_requests": {
-      "scope": "workspace",
-      "contract": "ApprovalRequest",
-      "privacy": "role permission within declared scope",
-      "system_access": "explicit bounded dispatcher/recovery or migration; not customer Admin bypass",
-      "lifecycle": "deny new tenant work when suspended/deleted or workspace archived; allow audited cleanup",
-      "scope_keys": [
-        "org_id",
-        "workspace_id"
-      ],
-      "current_gap": null
-    },
     "workflow_runs": {
       "scope": "workspace",
       "contract": "WorkflowRun",
@@ -746,48 +722,6 @@
       "method": "PUT",
       "path": "/api/v0/api-credentials/{credential_id}/rotate",
       "scope": "organization",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v0/approval-policies",
-      "scope": "workspace",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v0/approval-policies",
-      "scope": "workspace",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v0/approval-policies/{policy_id}",
-      "scope": "workspace",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "PATCH",
-      "path": "/api/v0/approval-policies/{policy_id}",
-      "scope": "workspace",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v0/approvals",
-      "scope": "workspace",
-      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
-      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v0/approvals/{approval_id}/decision",
-      "scope": "workspace",
       "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
       "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
     },
