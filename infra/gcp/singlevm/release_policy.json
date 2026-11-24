@@ -1,0 +1,5 @@
+{
+  "min_rollback_schema_version": 28,
+  "min_rollback_revision": null,
+  "note": "Rollback targets must be healthy backend releases in releases.jsonl whose database schema head is at least min_rollback_schema_version. Raise it to the new migration number when a forward-only migration breaks older readers (migration 22 deleted data). Releases recorded before the ledger have no known schema head and are never rollback targets."
+}

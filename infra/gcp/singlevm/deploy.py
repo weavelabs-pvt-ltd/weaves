@@ -13,6 +13,9 @@ from uuid import uuid4
 BUNDLE_FILES = (
     "apply_release.py",
     "release_runtime.py",
+    "release_ledger.py",
+    "rollback_release.py",
+    "release_policy.json",
     "compose.yaml",
     "Caddyfile",
     "backup.sh",

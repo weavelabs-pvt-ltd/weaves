@@ -10,6 +10,13 @@ import sys
 import tempfile
 from pathlib import Path
 
+from release_ledger import (
+    POLICY,
+    ensure_ledger,
+    image_schema_version,
+    record_release,
+    refuse_unsafe_redeploy,
+)
 from release_runtime import (
     CONFIG_FILES,
     atomic_write,
@@ -63,10 +70,27 @@ def activate(root: Path, component: str, gateway_changed: bool = False) -> None:
     health_check(component)
 
 
+# Files installed on the VM from a backend release bundle after it is healthy.
+TOOL_FILES = (
+    "apply_release.py",
+    "release_runtime.py",
+    "release_ledger.py",
+    "rollback_release.py",
+    POLICY,
+)
+
+
 def apply_locked(
-    root: Path, component: str, image: str, revision: str, bundle: Path | None
+    root: Path,
+    component: str,
+    image: str,
+    revision: str,
+    bundle: Path | None,
+    action: str = "deploy",
 ) -> None:
     """Validate and pull first, then replace configuration with rollback on failure."""
+    ensure_ledger(root)
+    refuse_unsafe_redeploy(root, component, image, (bundle or root) / POLICY)
     env_path = root / "runtime.env"
     previous = env_path.read_text()
     configs = {name: (root / name).read_text() for name in CONFIG_FILES}
@@ -105,6 +129,7 @@ def apply_locked(
                     "/etc/caddy/Caddyfile",
                 ]
             )
+        schema = image_schema_version(image) if component == "backend" else None
         if component == "backend":
             run(["bash", str(root / "backup.sh")])
         try:
@@ -113,14 +138,17 @@ def apply_locked(
             atomic_write(env_path, updated)
             activate(root, component, gateway_changed)
         except Exception:
+            record_release(root, component, image, revision, schema, "failed", action)
             for name, content in configs.items():
                 atomic_write(root / name, content)
             atomic_write(env_path, previous)
             activate(root, component, gateway_changed)
             raise
     if bundle:
-        for name in ("apply_release.py", "release_runtime.py"):
-            atomic_write(root / name, (bundle / name).read_text())
+        for name in TOOL_FILES:
+            if (bundle / name).exists():
+                atomic_write(root / name, (bundle / name).read_text())
+    record_release(root, component, image, revision, schema, "healthy", action)
     record = root / "releases.json"
     releases = json.loads(record.read_text()) if record.exists() else {}
     releases[component] = {"image": image, "revision": revision}
@@ -135,6 +163,7 @@ def deploy(
     revision: str,
     token: str,
     bundle: Path | None = None,
+    action: str = "deploy",
 ) -> None:
     """Authenticate transiently and hold one cross-repository lock through readiness."""
     validate_image(component, image)
@@ -157,7 +186,7 @@ def deploy(
                 ],
                 token,
             )
-            apply_locked(root, component, image, revision, bundle)
+            apply_locked(root, component, image, revision, bundle, action)
         finally:
             if previous_auth is None:
                 os.environ.pop("DOCKER_CONFIG", None)

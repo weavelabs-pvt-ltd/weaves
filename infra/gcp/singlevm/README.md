@@ -66,9 +66,31 @@ it does not provide zero-downtime deployment or high availability. The worker
 finishes its current operation on SIGTERM; work exceeding five minutes may be
 recovered through the durable execution queue.
 
-Release revisions and digests are recorded in root-only
-`/opt/weaves/singlevm/releases.json`. GitHub Actions contains each deployment
-result. Failed checks or deployments fail the workflow visibly.
+Every release attempt is appended to the root-only, append-only ledger
+`/opt/weaves/singlevm/releases.jsonl` (one JSON line each: `seq`, `time`,
+`component`, `image` digest, `revision`, `schema_version` (backend migration head
+read from the image, null if unknown), `result` `healthy` or `failed`, and
+`action` `deploy`, `rollback` or `import`). `releases.json` still holds the latest
+image per component. The first release after the ledger ships imports the
+existing `releases.json` as `import` entries (schema unknown) and appends from
+there; nothing is lost. GitHub Actions also prints each release line in the job
+summary and keeps it as a 90-day `release-manifest` artifact. Failed checks or
+deployments fail the workflow visibly.
+
+`release_policy.json` sets `min_rollback_schema_version`: the newest forward-only
+migration that breaks older readers. The minimum rollback revision is the first
+healthy backend ledger entry at or above it; older or unknown-schema entries are
+refused, including by a manual `deploy.py` of that digest. Raise the number
+deliberately when a migration breaks older images.
+
+```sh
+sudo python3 /opt/weaves/singlevm/rollback_release.py list [--component backend]
+gcloud auth print-access-token | sudo python3 /opt/weaves/singlevm/rollback_release.py \
+  rollback --component backend --to SEQ_OR_DIGEST_PREFIX [--dry-run]
+```
+
+`list` marks the floor with `*`. Rollback redeploys a ledger digest through the
+normal locked path (backup, health check, automatic restore on failure).
 
 For a manual release or application rollback, use an existing immutable digest
 and its corresponding commit SHA from a tested checkout:
