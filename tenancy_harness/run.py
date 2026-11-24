@@ -204,6 +204,17 @@ def limits_control(compose):
     seed_module(compose, "phase5.limits_checks", "settle")
 
 
+def record_correlation_logs(compose, private):
+    """Read the API/worker log stream for T5-I05 (only the host can read it)."""
+    from tenancy_harness.phase5.correlation_logs import record
+
+    log_path = private / "correlation-service.log"
+    with log_path.open("w") as log:
+        compose.run("logs", "--no-color", "api", "worker", stdout=log)
+    record(log_path, private / "fixtures.json")
+    log_path.unlink()
+
+
 def run(args, harness):
     """Build, seed, execute, report, and always remove this run's containers."""
     partial = args.api_only or bool(args.only_control)
@@ -245,6 +256,8 @@ def run(args, harness):
         seed_module(compose, "lifecycle_checks")
         seed_module(compose, "waitlist_checks")
         limits_control(compose)
+        seed_module(compose, "phase5.correlation_checks")
+        record_correlation_logs(compose, private)
         raw = browser(
             frontend,
             harness,

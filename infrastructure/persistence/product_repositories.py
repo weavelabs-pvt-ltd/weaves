@@ -59,6 +59,10 @@ from contracts.v1.base import ProductContract
 from contracts.v1.limits import OrganizationLimitOverride
 from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
 from infrastructure.database.store import ProductPostgresStore
+from infrastructure.persistence.correlated_audit import (
+    CorrelatedInMemoryAudit,
+    CorrelatedPostgresAudit,
+)
 from infrastructure.persistence.memory_plugin_catalog import InMemoryPluginCatalog
 from infrastructure.persistence.memory_repository import InMemoryRepository
 from infrastructure.persistence.organization_data import (
@@ -222,6 +226,12 @@ def _create_repository(
 ) -> object:
     """Choose an in-memory or PostgreSQL implementation for one collection."""
     keyed = collection in TENANT_KEYED_COLLECTIONS
+    if collection == "audit_events":
+        if store is None:
+            return CorrelatedInMemoryAudit(id_field, tenant_keyed=keyed)
+        return CorrelatedPostgresAudit(
+            store, collection, id_field, AuditEvent, tenant_keyed=keyed
+        )
     if store is None:
         return InMemoryRepository(id_field, tenant_keyed=keyed)
     return PostgresRepository(

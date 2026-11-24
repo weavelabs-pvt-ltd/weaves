@@ -63,6 +63,7 @@ class ExecutionJob(MutableWorkspaceScopedContract):
     evaluation_suite_id: OpaqueId | None = None
     retry_of_job_id: OpaqueId | None = None
     idempotency_key: OpaqueId | None = None
+    request_id: OpaqueId | None = None
     status: ExecutionJobStatus
     attempts: int = Field(default=0, ge=0, le=100)
     worker_id: OpaqueId | None = None

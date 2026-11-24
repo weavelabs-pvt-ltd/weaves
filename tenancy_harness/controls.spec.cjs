@@ -356,6 +356,17 @@ test('T5-I01 tenant limits admit exactly the cap atomically, refuse the rest wit
   }
 });
 
+test('T5-I05 a request id flows from the API response to the worker log and run audit trail without secrets', async () => {
+  const control = fixture.correlation;
+  for (const key of ['response_echoes_the_request_id', 'turn_finished_in_the_worker', 'turn_stores_the_request_id',
+    'run_audit_trail_has_the_request_id', 'request_id_never_on_another_tenant', 'malformed_inbound_ids_are_replaced',
+    'metrics_served_to_direct_peers', 'metrics_hidden_behind_a_proxy', 'metrics_have_no_tenant_identifiers',
+    'every_log_line_is_structured_json', 'api_line_carries_the_request_id', 'worker_line_carries_the_request_id',
+    'correlated_lines_stay_in_one_tenant', 'no_prompt_or_credential_in_any_log_line']) {
+    expect(control[key], key).toBe(true);
+  }
+});
+
 test('T4-I01 organization settings and ownership handoff preserve other tenant access', async ({browser, request}) => {
   await require('./organization_administration.cjs').verify({browser, request}, fixture);
 });

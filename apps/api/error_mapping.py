@@ -8,14 +8,19 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from shared.clock import new_id
+from shared.correlation import resolve_request_id
 
 REQUEST_ID_HEADER = "X-Request-Id"
 _log = logging.getLogger(__name__)
 
 
 def assign_request_id(request: Request) -> str:
-    """Give the request one opaque server-generated reference and return it."""
-    request_id = new_id()
+    """Give the request its reference and return it.
+
+    A well-formed inbound ``X-Request-Id`` is kept so a caller can follow its own
+    id through the logs; anything else is replaced with a generated opaque id.
+    """
+    request_id = resolve_request_id(request.headers.get(REQUEST_ID_HEADER))
     request.state.request_id = request_id
     return request_id
 
@@ -36,10 +41,10 @@ def install_error_handlers(app: FastAPI) -> None:
         """
         request_id = getattr(request.state, "request_id", None) or new_id()
         _log.error(
-            "unhandled error request_id=%s method=%s path=%s",
-            request_id,
+            "unhandled error method=%s path=%s",
             request.method,
             request.url.path,
+            extra={"request_id": request_id, "event": "unhandled_error"},
         )
         return JSONResponse(
             status_code=500,

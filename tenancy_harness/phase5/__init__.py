@@ -12,5 +12,4 @@ PLANNED = {
     "T5-I02": ("5.2", "fair_claim_checks"),
     "T5-I03": ("5.3", "usage_checks"),
     "T5-I04": ("5.4", "bounded_queries_checks"),
-    "T5-I05": ("5.5", "correlation_checks"),
 }
