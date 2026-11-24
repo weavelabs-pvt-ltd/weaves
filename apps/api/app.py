@@ -10,11 +10,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from apps.api.authentication import install_authentication
 from apps.api.error_mapping import REQUEST_ID_HEADER, install_error_handlers
 from apps.api.limit_errors import install_limit_error_handlers
+from apps.api.metrics import install_metrics
 from apps.api.request_limits import install_request_limits
 from apps.api.router import register_v0_routes
 from apps.api.wiring import build_api_process_services
 from apps.platform_runtime import LocalPlatformRuntime
 from modules.auth.http.browser_sessions import CSRF_HEADER
+from shared.logging_setup import configure_logging
+
+
+def _configure_logging() -> None:
+    """Install JSON logs unless ``WEAVES_LOG_FORMAT=text`` (idempotent)."""
+    if os.environ.get("WEAVES_LOG_FORMAT", "json").strip().lower() != "text":
+        configure_logging("api", level=os.environ.get("LOG_LEVEL", "INFO"))
 
 
 def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
@@ -22,6 +30,7 @@ def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        _configure_logging()
         process_services = build_api_process_services(runtime)
         try:
             if not getattr(app.state, "product_routes_registered", False):
@@ -46,6 +55,7 @@ def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
     install_limit_error_handlers(app)
     # Inside authentication: the tenant identity is bound when it runs.
     install_request_limits(app)
+    install_metrics(app)
     install_authentication(app)
     allowed_origins = tuple(
         origin.strip().rstrip("/")
@@ -74,4 +84,5 @@ def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
     return app
 
 
+_configure_logging()  # before uvicorn announces startup
 app = create_app()

@@ -8,6 +8,7 @@ from threading import Event, Thread
 from application.runtime_host import RuntimeCapabilityHost
 from contracts.v1 import ExecutionJob, ExecutionJobStatus
 from shared.clock import utc_now as _now
+from shared.correlation import bind_context, note, principal_digest
 from shared.request_context import (
     effective_org_id,
     effective_workspace_id,
@@ -31,6 +32,18 @@ class ExecutionWorkerMixin(RuntimeCapabilityHost):
             )
         if job is None:
             return None
+        with bind_context(
+            request_id=job.request_id,
+            org_id=job.org_id,
+            workspace_id=job.workspace_id,
+            principal=principal_digest(job.requested_by_principal_id),
+            job_id=job.job_id,
+            worker_id=worker_id.strip(),
+        ):
+            return self._run_claimed_execution_job(job)
+
+    def _run_claimed_execution_job(self, job: ExecutionJob) -> ExecutionJob:
+        """Process a claimed job under its tenant identity and correlation scope."""
         identity_token = set_request_identity(
             job.requested_by_principal_id, job.org_id, job.workspace_id
         )
@@ -44,9 +57,15 @@ class ExecutionWorkerMixin(RuntimeCapabilityHost):
         )
         heartbeat_thread.start()
         try:
-            return self._complete_claimed_execution_job(
+            finished = self._complete_claimed_execution_job(
                 job, cancellation_requested=cancellation_requested
             )
+            note(run_id=finished.run_id)
+            logging.getLogger(__name__).info(
+                "execution job finished",
+                extra={"event": "job_finished", "outcome": finished.status.value},
+            )
+            return finished
         finally:
             stop_heartbeat.set()
             heartbeat_thread.join(timeout=2)

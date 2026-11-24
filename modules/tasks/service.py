@@ -37,6 +37,7 @@ from modules.tasks.private_skill_resolver import (
 )
 from modules.tasks.query_service import TaskQueryService
 from shared.clock import new_id, utc_now
+from shared.correlation import current_request_id
 from shared.errors import IdempotencyConflict, IdempotencyKeyAlreadyExists
 from shared.request_context import (
     effective_org_id,
@@ -482,6 +483,7 @@ class TaskService(TaskLifecycleMixin):
             user_message_id=message_id,
             requested_by_principal_id=principal,
             idempotency_key=idempotency_key,
+            request_id=current_request_id(),
             status=TaskTurnStatus.QUEUED,
             org_id=task.org_id,
             workspace_id=task.workspace_id,

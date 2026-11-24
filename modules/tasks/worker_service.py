@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from datetime import datetime, timedelta
@@ -21,12 +22,15 @@ from contracts.v1 import (
 )
 from modules.agents.execution_service import AgentExecutionService
 from shared.clock import new_id, utc_now
+from shared.correlation import bind_context, note, principal_digest
 from shared.request_context import (
     reset_request_principal,
     set_request_identity,
     system_scope,
     system_scoped,
 )
+
+_log = logging.getLogger(__name__)
 
 
 class TaskWorkerService:
@@ -60,11 +64,29 @@ class TaskWorkerService:
             claimed = self.turns.claim_next_queued(worker_id, utc_now(), None, None)
         if claimed is None:
             return None
+        with bind_context(
+            request_id=claimed.request_id,
+            org_id=claimed.org_id,
+            workspace_id=claimed.workspace_id,
+            principal=principal_digest(claimed.requested_by_principal_id),
+            turn_id=claimed.turn_id,
+            worker_id=worker_id,
+        ):
+            return self._run_claimed_turn(claimed, worker_id)
+
+    def _run_claimed_turn(self, claimed: TaskTurn, worker_id: str) -> TaskTurn:
+        """Run a claimed turn under its tenant identity and correlation scope."""
         context = set_request_identity(
             claimed.requested_by_principal_id, claimed.org_id, claimed.workspace_id
         )
         try:
-            return self._process_claimed_turn(claimed, worker_id)
+            finished = self._process_claimed_turn(claimed, worker_id)
+            note(run_id=finished.agent_run_id)
+            _log.info(
+                "task turn finished",
+                extra={"event": "turn_finished", "outcome": finished.status.value},
+            )
+            return finished
         finally:
             reset_request_principal(context)
 

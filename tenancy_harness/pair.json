@@ -38,12 +38,12 @@
     "T4-I05",
     "TW-01",
     "T5-I01",
+    "T5-I05",
     "T5-I04"
   ],
   "planned_controls": {
     "T5-I02": "5.2",
-    "T5-I03": "5.3",
-    "T5-I05": "5.5"
+    "T5-I03": "5.3"
   },
   "planned_controls_policy": "Declared by Phase 5 slice 5.0. Not required and not run until the owning slice moves the id into required_controls.",
   "known_defects": {},

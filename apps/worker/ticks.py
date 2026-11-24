@@ -15,12 +15,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from apps.worker.services import WorkerServices
+from shared.metrics import run_collectors
 
 logger = logging.getLogger("product.worker")
 
 WAITLIST_PURGE_SECONDS = 3600
 RECOVERY_SWEEP_SECONDS = 86_400
 RECOVERY_SECONDS = 30
+METRICS_GAUGE_SECONDS = 15
 
 
 @dataclass(frozen=True)
@@ -136,6 +138,11 @@ def _studio(services: WorkerServices) -> None:
         services.studio.tick()
 
 
+def _metrics_gauges(_: WorkerServices) -> None:
+    """Refresh queue gauges; a metrics failure never disturbs the loop."""
+    run_collectors()
+
+
 def build_tick_registry(
     *, schedule_interval: float, lifecycle_interval: float
 ) -> TickRegistry:
@@ -161,5 +168,6 @@ def build_tick_registry(
     )
 
     # 5.5 metrics: periodic gauges (queue depth, oldest queued age).
+    registry.register(Tick("metrics_gauges", METRICS_GAUGE_SECONDS, _metrics_gauges))
 
     return registry

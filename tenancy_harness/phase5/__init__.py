@@ -12,5 +12,4 @@ ignores them until their slice moves the id into ``required_controls``. Slice
 PLANNED = {
     "T5-I02": ("5.2", "fair_claim_checks"),
     "T5-I03": ("5.3", "usage_checks"),
-    "T5-I05": ("5.5", "correlation_checks"),
 }

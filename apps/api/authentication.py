@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import os
+import time
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -11,6 +12,8 @@ from fastapi import FastAPI, Request
 from starlette.responses import JSONResponse
 
 from apps.api.error_mapping import REQUEST_ID_HEADER, assign_request_id
+from apps.api.metrics import METRICS_PATH
+from apps.api.request_logging import record_request
 from modules.auth.account_sessions import ACCOUNT_TOKEN_PREFIX
 from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.authentication_service import AuthenticationService
@@ -18,6 +21,7 @@ from modules.auth.credential_service import CredentialService
 from modules.auth.http.browser_sessions import ACCOUNT_COOKIE_NAME, request_refusal
 from modules.auth.lifecycle_state import is_recovery_request
 from modules.auth.organization_service import OrganizationService
+from shared.correlation import bind_context, note_tenant
 from shared.request_context import (
     reset_request_principal,
     set_request_identity,
@@ -26,6 +30,7 @@ from shared.request_context import (
 
 _PUBLIC_EXACT_PATHS = {
     "/api/v0/health",
+    METRICS_PATH,
     "/api/v0/account/google/start",
     "/api/v0/account/google/callback",
     "/api/v0/oauth/github/callback",
@@ -227,6 +232,7 @@ async def _account_tenant_request(
         )
     request.state.account = account
     identity_token = set_request_identity(membership.principal_id, org_id, workspace_id)
+    note_tenant(membership.principal_id, org_id, workspace_id)
     try:
         response = await call_next(request)
         if channel == "browser":
@@ -303,6 +309,7 @@ async def _service_request(
             content={"detail": "Principal cannot access the requested workspace"},
         )
     identity_token = set_request_identity(principal, org_id, workspace_id)
+    note_tenant(principal, org_id, workspace_id)
     try:
         return await call_next(request)
     finally:
@@ -317,9 +324,16 @@ def install_authentication(app: FastAPI) -> None:
     async def require_api_token(request: Any, call_next: Any) -> Any:
         """Authenticate the request; every response carries its request id."""
         request_id = assign_request_id(request)
-        response = await _authenticated(request, call_next)
-        response.headers[REQUEST_ID_HEADER] = request_id
-        return response
+        with bind_context(request_id=request_id):
+            started = time.perf_counter()
+            try:
+                response = await _authenticated(request, call_next)
+            except Exception:
+                record_request(request, 500, time.perf_counter() - started)
+                raise
+            response.headers[REQUEST_ID_HEADER] = request_id
+            record_request(request, response.status_code, time.perf_counter() - started)
+            return response
 
     async def _authenticated(request: Any, call_next: Any) -> Any:
         """Authenticate the request and propagate its principal."""

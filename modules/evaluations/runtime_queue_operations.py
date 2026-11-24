@@ -20,6 +20,7 @@ from modules.evaluations.runtime_host import EvaluationRuntimeHost
 from modules.limits.errors import LimitExceeded
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
+from shared.correlation import current_request_id
 from shared.errors import IdempotencyConflict, IdempotencyKeyAlreadyExists
 from shared.request_context import (
     effective_org_id,
@@ -151,6 +152,7 @@ class EvaluationQueueOperationsMixin(EvaluationRuntimeHost):
             evaluation_id=evaluation_id,
             evaluation_suite_id=suite_id,
             idempotency_key=key,
+            request_id=current_request_id(),
             status=ExecutionJobStatus.QUEUED,
             created_at=timestamp,
             updated_at=timestamp,
