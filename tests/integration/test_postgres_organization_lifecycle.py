@@ -281,6 +281,22 @@ def test_two_simultaneous_deletion_requests_have_one_effect(world):
     assert len(events) == 1 and state(world) == "deletion_requested"
 
 
+def test_two_workers_ticking_the_purge_together_still_converge(world):
+    """Scale-out safety: concurrent purge ticks never lose checkpoint updates."""
+    a = world["a"][0].id
+    assert request_deletion(world).status_code == 200
+    assert op(world, "purge-now", "--confirm-organization-name", "Org A") == 0
+    for _ in range(40):
+        race(
+            lambda: world["worker"].organization_purge_service.tick(),
+            lambda: world["operator"].organization_purge_service.tick(),
+        )
+        if state(world) == "deleted":
+            break
+    assert state(world) == "deleted"
+    assert set(counts(world, a)) == {"organization_lifecycle", "audit_events"}
+
+
 def test_cancel_racing_operator_purge_never_leaves_a_mixed_organization(world):
     a = world["a"][0].id
     assert request_deletion(world).status_code == 200
