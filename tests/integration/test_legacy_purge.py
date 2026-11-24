@@ -191,6 +191,11 @@ def test_row_policies_still_isolate_tenants_after_the_purge(
 # A new index must be added here with its reason; a removed one must leave.
 INDEX_JUSTIFICATIONS = {
     "product_records_pkey": "record identity",
+    "platform_controls_pkey": "the single switches row",
+    "operator_actions_pkey": "append-only audit identity",
+    "operator_actions_at_idx": "newest operator actions first",
+    "operator_actions_org_idx": "one organization's operator actions",
+    "org_quarantines_pkey": "one quarantine record per organization",
     "product_schema_migrations_pkey": "applied versions",
     "product_login_throttle_pkey": "one bucket per key",
     "product_login_throttle_window_idx": "bounded pruning of old buckets",
@@ -302,12 +307,20 @@ def test_every_index_of_the_schema_is_justified(isolated_postgres_url):
         "tenant_scheduler_state",
         "usage_ledger",
         "usage_daily",
+        "platform_controls",
+        "operator_actions",
+        "org_quarantines",
     }
-    assert not _scalar(
-        isolated_postgres_url,
-        "SELECT 1 FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid "
-        "WHERE c.relnamespace = current_schema()::regnamespace AND NOT t.tgisinternal",
-    )
+    triggers = {
+        row[0]
+        for row in _scalar(
+            isolated_postgres_url,
+            "SELECT t.tgname FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid "
+            "WHERE c.relnamespace = current_schema()::regnamespace "
+            "AND NOT t.tgisinternal",
+        )
+    }
+    assert triggers == {"operator_actions_no_change", "operator_actions_no_truncate"}
 
 
 def test_purged_collections_never_overlap_the_registry():

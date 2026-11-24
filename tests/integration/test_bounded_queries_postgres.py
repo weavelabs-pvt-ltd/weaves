@@ -242,7 +242,7 @@ def test_migration_28_is_the_schema_head_and_creates_every_index(
 ):
     store = ProductPostgresStore(isolated_postgres_url)
     try:
-        assert SCHEMA_HEAD_VERSION == 28 == BOUNDED_QUERIES_MIGRATION[0]
+        assert BOUNDED_QUERIES_MIGRATION[0] == 28 <= SCHEMA_HEAD_VERSION
         with store.pool.connection() as connection:
             names = {
                 row[0]

@@ -475,7 +475,8 @@ def test_database_at_previous_head_applies_only_the_newest_step():
     ]
     assert versions == [SCHEMA_HEAD_VERSION]
     sql = "\n".join(statement for statement, _ in connection.statements)
-    assert "CREATE INDEX IF NOT EXISTS workflow_runs_running_idx" in sql
+    assert "CREATE TABLE IF NOT EXISTS platform_controls" in sql
+    assert "workflow_runs_running_idx" not in sql
     assert "limits_turn_queued_org_idx" not in sql
     assert "waitlist_entry_email_uq" not in sql
     assert "organization_slug_uq" not in sql
@@ -484,8 +485,8 @@ def test_database_at_previous_head_applies_only_the_newest_step():
 
 def test_migration_list_is_contiguous_append_only_history():
     # Version 20 is the operator-activated catalog step, recorded outside the list.
-    # 27 is reserved for Phase 5.3 until it merges.
+    # 27 is reserved for Phase 5.3 until it merges; 29 (once 6.2's) is unused.
     full = [*range(1, 20), *range(21, SCHEMA_HEAD_VERSION + 1)]
     assert sorted(set(LISTED_VERSIONS)) == LISTED_VERSIONS
-    assert set(full) - set(LISTED_VERSIONS) <= {27}
-    assert SCHEMA_HEAD_VERSION == 28
+    assert set(full) - set(LISTED_VERSIONS) <= {27, 29}
+    assert SCHEMA_HEAD_VERSION == 30

@@ -67,10 +67,13 @@ def world(isolated_postgres_url, monkeypatch, tmp_path):
 
 
 def tables(world):
+    # operator_actions is append-only (it refuses TRUNCATE by design); the real
+    # restore loads a dump into an empty database rather than truncating.
     with psycopg.connect(world["url"]) as connection:
         found = connection.execute(
             "SELECT tablename FROM pg_tables WHERE schemaname = current_schema() "
-            "AND tablename <> 'product_schema_migrations' ORDER BY tablename"
+            "AND tablename NOT IN ('product_schema_migrations', 'operator_actions') "
+            "ORDER BY tablename"
         ).fetchall()
     return [name for (name,) in found]
 

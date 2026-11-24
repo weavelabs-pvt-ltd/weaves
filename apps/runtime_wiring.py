@@ -177,18 +177,15 @@ def _compose_with_model_client(
     controls_store: ControlsStore = (
         PostgresControlsStore(store) if store is not None else MemoryControlsStore()
     )
-    controls = PlatformControls(
-        controls_store.load, admissions_default=policy.config.admissions_paused
-    )
     runtime.controls_store = controls_store
-    runtime.platform_controls = controls
     runtime.operator_audit = OperatorAudit(controls_store)
     runtime.admission = build_admission_service(
         store=store,
         repositories=repositories,
         lock=store.acquire_advisory_transaction_lock if store is not None else None,
-        controls=controls,
+        controls_store=controls_store,
     )
+    runtime.platform_controls = cast(PlatformControls, runtime.admission.controls)
     capability_services = configure_capability_services(runtime)
     runtime.attach_capability_services(capability_services)
     return runtime

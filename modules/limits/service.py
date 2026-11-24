@@ -75,6 +75,7 @@ class AdmissionService:
         self._counts = counts
         self._lock = lock
         self._controls = controls
+        self.controls = controls
 
     def _paused(self, limits: OrgLimits) -> bool:
         """The effective pause: the runtime switch over the environment default."""

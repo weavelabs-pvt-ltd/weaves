@@ -18,6 +18,7 @@ from infrastructure.persistence.admission_counts import (
 from modules.limits.policy import OverridingLimitPolicy
 from modules.limits.service import AdmissionService
 from modules.platform_controls.controls import PlatformControls
+from modules.platform_controls.store import ControlsStore
 
 
 def build_admission_service(
@@ -26,7 +27,7 @@ def build_admission_service(
     repositories: ProductRepositorySet,
     lock: Callable[[str], None] | None,
     env: Mapping[str, str] | None = None,
-    controls: PlatformControls | None = None,
+    controls_store: ControlsStore | None = None,
 ) -> AdmissionService:
     """Build limits (environment defaults plus stored overrides) and admission.
 
@@ -48,5 +49,13 @@ def build_admission_service(
         PostgresAdmissionCounts(store)
         if store is not None
         else MemoryAdmissionCounts(repositories)
+    )
+    # The switches read the same environment defaults the admission policy uses.
+    controls = (
+        None
+        if controls_store is None
+        else PlatformControls(
+            controls_store.load, admissions_default=base.config.admissions_paused
+        )
     )
     return AdmissionService(policy, counts, lock, controls)
