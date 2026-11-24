@@ -68,6 +68,16 @@ def test_model_profile_cost_budget_records_usage_and_fails_over_budget_run():
     client = TestClient(create_app(runtime))
 
     with client:
+        # A cost limit needs a priced model, so the prices come first.
+        configured = client.patch(
+            "/api/v0/model-profiles/local-model-profile",
+            json={
+                "cost_budget_usd": "0.000001",
+                "input_cost_per_million_tokens_usd": "1",
+                "output_cost_per_million_tokens_usd": "1",
+            },
+        )
+        assert configured.status_code == 200
         agent = client.post(
             "/api/v0/agents",
             json={
@@ -76,16 +86,6 @@ def test_model_profile_cost_budget_records_usage_and_fails_over_budget_run():
                 "max_run_cost_usd": "0.000001",
             },
         ).json()
-        profile_id = agent["current_version"]["model_profile_id"]
-        configured = client.patch(
-            f"/api/v0/model-profiles/{profile_id}",
-            json={
-                "cost_budget_usd": "0.000001",
-                "input_cost_per_million_tokens_usd": "1",
-                "output_cost_per_million_tokens_usd": "1",
-            },
-        )
-        assert configured.status_code == 200
 
         _task, turn, agent_run, _artifacts = run_task(
             client, runtime, "Explain the knowledge base", agent_id=agent["id"]
@@ -98,24 +98,18 @@ def test_model_profile_cost_budget_records_usage_and_fails_over_budget_run():
 
 
 def test_cost_budget_requires_configured_input_and_output_rates():
+    """A cost limit on an unpriced model is rejected when it is set, not at run time.
+
+    Run-time handling of versions written before this check lives in
+    test_cost_limit_pricing.py.
+    """
     runtime = LocalPlatformRuntime()
     client = TestClient(create_app(runtime))
 
     with client:
-        agent = client.post(
-            "/api/v0/agents",
-            json={"name": "Unpriced assistant", "instructions": "Be concise."},
-        ).json()
-        profile_id = agent["current_version"]["model_profile_id"]
         configured = client.patch(
-            f"/api/v0/model-profiles/{profile_id}",
+            "/api/v0/model-profiles/local-model-profile",
             json={"cost_budget_usd": "1"},
         )
-        assert configured.status_code == 200
-
-        _task, turn, _agent_run, _artifacts = run_task(
-            client, runtime, "Explain the knowledge base", agent_id=agent["id"]
-        )
-        assert turn.status.value == "failed"
-        assert turn.error is not None
-        assert turn.error.code == "task.agent_run_failed"
+        assert configured.status_code == 422
+        assert "no token prices" in configured.json()["detail"]

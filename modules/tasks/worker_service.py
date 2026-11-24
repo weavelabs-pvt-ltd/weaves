@@ -26,6 +26,7 @@ from contracts.v1 import (
     WorkflowRun,
 )
 from modules.agents.execution_service import AgentExecutionService
+from modules.tasks.turn_failures import is_expected_failure, turn_failure_summary
 from shared.clock import new_id, utc_now
 from shared.correlation import bind_context, note, principal_digest
 from shared.request_context import (
@@ -119,6 +120,7 @@ class TaskWorkerService:
                 update={
                     "active_turn_status": TaskTurnStatus.RUNNING,
                     "latest_turn_status": TaskTurnStatus.RUNNING,
+                    "latest_turn_error": None,
                     "updated_at": claimed.updated_at,
                 }
             ).model_dump()
@@ -242,12 +244,14 @@ class TaskWorkerService:
                         "status": TaskTurnStatus.FAILED,
                         "worker_id": None,
                         "finished_at": now,
+                        # Automatic attempts are used up, but the failure was the
+                        # worker's, not the turn's: a person may retry it.
                         "error": ErrorSummary(
                             code="task.worker_lease_expired",
                             summary=(
                                 "The task worker stopped before completing this turn."
                             ),
-                            retryable=False,
+                            retryable=True,
                         ),
                         "updated_at": now,
                     }
@@ -262,6 +266,7 @@ class TaskWorkerService:
                         "active_turn_id": None,
                         "active_turn_status": None,
                         "latest_turn_status": TaskTurnStatus.FAILED,
+                        "latest_turn_error": replacement.error,
                         "latest_response_summary": (
                             "Task turn failed after worker recovery."
                         ),
@@ -288,6 +293,7 @@ class TaskWorkerService:
                     update={
                         "active_turn_status": TaskTurnStatus.QUEUED,
                         "latest_turn_status": TaskTurnStatus.QUEUED,
+                        "latest_turn_error": None,
                         "updated_at": now,
                     }
                 )
@@ -357,6 +363,7 @@ class TaskWorkerService:
                     "active_turn_id": None,
                     "active_turn_status": None,
                     "latest_turn_status": TaskTurnStatus.SUCCEEDED,
+                    "latest_turn_error": None,
                     "latest_response_summary": content[:2000],
                     "updated_at": now,
                 }
@@ -383,12 +390,18 @@ class TaskWorkerService:
     ) -> TaskTurn:
         """Store a sanitized failure summary and allow task retry."""
         now = utc_now()
-        failure = ErrorSummary(
-            code="task.agent_run_failed",
-            summary="The agent could not complete this task turn.",
-            retryable=True,
+        failure = turn_failure_summary(error)
+        # The owner sees only the user-safe summary. The operator log keeps the
+        # cause, with a stack trace for unexpected failures.
+        _log.warning(
+            "task turn failed",
+            exc_info=None if is_expected_failure(failure) else error,
+            extra={
+                "event": "turn_failed",
+                "failure_code": failure.code,
+                "error_type": type(error).__name__,
+            },
         )
-        del error
         run = self.runs.find_by_idempotency_key(
             run_key,
             turn.requested_by_principal_id,
@@ -428,6 +441,7 @@ class TaskWorkerService:
                     "active_turn_id": None,
                     "active_turn_status": None,
                     "latest_turn_status": TaskTurnStatus.FAILED,
+                    "latest_turn_error": failure,
                     "latest_response_summary": failure.summary,
                     "updated_at": now,
                 }

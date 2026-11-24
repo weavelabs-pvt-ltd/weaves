@@ -58,6 +58,19 @@ class AgentTemplateCreateRequest(BaseModel):
     output_schema: dict[str, JsonValue] | None = None
 
 
+class AgentBudgetRequest(BaseModel):
+    """An agent budget as JSON clients send it; the strict contract is built from it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_runtime_seconds: int = Field(default=300, ge=1, le=3600)
+    max_tool_calls: int = Field(default=10, ge=0, le=100)
+    max_output_tokens: int = Field(default=4096, ge=1, le=32768)
+    max_run_cost_usd: Decimal | None = Field(
+        default=None, gt=0, le=100000, max_digits=18, decimal_places=9
+    )
+
+
 class AgentPatchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -69,7 +82,7 @@ class AgentPatchRequest(BaseModel):
     allowed_capability_ids: tuple[str, ...] | None = None
     skill_ids: tuple[str, ...] | None = Field(default=None, max_length=50)
     skill_version_ids: tuple[str, ...] | None = Field(default=None, max_length=5)
-    budget: AgentBudget | None = None
+    budget: AgentBudgetRequest | None = None
     output_schema: dict[str, JsonValue] | None = None
 
 
@@ -268,6 +281,8 @@ def _register_agent_routes_group_3(
         }
         if "output_schema" in requested_changes:
             changes["clear_output_schema"] = requested_changes["output_schema"] is None
+        if patch.budget is not None:
+            changes["budget"] = AgentBudget(**patch.budget.model_dump())
         if not changes:
             raise HTTPException(status_code=400, detail="No changes supplied")
         try:

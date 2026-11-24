@@ -78,6 +78,42 @@
       "title": "AgentSkillSnapshot",
       "type": "object"
     },
+    "ErrorSummary": {
+      "additionalProperties": false,
+      "description": "Bounded user-safe error details; stack traces and provider payloads do not belong here.",
+      "properties": {
+        "code": {
+          "maxLength": 128,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "summary": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "summary"
+      ],
+      "title": "ErrorSummary",
+      "type": "object"
+    },
     "TaskAudience": {
       "description": "Visibility boundary for a durable task conversation.",
       "enum": [
@@ -243,6 +279,17 @@
       ],
       "default": null,
       "title": "Latest Response Summary"
+    },
+    "latest_turn_error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ErrorSummary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "latest_turn_id": {
       "anyOf": [

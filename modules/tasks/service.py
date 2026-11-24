@@ -392,6 +392,7 @@ class TaskService(TaskLifecycleMixin):
                     "active_turn_status": TaskTurnStatus.QUEUED,
                     "latest_turn_id": turn_id,
                     "latest_turn_status": TaskTurnStatus.QUEUED,
+                    "latest_turn_error": None,
                     "updated_at": now,
                 }
             ).model_dump()

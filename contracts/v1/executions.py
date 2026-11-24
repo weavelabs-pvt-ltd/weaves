@@ -122,6 +122,8 @@ class ErrorSummary(FrozenProductContract):
 
     code: Identifier
     summary: str = Field(min_length=1, max_length=1000)
+    # Whether trying the same work again can succeed. False means something must
+    # change first; a task turn with such an error cannot be retried.
     retryable: bool = False
 
     @field_validator("summary")

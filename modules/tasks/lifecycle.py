@@ -16,11 +16,14 @@ from contracts.v1 import (
 )
 from modules.limits.service import AdmissionService
 from shared.clock import utc_now
+from shared.errors import ConfigurationRejected
 from shared.request_context import (
     effective_org_id,
     effective_principal_id,
     effective_workspace_id,
 )
+
+TURN_NOT_RETRYABLE = "task.turn_not_retryable"
 
 
 class TaskLifecycleMixin:
@@ -71,6 +74,7 @@ class TaskLifecycleMixin:
                         "active_turn_id": None,
                         "active_turn_status": None,
                         "latest_turn_status": TaskTurnStatus.CANCELLED,
+                        "latest_turn_error": None,
                         "updated_at": now,
                     }
                 ).model_dump()
@@ -97,6 +101,13 @@ class TaskLifecycleMixin:
             raise KeyError(turn_id)
         if turn.status is not TaskTurnStatus.FAILED:
             raise ValueError("only failed task turns can be retried")
+        if turn.error is not None and not turn.error.retryable:
+            # The task keeps its agent version, so a retry would fail the same way.
+            raise ConfigurationRejected(
+                TURN_NOT_RETRYABLE,
+                "This turn failed for a reason a retry cannot fix. Fix the cause, "
+                "then start a new task.",
+            )
         if task.status is not TaskStatus.OPEN or task.active_turn_id is not None:
             raise ValueError("only idle open tasks can retry a turn")
         now = utc_now()
@@ -121,6 +132,7 @@ class TaskLifecycleMixin:
                     "active_turn_status": TaskTurnStatus.QUEUED,
                     "latest_turn_id": turn_id,
                     "latest_turn_status": TaskTurnStatus.QUEUED,
+                    "latest_turn_error": None,
                     "updated_at": now,
                 }
             ).model_dump()

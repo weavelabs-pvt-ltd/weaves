@@ -22,6 +22,7 @@ from modules.agents.runtime_run_helpers import (
     bound_workflow_references,
 )
 from modules.agents.runtime_state import RunCostBudgetExceeded
+from modules.models.pricing import ensure_cost_limits_are_enforceable
 from modules.usage.cost import estimate_cost_usd
 from shared.request_context import effective_org_id, effective_workspace_id
 
@@ -118,16 +119,11 @@ class AgentRunTargetsMixin(RuntimeCapabilityHost):
         profile = self.model_profiles.get_scoped(
             agent_version.model_profile_id, effective_org_id()
         )
-        if (
-            agent_version.budget.max_run_cost_usd is not None
-            or profile.cost_budget_usd is not None
-        ) and (
-            profile.input_cost_per_million_tokens_usd is None
-            or profile.output_cost_per_million_tokens_usd is None
-        ):
-            raise ValueError(
-                "Cost budgets require input and output token rates on the model profile"
-            )
+        # Publishing already rejects this; agent versions written before that check
+        # existed are stopped here with the same actionable error.
+        ensure_cost_limits_are_enforceable(
+            profile, agent_version.budget.max_run_cost_usd
+        )
         provider = self.providers.get_scoped(profile.provider_id, effective_org_id())
         if profile.status is not ModelProfileStatus.ACTIVE:
             raise ValueError("model profile must be active to run")

@@ -74,3 +74,8 @@ class AgentRuntimeBudgetExceeded(RuntimeError):
 
     code = "agent.runtime_budget_exceeded"
     retryable = False
+
+    def __init__(self, message: str, *, limit_seconds: int | None = None) -> None:
+        """Keep the configured limit so the task owner can be told which one."""
+        super().__init__(message)
+        self.limit_seconds = limit_seconds

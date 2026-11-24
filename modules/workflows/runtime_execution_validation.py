@@ -17,6 +17,7 @@ from contracts.v1 import (
     WorkflowStepCondition,
     WorkflowVersion,
 )
+from modules.models.pricing import ensure_cost_limits_are_enforceable
 from modules.workflows.runtime_execution_host import WorkflowExecutionRuntimeHost
 from shared.request_context import effective_org_id, effective_workspace_id
 
@@ -85,17 +86,9 @@ class WorkflowExecutionValidationMixin(WorkflowExecutionRuntimeHost):
                 or provider.status is not ModelProviderStatus.ACTIVE
             ):
                 raise ValueError("all workflow agents need active model configuration")
-            if (
-                agent_version.budget.max_run_cost_usd is not None
-                or profile.cost_budget_usd is not None
-            ) and (
-                profile.input_cost_per_million_tokens_usd is None
-                or profile.output_cost_per_million_tokens_usd is None
-            ):
-                raise ValueError(
-                    "Cost budgets require input and output token rates "
-                    "on the model profile"
-                )
+            ensure_cost_limits_are_enforceable(
+                profile, agent_version.budget.max_run_cost_usd
+            )
             available_capabilities.update(agent_version.allowed_capability_ids)
             agent_versions.append(agent_version)
             agent_definitions.append(definition)

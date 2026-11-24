@@ -22,6 +22,11 @@ from contracts.v1 import (
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
 from modules.models.catalog import ModelCatalogService, model_card_metadata
+from modules.models.pricing import (
+    PRICING_FIELDS,
+    ensure_cost_limits_are_enforceable,
+    ensure_pricing_is_complete,
+)
 from modules.models.provider_registration import store_model_provider
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
@@ -411,6 +416,9 @@ class ModelService:
         updated = current.model_copy(update=changes)
         # Run strict validation after model_copy; copy intentionally skips it.
         updated = ModelProfile.model_validate(updated.model_dump())
+        if PRICING_FIELDS & changes.keys():
+            ensure_pricing_is_complete(updated)
+            ensure_cost_limits_are_enforceable(updated)
         with self._open_unit_of_work():
             self.model_profiles.put(updated)
             self.audit_events.create(
@@ -424,7 +432,7 @@ class ModelService:
                     target_id=profile_id,
                     summary="Model profile updated",
                     request_id=profile_id,
-                    metadata={},
+                    metadata={"changed_fields": sorted(set(changes) - {"updated_at"})},
                     created_at=timestamp,
                 )
             )

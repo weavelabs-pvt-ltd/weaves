@@ -31,6 +31,20 @@ class TenantInactive(PermissionError):
     retryable = False
 
 
+class ConfigurationRejected(ValueError):
+    """A user-correctable configuration problem.
+
+    ``code`` is stable for clients and tests; ``message`` says what to change and is
+    safe to show the person who made the request. As a ``ValueError`` it maps to an
+    HTTP 422 at the API boundary.
+    """
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
 class ModelGatewayError(RuntimeError):
     """Safe model failure details suitable for a run error summary."""
 
