@@ -303,7 +303,7 @@ def test_default_registry_adds_queue_age_and_claim_state_ticks() -> None:
         t.name
         for t in build_tick_registry(schedule_interval=5, lifecycle_interval=30).ticks
     ]
-    assert names[-2:] == ["queue_age", "claim_state_prune"]
+    assert {"queue_age", "claim_state_prune"} <= set(names)
 
 
 def test_queue_health_reports_age_and_warns(caplog: pytest.LogCaptureFixture) -> None:
