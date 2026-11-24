@@ -90,8 +90,12 @@ trailing slash):
 4. Post installation: set Setup URL to the installation URL above and tick
    "Redirect on update".
 5. Webhook: untick Active (Weaves does not use webhooks).
-6. Repository permissions: Metadata Read-only, Issues Read-only, Pull requests
-   Read-only. No account or organization permissions.
+6. Repository permissions: Contents Read-only, Metadata Read-only, Issues
+   Read-only, Pull requests Read-only. No account or organization permissions.
+   Contents is needed because the connector searches code (`/search/code`) and
+   reads file contents through the git trees and blobs APIs
+   (`clients/integrations/github.py`); without it only issue search works on
+   private repositories.
 7. Where can this app be installed: choose "Any account" if customers will
    install it, otherwise "Only on this account". Create the app.
 8. On the app page copy the App ID (`WEAVES_GITHUB_APP_ID`) and the slug from
