@@ -174,6 +174,8 @@ def run(config):
     result = {
         "config": config,
         "started_at": started,
+        "window_start": window_start.isoformat(),
+        "window_end": window_end.isoformat(),
         "window_seconds": (window_end - window_start).total_seconds(),
         "a": org_summary(a["org_id"], window),
         "b": org_summary(b["org_id"], window),

@@ -185,10 +185,24 @@ class Peaks:
                 "cpu_mean_percent": round(
                     sum(self._cpu[service]) / len(self._cpu[service]), 1
                 ),
+                "cpu_p95_percent": round(percentile(self._cpu[service], 95) or 0.0, 1),
                 "mem_peak_mib": round(max(self._mem[service]), 1),
             }
             for service in sorted(self._cpu)
         }
+
+
+def window_peaks(
+    samples: Sequence[tuple[datetime, str, float, float]],
+    start: datetime,
+    end: datetime,
+) -> dict[str, dict[str, float]]:
+    """Peaks over only the samples taken inside ``[start, end]``."""
+    peaks = Peaks()
+    for taken, service, cpu, mem in samples:
+        if start <= taken <= end:
+            peaks.add(service, cpu, mem)
+    return peaks.report()
 
 
 def within(value: float | None, bound: float) -> bool:
@@ -221,6 +235,8 @@ def noisy_row(result: dict, peaks: dict[str, dict[str, float]]) -> dict:
         + a["statuses"].get("failed", 0)
         + unexpected,
         "cpu_peak_percent": {s: v["cpu_peak_percent"] for s, v in peaks.items()},
+        "cpu_p95_percent": {s: v["cpu_p95_percent"] for s, v in peaks.items()},
+        "cpu_mean_percent": {s: v["cpu_mean_percent"] for s, v in peaks.items()},
         "mem_peak_mib": {s: v["mem_peak_mib"] for s, v in peaks.items()},
         "api_pool_peak": sampler["api_pool_in_use_peak"],
         "worker_pool_peak": sampler["worker_pool_in_use_peak"],

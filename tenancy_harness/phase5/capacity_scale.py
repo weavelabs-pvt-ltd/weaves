@@ -18,6 +18,7 @@ walks a full keyset pagination to prove the largest response stays one page.
 
 import argparse
 import json
+import threading
 import time
 
 import httpx
@@ -276,6 +277,52 @@ def history_stage(tenants, args):
     }
 
 
+def api_capacity(tenants, threads, seconds):
+    """Closed-loop load on Home polling across many tenants: the API's ceiling.
+
+    Each thread cycles through the tenants (so no tenant nears its own request
+    limits) calling the two requests an open tab repeats. The achieved rate is
+    the single API process's throughput on the pinned CPUs, shared with the
+    database; latency is what a poller sees at that rate.
+    """
+    end = time.monotonic() + seconds
+    lock = threading.Lock()
+    seconds_list, statuses = [], {}
+
+    def worker(offset):
+        turn, mine, seen = offset, [], {}
+        while time.monotonic() < end:
+            actor = tenants[turn % len(tenants)]["admin"]["headers"]
+            path = ("/overview?tz_offset_minutes=0", "/tasks?limit=20")[turn % 2]
+            turn += threads
+            started = time.monotonic()
+            try:
+                status = request("GET", path, actor).status_code
+            except httpx.HTTPError:
+                status = 0
+            mine.append(time.monotonic() - started)
+            seen[status] = seen.get(status, 0) + 1
+        with lock:
+            seconds_list.extend(mine)
+            for status, count in seen.items():
+                statuses[status] = statuses.get(status, 0) + count
+
+    pool = [threading.Thread(target=worker, args=(i,)) for i in range(threads)]
+    started = time.monotonic()
+    for thread in pool:
+        thread.start()
+    for thread in pool:
+        thread.join()
+    elapsed = time.monotonic() - started
+    return {
+        "threads": threads,
+        "organizations": len(tenants),
+        "requests_per_second": round(len(seconds_list) / elapsed, 1),
+        "latency_seconds": summarize(seconds_list),
+        "statuses": statuses,
+    }
+
+
 def run(args):
     """All stages; the result is written for the orchestrator."""
     tenants = []
@@ -285,6 +332,10 @@ def run(args):
         "started_at": now(),
         "stages": stages,
         "history": history_stage(tenants, args),
+        "api_capacity": [
+            api_capacity(tenants, threads, args.capacity_seconds)
+            for threads in (2, 4, 8, 16)
+        ],
     }
     write_result(args.label, result)
     return result
@@ -298,6 +349,7 @@ def main(argv=None):
     p.add_argument("--label", required=True)
     p.add_argument("--stages", type=lambda s: [int(x) for x in s.split(",")])
     p.add_argument("--history", type=int, default=6000)
+    p.add_argument("--capacity-seconds", type=int, default=30, dest="capacity_seconds")
     p.add_argument("--idle-seconds", type=int, default=60, dest="idle_seconds")
     args = p.parse_args(argv)
     args.stages = args.stages or [10, 50, 100, 200]

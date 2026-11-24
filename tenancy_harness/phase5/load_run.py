@@ -21,9 +21,15 @@ import secrets
 import subprocess
 import threading
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
-from tenancy_harness.phase5.load_stats import Peaks, noisy_row, stats_row
+from tenancy_harness.phase5.load_stats import (
+    Peaks,
+    noisy_row,
+    stats_row,
+    window_peaks,
+)
 from tenancy_harness.run_support import Compose, execute, revision, setup_private
 
 # (slots, limits mode, per-organization running cap, B seconds between tasks).
@@ -61,6 +67,7 @@ class StatsSampler(threading.Thread):
         super().__init__(daemon=True)
         self.project, self.stop_event = project, threading.Event()
         self.peaks = Peaks()
+        self.samples = []  # (taken, service, cpu percent, MiB) for window reports
 
     def reset(self):
         """Start a fresh phase and return the previous peaks report."""
@@ -85,6 +92,7 @@ class StatsSampler(threading.Thread):
                     service, cpu, mem = stats_row(row)
                     if service in SERVICES:
                         self.peaks.add(service, cpu, mem)
+                        self.samples.append((datetime.now(UTC), service, cpu, mem))
             self.stop_event.wait(1.0)
 
     def stop(self):
@@ -153,10 +161,15 @@ def noisy_phase(stack, sampler, cell, args):
         "--b-interval",
         str(interval),
     )
-    peaks = sampler.reset()
+    sampler.reset()
     result = stack.result(label)
     if "error" in result:
         return {"slots": slots, "mode": mode, "exit_code": code, "result": result}
+    peaks = window_peaks(
+        sampler.samples,
+        datetime.fromisoformat(result["window_start"]),
+        datetime.fromisoformat(result["window_end"]),
+    )
     return {
         "slots": slots,
         "mode": mode,

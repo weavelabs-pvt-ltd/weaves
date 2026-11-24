@@ -1,7 +1,7 @@
 """Slice 5.6 load-run helpers: percentiles, Prometheus parsing, docker stats."""
 
 import math
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -80,8 +80,28 @@ def test_docker_stats_row_and_peaks():
         "samples": 2,
         "cpu_peak_percent": 30.0,
         "cpu_mean_percent": 20.0,
+        "cpu_p95_percent": 29.0,
         "mem_peak_mib": 100.0,
     }
+
+
+def test_window_peaks_keep_only_samples_inside_the_window():
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+
+    def at(seconds):
+        return base + timedelta(seconds=seconds)
+
+    samples = [
+        (at(0), "api", 100.0, 70.0),  # provisioning burst, before the window
+        (at(10), "api", 20.0, 71.0),
+        (at(20), "api", 40.0, 72.0),
+        (at(30), "api", 90.0, 90.0),  # drain, after the window
+    ]
+    report = s.window_peaks(samples, at(5), at(25))
+    assert report["api"]["samples"] == 2
+    assert report["api"]["cpu_peak_percent"] == 40.0
+    assert report["api"]["mem_peak_mib"] == 72.0
+    assert s.window_peaks(samples, at(100), at(200)) == {}
 
 
 def _result(p95, maximum, failed=0, statuses=None):
