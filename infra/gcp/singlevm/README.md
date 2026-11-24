@@ -437,3 +437,21 @@ and preserved the owner and empty work lists. All four public HTTPS hostnames
 returned 200 directly from `8.231.88.4`; HTTP redirected to HTTPS with 308.
 Snapshot `weaves-single-clean-20261115` records the fresh installation separately
 from the historical archive.
+
+## Compatibility check and rollback rehearsal
+
+`scripts/release_rehearsal.py run` proves, before a release that touches
+`infrastructure/database`, that the oldest supported rollback image (the commit
+pinned as `min_rollback_revision` in `release_policy.json`) still works on the
+upgraded schema. On a throwaway local Docker stack (own network, PostgreSQL,
+generated key; no cloud, registry or production access) it seeds two tenants
+with the old image, upgrades to the candidate, writes new data, rolls back to
+the old image, writes again, and rolls forward. It checks that data, workflow to
+agent references, account sessions, tenant isolation and Fernet-encrypted
+secrets survive every swap, and that API and worker stay up. The old image is
+built with `git archive <min_rollback_revision>` (or `--old-image`). The result
+is `release-compat.json`; `release_rehearsal.py verify` fails closed on a
+missing, failed, dirty or wrong-revision manifest. CI runs it, and the real-stack
+tenancy suite, on pushes to main only when the schema or the rehearsal changed,
+and the deploy job requires both. Raising `min_rollback_schema_version` means
+raising `min_rollback_revision` in the same change.
