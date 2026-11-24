@@ -8,9 +8,9 @@ from pathlib import Path
 import httpx
 import psycopg
 from cryptography.fernet import Fernet
-from infrastructure.database.approvals_removal import REMOVED_COLLECTIONS
 
 from apps.runtime_wiring import compose_platform_runtime
+from infrastructure.database.approvals_removal import REMOVED_COLLECTIONS
 from infrastructure.database.legacy_purge import PURGED_COLLECTIONS
 from infrastructure.database.pool import open_postgres_pool
 from infrastructure.database.store import ProductPostgresStore
