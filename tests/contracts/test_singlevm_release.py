@@ -156,3 +156,21 @@ def test_release_refuses_while_a_restore_is_unreconciled(tmp_path):
         prepare_tombstones(tmp_path)
     (directory / "restore-reconciled-abc.json").write_text("{}")
     prepare_tombstones(tmp_path)
+
+
+def test_restore_tool_is_bundled_and_installed():
+    import deploy
+
+    assert "restore_reconcile.py" in deploy.BUNDLE_FILES
+    assert "restore_reconcile.py" in release.TOOL_FILES
+    assert set(release.TOOL_FILES) <= set(deploy.BUNDLE_FILES)
+
+
+def test_restore_refusal_writes_no_ledger_row(tmp_path):
+    from release_runtime import prepare_tombstones
+
+    (tmp_path / "tombstones").mkdir()
+    (tmp_path / "tombstones" / "restore-pending-x.json").write_text("{}")
+    with pytest.raises(RuntimeError, match="not reconciled"):
+        prepare_tombstones(tmp_path)
+    assert not (tmp_path / "release-ledger.jsonl").exists()
