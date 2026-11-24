@@ -59,5 +59,8 @@ class OrganizationLimitOverride(MutableOrgScopedContract):
     workflows: int | None = Field(default=None, ge=0, le=100_000)
     tool_calls_per_day: int | None = Field(default=None, ge=1, le=1_000_000_000)
     storage_tasks: int | None = Field(default=None, ge=1, le=1_000_000_000)
+    # Model-usage caps (slice 5.3): settled plus outstanding usage per UTC day/month.
+    tokens_per_day: int | None = Field(default=None, ge=1, le=1_000_000_000)
+    tokens_per_month: int | None = Field(default=None, ge=1, le=1_000_000_000)
     updated_by: str = Field(min_length=1, max_length=320)
     reason: str = Field(min_length=1, max_length=500)

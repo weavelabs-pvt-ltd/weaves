@@ -31,6 +31,9 @@ from modules.overview.service import OverviewService
 from modules.skills.service import SkillsService
 from modules.tasks.service import TaskService
 from modules.tasks.worker_service import TaskWorkerService
+from modules.usage.queries import UsageQueries
+from modules.usage.reconciler import UsageReconciler
+from modules.usage.service import UsageService
 from modules.waitlist.service import WaitlistService
 from modules.workflows.automation_service import WorkflowAutomationService
 from modules.workflows.definition_service import WorkflowDefinitionService
@@ -76,4 +79,7 @@ class CapabilityServiceSet:
     task_worker_service: TaskWorkerService
     workspace_access_service: WorkspaceAccessService
     skills_service: SkillsService
+    usage_service: UsageService
+    usage_queries: UsageQueries
+    usage_reconciler: UsageReconciler
     waitlist_service: WaitlistService

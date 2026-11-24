@@ -13,6 +13,7 @@ from application.ports.repository import Repository
 from application.ports.runtime_adapters import PluginDispatcher
 from application.ports.secrets import SecretStore
 from application.ports.throttling import LoginRateLimiter
+from application.ports.usage import UsageLedger
 from clients.integrations.github import GitHubReadPlugin
 from clients.integrations.jira import JiraReadPlugin
 from clients.integrations.mcp import McpHttpPlugin
@@ -72,6 +73,7 @@ from contracts.v1 import ModelProvider as ModelProviderContract
 from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
 from modules.auth.runtime_organizations import MockModelIdentifier
 from modules.limits.service import AdmissionService
+from modules.usage.service import UsageSettings
 from shared.keyed_locks import KeyedLockRegistry
 
 
@@ -154,6 +156,8 @@ class RuntimeCompositionInputs(Protocol):
     openai_enabled: bool
     plugin_gateway: PluginDispatcher
     secret_store: SecretStore
+    usage_ledger: UsageLedger
+    usage_settings: UsageSettings
     _repository_set: ProductRepositorySet
     slack_plugin: SlackReadPlugin
 

@@ -11,11 +11,13 @@ import pytest
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
+from application.ports.usage import UsageReservationRequest, UsageSettlement
 from apps.api.app import create_app
 from apps.runtime_wiring import compose_platform_runtime
 from infrastructure.database.pool import open_postgres_pool
 from infrastructure.database.store import ProductPostgresStore
 from modules.auth.organization_retention import PURGE_ORDER
+from shared.clock import utc_now
 from shared.request_context import (
     require_tenant_context,
     reset_request_principal,
@@ -56,6 +58,7 @@ def world(isolated_postgres_url, monkeypatch):
     require_tenant_context(True)
     world = populated_world(api)
     world.update(api=api, worker=worker, operator=operator, url=isolated_postgres_url)
+    seed_usage(world)
     try:
         with ExitStack() as stack:
             world["client"] = stack.enter_context(
@@ -70,6 +73,64 @@ def world(isolated_postgres_url, monkeypatch):
         for runtime in (api, worker, operator):
             runtime.close()
         owner.close()
+
+
+def seed_usage(world):
+    """Two settled calls and one open reservation for each organization."""
+    now = utc_now()
+    for org in ("a", "b"):
+        org_id = world[org][0].id
+        token = set_request_identity("p", org_id, world[org][1].id)
+        try:
+            for key in ("one", "two", "open"):
+                world["api"].usage_ledger.reserve(
+                    UsageReservationRequest(
+                        org_id=org_id,
+                        workspace_id=world[org][1].id,
+                        reservation_key=key,
+                        agent_run_id=key,
+                        run_id="run-" + key,
+                        agent_id="agent",
+                        provider_id="prov",
+                        model_id="model",
+                        reserved_input_tokens=10,
+                        reserved_output_tokens=10,
+                        reserved_cost_nano_usd=None,
+                        now=now,
+                    ),
+                    None,
+                )
+                if key != "open":
+                    world["api"].usage_ledger.settle(
+                        UsageSettlement(
+                            org_id=org_id,
+                            workspace_id=world[org][1].id,
+                            reservation_key=key,
+                            agent_run_id=key,
+                            run_id="run-" + key,
+                            agent_id="agent",
+                            provider_id="prov",
+                            model_id="model",
+                            input_tokens=3,
+                            output_tokens=4,
+                            estimated_cost_nano_usd=7,
+                            outcome="ok",
+                            now=now,
+                        )
+                    )
+        finally:
+            reset_request_principal(token)
+
+
+def usage_rows(world, org):
+    org_id = world[org][0].id
+    return sql(
+        world,
+        "SELECT (SELECT count(*) FROM usage_ledger WHERE org_id = %s), "
+        "(SELECT count(*) FROM usage_daily WHERE org_id = %s)",
+        org_id,
+        org_id,
+    )[0]
 
 
 def sql(world, query, *params):
@@ -181,6 +242,7 @@ def test_full_deletion_purges_everything_but_the_retained_set(world):
     a, b = world["a"][0].id, world["b"][0].id
     before_b, secrets_b = payloads(world, b), secrets_of(world, b)
     assert secrets_of(world, a) > 0 and counts(world, a)["execution_jobs"] == 1
+    assert usage_rows(world, "a") == (3, 1) == usage_rows(world, "b")
     assert request_deletion(world).status_code == 200
     assert op(world, "purge-now", "--confirm-organization-name", "Org A") == 0
     drain(world["worker"])
@@ -199,6 +261,8 @@ def test_full_deletion_purges_everything_but_the_retained_set(world):
     assert actions and all(x.startswith("organization.lifecycle.") for x in actions)
     assert secrets_of(world, a) == 0
     assert payloads(world, b) == before_b and secrets_of(world, b) == secrets_b
+    # Usage dies with the organization (ledger and rollup); the other is intact.
+    assert usage_rows(world, "a") == (0, 0) and usage_rows(world, "b") == (3, 1)
     assert (
         sql(
             world,
@@ -223,7 +287,7 @@ def test_full_deletion_purges_everything_but_the_retained_set(world):
 
 @pytest.mark.parametrize(
     "step",
-    ["begin", "cancel_work", "revoke_credentials", "secrets", "execution_jobs"]
+    ["begin", "cancel_work", "revoke_credentials", "secrets", "usage", "execution_jobs"]
     + [PURGE_ORDER[i] for i in (3, 9, 24, 35, 36)]
     + ["audit_events", "sweep", "finalize"],
 )
@@ -251,6 +315,39 @@ def test_crash_at_each_step_converges_with_restricted_role(world, step):
     assert state(world) == "deleted"
     assert set(counts(world, a)) == {"organization_lifecycle", "audit_events"}
     assert secrets_of(world, a) == 0 and payloads(world, b) == before_b
+    assert usage_rows(world, "a") == (0, 0) and usage_rows(world, "b") == (3, 1)
+
+
+def test_a_settlement_landing_after_deletion_is_swept_by_the_usage_tick(world):
+    org = world["a"]
+    assert request_deletion(world).status_code == 200
+    assert op(world, "purge-now", "--confirm-organization-name", "Org A") == 0
+    drain(world["worker"])
+    assert state(world) == "deleted" and usage_rows(world, "a") == (0, 0)
+    token = set_request_identity("p", org[0].id, org[1].id)
+    try:  # a model call that was in flight when the organization was purged
+        world["api"].usage_ledger.settle(
+            UsageSettlement(
+                org_id=org[0].id,
+                workspace_id=org[1].id,
+                reservation_key="late",
+                agent_run_id="late",
+                run_id="run-late",
+                agent_id="agent",
+                provider_id="prov",
+                model_id="model",
+                input_tokens=1,
+                output_tokens=1,
+                estimated_cost_nano_usd=None,
+                outcome="ok",
+                now=utc_now(),
+            )
+        )
+    finally:
+        reset_request_principal(token)
+    assert usage_rows(world, "a") == (1, 1)
+    assert world["worker"].usage_reconciler.purge_expired() == 2
+    assert usage_rows(world, "a") == (0, 0) and usage_rows(world, "b") == (3, 1)
 
 
 def race(*operations):

@@ -10,15 +10,18 @@ from typing import Literal, cast
 
 import httpx
 
+from application.ports.limits import StaticLimitPolicy, limit_policy_from_env
 from application.ports.product_repositories import ProductRepositorySet
 from application.ports.secrets import SecretStore
 from application.ports.throttling import LoginRateLimiter
+from application.ports.usage import UsageLedger
 from apps.limits_wiring import build_admission_service
 from apps.platform_runtime import LocalPlatformRuntime
 from apps.runtime_adapters import (
     build_login_rate_limiter,
     build_runtime_adapters,
     build_secret_store,
+    build_usage_ledger,
 )
 from apps.runtime_service_composition import configure_capability_services
 from contracts.v1.base import ProductContract
@@ -33,6 +36,8 @@ from infrastructure.persistence.product_repositories import (
     create_product_repository_set,
 )
 from infrastructure.persistence.unit_of_work import InMemoryUnitOfWork
+from modules.usage.service import UsageSettings
+from shared.limits_config import LimitsConfig
 from shared.metrics import register_collector
 from shared.request_context import require_tenant_context
 
@@ -57,7 +62,10 @@ def open_process_runtime(
             register_collector(partial(publish_queue_gauges, store))
         seeds_local = local_seeds in {"true", "1", "yes"}
         runtime = compose_platform_runtime(
-            http_client=http_client, store=store, seed_local_defaults=seeds_local
+            http_client=http_client,
+            store=store,
+            seed_local_defaults=seeds_local,
+            limit_policy=limit_policy_from_env(os.environ),
         )
         # Durable deployments without local demo data never fall back to
         # local-org/local-workspace; every tenant operation needs real context.
@@ -90,8 +98,10 @@ def compose_platform_runtime(
     http_client: httpx.Client,
     store: ProductPostgresStore | None,
     seed_local_defaults: bool = True,
+    limit_policy: StaticLimitPolicy | None = None,
 ) -> LocalPlatformRuntime:
     """Build persistence, adapter, and lifecycle dependencies for one process."""
+    policy = limit_policy or StaticLimitPolicy(LimitsConfig())
     repositories = create_product_repository_set(store)
     secret_store = build_secret_store(store)
     login_limiter = build_login_rate_limiter(store)
@@ -105,6 +115,8 @@ def compose_platform_runtime(
             repositories,
             secret_store,
             login_limiter,
+            build_usage_ledger(store),
+            policy,
         )
     except Exception:
         provider_http_client.close()
@@ -119,6 +131,8 @@ def _compose_with_model_client(
     repositories: ProductRepositorySet,
     secret_store: SecretStore,
     login_limiter: LoginRateLimiter,
+    usage_ledger: UsageLedger,
+    policy: StaticLimitPolicy,
 ) -> LocalPlatformRuntime:
     """Bind both process-owned pools and transfer their lifetime to the runtime."""
     adapters = build_runtime_adapters(
@@ -136,6 +150,11 @@ def _compose_with_model_client(
         repository_set=repositories,
         secret_store=secret_store,
         login_rate_limiter=login_limiter,
+        usage_ledger=usage_ledger,
+        usage_settings=UsageSettings(
+            chars_per_token=policy.config.reservation_input_chars_per_token,
+            retention_days=policy.config.usage_retention_days,
+        ),
         runtime_adapters=adapters,
         unit_of_work=unit_of_work,
         advisory_transaction_lock=(

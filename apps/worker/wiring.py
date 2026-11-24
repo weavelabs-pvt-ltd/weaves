@@ -35,4 +35,6 @@ def build_worker_services(
             task_turns=runtime.task_worker_service.turns,
             warn_seconds=queue_age_warn_seconds,
         ),
+        reconcile_usage=runtime.usage_reconciler.reconcile,
+        purge_usage=runtime.usage_reconciler.purge_expired,
     )

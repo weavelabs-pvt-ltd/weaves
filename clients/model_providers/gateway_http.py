@@ -31,4 +31,14 @@ def raise_upstream_error(response: httpx.Response) -> None:
         "model.upstream_error",
         f"Model provider returned HTTP {response.status_code}{suffix}",
         retryable=retryable,
+        http_status=response.status_code,
+    )
+
+
+def empty_response_error(input_tokens: int, output_tokens: int) -> ModelGatewayError:
+    """The provider answered (and billed tokens) without any text content."""
+    return ModelGatewayError(
+        "model.empty_response",
+        "Model provider returned no text content",
+        usage=(input_tokens, output_tokens),
     )

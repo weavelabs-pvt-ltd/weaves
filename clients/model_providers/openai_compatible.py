@@ -6,7 +6,10 @@ import httpx
 
 from clients.model_providers.egress_policy import ModelEgressPolicy
 from clients.model_providers.gateway_base import SecretResolver
-from clients.model_providers.gateway_http import raise_upstream_error
+from clients.model_providers.gateway_http import (
+    empty_response_error,
+    raise_upstream_error,
+)
 from contracts.v1 import (
     ModelProfileBinding,
     ModelProvider,
@@ -156,9 +159,7 @@ class OpenAICompatibleAdapter:
                 "model.invalid_response", "Model provider returned an invalid response"
             ) from exc
         if not isinstance(content, str) or not content:
-            raise ModelGatewayError(
-                "model.empty_response", "Model provider returned no text content"
-            )
+            raise empty_response_error(input_tokens, output_tokens)
         if not isinstance(model_id, str) or not 1 <= len(model_id.strip()) <= 128:
             model_id = binding.profile.model
         else:

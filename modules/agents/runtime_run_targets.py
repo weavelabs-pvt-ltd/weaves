@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from decimal import Decimal
 from typing import Any
 
 from application.runtime_host import RuntimeCapabilityHost
@@ -23,6 +22,7 @@ from modules.agents.runtime_run_helpers import (
     bound_workflow_references,
 )
 from modules.agents.runtime_state import RunCostBudgetExceeded
+from modules.usage.cost import estimate_cost_usd
 from shared.request_context import effective_org_id, effective_workspace_id
 
 
@@ -229,17 +229,12 @@ class AgentRunTargetsMixin(RuntimeCapabilityHost):
         run: Any,
     ) -> tuple[Any, Any]:
         """Record model usage and reject the run when a cost budget is exceeded."""
-        estimated_cost_usd = None
-        if (
-            profile.input_cost_per_million_tokens_usd is not None
-            and profile.output_cost_per_million_tokens_usd is not None
-        ):
-            estimated_cost_usd = (
-                Decimal(model_response.usage.input_tokens)
-                * profile.input_cost_per_million_tokens_usd
-                + Decimal(model_response.usage.output_tokens)
-                * profile.output_cost_per_million_tokens_usd
-            ) / Decimal(1_000_000)
+        estimated_cost_usd = estimate_cost_usd(
+            model_response.usage.input_tokens,
+            model_response.usage.output_tokens,
+            profile.input_cost_per_million_tokens_usd,
+            profile.output_cost_per_million_tokens_usd,
+        )
         metered_agent_run = agent_run.model_copy(
             update={
                 "input_tokens": model_response.usage.input_tokens,

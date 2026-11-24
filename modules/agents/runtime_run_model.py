@@ -24,6 +24,7 @@ from contracts.v1 import (
     RunStatus,
 )
 from contracts.v1.json_data import reject_credential_fields, thaw_json_value
+from modules.usage.service import UsageCall, UsageLimitExceeded
 from shared.clock import new_id as _id
 from shared.request_context import effective_org_id, effective_workspace_id
 
@@ -62,22 +63,25 @@ class AgentRunModelMixin(RuntimeCapabilityHost):
         skipped_context_note: Any,
         task: Any,
     ) -> ModelResponse:
-        """Call the model gateway for one agent run."""
+        """Call the model gateway for one agent run, metered by the usage ledger."""
+        call = self._usage_call(agent_run, binding, profile)
         try:
-            model_response = self.model_gateway.complete(
-                self._build_agent_model_request(
-                    agent_version,
-                    context,
-                    context_text,
-                    history_messages,
-                    prior_step_context,
-                    profile,
-                    run_id,
-                    skipped_context_note,
-                    task,
-                ),
-                binding,
+            request = self._build_agent_model_request(
+                agent_version,
+                context,
+                context_text,
+                history_messages,
+                prior_step_context,
+                profile,
+                run_id,
+                skipped_context_note,
+                task,
             )
+            try:
+                self.usage.begin(call, request)
+            except UsageLimitExceeded as exc:
+                raise ModelGatewayError(exc.code, str(exc)) from exc
+            model_response = self._complete_and_meter(request, binding, call)
         except ModelGatewayError as exc:
             self._record_run_failure(
                 run,
@@ -103,6 +107,48 @@ class AgentRunModelMixin(RuntimeCapabilityHost):
             )
             raise error from exc
         return model_response
+
+    def _complete_and_meter(
+        self, request: ModelRequest, binding: Any, call: UsageCall
+    ) -> ModelResponse:
+        """Make the provider request, recording its tokens however it ends."""
+        try:
+            response = self.model_gateway.complete(request, binding)
+        except ModelGatewayError as exc:
+            self.usage.fail(
+                call, exc.code, http_status=exc.http_status, usage=exc.usage
+            )
+            raise
+        except ValidationError:
+            self.usage.release(call, "model.request_invalid")
+            raise
+        # Recorded before the output is validated or budgeted: a rejected or
+        # over-budget answer was still paid for, and a crash after this line
+        # loses nothing.
+        self.usage.settle(
+            call,
+            response.usage.input_tokens,
+            response.usage.output_tokens,
+            "ok",
+            provider_id=response.provider_id,
+            model_id=response.model_id,
+        )
+        return response
+
+    @staticmethod
+    def _usage_call(agent_run: Any, binding: Any, profile: Any) -> UsageCall:
+        """Who is calling which model, priced by the profile's per-million rates."""
+        return UsageCall(
+            org_id=effective_org_id(),
+            workspace_id=effective_workspace_id(),
+            agent_run_id=agent_run.agent_run_id,
+            run_id=agent_run.run_id,
+            agent_id=agent_run.agent_id,
+            provider_id=binding.provider.id,
+            model_id=profile.model,
+            input_rate_per_million=profile.input_cost_per_million_tokens_usd,
+            output_rate_per_million=profile.output_cost_per_million_tokens_usd,
+        )
 
     def _build_agent_model_request(
         self,

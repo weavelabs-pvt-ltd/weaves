@@ -54,7 +54,10 @@ def configure_organization_administration(
     assert data is not None, "organization data port is required"
     services.organization_lifecycle_service = lifecycle
     services.organization_export_service = OrganizationExportService(
-        lifecycle=lifecycle, data=data, max_bytes=max_bytes_from_env()
+        lifecycle=lifecycle,
+        data=data,
+        usage=dependencies.usage_ledger,
+        max_bytes=max_bytes_from_env(),
     )
     services.organization_purge_service = OrganizationPurgeService(
         lifecycle=lifecycle,
@@ -62,4 +65,5 @@ def configure_organization_administration(
         data=data,
         secrets=dependencies.secret_store,
         credentials=dependencies.api_credentials,
+        usage=dependencies.usage_ledger,
     )

@@ -68,6 +68,9 @@ _POLICY_TEMPLATES: tuple[str, ...] = (
              WHEN 'oauth' THEN coll = ANY (ARRAY[
                'oauth_authorization_states', 'organizations', 'workspaces',
                'principals', 'users', 'roles', 'role_bindings'])
+             WHEN 'usage' THEN coll = ANY (ARRAY[
+               'workflow_runs', 'agent_runs', 'execution_jobs',
+               'organization_lifecycle', 'organizations', 'workspaces'])
              WHEN 'waitlist' THEN coll = ANY (%(waitlist)s)
              ELSE false
            END

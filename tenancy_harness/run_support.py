@@ -110,6 +110,7 @@ def setup_private(root, harness, project, backend):
         "TEST_LIMITS_SCRIPT": str(
             backend / "infra/gcp/singlevm/organization_limits.py"
         ),
+        "TEST_USAGE_REPORT_SCRIPT": str(backend / "infra/gcp/singlevm/usage_report.py"),
     }
     envfile = private / "compose.env"
     envfile.write_text("\n".join(k + "=" + json.dumps(v) for k, v in values.items()))

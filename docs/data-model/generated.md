@@ -1128,6 +1128,8 @@ Contract `contracts.v1.limits.OrganizationLimitOverride`; `record_id` = `org_id`
 | `workflows` | int? | ge=0, le=100000 | default None |
 | `tool_calls_per_day` | int? | ge=1, le=1000000000 | default None |
 | `storage_tasks` | int? | ge=1, le=1000000000 | default None |
+| `tokens_per_day` | int? | ge=1, le=1000000000 | default None |
+| `tokens_per_month` | int? | ge=1, le=1000000000 | default None |
 | `updated_by` | str | min_length=1, max_length=320 | required |
 | `reason` | str | min_length=1, max_length=500 | required |
 
@@ -1222,6 +1224,10 @@ Parsed from the migration and repeatable statements. `collection` is the partial
 | `product_records_task_turn_org_queued_idx` | migration 26 | `product_records` | no | `org_id, created_at, record_id` | `collection = 'task_turns' AND payload->>'status' = 'queued'` |
 | `product_records_execution_job_org_running_idx` | migration 26 | `product_records` | no | `org_id` | `collection = 'execution_jobs' AND payload->>'status' IN ('running', 'cancel_requested')` |
 | `product_records_task_turn_org_running_idx` | migration 26 | `product_records` | no | `org_id` | `collection = 'task_turns' AND payload->>'status' = 'running'` |
+| `usage_ledger_reserved_idx` | migration 27 | `usage_ledger` | no | `reserved_at` | `state = 'reserved'` |
+| `usage_ledger_outstanding_idx` | migration 27 | `usage_ledger` | no | `org_id, reserved_at` | `state IN ('reserved', 'unknown')` |
+| `usage_ledger_org_time_idx` | migration 27 | `usage_ledger` | no | `org_id, reserved_at` | `-` |
+| `usage_daily_day_idx` | migration 27 | `usage_daily` | no | `day` | `-` |
 | `workflow_runs_running_idx` | migration 28 | `product_records` | no | `updated_at, record_id` | `collection = 'workflow_runs' AND payload->>'status' = 'running'` |
 | `execution_jobs_leased_idx` | migration 28 | `product_records` | no | `updated_at, record_id` | `collection = 'execution_jobs' AND payload->>'status' IN ('running', 'cancel_requested')` |
 | `tool_invocations_executing_idx` | migration 28 | `product_records` | no | `updated_at, record_id` | `collection = 'tool_invocations' AND payload->>'status' = 'executing'` |
@@ -1276,6 +1282,7 @@ From `weaves_system_allows` in `infrastructure/database/row_security.py`. A tran
 | `lifecycle` | `organization_lifecycle`, `organization_settings`, `organizations` |
 | `catalog` | `plugins`, `plugin_installations` |
 | `oauth` | `oauth_authorization_states`, `organizations`, `workspaces`, `principals`, `users`, `roles`, `role_bindings` |
+| `usage` | `workflow_runs`, `agent_runs`, `execution_jobs`, `organization_lifecycle`, `organizations`, `workspaces` |
 | `waitlist` | `waitlist_entries`, `waitlist_submissions` |
 
 Collections handled by the account branch of `weaves_rls_allows` (visible only under a system purpose that lists them, never by tenant match): `account_identities`, `account_oauth_states`, `account_organization_requests`, `account_sessions`, `accounts`.

@@ -39,12 +39,11 @@
     "TW-01",
     "T5-I01",
     "T5-I02",
+    "T5-I03",
     "T5-I05",
     "T5-I04"
   ],
-  "planned_controls": {
-    "T5-I03": "5.3"
-  },
+  "planned_controls": {},
   "planned_controls_policy": "Declared by Phase 5 slice 5.0. Not required and not run until the owning slice moves the id into required_controls.",
   "known_defects": {},
   "known_defect_policy": "No baseline defects remain after Phase 1 containment. Resolved defects are required passing isolation controls, never xfail/skip. Passing this suite does not mean SaaS readiness.",

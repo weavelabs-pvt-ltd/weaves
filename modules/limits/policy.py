@@ -26,6 +26,8 @@ OVERRIDABLE_FIELDS: tuple[str, ...] = (
     "workflows",
     "tool_calls_per_day",
     "storage_tasks",
+    "tokens_per_day",
+    "tokens_per_month",
 )
 
 

@@ -243,6 +243,31 @@ docker compose exec -T product-api python - \
 docker compose exec -T product-api python - list < organization_limits.py
 ```
 
+
+## AI usage and cost per organization (operator)
+
+Every model call is recorded in a per-organization usage ledger (tokens as reported by the
+provider, estimated cost in integer nano-USD from the model profile's per-million rates).
+Customers use their own provider keys, so this is what they spend, not a charge by Weaves.
+`usage_report.py` is the business view. Like the other scripts it opens the database owner's
+connection, refuses local demo seeding, is never reachable over HTTP and is streamed into the
+running API container:
+
+```
+docker compose exec -T product-api python - --by month < usage_report.py
+docker compose exec -T product-api python - --by day --from 2026-11-01 --to 2026-11-30 < usage_report.py
+docker compose exec -T product-api python - --by month --org ORG_ID --csv < usage_report.py > usage.csv
+```
+
+`--by day|month` (default month), `--from` / `--to` (UTC dates, inclusive; default: this month so
+far), `--org` and `--csv` (JSON by default). One row per organization and period with `calls`,
+`input_tokens`, `output_tokens`, `total_tokens`, `estimated_cost_usd` (exact decimal; missing for
+calls whose model has no price, counted in `unpriced_calls`) and `unknown_calls` (requests that
+may have reached the provider with no recorded token count, for example a worker killed
+mid-call). Only counts and amounts are read, never prompts or outputs. Usage is deleted together
+with its organization; for live organizations it is kept `WEAVES_USAGE_RETENTION_DAYS` days
+(default 400). Organization Owners and Admins see their own numbers at `GET /api/v0/usage`.
+
 ## Waitlist sign-ups (operator)
 
 The website's waitlist is public and only collects data (an email, consent and

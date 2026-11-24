@@ -25,6 +25,8 @@ RECOVERY_SECONDS = 30
 METRICS_GAUGE_SECONDS = 15
 QUEUE_HEALTH_SECONDS = 30
 CLAIM_STATE_PRUNE_SECONDS = 3600
+USAGE_RECONCILE_SECONDS = 30
+USAGE_RETENTION_SECONDS = 3600
 
 
 @dataclass(frozen=True)
@@ -129,6 +131,32 @@ def _purge_waitlist(services: WorkerServices) -> None:
         logger.info("waitlist retention removed rows count=%d", removed)
 
 
+def _reconcile_usage(services: WorkerServices) -> None:
+    """Resolve usage reservations whose lease expired; never disturb the loop."""
+    if services.reconcile_usage is None:
+        return
+    try:
+        changed = services.reconcile_usage()
+    except Exception:
+        logger.exception("usage reconciliation tick failed")
+        return
+    if changed:
+        logger.info("usage reservations reconciled count=%d", changed)
+
+
+def _purge_usage(services: WorkerServices) -> None:
+    """Apply usage retention to live organizations; failures are only logged."""
+    if services.purge_usage is None:
+        return
+    try:
+        removed = services.purge_usage()
+    except Exception:
+        logger.exception("usage retention tick failed")
+        return
+    if removed:
+        logger.info("usage retention removed rows count=%d", removed)
+
+
 def _dispatch_schedules(services: WorkerServices) -> None:
     scheduled_jobs = services.workflow_automation.dispatch_due_workflow_schedules()
     if scheduled_jobs:
@@ -186,7 +214,11 @@ def build_tick_registry(
         Tick("claim_state_prune", CLAIM_STATE_PRUNE_SECONDS, _prune_claim_state)
     )
 
-    # 5.3 usage ledger: reservation recovery and retention purge.
+    # 5.3 usage ledger: reservation recovery (lease expiry) and retention purge.
+    registry.register(
+        Tick("usage_reconcile", USAGE_RECONCILE_SECONDS, _reconcile_usage)
+    )
+    registry.register(Tick("usage_retention", USAGE_RETENTION_SECONDS, _purge_usage))
 
     # 5.4 bounded queries: the daily full sweep behind the indexed recovery tick.
     registry.register(

@@ -41,6 +41,8 @@ FLAGS: dict[str, str] = {
     "workflows": "workflows",
     "tool-calls-per-day": "tool_calls_per_day",
     "storage-tasks": "storage_tasks",
+    "tokens-per-day": "tokens_per_day",
+    "tokens-per-month": "tokens_per_month",
 }
 
 

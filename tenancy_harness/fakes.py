@@ -13,6 +13,8 @@ from fastapi import FastAPI, Request
 
 from tenancy_harness.fake_google import router as google_router
 
+HOLD_MARKER = "HOLD-FOR-USAGE-CRASH"
+HOLD_SECONDS = 100
 EGRESS: list[str] = []
 MODEL_EVENTS: list[dict[str, str]] = []
 
@@ -147,6 +149,8 @@ async def completion(request: Request):
     if slow:  # slice 5.2: a deliberately slow model for fair-claim controls
         await asyncio.sleep(min(int(slow.group(1)), 120))
     prompt = body["messages"][-1]["content"]
+    if HOLD_MARKER in prompt:  # T5-I03 holds one call open so a worker can be killed
+        await asyncio.sleep(HOLD_SECONDS)
     return {
         "id": "fixture-completion",
         "model": "tenancy-fixture-model",

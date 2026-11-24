@@ -240,6 +240,12 @@ __all__ = [
     "TaskTurn",
     "TaskTurnStatus",
     "ToolInvocation",
+    "UsageEvent",
+    "UsageGroup",
+    "UsageGroupBy",
+    "UsageState",
+    "UsageSummary",
+    "UsageTotals",
     "User",
     "UserStatus",
     "WaitlistAnswer",
@@ -280,6 +286,14 @@ from contracts.v1.organization_lifecycle import (
     OrganizationLifecycleState,
 )
 from contracts.v1.organization_settings import OrganizationSettings
+from contracts.v1.usage import (
+    UsageEvent,
+    UsageGroup,
+    UsageGroupBy,
+    UsageState,
+    UsageSummary,
+    UsageTotals,
+)
 from contracts.v1.waitlist import (
     WaitlistAnswer,
     WaitlistDomainType,
