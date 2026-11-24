@@ -57,3 +57,14 @@ def list_agent_templates() -> tuple[AgentTemplate, ...]:
 
 
 __all__ = ["AgentTemplate", "get_agent_template", "list_agent_templates"]
+
+
+def validate_template_capabilities(
+    template: AgentTemplate, capability_ids: tuple[str, ...]
+) -> None:
+    """Reject missing, duplicate, or unsupported template tools."""
+    if len(capability_ids) != len(set(capability_ids)):
+        raise ValueError("allowed capabilities must be unique")
+    unsupported = set(capability_ids) - set(template.recommended_capability_ids)
+    if unsupported:
+        raise ValueError("template does not support the selected capabilities")

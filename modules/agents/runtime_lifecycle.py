@@ -38,11 +38,12 @@ from modules.agents.runtime_catalog import AgentCatalogMixin
 from modules.agents.runtime_versioning import AgentVersionPublisher
 from modules.agents.skill_bindings import AgentSkillBindings
 from modules.agents.templates import (
-    AgentTemplate,
     get_agent_template,
+    validate_template_capabilities,
 )
 from modules.limits.service import AdmissionService
 from modules.models.defaults import configured_model_access_mode
+from modules.models.pricing import ensure_cost_limits_are_enforceable
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.request_context import (
@@ -131,7 +132,7 @@ class AgentService(AgentCatalogMixin):
     ) -> AgentDefinition:
         """Create an agent using template guidance and explicitly chosen tools."""
         template = get_agent_template(template_id)
-        self._validate_template_capabilities(template, allowed_capability_ids)
+        validate_template_capabilities(template, allowed_capability_ids)
         return self.create_agent(
             name=name or template.name,
             description=template.description,
@@ -151,17 +152,6 @@ class AgentService(AgentCatalogMixin):
             output_schema=output_schema,
             requested_by_principal_id=requested_by_principal_id,
         )
-
-    @staticmethod
-    def _validate_template_capabilities(
-        template: AgentTemplate, capability_ids: tuple[str, ...]
-    ) -> None:
-        """Reject missing, duplicate, or unsupported template tools."""
-        if len(capability_ids) != len(set(capability_ids)):
-            raise ValueError("allowed capabilities must be unique")
-        unsupported = set(capability_ids) - set(template.recommended_capability_ids)
-        if unsupported:
-            raise ValueError("template does not support the selected capabilities")
 
     def create_agent(
         self,
@@ -201,6 +191,9 @@ class AgentService(AgentCatalogMixin):
                 output_schema,
                 skills,
             )
+        )
+        ensure_cost_limits_are_enforceable(
+            profile, agent_version.budget.max_run_cost_usd
         )
         self._persist_new_agent_records(
             requested_by_principal_id,
@@ -401,6 +394,9 @@ class AgentService(AgentCatalogMixin):
             output_schema=output_schema,
             clear_output_schema=clear_output_schema,
             now=now,
+        )
+        ensure_cost_limits_are_enforceable(
+            profile, next_version.budget.max_run_cost_usd
         )
         updated_name = current.name if name is None else name
         updated_description = (

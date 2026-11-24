@@ -56,7 +56,9 @@ class AgentRunErrorMixin(RuntimeCapabilityHost):
                 **(audit_metadata or {}),
             },
         )
-        raise AgentRuntimeBudgetExceeded(message)
+        raise AgentRuntimeBudgetExceeded(
+            message, limit_seconds=budget.max_runtime_seconds
+        )
 
     def _record_run_failure(
         self,

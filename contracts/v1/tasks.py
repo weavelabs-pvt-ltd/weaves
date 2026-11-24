@@ -68,6 +68,9 @@ class Task(MutableWorkspaceScopedContract):
     latest_turn_id: OpaqueId | None = None
     latest_turn_status: TaskTurnStatus | None = None
     latest_response_summary: str | None = Field(default=None, max_length=2000)
+    # The user-safe error of the latest turn while it is failed; clients use its
+    # stable code and ``retryable`` to offer the right next step.
+    latest_turn_error: ErrorSummary | None = None
     idempotency_key: OpaqueId | None = None
     completed_at: AwareDatetime | None = None
     archived_at: AwareDatetime | None = None
@@ -83,6 +86,11 @@ class Task(MutableWorkspaceScopedContract):
             raise ValueError("completed or archived tasks cannot have an active turn")
         if (self.active_turn_id is None) != (self.active_turn_status is None):
             raise ValueError("active turn ID and status must be set together")
+        if (
+            self.latest_turn_error is not None
+            and self.latest_turn_status is not TaskTurnStatus.FAILED
+        ):
+            raise ValueError("a latest turn error requires a failed latest turn")
         if (self.audience is TaskAudience.PRIVATE) != (
             self.audience_owner_principal_id is not None
         ):

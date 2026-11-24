@@ -1031,6 +1031,7 @@ Contract `contracts.v1.tasks.Task`; `record_id` = `task_id`.
 | `latest_turn_id` | str? | - | default None |
 | `latest_turn_status` | enum TaskTurnStatus(queued/running/succeeded/failed/cancelled)? | - | default None |
 | `latest_response_summary` | str? | max_length=2000 | default None |
+| `latest_turn_error` | ErrorSummary? | - | default None |
 | `idempotency_key` | str? | - | default None |
 | `completed_at` | AwareDatetime? | - | default None |
 | `archived_at` | AwareDatetime? | - | default None |
