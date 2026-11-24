@@ -298,7 +298,7 @@ def main(argv=None):
     p.add_argument("--label", required=True)
     p.add_argument("--stages", type=lambda s: [int(x) for x in s.split(",")])
     p.add_argument("--history", type=int, default=6000)
-    p.add_argument("--idle-seconds", type=int, default=30, dest="idle_seconds")
+    p.add_argument("--idle-seconds", type=int, default=60, dest="idle_seconds")
     args = p.parse_args(argv)
     args.stages = args.stages or [10, 50, 100, 200]
     require_disposable_database()

@@ -18,7 +18,9 @@ import argparse
 import threading
 import time
 
+from tenancy_harness.client import wait_for_services
 from tenancy_harness.phase5.load_common import (
+    ACCEPTED,
     Poller,
     Sampler,
     cancel_queued,
@@ -58,8 +60,8 @@ def feed_a(stop, a, config, log):
             result = submit_task(
                 a, f"tenancy-slow={config['a_slow']} hot tenant {index}"
             )
-            log.append(result["status"])
-            if result["status"] != 201 and result["status"] != 200:
+            log.append(result)
+            if result["status"] not in ACCEPTED:
                 break
 
 
@@ -115,7 +117,7 @@ def http_summary(log):
         status = item["status"] if isinstance(item, dict) else item
         statuses[status] = statuses.get(status, 0) + 1
     latencies = [
-        i["seconds"] for i in log if isinstance(i, dict) and i["status"] == 201
+        i["seconds"] for i in log if isinstance(i, dict) and i["status"] in ACCEPTED
     ]
     return {"statuses": statuses, "post_latency_seconds": summarize(latencies)}
 
@@ -123,7 +125,7 @@ def http_summary(log):
 def verdict(b, poll, http):
     """Compare B's measured numbers with the declared envelope."""
     delay = b["queue_delay_seconds"]
-    errors = sum(n for s, n in http["statuses"].items() if s not in (200, 201))
+    errors = sum(n for s, n in http["statuses"].items() if s not in ACCEPTED)
     api = [v["p95"] for v in poll["latency_seconds"].values() if v["p95"] is not None]
     checks = {
         "b_queue_delay_p95": within(delay["p95"], ENVELOPE["b_queue_delay_p95"]),
@@ -190,11 +192,11 @@ def parser():
     """Command line for one run; the orchestrator supplies every value."""
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--label", required=True)
-    p.add_argument("--duration", type=int, default=150, help="measured seconds")
+    p.add_argument("--duration", type=int, default=300, help="measured seconds")
     p.add_argument("--warmup", type=int, default=30)
-    p.add_argument("--a-slow", type=int, default=30, dest="a_slow")
+    p.add_argument("--a-slow", type=int, default=25, dest="a_slow")
     p.add_argument("--b-slow", type=int, default=5, dest="b_slow")
-    p.add_argument("--b-interval", type=float, default=6.0, dest="b_interval")
+    p.add_argument("--b-interval", type=float, default=20.0, dest="b_interval")
     p.add_argument("--backlog", type=int, default=45)
     return p
 
@@ -204,6 +206,7 @@ def main(argv=None):
     from tenancy_harness.seed import require_disposable_database
 
     require_disposable_database()
+    wait_for_services()
     result = run(vars(parser().parse_args(argv)))
     print(
         "noisy neighbour",

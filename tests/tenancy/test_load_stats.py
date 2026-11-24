@@ -93,7 +93,7 @@ def _result(p95, maximum, failed=0, statuses=None):
     }
     quick = {**summary, "p95": 0.2}
     poll = {"latency_seconds": {"/overview": quick}}
-    return turns, poll, {"statuses": statuses or {201: 20}}
+    return turns, poll, {"statuses": statuses or {202: 20}}
 
 
 def test_envelope_verdict_names_each_breached_bound():

@@ -205,7 +205,7 @@ def noisy_row(result: dict, peaks: dict[str, dict[str, float]]) -> dict:
         n
         for http in (result["a_http"], result["b_http"])
         for status, n in http["statuses"].items()
-        if str(status) not in {"200", "201", "429"}
+        if str(status) not in {"200", "201", "202", "429"}
     )
     sampler = result["sampler"]
     return {

@@ -74,80 +74,131 @@ def one(query, *params):
     return rows(query, *params)[0][0]
 
 
+def read_facts(org_id):
+    """Everything the audit compares, read once from the database."""
+    return {
+        "tasks": one(
+            "SELECT count(*) FROM product_records WHERE collection = 'tasks' "
+            "AND org_id = %s",
+            org_id,
+        ),
+        "turns": rows(
+            "SELECT payload->>'status', payload->>'agent_run_id', "
+            "payload->'error'->>'code', COALESCE((payload->>'attempts')::int, 0) "
+            "FROM product_records WHERE collection = 'task_turns' AND org_id = %s",
+            org_id,
+        ),
+        "ledger": rows(
+            "SELECT reservation_key, state, input_tokens, output_tokens, outcome "
+            "FROM usage_ledger WHERE org_id = %s",
+            org_id,
+        ),
+        "runs": {
+            r[0]: (r[1], r[2], r[3])
+            for r in rows(
+                "SELECT record_id, payload->>'status', "
+                "(payload->>'input_tokens')::int, (payload->>'output_tokens')::int "
+                "FROM product_records WHERE collection = 'agent_runs' "
+                "AND org_id = %s",
+                org_id,
+            )
+        },
+        "rollup": rows(
+            "SELECT coalesce(sum(calls), 0), coalesce(sum(input_tokens), 0) + "
+            "coalesce(sum(output_tokens), 0) FROM usage_daily WHERE org_id = %s",
+            org_id,
+        )[0],
+        "by_call_length": {
+            f"{marker}/{status}": count
+            for marker, status, count in rows(
+                "SELECT CASE WHEN k.payload->>'title' LIKE 'tenancy-slow=15%%' "
+                "THEN 'slow15' WHEN k.payload->>'title' LIKE 'tenancy-slow=1 %%' "
+                "THEN 'slow1' ELSE 'fast' END, t.payload->>'status', count(*) "
+                "FROM product_records t JOIN product_records k "
+                "ON k.collection = 'tasks' AND k.record_id = t.payload->>'task_id' "
+                "AND k.org_id = t.org_id WHERE t.collection = 'task_turns' "
+                "AND t.org_id = %s GROUP BY 1, 2",
+                org_id,
+            )
+        },
+    }
+
+
+def tally(items):
+    """Histogram of hashable values."""
+    out = {}
+    for item in items:
+        out[item] = out.get(item, 0) + 1
+    return out
+
+
+def invariants(facts, accepted):
+    """The named recovery invariants over one organization's facts."""
+    turns, ledger = facts["turns"], facts["ledger"]
+    runs = {k: v[1:] for k, v in facts["runs"].items() if v[0] == "succeeded"}
+    settled = {r[0]: (r[2], r[3]) for r in ledger if r[1] == "settled"}
+    run_ids = [t[1] for t in turns if t[1]]
+    return {
+        "one_task_per_idempotency_key": facts["tasks"]
+        == len(set(accepted))
+        == len(accepted),
+        "one_turn_per_task": len(turns) == facts["tasks"],
+        "every_turn_terminal": not {t[0] for t in turns} & {"queued", "running"},
+        "attempts_within_the_retry_bound": all(t[3] <= 3 for t in turns),
+        "at_most_one_run_per_turn": len(run_ids) == len(set(run_ids)),
+        "no_reservation_left_open": not any(r[1] == "reserved" for r in ledger),
+        "ledger_keys_unique": len({r[0] for r in ledger}) == len(ledger),
+        "every_succeeded_run_settled_with_equal_tokens": all(
+            settled.get(key) == value for key, value in runs.items()
+        ),
+        "every_settled_row_is_exactly_one_reported_call": all(
+            v == (TOKENS // 2, TOKENS // 2) for v in settled.values()
+        ),
+        "rollup_equals_ledger": (int(facts["rollup"][0]), int(facts["rollup"][1]))
+        == (len(settled), sum(sum(v) for v in settled.values())),
+        "unknown_never_counts_tokens": all(
+            r[2] in (0, None) for r in ledger if r[1] == "unknown"
+        ),
+    }
+
+
 def audit_org(org_id, keys):
     """Per-organization invariants as named booleans plus the raw counts."""
-    tasks = one(
-        "SELECT count(*) FROM product_records WHERE collection = 'tasks' "
-        "AND org_id = %s",
-        org_id,
-    )
-    turns = rows(
-        "SELECT payload->>'status', payload->>'agent_run_id', "
-        "payload->'error'->>'code', COALESCE((payload->>'attempts')::int, 0) "
-        "FROM product_records WHERE collection = 'task_turns' AND org_id = %s",
-        org_id,
-    )
-    ledger = rows(
-        "SELECT reservation_key, state, input_tokens, output_tokens "
-        "FROM usage_ledger WHERE org_id = %s",
-        org_id,
-    )
-    runs = {
-        r[0]: (r[1], r[2])
-        for r in rows(
-            "SELECT record_id, (payload->>'input_tokens')::int, "
-            "(payload->>'output_tokens')::int FROM product_records "
-            "WHERE collection = 'agent_runs' AND org_id = %s "
-            "AND payload->>'status' = 'succeeded'",
-            org_id,
-        )
-    }
-    settled = {r[0]: (r[2], r[3]) for r in ledger if r[1] == "settled"}
-    rollup = rows(
-        "SELECT coalesce(sum(calls), 0), coalesce(sum(input_tokens), 0) + "
-        "coalesce(sum(output_tokens), 0) FROM usage_daily WHERE org_id = %s",
-        org_id,
-    )[0]
-    run_ids = [t[1] for t in turns if t[1]]
-    statuses = {}
-    for status, _run, _code, _attempts in turns:
-        statuses[status] = statuses.get(status, 0) + 1
-    unknown = [r[0] for r in ledger if r[1] == "unknown"]
+    facts = read_facts(org_id)
+    turns, ledger, runs = facts["turns"], facts["ledger"], facts["runs"]
+    settled = {r[0] for r in ledger if r[1] == "settled"}
+    succeeded = {k for k, v in runs.items() if v[0] == "succeeded"}
     accepted = [task for _key, task in keys if task]
     return {
         "counts": {
             "keys_sent": len(keys),
             "keys_accepted": len(accepted),
-            "tasks": tasks,
+            "tasks": facts["tasks"],
             "turns": len(turns),
-            "turn_statuses": statuses,
+            "turn_statuses": tally(t[0] for t in turns),
+            "turn_attempts": tally(t[3] for t in turns),
+            "turns_by_call_length_and_status": facts["by_call_length"],
             "turn_error_codes": sorted({t[2] for t in turns if t[2]}),
             "ledger_rows": len(ledger),
+            "ledger_states": tally(f"{r[1]}/{r[4]}" for r in ledger),
             "settled": len(settled),
-            "unknown": len(unknown),
-            "runs_succeeded": len(runs),
-        },
-        "checks": {
-            "one_task_per_idempotency_key": tasks
-            == len(set(accepted))
-            == len(accepted),
-            "one_turn_per_task": len(turns) == tasks,
-            "every_turn_terminal": not set(statuses) & {"queued", "running"},
-            "one_attempt_per_turn": all(t[3] <= 1 for t in turns),
-            "at_most_one_run_per_turn": len(run_ids) == len(set(run_ids)),
-            "no_reservation_left_open": not any(r[1] == "reserved" for r in ledger),
-            "ledger_keys_unique": len({r[0] for r in ledger}) == len(ledger),
-            "settled_tokens_equal_run_rows": settled == runs,
-            "settled_calls_exact": all(
-                v == (TOKENS // 2, TOKENS // 2) for v in runs.values()
-            ),
-            "rollup_equals_ledger": (int(rollup[0]), int(rollup[1]))
-            == (len(settled), sum(sum(v) for v in settled.values())),
-            "unknown_never_counts_tokens": all(
-                r[2] in (0, None) for r in ledger if r[1] == "unknown"
+            "runs_succeeded": len(succeeded),
+            "paid_calls_whose_run_did_not_succeed": tally(
+                runs.get(key, ("no run row",))[0] for key in settled - succeeded
             ),
         },
+        "checks": invariants(facts, accepted),
     }
+
+
+def wait_reconciled(timeout):
+    """Wait until the reconciler left no reservation open; True when none is."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not one("SELECT count(*) FROM usage_ledger WHERE state = 'reserved'"):
+            return True
+        time.sleep(2)
+    return False
 
 
 def capacity_checks(tenants):
@@ -190,15 +241,16 @@ def run(args):
     for thread in threads:
         thread.join()
     streamed = now()
-    recovered = wait_idle(args.recovery_wait)
+    recovered = wait_idle(args.recovery_wait) and wait_reconciled(180)
     recovery_seconds = (now() - streamed).total_seconds()
     audits = {t["label"]: audit_org(t["org_id"], logs[t["label"]]) for t in tenants}
     ledger_rows = sum(a["counts"]["ledger_rows"] for a in audits.values())
     calls = provider_calls() - baseline
+    settled_rows = sum(a["counts"]["settled"] for a in audits.values())
     checks = {
         "recovered_within_wait": recovered,
-        "no_provider_call_without_a_reservation": calls <= ledger_rows,
-        "no_duplicate_provider_call_per_reservation": calls <= ledger_rows,
+        "provider_calls_never_exceed_reservations": calls <= ledger_rows,
+        "every_settled_row_reached_the_provider": calls >= settled_rows,
         **capacity_checks(tenants),
     }
     for audit in audits.values():
@@ -211,6 +263,7 @@ def run(args):
         "recovery_seconds_after_stream": round(recovery_seconds, 1),
         "provider_calls": calls,
         "ledger_rows": ledger_rows,
+        "settled_rows": settled_rows,
         "audits": audits,
         "checks": checks,
         "passed": all(checks.values()),

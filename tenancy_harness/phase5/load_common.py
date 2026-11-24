@@ -23,6 +23,7 @@ from tenancy_harness.resources import tenant
 OUTPUT = Path(os.environ.get("TENANCY_LOAD_OUTPUT", "/output"))
 API_METRICS = "http://api:8000/api/v0/internal/metrics"
 WORKER_METRICS = "http://worker:9100/metrics"
+ACCEPTED = (200, 201, 202)  # POST /tasks answers 202 Accepted
 ACTIVE = "('queued', 'running')"
 
 
@@ -92,7 +93,7 @@ def submit_task(t, message, key=None):
     except httpx.HTTPError:
         return {"status": 0, "seconds": time.monotonic() - started, "task_id": None}
     task_id = None
-    if response.status_code in (200, 201, 202):
+    if response.status_code in ACCEPTED:
         task_id = response.json().get("task_id")
     return {
         "status": response.status_code,

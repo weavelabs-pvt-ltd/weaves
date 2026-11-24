@@ -26,15 +26,20 @@ from pathlib import Path
 from tenancy_harness.phase5.load_stats import Peaks, noisy_row, stats_row
 from tenancy_harness.run_support import Compose, execute, revision, setup_private
 
-# (slots, limits mode, per-organization running cap): production is (2, observe, 2).
+# (slots, limits mode, per-organization running cap, B seconds between tasks).
+# Production is (2, observe, 2, 20). B at 20 s is a normal tenant (3 tasks per
+# minute); 6 s is the stress profile that shows where fair claiming runs out.
 MATRIX = (
-    (1, "enforce", 2),
-    (1, "observe", 2),
-    (2, "enforce", 2),
-    (2, "observe", 2),
-    (4, "enforce", 2),
-    (4, "observe", 2),
-    (2, "enforce", 1),
+    (1, "enforce", 2, 20),
+    (1, "observe", 2, 20),
+    (2, "enforce", 2, 20),
+    (2, "observe", 2, 20),
+    (4, "enforce", 2, 20),
+    (4, "observe", 2, 20),
+    (2, "enforce", 1, 20),
+    (2, "enforce", 2, 6),
+    (4, "enforce", 2, 6),
+    (2, "enforce", 1, 6),
 )
 # Seconds after the scenario starts, then (action, services) pairs.
 KILL_PLAN = (
@@ -131,9 +136,10 @@ class Stack:
         return json.loads(path.read_text())
 
 
-def noisy_phase(stack, sampler, slots, mode, cap, args):
+def noisy_phase(stack, sampler, cell, args):
     """One cell of the matrix; returns the table row plus the full result."""
-    label = f"s{slots}-{mode}-c{cap}"
+    slots, mode, cap, interval = cell
+    label = f"s{slots}-{mode}-c{cap}-b{interval}"
     stack.configure(slots, mode, cap)
     sampler.reset()
     code = stack.scenario(
@@ -144,6 +150,8 @@ def noisy_phase(stack, sampler, slots, mode, cap, args):
         str(args.duration),
         "--warmup",
         str(args.warmup),
+        "--b-interval",
+        str(interval),
     )
     peaks = sampler.reset()
     result = stack.result(label)
@@ -153,6 +161,7 @@ def noisy_phase(stack, sampler, slots, mode, cap, args):
         "slots": slots,
         "mode": mode,
         "max_running_per_org": cap,
+        "b_interval": interval,
         "exit_code": code,
         "row": noisy_row(result, peaks),
         "result": result,
@@ -224,7 +233,7 @@ def parse(argv=None):
         default="noisy,scale,restart",
         help="comma separated subset of noisy, scale, restart",
     )
-    p.add_argument("--duration", type=int, default=150)
+    p.add_argument("--duration", type=int, default=300)
     p.add_argument("--warmup", type=int, default=30)
     p.add_argument("--stages", default="10,50,100,200")
     p.add_argument("--history", type=int, default=6000)
@@ -232,7 +241,7 @@ def parse(argv=None):
     p.add_argument(
         "--cells",
         default="",
-        help="noisy matrix cells to run, e.g. 2:enforce:2,4:enforce:2 (default all)",
+        help="cells slots:mode:cap:b_interval, e.g. 2:enforce:2:20 (default all)",
     )
     return p.parse_args(argv)
 
@@ -242,8 +251,8 @@ def cells(spec):
     if not spec:
         return MATRIX
     return tuple(
-        (int(s), mode, int(c))
-        for s, mode, c in (item.split(":") for item in spec.split(","))
+        (int(s), mode, int(c), float(b))
+        for s, mode, c, b in (item.split(":") for item in spec.split(","))
     )
 
 
@@ -269,8 +278,8 @@ def main(argv=None):
         for phase in args.phases.split(","):
             if phase == "noisy":
                 report["phases"]["noisy"] = [
-                    noisy_phase(stack, sampler, s, m, c, args)
-                    for s, m, c in cells(args.cells)
+                    noisy_phase(stack, sampler, cell, args)
+                    for cell in cells(args.cells)
                 ]
             elif phase == "scale":
                 report["phases"]["scale"] = scale_phase(stack, sampler, args)
