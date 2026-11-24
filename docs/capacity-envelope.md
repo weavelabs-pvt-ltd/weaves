@@ -239,13 +239,19 @@ What this shows, and what it does not:
 * **During a worker outage the queue cap refuses**, as designed: each organization
   had one submission answered 429 (queue at 50) for the full 90 s client retry and
   created nothing.
-* **Known gap (reconciliation of killed task turns).** A killed turn's usage
-  reservation is not released at the lease fence; the reconciler's
-  `STALE_RUN_AFTER_SECONDS` rule releases it after four hours. Until then the
-  reserved tokens (2,332 each in this run) count against the organization's daily
-  token cap. T5-I03 proves the 120 s fence only for execution jobs. It is bounded
-  and self-healing, so it does not block the beta, but it should be fixed by
-  making the reconciler consult the task turn's lease.
+* **Gap found and fixed (reconciliation of killed task turns).** The load run
+  showed a killed turn's usage reservation was released only by the reconciler's
+  four-hour `STALE_RUN_AFTER_SECONDS` rule, so the reserved tokens (2,332 each in
+  this run) counted against the organization's daily token cap for up to four
+  hours. The reconciler now also consults the task turn that owns the run (found
+  from the run's `task:<turn>:run:<n>` key): when the turn stopped heartbeating
+  for `STALE_TASK_TURN_AFTER_SECONDS` (300 s, the same constant turn recovery
+  uses, so the two fences cannot disagree) or is no longer running, the
+  reservation becomes `unknown` and counts no tokens within about 300 s plus one
+  30 s reconcile tick. A late real settlement still upgrades `unknown` once.
+  Execution jobs keep their 120 s fence. Pinned by
+  `tests/contracts/test_usage_reconciler.py` and the PostgreSQL case in
+  `tests/integration/test_postgres_task_turns.py`.
 
 ## 6. Findings that changed the code in this slice
 

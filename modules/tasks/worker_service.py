@@ -12,6 +12,8 @@ from threading import Event, Thread
 from application.ports.fair_claim import log_over_cap
 from application.ports.limits import LimitPolicy
 from application.ports.repository import Repository
+from application.runtime_constants import STALE_TASK_TURN_AFTER_SECONDS
+from application.task_run_keys import task_run_key
 from contracts.v1 import (
     AgentRun,
     ErrorSummary,
@@ -121,8 +123,8 @@ class TaskWorkerService:
                 }
             ).model_dump()
         )
-        run_key = claimed.run_idempotency_key or (
-            f"task:{claimed.turn_id}:run:{claimed.attempts}"
+        run_key = claimed.run_idempotency_key or task_run_key(
+            claimed.turn_id, claimed.attempts
         )
         claimed = TaskTurn.model_validate(
             claimed.model_copy(
@@ -222,7 +224,9 @@ class TaskWorkerService:
                 return
 
     @system_scoped("recovery")
-    def recover_stale_turns(self, *, stale_after_seconds: int = 300) -> tuple[str, ...]:
+    def recover_stale_turns(
+        self, *, stale_after_seconds: int = STALE_TASK_TURN_AFTER_SECONDS
+    ) -> tuple[str, ...]:
         """Requeue expired worker leases or fail after three attempts."""
         now = utc_now()
         stale = self.turns.list_status_updated_before(
