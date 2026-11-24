@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
-from contracts.v1 import TaskAudience, TaskStatus
+from contracts.v1 import TaskAudience, TaskStatus, TaskTurn
 from modules.tasks.http.cursors import decode_cursor, encode_cursor
 from modules.tasks.service import TaskService
 
@@ -38,6 +38,7 @@ def register_task_routes(
 ) -> None:
     """Register list, create, transcript, and lifecycle task endpoints."""
     _register_task_collection_routes(app, service, dump)
+    _register_task_turn_routes(app, service, dump)
 
     @app.get("/api/v0/tasks/{task_id}")
     def get_task(task_id: str) -> dict[str, Any]:
@@ -166,6 +167,62 @@ def _register_task_collection_routes(
             )
         )
         return dump(task)
+
+
+def _register_task_turn_routes(
+    app: FastAPI,
+    service: TaskService,
+    dump: Callable[[BaseModel], dict[str, Any]],
+) -> None:
+    """Register the read-only turn history of a task."""
+
+    @app.get("/api/v0/tasks/{task_id}/turns")
+    def list_turns(
+        task_id: str,
+        limit: int = Query(default=100, ge=1, le=200),
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        cursor_time, cursor_id = _decode_http_cursor(cursor)
+        page = _call(
+            lambda: service.queries.list_turns(
+                task_id,
+                limit=limit + 1,
+                cursor_created_at=cursor_time,
+                cursor_turn_id=cursor_id,
+            )
+        )
+        items = page[-limit:]
+        next_cursor = (
+            encode_cursor(items[0].created_at, items[0].turn_id)
+            if len(page) > limit
+            else None
+        )
+        return {
+            "items": [_turn_view(item, dump) for item in items],
+            "next_cursor": next_cursor,
+        }
+
+
+# What a client may see of a turn: its outcome, never worker leases or run keys.
+_TURN_VIEW_FIELDS = (
+    "turn_id",
+    "task_id",
+    "user_message_id",
+    "assistant_message_id",
+    "status",
+    "error",
+    "created_at",
+    "started_at",
+    "finished_at",
+)
+
+
+def _turn_view(
+    turn: TaskTurn, dump: Callable[[BaseModel], dict[str, Any]]
+) -> dict[str, Any]:
+    """Project a turn onto the fields a task transcript needs."""
+    data = dump(turn)
+    return {field: data.get(field) for field in _TURN_VIEW_FIELDS}
 
 
 def _call(operation: Callable[[], Any]) -> Any:

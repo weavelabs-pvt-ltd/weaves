@@ -179,19 +179,19 @@ class PostgresQueryRepositoryMixin[TContract]:
             rows = connection.execute(query, params).fetchall()
         return tuple(self._deserialize(row[0]) for row in rows)
 
-    def list_task_messages_page(
+    def list_task_records_page(
         self,
         task_id: OpaqueId,
         org_id: OpaqueId,
         workspace_id: OpaqueId,
         *,
         cursor_created_at: datetime | None,
-        cursor_message_id: str | None,
+        cursor_record_id: str | None,
         limit: int,
     ) -> tuple[TContract, ...]:
-        """Return a bounded newest-first transcript page for one task."""
-        if self._collection != "task_messages":
-            raise TypeError("task message paging requires a message repository")
+        """Return a bounded newest-first page of one task's messages or turns."""
+        if self._collection not in {"task_messages", "task_turns"}:
+            raise TypeError("task paging requires a task message or turn repository")
         if limit < 1:
             raise ValueError("limit must be positive")
         query = """SELECT payload FROM product_records
@@ -204,10 +204,10 @@ class PostgresQueryRepositoryMixin[TContract]:
             str(task_id),
         )
         if cursor_created_at is not None:
-            if cursor_message_id is None:
-                raise ValueError("cursor message ID is required")
+            if cursor_record_id is None:
+                raise ValueError("cursor record ID is required")
             query += " AND (created_at, record_id) < (%s, %s)"
-            params += (cursor_created_at, cursor_message_id)
+            params += (cursor_created_at, cursor_record_id)
         query += " ORDER BY created_at DESC, record_id DESC LIMIT %s"
         params += (limit,)
         with self._pool.connection() as connection:

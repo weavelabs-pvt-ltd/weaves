@@ -85,7 +85,10 @@ class TaskService(TaskLifecycleMixin):
         self._authorize = authorize
         self._open_unit_of_work = unit_of_work
         self.queries = TaskQueryService(
-            tasks=tasks, messages=messages, authorize_view=self._authorize_view
+            tasks=tasks,
+            messages=messages,
+            turns=turns,
+            authorize_view=self._authorize_view,
         )
         self.private_skill_resolver = PrivateTaskSkillResolver(
             definitions=skill_definitions,

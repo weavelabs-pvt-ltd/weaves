@@ -300,12 +300,12 @@ class WorkflowStudioExecutionMixin(WorkflowStudioContext):
             return
         outputs: list[str] = []
         for task in tasks:
-            messages = self.tasks.messages.list_task_messages_page(
+            messages = self.tasks.messages.list_task_records_page(
                 task.task_id,
                 run.org_id,
                 run.workspace_id,
                 cursor_created_at=None,
-                cursor_message_id=None,
+                cursor_record_id=None,
                 limit=100,
             )
             outputs.extend(

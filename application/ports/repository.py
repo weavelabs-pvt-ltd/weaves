@@ -94,17 +94,17 @@ class Repository(Protocol[TContract]):
         """Return one bounded task page in newest-first keyset order."""
         ...
 
-    def list_task_messages_page(
+    def list_task_records_page(
         self,
         task_id: OpaqueId,
         org_id: OpaqueId,
         workspace_id: OpaqueId,
         *,
         cursor_created_at: datetime | None,
-        cursor_message_id: str | None,
+        cursor_record_id: str | None,
         limit: int,
     ) -> tuple[TContract, ...]:
-        """Return one newest-first page of a task's scoped messages."""
+        """Return one newest-first page of a task's scoped messages or turns."""
         ...
 
     def list_status_updated_before(
