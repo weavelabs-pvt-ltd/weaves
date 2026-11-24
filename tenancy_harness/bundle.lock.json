@@ -6,7 +6,7 @@
     "account_checks.py": "ec2dd087fc60279c8ca506f7d02cf1e3c8605e048708f697f4727b77c9e52a67",
     "bounded_queries_ui.cjs": "2d2fdc3b7b2cc6b59536a9e90473379624168bf6b174552967e5c38d2a338536",
     "browser_account.cjs": "6aa68d62b2834608f4743f38f5067f14309d786dab00613d06ddb6b3d1b446a5",
-    "browser_trace.cjs": "c1a67c1767cc3088c4000cd064494288765ef697f4bb13f1aa0b8c8125ea99e2",
+    "browser_trace.cjs": "aa52f3db004dc552d70214e9c5c3f90bc5a2c2e9bf94681ac603a81dc5bf7221",
     "budget.py": "7a35009d5c659d7f6717f69cea524a39fdc351eb5d279f0cf5b37e70e078658d",
     "canvas_probe.py": "29c3df161eea96fe20a1b430a2d57339a56233c730d9aabaaf5b598dfc846c74",
     "catalog_ownership.py": "557b3d8f132e546a74322e166dbde535858e89809ab7ce558d94e63e673872dc",

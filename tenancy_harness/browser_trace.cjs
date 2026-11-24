@@ -27,8 +27,6 @@ function install(test) {
       return context;
     };
   });
-  // Playwright requires the destructuring pattern for the fixtures argument.
-  // eslint-disable-next-line no-empty-pattern
   test.afterEach(async ({}, testInfo) => {
     const saved = state.get(testInfo);
     if (!saved) return;
