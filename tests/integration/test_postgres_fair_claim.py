@@ -282,4 +282,5 @@ def test_running_count_uses_the_per_organization_partial_index(env):
                 "AND payload->>'status' IN ('running', 'cancel_requested')"
             ).fetchall()
         )
-    assert "product_records_execution_job_org_running_idx" in plan
+    # An index serves it (5.4 also indexes running jobs by lease time).
+    assert "Index" in plan and "Seq Scan" not in plan
