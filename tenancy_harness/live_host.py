@@ -2,6 +2,7 @@
 
 import json
 import shlex
+import sqlite3
 
 
 def load_config(path):
@@ -87,3 +88,74 @@ def verify_flow(compose, private, browser_report):
     evidence = json.loads((private / "live-evidence.json").read_text())
     evidence["browser_cases"] = observed
     return evidence
+
+
+def relay_matches_ledger(evidence, private, directory):
+    """The budget relay's recorded usage equals the product usage ledger, per call.
+
+    The relay settles each real request from the provider's own usage block; the
+    product settles each run from the same response. Both prices are functions of
+    those tokens, so the relay's settled amounts must equal the amounts computed
+    from the ledger's tokens (the relay applies its conservative margin).
+    """
+    from tenancy_harness.budget import Ledger, usage_cost
+
+    run_id = json.loads((private / "live-config.json").read_text())["run_id"]
+    budget = Ledger(directory)
+    with sqlite3.connect(budget.path) as db:
+        relay = sorted(
+            (model, actual)
+            for model, actual in db.execute(
+                "SELECT model, actual_nanos FROM requests "
+                "WHERE run_id=? AND status='settled'",
+                (run_id,),
+            )
+        )
+    calls = evidence["verified_model_calls"]
+    expected = sorted(
+        (
+            call["model"],
+            usage_cost(
+                budget.config,
+                call["model"],
+                {
+                    "input_tokens": call["ledger_input_tokens"],
+                    "output_tokens": call["ledger_output_tokens"],
+                },
+            ),
+        )
+        for call in calls
+    )
+    if relay != expected:
+        raise AssertionError("Relay usage differs from the usage ledger")
+    margin = int(budget.config["accounting_multiplier"])
+    for call in calls:
+        # The ledger's own cost estimate is the provider price; the relay's is
+        # the same price times its accounting margin (rounded up).
+        if call["ledger_cost_nano_usd"] is None or not (
+            0
+            <= usage_cost(
+                budget.config,
+                call["model"],
+                {
+                    "input_tokens": call["ledger_input_tokens"],
+                    "output_tokens": call["ledger_output_tokens"],
+                },
+            )
+            - call["ledger_cost_nano_usd"] * margin
+            <= margin
+        ):
+            raise AssertionError("Ledger cost is not the relay's cost without margin")
+    return {
+        "relay_settled_calls": len(relay),
+        "relay_equals_ledger": True,
+        "calls": [
+            {
+                "model": call["model"],
+                "ledger_input_tokens": call["ledger_input_tokens"],
+                "ledger_output_tokens": call["ledger_output_tokens"],
+                "ledger_cost_nano_usd": call["ledger_cost_nano_usd"],
+            }
+            for call in calls
+        ],
+    }

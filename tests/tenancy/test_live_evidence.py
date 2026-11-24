@@ -18,6 +18,7 @@ def records():
             "provider_id": "anthropic-fixture",
             "input_tokens": 15,
             "output_tokens": 12,
+            "usage_ledger": ("settled", 15, 12, 7, "real-fixture-model"),
             "skill_pins": ["pinned-skill"],
             "tool_statuses": ["succeeded"],
             "summary": {"response": "LIVE_CHECK", "citations": [{"source": "fixture"}]},

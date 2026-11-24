@@ -1625,6 +1625,13 @@
       "lifecycle": "owner-requested deletion within the grace period only"
     },
     {
+      "method": "GET",
+      "path": "/api/v0/usage",
+      "scope": "organization",
+      "rule": "validated per-request organization; organizations.admin permission (Owner and Admin); reads only usage_daily and usage_ledger rows of that organization under row security; bounded range of 92 days; undeclared query parameters rejected",
+      "lifecycle": "active tenant; read only; usage is deleted with the organization"
+    },
+    {
       "method": "POST",
       "path": "/api/v0/organization/export",
       "scope": "organization",

@@ -31,6 +31,7 @@ from modules.models.runtime import ModelService
 from modules.overview.service import OverviewService
 from modules.skills.service import SkillsService
 from modules.tasks.service import TaskService
+from modules.usage.queries import UsageQueries
 from modules.waitlist.service import WaitlistService
 from modules.workflows.automation_service import WorkflowAutomationService
 from modules.workflows.definition_service import WorkflowDefinitionService
@@ -70,6 +71,7 @@ class ApiRouteServices:
     waitlist: WaitlistService
     limits: OrganizationLimitsView
     limit_policy: LimitPolicy
+    usage: UsageQueries
 
 
 def _google_sign_in(runtime: LocalPlatformRuntime) -> GoogleSignIn | None:
@@ -124,4 +126,5 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
         waitlist=runtime.waitlist_service,
         limits=OrganizationLimitsView(runtime.admission, runtime.authorize),
         limit_policy=runtime.admission.policy,
+        usage=runtime.usage_queries,
     )

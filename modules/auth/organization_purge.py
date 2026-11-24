@@ -18,6 +18,7 @@ from collections.abc import Callable
 from application.ports.organization_data import OrganizationData
 from application.ports.repository import Repository
 from application.ports.secrets import SecretStore
+from application.ports.usage import UsageLedger
 from contracts.v1 import (
     ApiCredential,
     ApiCredentialStatus,
@@ -54,6 +55,7 @@ class OrganizationPurgeService:
         data: OrganizationData,
         secrets: SecretStore,
         credentials: Repository[ApiCredential],
+        usage: UsageLedger,
         hook: Callable[[str], None] | None = None,
     ) -> None:
         """Bind the lifecycle state machine and the bulk data/secret ports."""
@@ -62,6 +64,7 @@ class OrganizationPurgeService:
         self.data = data
         self.secrets = secrets
         self.credentials = credentials
+        self.usage = usage
         self.hook = hook
 
     def _step(self, name: str) -> None:
@@ -121,6 +124,12 @@ class OrganizationPurgeService:
         self._step("secrets")
         deleted = self.secrets.purge_organization(BATCH)
         self._checkpoint(org_id, "secrets", deleted)
+        # Usage dies with the organization: ledger and rollup rows do not
+        # outlive it (retention days apply to live organizations only).
+        self._step("usage")
+        usage = self.usage.purge_organization(BATCH)
+        deleted += usage
+        self._checkpoint(org_id, "usage", usage)
         for collection in PURGE_ORDER:
             self._step(collection)
             count = self.data.delete_batch(collection, org_id, limit=BATCH)
@@ -186,9 +195,14 @@ class OrganizationPurgeService:
             self.data.delete_batch("memberships", org_id, limit=BATCH)
             if self.data.count_remaining(org_id, keep_collections=KEEP_COLLECTIONS):
                 return False
+            if self.usage.remaining_rows():
+                return False
             self.lifecycle.finish_deletion(org_id)
         return True
 
     def remaining_rows(self, org_id: str) -> int:
         """Rows still owned by the organization outside the retained set."""
-        return self.data.count_remaining(org_id, keep_collections=KEEP_COLLECTIONS)
+        return (
+            self.data.count_remaining(org_id, keep_collections=KEEP_COLLECTIONS)
+            + self.usage.remaining_rows()
+        )

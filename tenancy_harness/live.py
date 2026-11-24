@@ -45,6 +45,18 @@ def configured_agent(t, config, model, name):
         for p in profiles
         if p["provider_id"] == provider["id"] and p["model"] == model
     )
+    # Price the profile like the budget relay does, so the usage ledger estimates
+    # a cost that can be compared with the relay's own accounting.
+    rate = config["rates"][model]
+    call(
+        "PATCH",
+        "/model-profiles/" + profile["id"],
+        t["admin"],
+        {
+            "input_cost_per_million_tokens_usd": rate["input_per_million_usd"],
+            "output_cost_per_million_tokens_usd": rate["output_per_million_usd"],
+        },
+    )
     agent = call(
         "POST",
         "/agents",

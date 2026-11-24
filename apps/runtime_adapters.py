@@ -11,6 +11,7 @@ from application.ports.product_repositories import ProductRepositorySet
 from application.ports.runtime_adapters import RuntimeAdapterBundle
 from application.ports.secrets import SecretStore
 from application.ports.throttling import LoginRateLimiter
+from application.ports.usage import UsageLedger
 from clients.integrations.github import GitHubReadPlugin
 from clients.integrations.github_app_auth import GitHubAppTokenProvider
 from clients.integrations.jira import JiraReadPlugin
@@ -58,6 +59,14 @@ def build_login_rate_limiter(store: ProductPostgresStore | None) -> LoginRateLim
     if store is None:
         return InMemoryLoginRateLimiter()
     return PostgresLoginRateLimiter(store.pool)
+
+
+def build_usage_ledger(store: ProductPostgresStore | None) -> UsageLedger:
+    """Select the PostgreSQL usage ledger or the process-local development one."""
+    from infrastructure.persistence.usage_ledger import PostgresUsageLedger
+    from infrastructure.persistence.usage_ledger_memory import InMemoryUsageLedger
+
+    return InMemoryUsageLedger() if store is None else PostgresUsageLedger(store)
 
 
 def build_runtime_adapters(

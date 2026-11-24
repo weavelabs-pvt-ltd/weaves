@@ -7,6 +7,7 @@ import os
 from typing import Any
 
 from application.ports.organization_data import OrganizationData
+from application.ports.usage import UsageLedger
 from contracts.v1 import OrganizationLifecycleState
 from modules.auth.lifecycle_actor import Actor
 from modules.auth.organization_export_rules import (
@@ -43,11 +44,13 @@ class OrganizationExportService:
         *,
         lifecycle: OrganizationLifecycleService,
         data: OrganizationData,
+        usage: UsageLedger,
         max_bytes: int,
     ) -> None:
-        """Bind the lifecycle service (owner check, audit) and the data port."""
+        """Bind the lifecycle service (owner check, audit) and the data ports."""
         self.lifecycle = lifecycle
         self.data = data
+        self.usage = usage
         self.max_bytes = max_bytes
 
     def export(self) -> bytes:
@@ -110,6 +113,8 @@ class OrganizationExportService:
                 "other organizations",
             ],
             "data": collections,
+            # Daily tokens and estimated cost per agent and model (no content).
+            "usage_daily": self.usage.daily_rows(org_id),
         }
 
     def _pages(self, collection: str, org_id: str) -> Any:

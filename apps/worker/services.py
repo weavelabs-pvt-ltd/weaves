@@ -31,3 +31,5 @@ class WorkerServices:
     purge_organizations: Callable[[], int] | None = None
     purge_waitlist: Callable[[], int] | None = None
     queue_health: QueueHealthService | None = None
+    reconcile_usage: Callable[[], int] | None = None
+    purge_usage: Callable[[], int] | None = None

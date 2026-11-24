@@ -409,3 +409,16 @@ test('T5-I04 Home and every list stay bounded on a large history and match the d
   test.setTimeout(240000);
   await require('./bounded_queries_ui.cjs').verify({browser}, fixture);
 });
+
+test('T5-I03 the usage ledger equals the run rows, is tenant-isolated and survives a killed worker', async () => {
+  const control = fixture.usage_ledger;
+  for (const key of ['ledger_row_per_succeeded_run_with_equal_tokens', 'tokens_are_exactly_what_the_provider_reported',
+    'daily_rollup_equals_ledger', 'usage_endpoint_matches_own_ledger', 'usage_endpoint_is_scoped_to_the_organization',
+    'member_is_forbidden_and_bad_queries_rejected', 'restricted_role_sees_only_its_own_usage',
+    'replayed_reserve_is_a_noop', 'replayed_settle_never_double_counts', 'operator_report_matches_ledger',
+    'operator_report_has_no_content', 'call_held_open_with_a_reservation',
+    'killed_worker_reservation_becomes_unknown_once', 'unknown_call_counts_no_tokens',
+    'unknown_call_is_reported_not_hidden', 'reconciler_does_not_repeat']) {
+    expect(control[key], key).toBe(true);
+  }
+});

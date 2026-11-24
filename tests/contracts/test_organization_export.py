@@ -7,9 +7,11 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from application.ports.usage import UsageSettlement
 from apps.api.app import create_app
 from apps.runtime_wiring import compose_platform_runtime
 from modules.auth.organization_export_rules import EXPORT_COLLECTIONS
+from shared.clock import utc_now
 from shared.request_context import reset_request_principal, set_request_identity
 from tests.support.lifecycle_http import EXPORT, REQUEST, populated_world
 from tests.support.lifecycle_world import SKILL
@@ -73,6 +75,35 @@ def test_export_is_an_uncached_attachment_without_secrets_or_other_tenants(world
         assert all(r.get("org_id", world["a"][0].id) == world["a"][0].id for r in rows)
     events = world["runtime"].audit_events.list_scoped(world["a"][0].id)
     assert [e.action for e in events].count("organization.exported") == 1
+
+
+def test_export_includes_only_this_organizations_daily_usage(world):
+    ledger = world["runtime"].usage_ledger
+    now = utc_now()
+    for org, tokens in (("a", 7), ("b", 900)):
+        org_id = world[org][0].id
+        ledger.settle(
+            UsageSettlement(
+                org_id=org_id,
+                workspace_id=world[org][1].id,
+                reservation_key="r-" + org,
+                agent_run_id="r-" + org,
+                run_id="run-" + org,
+                agent_id="agent-" + org,
+                provider_id="prov",
+                model_id="model",
+                input_tokens=tokens,
+                output_tokens=1,
+                estimated_cost_nano_usd=5,
+                outcome="ok",
+                now=now,
+            )
+        )
+    document = json.loads(export(world).text)
+    assert [(r["agent_id"], r["input_tokens"]) for r in document["usage_daily"]] == [
+        ("agent-a", 7)
+    ]
+    assert "agent-b" not in json.dumps(document)
 
 
 def test_only_the_owner_may_export(world):

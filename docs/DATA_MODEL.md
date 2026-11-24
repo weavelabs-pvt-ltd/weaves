@@ -28,6 +28,7 @@ database foreign key (section 1.6).
 | `product_secrets` | Fernet ciphertext of provider keys and connector tokens, owned by one organization | `EncryptedPostgresSecretStore.__init__`, `infrastructure/secrets/store.py` (at start-up, only when `WEAVES_SECRET_ENCRYPTION_KEY` is configured, not by a numbered migration) |
 | `product_login_throttle` | Fixed-window attempt counters for sign-in and organization creation | migration 9 |
 | `tenant_scheduler_state` | Last claim time per organization, for round-robin worker claiming; no tenant content, pruned after a day, row security admits only the `queue` system purpose | migration 26 |
+| `usage_ledger`, `usage_daily` | Per-organization model-call usage (tokens, integer nano-USD) and its daily rollup; a deliberate exception to the one-table model | migration 27, `infrastructure/database/usage_schema.py` |
 | `product_schema_migrations` | Applied migration versions | `ProductPostgresStore._migrate` |
 | `product_plugin_ownership`, `product_plugin_ownership_rollout` | Explicit ownership of plugin descriptors, plus immutable rollout evidence | migration 20, applied only by an operator (`infrastructure/database/plugin_ownership.py`), never by start-up |
 
@@ -324,6 +325,44 @@ and CSRF and never touch accounts, organizations, users, sessions or the allowli
 consent texts are immutable, locked files under `contracts/waitlist` (`published.lock.json`). Rate
 limiting reuses `product_login_throttle` with hashed buckets (no address is stored).
 
+### Usage ledger (migration 27)
+
+`usage_ledger` has one row per model call, primary key `(org_id, reservation_key)`; the key is the
+`agent_run_id` (each agent run makes at most one provider request, already deduplicated by the run
+idempotency index). Columns: `workspace_id`, `agent_run_id`, `run_id`, `agent_id`, `provider_id`,
+`model_id`, `state` (`reserved`, `settled`, `released`, `unknown`), `reserved_input_tokens`,
+`reserved_output_tokens`, `reserved_cost_nano_usd`, `input_tokens`, `output_tokens`,
+`estimated_cost_nano_usd`, `outcome`, `reserved_at`, `settled_at`, `updated_at`. Money is integer
+nano-USD (1 USD = 10^9), never a float, and null when the model profile has no price.
+`usage_daily` is the rollup `(org_id, day, agent_id, provider_id, model_id)` with `calls`,
+`input_tokens`, `output_tokens`, `estimated_cost_nano_usd` and `unpriced_calls`; it is updated in the
+same transaction that settles the ledger row, and only by the first settlement of a row.
+Both tables have row security (`tenant_isolation`): `org_id` equals `app.org_id`, or the named system
+purpose `usage` (reconciler, retention, operator report). The `usage` purpose also reads
+`workflow_runs`, `agent_runs`, `execution_jobs`, `organization_lifecycle`, `organizations` and
+`workspaces` in `product_records`, and nothing else.
+
+States: the call site reserves before the provider request (reserved tokens = prompt characters
+divided by `WEAVES_USAGE_RESERVATION_INPUT_CHARS_PER_TOKEN` plus `max_output_tokens`). `settled`
+means the provider reported tokens, including for outputs later rejected (schema invalid, over
+budget) and for unusable answers whose token counts are known. `released` means no request was
+processed (disabled model, missing credential, HTTP 4xx other than 408). `unknown` means the request
+may have reached the provider (timeout, connection loss, HTTP 5xx or a worker crash) and its tokens
+are not known; the reservation stays as the upper bound for admission and is never counted in the
+rollup. Settlement is an upsert on the key that only transitions `reserved`, `unknown` or `released`
+rows, so a replay or retry is a no-op and a late real settlement upgrades `unknown` exactly once.
+The worker's `usage_reconcile` tick settles a `reserved` row from the run record when it already
+holds tokens, or marks it `unknown` once its lease expired: the workflow run is no longer running,
+its execution job stopped heartbeating (the 120 s job fence), or the run passed the run recovery
+fence. There is no time-to-live of its own. Under `WEAVES_LIMITS_MODE=enforce` a reservation that
+would take settled plus outstanding usage over the organization's day/month token cap or estimated
+daily cost cap is refused with `limit_exceeded` (advisory lock `usage:{org}`); in `observe` it is
+logged and recorded. Retention (`WEAVES_USAGE_RETENTION_DAYS`) applies to live organizations only;
+organization deletion removes the ledger and rollup rows (purge step `usage`), and the retention
+tick also sweeps rows a model call that was still in flight wrote after its organization was purged.
+The owner export includes `usage_daily`. Customers use their own provider keys (BYOK): this records
+usage, it does not charge.
+
 ### Organization slug and email domain (migration 23)
 
 `organization_settings.slug` and `.email_domain` live in the tenant-owned settings payload
@@ -548,14 +587,15 @@ State changes are written as `organizations.status`, `organization_lifecycle` an
    (`organization_lifecycle_state_idx`); due organizations move to DELETING.
 3. Each pass, under that organization's scope, in order: cancel queued/running jobs and
    queued turns (`cancel_work`); revoke `api_credentials`; delete this organization's
-   `product_secrets` (200 at a time); delete each collection in `PURGE_ORDER` in batches
+   `product_secrets` (200 at a time); delete the organization's `usage_ledger` and `usage_daily`
+   rows (200 at a time); delete each collection in `PURGE_ORDER` in batches
    of 200 (plugin descriptors that are built-in or quarantined are skipped); delete
    `audit_events` except `organization.lifecycle.*` and `organization.exported`;
    sweep any other collection except `KEEP_COLLECTIONS`.
 4. A checkpoint (`purge_step`, `purged_rows`, `clean_ticks`) is written to
    `organization_lifecycle`; the passes are idempotent and restartable.
 5. After two consecutive passes that delete nothing, under the administration lock:
-   delete the organization's `memberships`, require `count_remaining = 0`, then
+   delete the organization's `memberships`, require `count_remaining = 0` and no usage rows, then
    `finish_deletion`: state DELETED, `organizations.name` replaced by
    "deleted organization", `deleted_at` set. Kept forever: `organizations`,
    `organization_lifecycle`, `account_organization_requests`, retained `audit_events`,

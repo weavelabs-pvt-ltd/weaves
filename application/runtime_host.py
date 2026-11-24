@@ -57,6 +57,7 @@ if TYPE_CHECKING:
     from modules.models.catalog import ModelCatalogService
     from modules.models.runtime import ModelService
     from modules.tasks.service import TaskService
+    from modules.usage.service import UsageService
     from modules.workflows.automation_service import WorkflowAutomationService
     from modules.workflows.definition_service import WorkflowDefinitionService
     from modules.workflows.execution_service import WorkflowExecutionService
@@ -111,6 +112,7 @@ class RuntimeCapabilityHost:
     tool_invocations: Repository[ToolInvocation]
     mcp_plugin: McpHttpPlugin
     model_gateway: ModelGateway
+    usage: UsageService
 
     def bootstrap(self) -> None:
         """Initialize the runtime's built-in product records."""

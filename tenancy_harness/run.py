@@ -14,6 +14,7 @@ from tenancy_harness.live_host import (
     load_config,
     prepare_credentials,
     prepare_flow,
+    relay_matches_ledger,
     verify_flow,
 )
 from tenancy_harness.report import (
@@ -114,6 +115,9 @@ def complete_checks(args, compose, frontend, harness, private, port, report, liv
                 {"stage": "provenance", "browser_cases": browser_outcomes(raw)}
             )
             report["live_ai"] = verify_flow(compose, private, raw)
+            report["live_ai"]["usage_ledger"] = relay_matches_ledger(
+                report["live_ai"], private, Path.home() / ".config/weaves-testing"
+            )
         finally:
             report["testing_budget"] = Ledger(
                 Path.home() / ".config/weaves-testing"
@@ -158,6 +162,8 @@ def live_configuration(args, private, project, envfile):
             raise BudgetExhausted(
                 "Ask the user before increasing the lifetime test budget"
             )
+        # Prices for the model profiles, so the usage ledger can estimate cost.
+        config["rates"] = ledger.config["rates"]
         prepare_credentials(private, config, project, envfile, directory)
     return config
 
@@ -230,6 +236,17 @@ def fair_claim_control(compose):
         compose.run(*profile, "rm", "--stop", "--force", "worker2")
 
 
+def usage_control(compose):
+    """T5-I03: hold a model call open, SIGKILL the worker, restart it, verify.
+
+    The kill happens here because only the runner may touch the Compose project.
+    """
+    seed_module(compose, "phase5.usage_checks", "start")
+    compose.run("kill", "-s", "SIGKILL", "worker")
+    compose.run("up", "-d", "worker")
+    seed_module(compose, "phase5.usage_checks", "finish")
+
+
 def run(args, harness):
     """Build, seed, execute, report, and always remove this run's containers."""
     partial = args.api_only or bool(args.only_control)
@@ -272,6 +289,7 @@ def run(args, harness):
         seed_module(compose, "waitlist_checks")
         limits_control(compose)
         fair_claim_control(compose)
+        usage_control(compose)
         seed_module(compose, "phase5.correlation_checks")
         record_correlation_logs(compose, private)
         seed_module(compose, "phase5.bounded_queries_checks")

@@ -34,6 +34,7 @@ from modules.agents.runtime_run_model import AgentRunModelMixin
 from modules.agents.runtime_run_targets import AgentRunTargetsMixin
 from modules.integrations.admin_service import IntegrationAdminService
 from modules.limits.service import AdmissionService, NullAdmission
+from modules.usage.service import UsageService
 from shared.clock import utc_now as _now
 from shared.keyed_locks import KeyedLockRegistry
 
@@ -58,6 +59,7 @@ class AgentExecutionService(
     model_gateway: ModelGateway
     plugin_gateway: PluginDispatcher
     integration_admin_service: IntegrationAdminService
+    usage: UsageService
     runs: Repository[WorkflowRun]
     threads: Repository[ConversationThread]
     tool_invocations: Repository[ToolInvocation]
@@ -89,6 +91,7 @@ class AgentExecutionService(
         model_gateway: ModelGateway,
         plugin_gateway: PluginDispatcher,
         integration_admin_service: IntegrationAdminService,
+        usage: UsageService,
         is_bootstrapped: Callable[[], bool],
         bootstrap: Callable[[], None],
         authorize: Callable[[str, Permission], None],
@@ -117,6 +120,7 @@ class AgentExecutionService(
         self.model_gateway = model_gateway
         self.plugin_gateway = plugin_gateway
         self.integration_admin_service = integration_admin_service
+        self.usage = usage
         self._is_bootstrapped = is_bootstrapped
         self._bootstrap = bootstrap
         self._authorize = authorize

@@ -269,6 +269,12 @@ INDEX_JUSTIFICATIONS = {
     "product_records_task_turn_org_queued_idx": "fair claim: oldest turn of an org",
     "product_records_execution_job_org_running_idx": "per-organization running cap",
     "product_records_task_turn_org_running_idx": "per-organization running cap",
+    "usage_ledger_pkey": "one usage row per organization and reservation key",
+    "usage_ledger_reserved_idx": "reconciler finds open reservations by age",
+    "usage_ledger_outstanding_idx": "admission sums reserved and unknown holds",
+    "usage_ledger_org_time_idx": "per-organization usage windows and retention",
+    "usage_daily_pkey": "one rollup row per organization, day, agent and model",
+    "usage_daily_day_idx": "retention deletes old days across organizations",
 }
 
 
@@ -294,6 +300,8 @@ def test_every_index_of_the_schema_is_justified(isolated_postgres_url):
         "product_schema_migrations",
         "product_login_throttle",
         "tenant_scheduler_state",
+        "usage_ledger",
+        "usage_daily",
     }
     assert not _scalar(
         isolated_postgres_url,

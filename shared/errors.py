@@ -34,11 +34,24 @@ class TenantInactive(PermissionError):
 class ModelGatewayError(RuntimeError):
     """Safe model failure details suitable for a run error summary."""
 
-    def __init__(self, code: str, message: str, retryable: bool = False) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        retryable: bool = False,
+        *,
+        usage: tuple[int, int] | None = None,
+        http_status: int | None = None,
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.retryable = retryable
+        # (input, output) tokens the provider reported even though the
+        # response was unusable; ``None`` when no count is known.
+        self.usage = usage
+        # Upstream HTTP status when the provider itself refused the request.
+        self.http_status = http_status
 
 
 class PluginGatewayError(RuntimeError):

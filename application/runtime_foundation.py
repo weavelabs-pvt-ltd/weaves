@@ -12,11 +12,13 @@ from application.ports.product_repositories import ProductRepositorySet
 from application.ports.runtime_adapters import RuntimeAdapterBundle
 from application.ports.secrets import SecretStore
 from application.ports.throttling import LoginRateLimiter
+from application.ports.usage import UsageLedger
 from application.runtime_coordination import RuntimeCoordinationMixin
 from application.runtime_repositories import RuntimeRepositoryBindingMixin
 from clients.model_providers.gateway import ModelAdapter
 from contracts.v1 import ModelProviderType
 from modules.auth.runtime_organizations import MockModelIdentifier
+from modules.usage.service import UsageSettings
 
 
 class RuntimeFoundationMixin(RuntimeRepositoryBindingMixin, RuntimeCoordinationMixin):
@@ -34,6 +36,8 @@ class RuntimeFoundationMixin(RuntimeRepositoryBindingMixin, RuntimeCoordinationM
         repository_set: ProductRepositorySet,
         secret_store: SecretStore,
         login_rate_limiter: LoginRateLimiter,
+        usage_ledger: UsageLedger,
+        usage_settings: UsageSettings,
         runtime_adapters: RuntimeAdapterBundle,
         unit_of_work: Callable[[], AbstractContextManager[None]],
         advisory_transaction_lock: Callable[[str], None] | None,
@@ -46,6 +50,8 @@ class RuntimeFoundationMixin(RuntimeRepositoryBindingMixin, RuntimeCoordinationM
         self.seed_local_defaults = seed_local_defaults
         self.secret_store = secret_store
         self.login_rate_limiter = login_rate_limiter
+        self.usage_ledger = usage_ledger
+        self.usage_settings = usage_settings
         self._unit_of_work_impl = unit_of_work
         self._advisory_transaction_lock = advisory_transaction_lock
         self._close_storage = close_storage

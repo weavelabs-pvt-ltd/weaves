@@ -12,6 +12,9 @@ from modules.executions.recovery_service import ExecutionRecoveryService
 from modules.executions.service import ExecutionService
 from modules.executions.worker_service import ExecutionWorkerService
 from modules.governance.action_recovery_service import ActionRecoveryService
+from modules.usage.queries import UsageQueries
+from modules.usage.reconciler import UsageReconciler
+from modules.usage.service import UsageService
 from modules.workflows.execution_service import WorkflowExecutionService
 
 
@@ -39,6 +42,27 @@ def _configure_execution_service(
     )
 
 
+def _configure_usage_services(
+    dependencies: RuntimeCompositionInputs, services: CapabilityServiceSet
+) -> None:
+    """Compose usage recording, the organization report and the reconciler."""
+    services.usage_service = UsageService(
+        dependencies.usage_ledger,
+        dependencies.admission.policy,
+        dependencies.usage_settings,
+    )
+    services.usage_queries = UsageQueries(
+        dependencies.usage_ledger, dependencies.authorize
+    )
+    services.usage_reconciler = UsageReconciler(
+        ledger=dependencies.usage_ledger,
+        runs=dependencies.runs,
+        agent_runs=dependencies.agent_runs,
+        execution_jobs=dependencies.execution_jobs,
+        retention_days=dependencies.usage_settings.retention_days,
+    )
+
+
 def _configure_agent_execution_service(
     dependencies: RuntimeCompositionInputs, services: CapabilityServiceSet
 ) -> None:
@@ -61,6 +85,7 @@ def _configure_agent_execution_service(
         model_gateway=dependencies.model_gateway,
         plugin_gateway=dependencies.plugin_gateway,
         integration_admin_service=services.integration_admin_service,
+        usage=services.usage_service,
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,
         authorize=dependencies.authorize,

@@ -105,5 +105,6 @@ class ModelGateway:
             raise ModelGatewayError(
                 "model.provider_mismatch",
                 "Model adapter response did not match the selected provider",
+                usage=(response.usage.input_tokens, response.usage.output_tokens),
             )
         return response
