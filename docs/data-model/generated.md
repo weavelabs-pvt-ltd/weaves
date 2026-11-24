@@ -1247,6 +1247,8 @@ Parsed from the migration and repeatable statements. `collection` is the partial
 | `tasks_status_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, (payload->>'status')` | `collection = 'tasks'` |
 | `task_turns_active_idx` | migration 28 | `product_records` | no | `org_id, workspace_id` | `collection = 'task_turns' AND payload->>'status' IN ('queued', 'running')` |
 | `task_turns_recent_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, created_at` | `collection = 'task_turns'` |
+| `operator_actions_at_idx` | migration 30 | `operator_actions` | no | `at DESC` | `-` |
+| `operator_actions_org_idx` | migration 30 | `operator_actions` | no | `org_id, at DESC` | `org_id IS NOT NULL` |
 | `account_identity_verified_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities' AND payload->>'verified_at' IS NOT NULL` |
 | `account_identity_owner_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'account_id'), (payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities'` |
 | `membership_account_org_uq` | repeatable (account schema) | `product_records` | yes | `org_id, (payload->>'account_id')` | `collection = 'memberships'` |
