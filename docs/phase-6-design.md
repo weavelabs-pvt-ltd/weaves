@@ -260,6 +260,13 @@ Order: 6.0, then 6.1 to 6.8 in parallel groups, then 6.9, then 6.10. "Files" are
   deletion-resume cases using the harness; operator permission-denial checks.
 - Migration: no. Depends on 6.1, 6.2, 6.6. Parallel with 6.4, 6.5 (docs).
 
+- Built (6.8, code side): `docs/runbooks/` (eight runbooks plus index, written for today's backups: VM disk and 7-day
+  snapshots only, no alerts, no staging), `scripts/dr_drill.py` with `scripts/rehearsal/drill.py` and
+  `drill_safety.py` (local throwaway Docker stack only; refuses production targets), evidence `dr-drill.json`.
+  Not built, owner approval pending: `disaster_restore.sh`, off-host restore, staging drills (6.1, 6.6).
+  Found by the drill: `organization_lifecycle.py status` raised `TenantContextRequired` (the purge service's
+  `remaining_rows` needs a bound tenant); fixed.
+
 ### 6.9 Supported minimum capacity
 - Goal: a declared minimum deployment (VM shape, disk, worker slots, per-org caps) tied to measurements.
 - Files: `docs/phase-6-capacity.md`; limits defaults. Inputs: 5.6's envelope plus restore time and disk
@@ -273,6 +280,10 @@ Order: 6.0, then 6.1 to 6.8 in parallel groups, then 6.9, then 6.10. "Files" are
   matches deployed limits; `signup_enabled=false`, allowlist set, `WEAVES_PUBLIC_REGISTRATION=false`.
   The gate **reports only**; flipping public signup is a human decision and stays off.
 - Files: `scripts/release_gate.py`, `docs/phase-6-gate.md`, tests; `pair.json` phase bump. Depends on all; no migration.
+- Built (6.9, 6.10): `docs/supported-capacity.md` (numbers from 5.6, labelled simulated locally, with a
+  machine-read `gate:` line), `scripts/private_beta_gate.py` (+ `scripts/beta_gate/`, collector
+  `scripts/gate_collect_production.py`, `docs/private-beta-gate.md`). Read-only; statuses pass, fail,
+  blocked-on-owner, unverified. Deviation: the file is named `private_beta_gate.py`, not `release_gate.py`.
 ### 3.1 Summary table
 
 | Slice | Migration | Depends on | Runs in parallel with |

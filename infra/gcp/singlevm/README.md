@@ -10,6 +10,13 @@ static IP is `8.231.88.4`. Only web ports 80/443 are public; SSH is restricted t
 IAP. PostgreSQL has no host port. API port 8001 and frontend port 8080 bind only
 to loopback for administration. The VM has no attached service account.
 
+Operational procedures (incident response, kill switches, rollback, disaster recovery,
+tenant deletion and recovery, secrets rotation, connector apps) are in
+[`docs/runbooks/`](../../../docs/runbooks/README.md); the supported capacity is in
+[`docs/supported-capacity.md`](../../../docs/supported-capacity.md). The local-only
+disaster-recovery drill is `python scripts/dr_drill.py`, and `python
+scripts/private_beta_gate.py` prints the read-only private-beta gate report.
+
 ## Files and updates
 
 Server configuration lives in `/opt/weaves/singlevm`. `runtime.env` is root-only
