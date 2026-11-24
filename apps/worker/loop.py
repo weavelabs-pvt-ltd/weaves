@@ -56,7 +56,7 @@ class WorkerLoop:
     def _claiming_paused(self) -> bool:
         """True while an operator has paused claiming; running work finishes."""
         paused = getattr(self._services, "worker_paused", None)
-        return paused is not None and paused()
+        return callable(paused) and paused() is True
 
     def run_ticks(self) -> None:
         """Run every due tick in registration order; exceptions propagate."""
