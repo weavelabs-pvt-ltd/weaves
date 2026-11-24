@@ -6,6 +6,7 @@ inline and is at its size limit).
 
 from __future__ import annotations
 
+from infrastructure.database.approvals_removal import APPROVALS_REMOVAL_MIGRATION
 from infrastructure.database.bounded_queries_schema import BOUNDED_QUERIES_MIGRATION
 from infrastructure.database.controls_schema import CONTROLS_MIGRATION
 from infrastructure.database.legacy_purge import LEGACY_PURGE_MIGRATION
@@ -28,4 +29,5 @@ LATER_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     USAGE_MIGRATION,
     BOUNDED_QUERIES_MIGRATION,
     CONTROLS_MIGRATION,
+    APPROVALS_REMOVAL_MIGRATION,
 )

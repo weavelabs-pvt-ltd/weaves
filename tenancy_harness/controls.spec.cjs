@@ -18,7 +18,7 @@ test('T0-I01 real PostgreSQL API rejects missing authentication', async ({ reque
 });
 
 test('T0-I03 collection reads are tenant scoped', async ({ request }) => {
-  for (const resource of ['/agents', '/workflows', '/model-providers', '/model-profiles', '/plugin-installations', '/users', '/roles', '/role-bindings', '/workspaces', '/approval-policies', '/audit-events', '/skills', '/evaluation-suites', '/workflow-triggers', '/workflow-schedules']) {
+  for (const resource of ['/agents', '/workflows', '/model-providers', '/model-profiles', '/plugin-installations', '/users', '/roles', '/role-bindings', '/workspaces', '/audit-events', '/skills', '/evaluation-suites', '/workflow-triggers', '/workflow-schedules']) {
     const response = await get(request, resource);
     expect(response.status(), resource).toBe(200);
     const data = JSON.stringify(await response.json());
@@ -34,7 +34,6 @@ test('T0-I04 foreign known resource and version IDs are hidden', async ({ reques
   const foreign = [
     '/agents/' + b.agent.id, '/workflows/' + b.workflow.definition.workflow_id,
     '/tasks/' + b.task.task_id, '/skills/versions/' + b.skill.version.skill_version_id,
-    '/approval-policies/' + b.policy.approval_policy_id,
     '/evaluation-suites/tenancy-b',
   ];
   for (const resource of foreign) expect((await get(request, resource)).status(), resource).toBe(404);

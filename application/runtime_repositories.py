@@ -16,8 +16,6 @@ from contracts.v1 import (
     AgentRun,
     AgentVersion,
     ApiCredential,
-    ApprovalPolicy,
-    ApprovalRequest,
     Artifact,
     AuditEvent,
     ConversationThread,
@@ -94,8 +92,6 @@ class RuntimeRepositoryBindingMixin:
     evaluation_suites: Repository[EvaluationSuiteRecord]
     evaluation_executions: Repository[EvaluationExecution]
     evaluation_reports: Repository[EvaluationReportRecord]
-    approval_policies: Repository[ApprovalPolicy]
-    approvals: Repository[ApprovalRequest]
     runs: Repository[WorkflowRun]
     agent_runs: Repository[AgentRun]
     tool_invocations: Repository[ToolInvocation]
@@ -170,8 +166,6 @@ class RuntimeRepositoryBindingMixin:
         self.evaluation_reports = self._repository(
             "evaluation_reports", EvaluationReportRecord
         )
-        self.approval_policies = self._repository("approval_policies", ApprovalPolicy)
-        self.approvals = self._repository("approval_requests", ApprovalRequest)
         self.runs = self._repository("workflow_runs", WorkflowRun)
         self.agent_runs = self._repository("agent_runs", AgentRun)
         self.tool_invocations = self._repository("tool_invocations", ToolInvocation)

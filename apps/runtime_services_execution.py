@@ -11,7 +11,6 @@ from modules.evaluations.service import EvaluationService
 from modules.executions.recovery_service import ExecutionRecoveryService
 from modules.executions.service import ExecutionService
 from modules.executions.worker_service import ExecutionWorkerService
-from modules.governance.action_recovery_service import ActionRecoveryService
 from modules.usage.queries import UsageQueries
 from modules.usage.reconciler import UsageReconciler
 from modules.usage.service import UsageService
@@ -188,11 +187,5 @@ def _configure_evaluation_and_recovery_services(
         evaluation_service=services.evaluation_service,
         is_bootstrapped=lambda: dependencies._bootstrapped,
         bootstrap=dependencies.bootstrap,
-        unit_of_work=dependencies._unit_of_work,
-    )
-    services.action_recovery_service = ActionRecoveryService(
-        tool_invocations=dependencies.tool_invocations,
-        approvals=dependencies.approvals,
-        audit_events=dependencies.audit_events,
         unit_of_work=dependencies._unit_of_work,
     )

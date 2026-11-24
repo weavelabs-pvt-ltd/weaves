@@ -122,7 +122,6 @@ def _configure_workspace_access_service(
     """Compose workspace and role management with auth and storage ports."""
     services.workspace_access_service = WorkspaceAccessService(
         administration_guard=services.organization_administration_service.guard,
-        approval_policies=dependencies.approval_policies,
         audit_events=dependencies.audit_events,
         principals=dependencies.principals,
         role_bindings=dependencies.role_bindings,
@@ -144,7 +143,6 @@ def _configure_organization_service(
     services.organization_service = OrganizationService(
         organization_settings=dependencies.organization_settings,
         api_credentials=dependencies.api_credentials,
-        approval_policies=dependencies.approval_policies,
         audit_events=dependencies.audit_events,
         model_profiles=dependencies.model_profiles,
         organizations=dependencies.organizations,

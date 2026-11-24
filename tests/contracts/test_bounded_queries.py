@@ -1,8 +1,8 @@
-"""Phase 5.4: paging primitives, compatible list responses, approvals, overview."""
+"""Phase 5.4: paging primitives, compatible list responses, overview."""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,12 +20,7 @@ from application.pagination import (
 )
 from apps.api.app import create_app
 from contracts.v1 import (
-    ApprovalRequest,
-    ApprovalStatus,
-    InvocationStatus,
-    RiskLevel,
     TaskAudience,
-    ToolInvocation,
 )
 from tests.support.runtime import LocalPlatformRuntime
 
@@ -159,86 +154,6 @@ def test_paging_parameters_are_validated_not_trusted():
         assert client.get(f"{API}/roles?limit=0").status_code == 422
         assert client.get(f"{API}/roles?limit=101&paginate=true").status_code == 422
         assert client.get(f"{API}/roles?cursor=garbage").status_code == 422
-        assert client.get(f"{API}/approvals?cursor=garbage").status_code == 422
-
-
-def _approval(runtime, index: int, status: ApprovalStatus) -> ApprovalRequest:
-    task = runtime.task_service.list_tasks()
-    org, workspace = task[0].org_id, task[0].workspace_id
-    stamp = datetime(2026, 11, 1, tzinfo=UTC) + timedelta(minutes=index)
-    resolved = status is not ApprovalStatus.PENDING
-    return ApprovalRequest(
-        approval_request_id=f"approval-{index:03d}",
-        run_id=f"run-{index}",
-        requested_by_principal_id="local-developer",
-        capability_id="slack.messages.post",
-        action_summary=f"approval {index}",
-        risk_level=RiskLevel.HIGH,
-        status=status,
-        requested_at=stamp,
-        resolved_by_principal_id="approver" if resolved else None,
-        resolved_at=stamp if resolved else None,
-        org_id=org,
-        workspace_id=workspace,
-        created_at=stamp,
-        updated_at=stamp,
-    )
-
-
-def test_approvals_page_newest_first_filter_and_batch_their_invocations():
-    runtime, client = _client()
-    runtime.task_service.create_task(
-        agent_id="local-assistant", title="Anchor", initial_message="hello"
-    )
-    created = [
-        _approval(
-            runtime,
-            index,
-            ApprovalStatus.PENDING if index % 3 == 0 else ApprovalStatus.APPROVED,
-        )
-        for index in range(9)
-    ]
-    for approval in created:
-        runtime.approvals.create(approval)
-    stamp = datetime(2026, 11, 2, tzinfo=UTC)
-    for approval in created[:4]:
-        runtime.tool_invocations.create(
-            ToolInvocation(
-                invocation_id=f"inv-{approval.approval_request_id}",
-                run_id=approval.run_id,
-                plugin_installation_id="install",
-                capability_id="slack.messages.post",
-                status=InvocationStatus.AWAITING_APPROVAL,
-                risk_level=RiskLevel.HIGH,
-                approval_request_id=approval.approval_request_id,
-                org_id=approval.org_id,
-                workspace_id=approval.workspace_id,
-                created_at=stamp,
-                updated_at=stamp,
-            )
-        )
-    with client:
-        legacy = client.get(f"{API}/approvals?limit=100")
-        assert isinstance(legacy.json(), list) and len(legacy.json()) == 9
-        paged = _walk(client, "/approvals", 4)
-        ids = [row["approval_request_id"] for row in paged]
-        assert ids == sorted(ids, reverse=True) and len(ids) == 9
-        with_invocations = {
-            row["approval_request_id"]: len(row["tool_invocations"]) for row in paged
-        }
-        assert [with_invocations[f"approval-{n:03d}"] for n in range(5)] == [
-            1,
-            1,
-            1,
-            1,
-            0,
-        ]
-        pending = _walk(client, "/approvals?status=pending", 2)
-        assert {row["approval_request_id"] for row in pending} == {
-            "approval-000",
-            "approval-003",
-            "approval-006",
-        }
 
 
 def test_overview_counts_only_what_the_caller_may_see():
@@ -258,7 +173,7 @@ def test_overview_counts_only_what_the_caller_may_see():
         assert body["tasks"]["total"] == 2
         assert body["turns"]["queued"] + body["turns"]["running"] == 1
         assert sum(day["total"] for day in body["daily"]) == 2
-        assert body["pending_approvals"] == 0
+        assert "pending_approvals" not in body
         assert body["setup"]["has_agent"] is True
         assert body["generated_at"].endswith("Z")
         assert client.get(f"{API}/overview?tz_offset_minutes=9999").status_code == 422
@@ -268,10 +183,8 @@ def test_overview_counts_only_what_the_caller_may_see():
         "someone-else",
         now=datetime.now(UTC),
         tz_offset_minutes=0,
-        include_approvals=False,
     )
     assert other["tasks"]["total"] == 1  # the private task is not theirs
-    assert other["pending_approvals"] is None
 
 
 def body_org(runtime) -> str:

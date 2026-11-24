@@ -111,7 +111,6 @@ class AgentVersion(ImmutableWorkspaceVersionContract):
     allowed_workflow_ids: tuple[OpaqueId, ...] = Field(
         default_factory=tuple, max_length=100
     )
-    approval_policy_id: OpaqueId | None = None
     budget_policy_id: OpaqueId | None = None
     budget: AgentBudget = Field(default_factory=AgentBudget)
     output_schema: dict[str, JsonValue] | None = None

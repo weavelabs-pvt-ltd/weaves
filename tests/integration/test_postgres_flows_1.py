@@ -5,12 +5,9 @@ and drops its own schema, so it does not touch the database's public schema.
 """
 
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from contracts.v1 import (
-    ApprovalRequest,
-    ApprovalStatus,
-    RiskLevel,
     RunStatus,
     WorkflowConditionOperator,
     WorkflowJoinPolicy,
@@ -220,98 +217,6 @@ def _assert_next_workflow_job_uses_published_version(runtime, context, version):
         if item.run_id == run.run_id
     ]
     assert {item.agent_id for item in agent_runs} == {first.id, third.id, fourth.id}
-
-
-def test_postgres_approval_compare_and_set_allows_one_concurrent_decision(
-    isolated_postgres_url,
-):
-    first_store = ProductPostgresStore(isolated_postgres_url)
-    second_store = ProductPostgresStore(isolated_postgres_url)
-    try:
-        first = PostgresRepository(
-            first_store.pool,
-            "approval_requests",
-            "approval_request_id",
-            ApprovalRequest,
-        )
-        second = PostgresRepository(
-            second_store.pool,
-            "approval_requests",
-            "approval_request_id",
-            ApprovalRequest,
-        )
-        now = datetime.now(UTC)
-        pending, approved, rejected = _build_concurrent_approval_decisions(now)
-        first.create(pending)
-
-        def resolve(
-            repository: PostgresRepository[ApprovalRequest], record: ApprovalRequest
-        ) -> bool:
-            return repository.put_if_status_and_stale(
-                record,
-                expected_status=ApprovalStatus.PENDING.value,
-                # The repository's indexed updated_at column is set by the
-                # database when a record is inserted, a few moments after
-                # this client timestamp was captured.
-                updated_before=now + timedelta(seconds=1),
-            )
-
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            outcomes = tuple(
-                executor.map(
-                    lambda args: resolve(*args),
-                    ((first, approved), (second, rejected)),
-                )
-            )
-
-        assert sorted(outcomes) == [False, True]
-        assert first.get(pending.approval_request_id).status in {
-            ApprovalStatus.APPROVED,
-            ApprovalStatus.REJECTED,
-        }
-    finally:
-        second_store.close()
-        first_store.close()
-
-
-def _build_concurrent_approval_decisions(now):
-    """Build one pending request and competing approved/rejected outcomes."""
-    pending = ApprovalRequest(
-        approval_request_id="approval-race",
-        org_id="org-race",
-        workspace_id="workspace-race",
-        run_id="run-race",
-        requested_by_principal_id="requester-race",
-        capability_id="jira.issues.comment",
-        action_summary="Comment on the release issue",
-        risk_level=RiskLevel.MEDIUM,
-        status=ApprovalStatus.PENDING,
-        requested_at=now,
-        created_at=now,
-        updated_at=now,
-    )
-    resolved_at = now + timedelta(seconds=1)
-    approved = _resolved_test_approval(
-        pending, ApprovalStatus.APPROVED, "approver-a", resolved_at
-    )
-    rejected = _resolved_test_approval(
-        pending, ApprovalStatus.REJECTED, "approver-b", resolved_at
-    )
-    return pending, approved, rejected
-
-
-def _resolved_test_approval(pending, status, approver, resolved_at):
-    """Copy a pending request into one terminal compare-and-set candidate."""
-    return ApprovalRequest.model_validate(
-        pending.model_copy(
-            update={
-                "status": status,
-                "resolved_by_principal_id": approver,
-                "resolved_at": resolved_at,
-                "updated_at": resolved_at,
-            }
-        ).model_dump()
-    )
 
 
 def test_postgres_run_idempotency_is_shared_across_independent_pools(

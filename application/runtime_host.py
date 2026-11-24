@@ -15,8 +15,6 @@ from contracts.v1 import (
     AgentRun,
     AgentSkillSnapshot,
     AgentVersion,
-    ApprovalPolicy,
-    ApprovalRequest,
     AuditEvent,
     ErrorSummary,
     EvaluationExecution,
@@ -47,7 +45,6 @@ if TYPE_CHECKING:
     from modules.executions.recovery_service import ExecutionRecoveryService
     from modules.executions.service import ExecutionService
     from modules.executions.worker_service import ExecutionWorkerService
-    from modules.governance.action_recovery_service import ActionRecoveryService
     from modules.governance.service import GovernanceService
     from modules.integrations.admin_service import IntegrationAdminService
     from modules.integrations.bootstrap import IntegrationBootstrapService
@@ -73,7 +70,6 @@ class RuntimeCapabilityHost:
     seed_local_defaults: bool
     evaluation_service: EvaluationService
     recovery_service: ExecutionRecoveryService
-    action_recovery_service: ActionRecoveryService
     model_service: ModelService
     model_catalog_service: ModelCatalogService
     authentication_service: AuthenticationService
@@ -113,8 +109,6 @@ class RuntimeCapabilityHost:
     agents: Repository[AgentDefinition]
     agent_runs: Repository[AgentRun]
     agent_versions: Repository[AgentVersion]
-    approval_policies: Repository[ApprovalPolicy]
-    approvals: Repository[ApprovalRequest]
     tool_invocations: Repository[ToolInvocation]
     mcp_plugin: McpHttpPlugin
     model_gateway: ModelGateway

@@ -229,7 +229,6 @@ def page_checks(big, other, expected_tasks):
         "/workspaces",
         "/model-profiles",
         "/plugin-installations",
-        "/approvals?limit=100",
         "/workflow-triggers",
         "/workflow-schedules",
     )
@@ -246,7 +245,6 @@ def page_checks(big, other, expected_tasks):
             for path in (
                 "/roles?limit=0",
                 "/roles?cursor=not-a-cursor",
-                "/approvals?cursor=not-a-cursor",
             )
         ),
         "bare_arrays_unchanged_without_paging": all(
@@ -255,7 +253,7 @@ def page_checks(big, other, expected_tasks):
         "paginate_selects_the_envelope": all(
             set(call(big, path + "paginate=true&limit=1").json())
             == {"items", "next_cursor"}
-            for path in ("/agents?", "/workflows?", "/approvals?", "/users?")
+            for path in ("/agents?", "/workflows?", "/users?")
         ),
         "task_cursor_never_crosses_tenants": all(
             item["task_id"] in other_ids for item in stray

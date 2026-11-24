@@ -170,17 +170,13 @@ account session (see
 - `GET /api/v0/plugin-descriptors` and `GET /api/v0/capabilities` expose the
   registered plugin and capability contracts used to configure agents.
 - `POST /api/v0/runs`, `GET /api/v0/runs`, and `GET /api/v0/runs/{id}` execute
-  work and inspect run, tool, and artifact records. Propose a Jira comment at
-  `POST /api/v0/runs/{id}/actions`; pending approvals and policy are available
-  at `GET /api/v0/approvals` and `GET /api/v0/approval-policies`. Resolve a
-  request through `POST /api/v0/approvals/{id}/decision`. Audit history is
+  work and inspect run, tool, and artifact records. Audit history is
   available at `GET /api/v0/audit-events`.
 
 The first usable backend path is provider/model selection → versioned agent →
 allowlisted context reads → model response → run artifact and audit history.
 Local knowledge, GitHub issue/pull-request search, Slack message search, and
-Jira issue search are read-only. One Jira comment action is available only
-through the approval lifecycle. GitHub fine-grained tokens need Issues and
+Jira issue search are read-only. GitHub fine-grained tokens need Issues and
 Pull requests read access to the listed repositories. Slack requires a user
 token with `search:read`; search is restricted to configured channel names.
 Jira uses an Atlassian Cloud email and API token, with search restricted to
@@ -192,16 +188,13 @@ permission references for credential setup. Assign an agent one or more of
 Connector credentials are stored through the encrypted secret store and
 omitted from API responses.
 See [the connector setup guide](docs/product-connectors-v0.md) for request
-payloads and the complete setup sequence, including approval-backed actions.
+payloads and the complete setup sequence.
 
 The backend supports organization/workspace-scoped users, roles, agents,
 installations, runs, and audit records, along with account sessions and
 PostgreSQL-backed worker jobs. It is still an evaluation-grade v0 rather than a
 production multi-tenant service: MFA, SSO/OIDC and account recovery are
-absent and deployment isolation/operations are not production-hardened. The
-seeded local approval policy permits self-approval; organization/workspace
-defaults forbid it. Production deployments must use verified reviewer
-identities and preserve that policy.
+absent and deployment isolation/operations are not production-hardened.
 
 ## Development
 
@@ -232,8 +225,7 @@ per-run usage and cost estimates.
 ## Current boundaries
 
 The current runtime is for local v0 evaluation. It supports local knowledge,
-GitHub, Slack, Jira, and allowlisted MCP read capabilities; an approval-gated
-Jira comment is the only connector write. Durable queueing requires PostgreSQL
+GitHub, Slack, Jira, and allowlisted MCP read capabilities. Durable queueing requires PostgreSQL
 and the separate worker. MFA, SSO/OIDC, recovery, workflow loops,
 automated job retries, external-write reconciliation, and
 production deployment hardening remain follow-up work. See

@@ -27,7 +27,6 @@
         "skills.revoke",
         "artifacts.read",
         "actions.approve",
-        "approval_policies.manage",
         "audit.read"
       ],
       "title": "Permission",

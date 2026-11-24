@@ -199,7 +199,6 @@ class IdentityBootstrapService:
             Permission.PLUGINS_MANAGE,
             Permission.ARTIFACTS_READ,
             Permission.ACTIONS_APPROVE,
-            Permission.APPROVAL_POLICIES_MANAGE,
             Permission.AUDIT_READ,
         }
         bound_role_ids = {

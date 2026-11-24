@@ -75,7 +75,6 @@ class AgentService(AgentCatalogMixin):
         bootstrap: Callable[[], None],
         authorize: Callable[[str, Permission], None],
         default_model_profile: Callable[[], ModelProfile],
-        default_approval_policy_id: Callable[[], str],
         capability_installation: Callable[..., tuple[PluginInstallation, object]],
         unit_of_work: Callable[[], AbstractContextManager[None]],
         admission: AdmissionService | None = None,
@@ -105,7 +104,6 @@ class AgentService(AgentCatalogMixin):
         self._bootstrap = bootstrap
         self._authorize = authorize
         self._default_model_profile = default_model_profile
-        self._default_approval_policy_id = default_approval_policy_id
         self._capability_installation = capability_installation
         self._open_unit_of_work = unit_of_work
         self._version_publisher = AgentVersionPublisher(
@@ -269,7 +267,6 @@ class AgentService(AgentCatalogMixin):
             skills=skills,
             allowed_capability_ids=capability_ids,
             allowed_workflow_ids=(workflow_id,),
-            approval_policy_id=self._default_approval_policy_id(),
             budget=budget or AgentBudget(),
             output_schema=output_schema,
             created_at=now,

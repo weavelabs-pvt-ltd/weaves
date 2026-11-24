@@ -339,9 +339,6 @@ class LocalPlatformRuntime(
     STALE_EXECUTION_JOB_AFTER_SECONDS = (
         _runtime_constants.STALE_EXECUTION_JOB_AFTER_SECONDS
     )
-    STALE_ACTION_INVOCATION_AFTER_SECONDS = (
-        _runtime_constants.STALE_ACTION_INVOCATION_AFTER_SECONDS
-    )
     EXECUTION_JOB_HEARTBEAT_SECONDS = _runtime_constants.EXECUTION_JOB_HEARTBEAT_SECONDS
 
     @property

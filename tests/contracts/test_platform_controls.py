@@ -59,7 +59,7 @@ def admin_for(store: MemoryControlsStore, controls: PlatformControls) -> Control
 def test_migration_30_is_registered_once_and_is_the_head() -> None:
     versions = [version for version, _ in LATER_MIGRATIONS]
     assert versions == sorted(set(versions))
-    assert 30 in versions and SCHEMA_HEAD_VERSION == 30
+    assert 30 in versions and SCHEMA_HEAD_VERSION == 31
 
 
 def test_defaults_change_nothing_until_a_switch_is_set() -> None:

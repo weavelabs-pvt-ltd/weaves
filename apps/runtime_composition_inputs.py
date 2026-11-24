@@ -29,8 +29,6 @@ from contracts.v1 import (
     AgentRun,
     AgentVersion,
     ApiCredential,
-    ApprovalPolicy,
-    ApprovalRequest,
     Artifact,
     AuditEvent,
     ConversationThread,
@@ -82,7 +80,6 @@ class RuntimeCompositionInputs(Protocol):
 
     admission: AdmissionService
     _advisory_transaction_lock: Callable[[str], None] | None
-    _approval_lock: RLock
     _bootstrapped: bool
     _execution_job_idempotency_locks: KeyedLockRegistry
     _idempotency_guard: RLock
@@ -98,8 +95,6 @@ class RuntimeCompositionInputs(Protocol):
     agent_versions: Repository[AgentVersion]
     agents: Repository[AgentDefinition]
     api_credentials: Repository[ApiCredential]
-    approval_policies: Repository[ApprovalPolicy]
-    approvals: Repository[ApprovalRequest]
     artifacts: Repository[Artifact]
     audit_events: Repository[AuditEvent]
     accounts: Repository[Account]

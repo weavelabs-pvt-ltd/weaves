@@ -169,22 +169,11 @@ def resources(t):
         admin,
         {"name": marker + " robot", "permissions": ["agents.view", "tasks.view"]},
     )
-    policy = call(
-        "POST",
-        "/approval-policies",
-        admin,
-        {
-            "name": marker,
-            "required_risk_levels": ["high"],
-            "allow_self_approval": False,
-        },
-    )
     t.update(
         {
             "skill": skill,
             "private_task": private,
             "task": task,
-            "policy": policy,
             "service": service_actor(
                 service["token"], t["workspace_id"], service["principal"]["id"]
             ),

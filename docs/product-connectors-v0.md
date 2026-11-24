@@ -122,35 +122,10 @@ Remote results are capped at five items per capability. Their text is treated
 as untrusted evidence when passed to the model, and each source is attached to
 the completed artifact's provenance.
 
-## Approval-backed Jira comment
+## Write capabilities
 
 The Jira installation exposes `jira.issues.comment` as a separately enabled
-capability. Add it to the installation's `enabled_capability_ids`, then create
-or update an agent to include it in its allowlist. A normal run never dispatches
-write capabilities. Propose a comment against a successful run:
-
-```json
-{
-  "capability_id": "jira.issues.comment",
-  "issue_key": "ENG-123",
-  "comment": "The release checklist is ready for review.",
-  "agent_run_id": "<optional-workflow-step-id>"
-}
-```
-
-Send that body to `POST /api/v0/runs/{run_id}/actions`. The API records a
-pending approval and invocation without contacting Jira. In a multi-agent run,
-provide `agent_run_id` when more than one step is allowed to comment. A reviewer reads
-`GET /api/v0/approvals`, then approves or rejects through
-`POST /api/v0/approvals/{approval_id}/decision`:
-
-```json
-{"approved": true, "decision_comment": "Looks good."}
-```
-
-Only the approved decision path invokes Jira. Denial is terminal and does not
-send the comment. The seeded v0 policy requires approval for medium, high, and
-critical risk actions. The demo principal is allowed to approve its own
-proposal for local evaluation; production identity policy must disable
-self-approval. The action is synchronous and approval plus execution is not an
-atomic multi-record transaction.
+capability, but no run dispatches it: the approval-gated action flow (and its
+`/approvals` and `/approval-policies` endpoints) was removed on 2026-11-25
+together with the "Approvals & Policy" app section. Human approve/reject
+decisions remain available as workflow approval steps in the workflow run view.

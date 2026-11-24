@@ -11,49 +11,47 @@ Scope is derived from the contract fields (`org_id`, `workspace_id`) that become
 | Collection | Contract | Id field | Scope from contract | Has updated_at | Tenant-keyed id | Export | Purge | Indexes |
 |---|---|---|---|---|---|---|---|---|
 | `organizations` | `Organization` | `id` | global/account | yes | no | no | keep | - |
-| `organization_settings` | `OrganizationSettings` | `id` | organization | yes | no | no | 40 | `organization_slug_uq`, `organization_email_domain_uq` |
+| `organization_settings` | `OrganizationSettings` | `id` | organization | yes | no | no | 38 | `organization_slug_uq`, `organization_email_domain_uq` |
 | `organization_lifecycle` | `OrganizationLifecycle` | `id` | organization | yes | no | no | keep | `organization_lifecycle_state_idx` |
 | `accounts` | `Account` | `id` | global/account | yes | no | no | keep | - |
 | `account_identities` | `AccountIdentity` | `id` | global/account | yes | no | no | keep | `account_identity_verified_uq`, `account_identity_owner_uq`, `account_identity_account_idx`, `account_identity_subject_idx` |
-| `memberships` | `OrganizationMembership` | `id` | organization | yes | no | yes | 36 | `membership_account_org_uq`, `membership_user_uq`, `membership_account_idx`, `membership_user_idx` |
+| `memberships` | `OrganizationMembership` | `id` | organization | yes | no | yes | 34 | `membership_account_org_uq`, `membership_user_uq`, `membership_account_idx`, `membership_user_idx` |
 | `account_oauth_states` | `AccountOAuthState` | `id` | global/account | yes | no | no | keep | `account_oauth_state_uq`, `account_oauth_state_expiry_idx` |
 | `account_sessions` | `AccountSession` | `id` | global/account | yes | no | no | keep | `account_session_token_uq`, `account_session_account_idx`, `account_session_expiry_idx`, `account_session_revoked_idx` |
 | `account_organization_requests` | `AccountOrganizationRequest` | `id` | global/account | no | no | no | keep | `account_org_request_key_uq` |
-| `workspaces` | `Workspace` | `id` | organization | yes | no | yes | 39 | - |
-| `users` | `User` | `id` | organization | yes | no | yes | 38 | `product_records_active_user_email_uq`, `user_email_lower_idx` |
-| `principals` | `Principal` | `id` | organization | yes | no | no | 37 | - |
-| `api_credentials` | `ApiCredential` | `id` | organization | yes | no | no | 33 | `product_records_api_token_digest_uq` |
-| `roles` | `Role` | `id` | organization | no | no | yes | 35 | `product_records_system_role_key_uq` |
-| `role_bindings` | `RoleBinding` | `id` | workspace | no | no | yes | 34 | `product_records_role_binding_scope_uq` |
-| `skill_definitions` | `SkillDefinition` | `skill_id` | organization | yes | no | yes | 24 | `skills_org_slug_unique_idx`, `skills_personal_slug_unique_idx` |
-| `skill_versions` | `SkillVersion` | `skill_version_id` | organization | no (frozen) | no | yes | 23 | `skills_version_number_unique_idx` |
-| `skill_publications` | `SkillPublication` | `publication_id` | organization | no (frozen) | no | yes | 22 | `skills_publication_version_unique_idx` |
-| `skill_revocations` | `SkillRevocation` | `revocation_id` | organization | no (frozen) | no | yes | 21 | `skills_revocation_version_unique_idx` |
-| `model_providers` | `ModelProvider` | `id` | organization | no | no | yes | 29 | - |
-| `model_profiles` | `ModelProfile` | `id` | organization | yes | no | yes | 28 | - |
-| `model_configurations` | `OrganizationModelConfiguration` | `org_id` | organization | yes | no | yes | 30 | - |
-| `plugins` | `PluginDescriptor` | `plugin_id` | global/account | no (frozen) | no | no | 26 | - |
-| `plugin_installations` | `PluginInstallation` | `plugin_installation_id` | workspace | yes | no | yes | 25 | - |
-| `oauth_authorization_states` | `OAuthAuthorizationState` | `oauth_state_id` | workspace | no (frozen) | no | no | 27 | - |
-| `agents` | `AgentDefinition` | `id` | workspace | yes | no | yes | 20 | - |
-| `agent_versions` | `AgentVersion` | `agent_version_id` | workspace | no (frozen) | no | yes | 19 | - |
-| `workflows` | `WorkflowDefinition` | `workflow_id` | workspace | yes | no | yes | 18 | - |
-| `workflow_versions` | `WorkflowVersion` | `workflow_version_id` | workspace | no (frozen) | no | yes | 17 | - |
-| `workflow_triggers` | `WorkflowTrigger` | `trigger_id` | workspace | yes | no | yes | 16 | `product_records_workflow_trigger_secret_uq` |
-| `workflow_schedules` | `WorkflowSchedule` | `schedule_id` | workspace | yes | no | yes | 15 | `product_records_workflow_schedule_due_idx` |
-| `evaluation_suites` | `EvaluationSuiteRecord` | `suite_id` | workspace | yes | yes | no | 14 | - |
-| `evaluation_executions` | `EvaluationExecution` | `evaluation_id` | workspace | yes | no | no | 12 | `evaluation_executions_page_idx` |
-| `evaluation_reports` | `EvaluationReportRecord` | `evaluation_id` | workspace | no (frozen) | yes | no | 13 | `evaluation_reports_page_idx` |
-| `approval_policies` | `ApprovalPolicy` | `approval_policy_id` | workspace | yes | no | yes | 31 | - |
-| `approval_requests` | `ApprovalRequest` | `approval_request_id` | workspace | yes | no | yes | 7 | `approval_requests_page_idx`, `approval_requests_pending_idx` |
-| `workflow_runs` | `WorkflowRun` | `run_id` | workspace | yes | no | yes | 10 | `product_records_run_idempotency_uq`, `workflow_runs_running_idx` |
-| `agent_runs` | `AgentRun` | `agent_run_id` | workspace | yes | no | yes | 9 | `agent_runs_run_idx` |
-| `tool_invocations` | `ToolInvocation` | `invocation_id` | workspace | yes | no | yes | 6 | `limits_tool_invocation_org_idx`, `tool_invocations_executing_idx`, `tool_invocations_approval_idx`, `tool_invocations_run_idx` |
-| `artifacts` | `Artifact` | `artifact_id` | workspace | yes | no | yes | 8 | `artifacts_run_idx` |
+| `workspaces` | `Workspace` | `id` | organization | yes | no | yes | 37 | - |
+| `users` | `User` | `id` | organization | yes | no | yes | 36 | `product_records_active_user_email_uq`, `user_email_lower_idx` |
+| `principals` | `Principal` | `id` | organization | yes | no | no | 35 | - |
+| `api_credentials` | `ApiCredential` | `id` | organization | yes | no | no | 31 | `product_records_api_token_digest_uq` |
+| `roles` | `Role` | `id` | organization | no | no | yes | 33 | `product_records_system_role_key_uq` |
+| `role_bindings` | `RoleBinding` | `id` | workspace | no | no | yes | 32 | `product_records_role_binding_scope_uq` |
+| `skill_definitions` | `SkillDefinition` | `skill_id` | organization | yes | no | yes | 23 | `skills_org_slug_unique_idx`, `skills_personal_slug_unique_idx` |
+| `skill_versions` | `SkillVersion` | `skill_version_id` | organization | no (frozen) | no | yes | 22 | `skills_version_number_unique_idx` |
+| `skill_publications` | `SkillPublication` | `publication_id` | organization | no (frozen) | no | yes | 21 | `skills_publication_version_unique_idx` |
+| `skill_revocations` | `SkillRevocation` | `revocation_id` | organization | no (frozen) | no | yes | 20 | `skills_revocation_version_unique_idx` |
+| `model_providers` | `ModelProvider` | `id` | organization | no | no | yes | 28 | - |
+| `model_profiles` | `ModelProfile` | `id` | organization | yes | no | yes | 27 | - |
+| `model_configurations` | `OrganizationModelConfiguration` | `org_id` | organization | yes | no | yes | 29 | - |
+| `plugins` | `PluginDescriptor` | `plugin_id` | global/account | no (frozen) | no | no | 25 | - |
+| `plugin_installations` | `PluginInstallation` | `plugin_installation_id` | workspace | yes | no | yes | 24 | - |
+| `oauth_authorization_states` | `OAuthAuthorizationState` | `oauth_state_id` | workspace | no (frozen) | no | no | 26 | - |
+| `agents` | `AgentDefinition` | `id` | workspace | yes | no | yes | 19 | - |
+| `agent_versions` | `AgentVersion` | `agent_version_id` | workspace | no (frozen) | no | yes | 18 | - |
+| `workflows` | `WorkflowDefinition` | `workflow_id` | workspace | yes | no | yes | 17 | - |
+| `workflow_versions` | `WorkflowVersion` | `workflow_version_id` | workspace | no (frozen) | no | yes | 16 | - |
+| `workflow_triggers` | `WorkflowTrigger` | `trigger_id` | workspace | yes | no | yes | 15 | `product_records_workflow_trigger_secret_uq` |
+| `workflow_schedules` | `WorkflowSchedule` | `schedule_id` | workspace | yes | no | yes | 14 | `product_records_workflow_schedule_due_idx` |
+| `evaluation_suites` | `EvaluationSuiteRecord` | `suite_id` | workspace | yes | yes | no | 13 | - |
+| `evaluation_executions` | `EvaluationExecution` | `evaluation_id` | workspace | yes | no | no | 11 | `evaluation_executions_page_idx` |
+| `evaluation_reports` | `EvaluationReportRecord` | `evaluation_id` | workspace | no (frozen) | yes | no | 12 | `evaluation_reports_page_idx` |
+| `workflow_runs` | `WorkflowRun` | `run_id` | workspace | yes | no | yes | 9 | `product_records_run_idempotency_uq`, `workflow_runs_running_idx` |
+| `agent_runs` | `AgentRun` | `agent_run_id` | workspace | yes | no | yes | 8 | `agent_runs_run_idx` |
+| `tool_invocations` | `ToolInvocation` | `invocation_id` | workspace | yes | no | yes | 6 | `limits_tool_invocation_org_idx`, `tool_invocations_executing_idx`, `tool_invocations_run_idx` |
+| `artifacts` | `Artifact` | `artifact_id` | workspace | yes | no | yes | 7 | `artifacts_run_idx` |
 | `conversation_threads` | `ConversationThread` | `thread_id` | workspace | yes | no | yes | 5 | - |
 | `execution_jobs` | `ExecutionJob` | `job_id` | workspace | yes | no | no | 1 | `product_records_execution_job_idempotency_uq`, `product_records_execution_job_claim_idx`, `limits_job_queued_org_idx`, `product_records_execution_job_org_queued_idx`, `product_records_execution_job_org_running_idx`, `execution_jobs_leased_idx` |
-| `canvas_runs` | `CanvasRun` | `run_id` | workspace | yes | no | no | 11 | `canvas_runs_active_idx`, `canvas_runs_workflow_page_idx` |
-| `canvas_settings` | `CanvasSettings` | `workflow_id` | workspace | yes | no | no | 32 | `canvas_settings_due_idx` |
+| `canvas_runs` | `CanvasRun` | `run_id` | workspace | yes | no | no | 10 | `canvas_runs_active_idx`, `canvas_runs_workflow_page_idx` |
+| `canvas_settings` | `CanvasSettings` | `workflow_id` | workspace | yes | no | no | 30 | `canvas_settings_due_idx` |
 | `tasks` | `Task` | `task_id` | workspace | yes | no | yes | 4 | `product_records_task_idempotency_uq`, `product_records_task_page_idx`, `tasks_status_idx` |
 | `task_messages` | `TaskMessage` | `message_id` | workspace | no (frozen) | no | yes | 3 | `product_records_task_messages_page_idx` |
 | `task_turns` | `TaskTurn` | `turn_id` | workspace | yes | no | yes | 2 | `product_records_task_turn_idempotency_uq`, `product_records_task_turn_claim_idx`, `product_records_task_turn_stale_idx`, `limits_turn_queued_org_idx`, `product_records_task_turn_org_queued_idx`, `product_records_task_turn_org_running_idx`, `task_turns_task_idx`, `task_turns_active_idx`, `task_turns_recent_idx` |
@@ -311,7 +309,7 @@ Contract `contracts.v1.identity.Role`; `record_id` = `id`.
 | `id` | str | min_length=1, max_length=128 | required |
 | `org_id` | str | min_length=1, max_length=128 | required |
 | `name` | str | min_length=1, max_length=160 | required |
-| `permissions` | list[enum Permission(organizations.admin/workspaces.admin/users.manage/roles.manage/models.manage/models.view/agents.manage/agents.run/agents.view/workflows.manage/workflows.run/workflows.view/tasks.view/tasks.create/tasks.manage/plugins.manage/plugins.view/skills.view/skills.use/skills.personal.manage/skills.org.publish/skills.org.manage/skills.revoke/artifacts.read/actions.approve/approval_policies.manage/audit.read)] | - | default factory |
+| `permissions` | list[enum Permission(organizations.admin/workspaces.admin/users.manage/roles.manage/models.manage/models.view/agents.manage/agents.run/agents.view/workflows.manage/workflows.run/workflows.view/tasks.view/tasks.create/tasks.manage/plugins.manage/plugins.view/skills.view/skills.use/skills.personal.manage/skills.org.publish/skills.org.manage/skills.revoke/artifacts.read/actions.approve/audit.read)] | - | default factory |
 | `system_role_key` | SystemRoleKey? | - | default None |
 
 Reference-like fields: none
@@ -570,12 +568,11 @@ Contract `contracts.v1.agents.AgentVersion`; `record_id` = `agent_version_id`.
 | `skills` | tuple[AgentSkillSnapshot, Ellipsis] | max_length=50 | default factory |
 | `allowed_capability_ids` | tuple[str, Ellipsis] | max_length=100 | default factory |
 | `allowed_workflow_ids` | tuple[str, Ellipsis] | max_length=100 | default factory |
-| `approval_policy_id` | str? | - | default None |
 | `budget_policy_id` | str? | - | default None |
 | `budget` | AgentBudget | - | default factory |
 | `output_schema` | dict[str, JsonValue]? | - | default None |
 
-Reference-like fields: `agent_id`, `model_profile_id`, `allowed_capability_ids`, `allowed_workflow_ids`, `approval_policy_id`, `budget_policy_id`
+Reference-like fields: `agent_id`, `model_profile_id`, `allowed_capability_ids`, `allowed_workflow_ids`, `budget_policy_id`
 
 ### `workflows`
 
@@ -730,51 +727,6 @@ Contract `contracts.v1.evaluations.EvaluationReportRecord`; `record_id` = `evalu
 
 Reference-like fields: `suite_id`, `agent_id`, `submitted_by_principal_id`
 
-### `approval_policies`
-
-Contract `contracts.v1.executions.ApprovalPolicy`; `record_id` = `approval_policy_id`.
-
-| Field | Type | Constraints | Presence |
-|---|---|---|---|
-| `schema_version` | literal(1) | - | default 1 |
-| `created_at` | AwareDatetime | - | required |
-| `updated_at` | AwareDatetime | - | required |
-| `org_id` | str | min_length=1, max_length=128 | required |
-| `workspace_id` | str | min_length=1, max_length=128 | required |
-| `approval_policy_id` | str | min_length=1, max_length=128 | required |
-| `name` | str | min_length=1, max_length=160 | required |
-| `required_risk_levels` | tuple[enum RiskLevel(low/medium/high/critical), Ellipsis] | max_length=4 | default (<RiskLevel.MEDIUM: 'medium'>, <RiskLevel.HIGH: 'high'>, <RiskLevel.CRITICAL: 'critical'>) |
-| `allow_self_approval` | bool | - | default False |
-| `enabled` | bool | - | default True |
-
-Reference-like fields: none
-
-### `approval_requests`
-
-Contract `contracts.v1.execution_records.ApprovalRequest`; `record_id` = `approval_request_id`.
-
-| Field | Type | Constraints | Presence |
-|---|---|---|---|
-| `schema_version` | literal(1) | - | default 1 |
-| `created_at` | AwareDatetime | - | required |
-| `updated_at` | AwareDatetime | - | required |
-| `org_id` | str | min_length=1, max_length=128 | required |
-| `workspace_id` | str | min_length=1, max_length=128 | required |
-| `approval_request_id` | str | min_length=1, max_length=128 | required |
-| `run_id` | str | min_length=1, max_length=128 | required |
-| `requested_by_agent_run_id` | str? | - | default None |
-| `requested_by_principal_id` | str | min_length=1, max_length=128 | required |
-| `capability_id` | str | min_length=2, max_length=128, pattern=^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$ | required |
-| `action_summary` | str | min_length=1, max_length=1000 | required |
-| `risk_level` | enum RiskLevel(low/medium/high/critical) | - | required |
-| `status` | enum ApprovalStatus(pending/approved/rejected/expired/cancelled) | - | required |
-| `requested_at` | AwareDatetime | - | required |
-| `resolved_by_principal_id` | str? | - | default None |
-| `resolved_at` | AwareDatetime? | - | default None |
-| `decision_comment` | str? | max_length=1000 | default None |
-
-Reference-like fields: `run_id`, `requested_by_agent_run_id`, `requested_by_principal_id`, `capability_id`, `resolved_by_principal_id`
-
 ### `workflow_runs`
 
 Contract `contracts.v1.executions.WorkflowRun`; `record_id` = `run_id`.
@@ -848,7 +800,6 @@ Contract `contracts.v1.execution_records.ToolInvocation`; `record_id` = `invocat
 | `capability_id` | str | min_length=2, max_length=128, pattern=^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$ | required |
 | `status` | enum InvocationStatus(pending/awaiting_approval/denied/approved/executing/succeeded/failed/timed_out/skipped) | - | required |
 | `risk_level` | enum RiskLevel(low/medium/high/critical) | - | required |
-| `approval_request_id` | str? | - | default None |
 | `input_artifact_ids` | tuple[str, Ellipsis] | max_length=100 | default factory |
 | `output_artifact_ids` | tuple[str, Ellipsis] | max_length=100 | default factory |
 | `input_summary` | dict[str, Any] | - | default factory |
@@ -858,7 +809,7 @@ Contract `contracts.v1.execution_records.ToolInvocation`; `record_id` = `invocat
 | `duration_ms` | int? | ge=0, le=86400000 | default None |
 | `error` | ErrorSummary? | - | default None |
 
-Reference-like fields: `run_id`, `agent_run_id`, `plugin_installation_id`, `capability_id`, `approval_request_id`, `input_artifact_ids`, `output_artifact_ids`
+Reference-like fields: `run_id`, `agent_run_id`, `plugin_installation_id`, `capability_id`, `input_artifact_ids`, `output_artifact_ids`
 
 ### `artifacts`
 
@@ -1236,12 +1187,9 @@ Parsed from the migration and repeatable statements. `collection` is the partial
 | `canvas_settings_due_idx` | migration 28 | `product_records` | no | `(payload->>'next_run_at'), record_id` | `collection = 'canvas_settings' AND payload->>'sched' = 'true' AND payload->>'next_run_at' IS NOT NULL` |
 | `agent_runs_run_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, (payload->>'run_id')` | `collection = 'agent_runs'` |
 | `task_turns_task_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, (payload->>'task_id')` | `collection = 'task_turns'` |
-| `tool_invocations_approval_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, (payload->>'approval_request_id')` | `collection = 'tool_invocations' AND payload->>'approval_request_id' IS NOT NULL` |
 | `artifacts_run_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, (payload->>'run_id')` | `collection = 'artifacts'` |
 | `tool_invocations_run_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, (payload->>'run_id')` | `collection = 'tool_invocations'` |
 | `audit_events_action_target_idx` | migration 28 | `product_records` | no | `org_id, (payload->>'action'), (payload->>'target_id')` | `collection = 'audit_events'` |
-| `approval_requests_page_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, created_at DESC, record_id DESC` | `collection = 'approval_requests'` |
-| `approval_requests_pending_idx` | migration 28 | `product_records` | no | `org_id, workspace_id` | `collection = 'approval_requests' AND payload->>'status' = 'pending'` |
 | `evaluation_executions_page_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, created_at DESC, record_id DESC` | `collection = 'evaluation_executions'` |
 | `evaluation_reports_page_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, created_at DESC, record_id DESC` | `collection = 'evaluation_reports'` |
 | `canvas_runs_workflow_page_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, (payload->>'workflow_id'), created_at DESC, record_id DESC` | `collection = 'canvas_runs'` |

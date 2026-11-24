@@ -39,7 +39,6 @@ erDiagram
     model_providers ||--o{ model_profiles : "provider_id"
     organizations ||--o{ skill_definitions : "org_id"
     plugins ||--o{ plugin_installations : "plugin_id"
-    organizations ||--o{ approval_policies : "org_id"
 ```
 
 ## Identity and accounts
@@ -110,7 +109,6 @@ erDiagram
     workflows ||--o{ workflow_versions : "workflow_id"
     workflows |o--o| workflow_versions : "current_version_id"
     workflow_versions }o--o{ agent_versions : "agent_version_ids"
-    agent_versions }o--o| approval_policies : "approval_policy_id"
     agent_versions }o--o| model_profiles : "model_profile_id"
     workflows ||--o{ workflow_triggers : "workflow_id"
     workflows ||--o{ workflow_schedules : "workflow_id"
@@ -192,15 +190,10 @@ erDiagram
     tasks }o--o{ skill_versions : "private_skill_snapshots"
 ```
 
-## Governance, approvals and audit
+## Audit
 
 ```mermaid
 erDiagram
-    approval_policies ||--o{ agent_versions : "approval_policy_id"
-    tool_invocations |o--o| approval_requests : "approval_request_id"
-    workflow_runs ||--o{ approval_requests : "run_id"
-    agent_runs ||--o{ approval_requests : "requested_by_agent_run_id"
-    principals ||--o{ approval_requests : "resolved_by_principal_id"
     principals ||--o{ audit_events : "actor_principal_id"
     organizations ||--o{ audit_events : "org_id"
     audit_events }o--o| workflow_runs : "target_id (free-form, any collection)"

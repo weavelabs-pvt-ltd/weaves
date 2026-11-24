@@ -15,7 +15,6 @@ from application.ports.repository import Repository
 from contracts.v1 import (
     ApiCredential,
     ApiCredentialStatus,
-    ApprovalPolicy,
     AuditEvent,
     AuditTargetScope,
     ModelProfile,
@@ -28,7 +27,6 @@ from contracts.v1 import (
     Principal,
     PrincipalStatus,
     PrincipalType,
-    RiskLevel,
     Role,
     RoleBinding,
     User,
@@ -72,7 +70,6 @@ class OrganizationDefaults:
 
     provider: ModelProviderContract
     profile: ModelProfile
-    policy: ApprovalPolicy
 
 
 class OrganizationRuntimeHost(ABC):
@@ -80,7 +77,6 @@ class OrganizationRuntimeHost(ABC):
 
     _bootstrapped: Callable[[], bool]
     api_credentials: Repository[ApiCredential]
-    approval_policies: Repository[ApprovalPolicy]
     audit_events: Repository[AuditEvent]
     model: MockModelIdentifier
     model_profiles: Repository[ModelProfile]
@@ -275,18 +271,7 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
             created_at=timestamp,
             updated_at=timestamp,
         )
-        policy = ApprovalPolicy(
-            approval_policy_id=_id(),
-            org_id=organization_id,
-            workspace_id=workspace_id,
-            name="Require review for medium and high risk actions",
-            required_risk_levels=(RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.CRITICAL),
-            allow_self_approval=False,
-            enabled=True,
-            created_at=timestamp,
-            updated_at=timestamp,
-        )
-        return OrganizationDefaults(provider, profile, policy)
+        return OrganizationDefaults(provider, profile)
 
     def _persist_new_organization(
         self,
@@ -343,7 +328,6 @@ class OrganizationRuntimeMixin(OrganizationRuntimeHost):
                 self.api_credentials.create(owner.credential)
             self.providers.create(defaults.provider)
             self.model_profiles.create(defaults.profile)
-            self.approval_policies.create(defaults.policy)
             self.audit_events.create(
                 AuditEvent(
                     audit_event_id=_id(),

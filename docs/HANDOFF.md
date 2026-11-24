@@ -223,8 +223,8 @@ owner's email), `WEAVES_PUBLIC_FRONTEND_URL` and `WEAVES_PUBLIC_API_BASE_URL`,
 Testing mode, so only listed test users can sign in; the application allowlist is a second gate.
 
 Rollback and migrations: migrations are append-only and forward-only (`infrastructure/database/store.py`; head is
-derived from the list, currently 22); internal mode does not maintain reader-rollback compatibility, so images older than
-migration 22 cannot be rolled back onto this database. The plan's "Migration and deployment
+derived from the list, currently 31); internal mode does not maintain reader-rollback compatibility, so images older than
+migration 31 cannot be rolled back onto this database (`min_rollback_schema_version` in `infra/gcp/singlevm/release_policy.json`). The plan's "Migration and deployment
 protocol" describes the stricter expand/contract process you should adopt before real customers.
 
 ## 8. Decisions worth knowing (and why)

@@ -1,14 +1,8 @@
-"""Reference-bearing requests for policies, models, identity, skills, evaluations."""
+"""Reference-bearing requests for models, identity, skills, evaluations."""
 
 from __future__ import annotations
 
 from tests.contracts.reference_scope_cases import ORG, SKILL, WS, case
-
-
-@case("policy.patch.path_policy_id", WS)
-def _(w, ref):
-    path = f"/api/v0/approval-policies/{ref('policy')}"
-    return "PATCH", path, {"enabled": False}
 
 
 @case("model_configuration.provider_id", ORG)

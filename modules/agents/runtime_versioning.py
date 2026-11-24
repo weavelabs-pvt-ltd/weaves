@@ -74,7 +74,6 @@ class AgentVersionPublisher:
             skills=skills,
             allowed_capability_ids=capability_ids,
             allowed_workflow_ids=old_version.allowed_workflow_ids,
-            approval_policy_id=old_version.approval_policy_id,
             budget_policy_id=old_version.budget_policy_id,
             budget=budget or old_version.budget,
             output_schema=(

@@ -26,13 +26,10 @@ class RuntimeBootstrapMixin(RuntimeCapabilityHost):
         self.identity_bootstrap_service.seed_standard_roles()
         if self.seed_local_defaults:
             self.model_bootstrap_service.seed(now)
-        self.integration_bootstrap_service.seed(
-            now, seed_local_policy=self.seed_local_defaults
-        )
+        self.integration_bootstrap_service.seed(now)
         if self.seed_local_defaults:
             self.agent_bootstrap_service.seed_local_assistant(now)
         self.model_bootstrap_service.repair_profile_allowlists()
         self.recover_stale_runs(sweep=True)
         self.recover_stale_execution_jobs()
-        self.recover_stale_action_invocations()
         self._bootstrapped = True

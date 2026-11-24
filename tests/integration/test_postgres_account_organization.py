@@ -98,7 +98,6 @@ def test_one_transaction_writes_tenant_account_and_idempotency_rows(world):
         "role_bindings": 1,
         "model_providers": 1,
         "model_profiles": 1,
-        "approval_policies": 1,
         "audit_events": counts["audit_events"],
         "memberships": 1,
         "account_organization_requests": 1,

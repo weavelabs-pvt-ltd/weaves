@@ -8,11 +8,8 @@ from datetime import timedelta
 from typing import Any
 
 from contracts.v1 import (
-    ApprovalRequest,
-    ApprovalStatus,
     OAuthAuthorizationState,
     Permission,
-    RiskLevel,
 )
 from modules.auth.organization_retention import KEEP_COLLECTIONS
 from shared.clock import new_id, utc_now
@@ -22,7 +19,7 @@ SKILL = "---\nname: {name}\ndescription: Lifecycle fixture.\n---\nBe brief.\n"
 
 
 def seed_rich(runtime: Any, owner: Any, marker: str) -> dict[str, Any]:
-    """Create active tasks, approvals, schedules, skills, OAuth setup and secrets."""
+    """Create active tasks, schedules, skills, OAuth setup and secrets."""
     org, workspace, _, principal, _ = owner
     made: dict[str, Any] = {"marker": marker, "secrets": []}
     with scope(owner):
@@ -77,22 +74,6 @@ def seed_rich(runtime: Any, owner: Any, marker: str) -> dict[str, Any]:
                 secret_ref=ref,
                 created_at=now,
                 expires_at=now + timedelta(minutes=10),
-            )
-        )
-        runtime.approvals.create(
-            ApprovalRequest(
-                approval_request_id=new_id(),
-                run_id=new_id(),
-                requested_by_principal_id=principal.id,
-                capability_id="slack.messages.post",
-                action_summary=f"approval {marker}",
-                risk_level=RiskLevel.HIGH,
-                status=ApprovalStatus.PENDING,
-                requested_at=now,
-                org_id=org.id,
-                workspace_id=workspace.id,
-                created_at=now,
-                updated_at=now,
             )
         )
         _, _, credential, token = runtime.credential_service.create_service_account(
