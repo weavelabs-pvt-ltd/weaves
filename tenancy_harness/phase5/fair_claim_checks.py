@@ -26,7 +26,7 @@ from tenancy_harness.resources import definitions, tenant
 CONTROL_ID = "T5-I02"
 SLICE = "5.2"
 
-BACKLOG = 100  # A's queued tasks
+BACKLOG = 40  # A's queued tasks: deep, yet under the 50 queued-per-org admission cap
 SLOW_SECONDS = 20  # each of A's model calls
 START_BOUND = 8.0  # B must start within this, well below SLOW_SECONDS
 RUNNING_CAP = 2  # WEAVES_LIMIT_MAX_RUNNING_PER_ORG in the harness workers

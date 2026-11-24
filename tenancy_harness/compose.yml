@@ -83,6 +83,7 @@ services:
       api:
         condition: service_started
   worker2:
+    profiles: [second-worker]
     image: ${TEST_BACKEND_IMAGE:?}
     command: [python, -m, apps.worker.main]
     environment: *worker_runtime

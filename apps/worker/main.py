@@ -13,8 +13,8 @@ from apps.worker.loop import WorkerLoop
 from apps.worker.metrics_server import start_metrics_server
 from apps.worker.ticks import build_tick_registry
 from apps.worker.wiring import build_worker_services
-from shared.logging_setup import configure_logging as configure_json_logging
 from infrastructure.config.settings import load_pool_settings
+from shared.logging_setup import configure_logging as configure_json_logging
 
 logger = logging.getLogger("product.worker")
 

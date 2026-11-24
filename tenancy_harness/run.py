@@ -215,6 +215,21 @@ def record_correlation_logs(compose, private):
     log_path.unlink()
 
 
+def fair_claim_control(compose):
+    """T5-I02 runs against two native workers; the other controls keep one.
+
+    Other controls pause or count on a single worker (T5-I01 pauses ``worker``,
+    organization purge advances one deletion), so the second worker exists only
+    while this control measures.
+    """
+    profile = ["--profile", "second-worker"]
+    compose.run(*profile, "up", "-d", "worker2")
+    try:
+        seed_module(compose, "phase5.fair_claim_checks")
+    finally:
+        compose.run(*profile, "rm", "--stop", "--force", "worker2")
+
+
 def run(args, harness):
     """Build, seed, execute, report, and always remove this run's containers."""
     partial = args.api_only or bool(args.only_control)
@@ -251,15 +266,15 @@ def run(args, harness):
                 )
         compose.run("up", "-d", "postgres", "provider", "api", "frontend")
         compose.run("run", "--rm", "--no-deps", "seed")
-        compose.run("up", "-d", "worker", "worker2")
+        compose.run("up", "-d", "worker")
         seed_module(compose, "observe")
         seed_module(compose, "lifecycle_checks")
         seed_module(compose, "waitlist_checks")
         limits_control(compose)
+        fair_claim_control(compose)
         seed_module(compose, "phase5.correlation_checks")
         record_correlation_logs(compose, private)
         seed_module(compose, "phase5.bounded_queries_checks")
-        seed_module(compose, "phase5.fair_claim_checks")
         raw = browser(
             frontend,
             harness,
