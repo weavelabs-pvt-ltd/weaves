@@ -17,6 +17,7 @@ from infrastructure.persistence.admission_counts import (
 )
 from modules.limits.policy import OverridingLimitPolicy
 from modules.limits.service import AdmissionService
+from modules.platform_controls.controls import PlatformControls
 
 
 def build_admission_service(
@@ -25,6 +26,7 @@ def build_admission_service(
     repositories: ProductRepositorySet,
     lock: Callable[[str], None] | None,
     env: Mapping[str, str] | None = None,
+    controls: PlatformControls | None = None,
 ) -> AdmissionService:
     """Build limits (environment defaults plus stored overrides) and admission.
 
@@ -47,4 +49,4 @@ def build_admission_service(
         if store is not None
         else MemoryAdmissionCounts(repositories)
     )
-    return AdmissionService(policy, counts, lock)
+    return AdmissionService(policy, counts, lock, controls)

@@ -29,6 +29,7 @@ from modules.integrations.oauth_state_service import OAuthStateService
 from modules.limits.view import OrganizationLimitsView
 from modules.models.runtime import ModelService
 from modules.overview.service import OverviewService
+from modules.platform_controls.controls import PlatformControls
 from modules.skills.service import SkillsService
 from modules.tasks.service import TaskService
 from modules.usage.queries import UsageQueries
@@ -72,6 +73,7 @@ class ApiRouteServices:
     limits: OrganizationLimitsView
     limit_policy: LimitPolicy
     usage: UsageQueries
+    platform_controls: PlatformControls
 
 
 def _google_sign_in(runtime: LocalPlatformRuntime) -> GoogleSignIn | None:
@@ -80,7 +82,12 @@ def _google_sign_in(runtime: LocalPlatformRuntime) -> GoogleSignIn | None:
     if config is None:
         return None
     provider = GoogleOidcProvider(config, runtime.http_client)
-    return GoogleSignIn(config, provider, runtime.account_sign_in_service)
+    return GoogleSignIn(
+        config,
+        provider,
+        runtime.account_sign_in_service,
+        signups_open=runtime.platform_controls.signups_open,
+    )
 
 
 def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
@@ -127,4 +134,5 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
         limits=OrganizationLimitsView(runtime.admission, runtime.authorize),
         limit_policy=runtime.admission.policy,
         usage=runtime.usage_queries,
+        platform_controls=runtime.platform_controls,
     )

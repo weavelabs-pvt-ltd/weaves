@@ -7,6 +7,7 @@ inline and is at its size limit).
 from __future__ import annotations
 
 from infrastructure.database.bounded_queries_schema import BOUNDED_QUERIES_MIGRATION
+from infrastructure.database.controls_schema import CONTROLS_MIGRATION
 from infrastructure.database.legacy_purge import LEGACY_PURGE_MIGRATION
 from infrastructure.database.limits_schema import LIMITS_MIGRATION
 from infrastructure.database.organization_identity import (
@@ -26,4 +27,5 @@ LATER_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     SCHEDULER_MIGRATION,
     USAGE_MIGRATION,
     BOUNDED_QUERIES_MIGRATION,
+    CONTROLS_MIGRATION,
 )

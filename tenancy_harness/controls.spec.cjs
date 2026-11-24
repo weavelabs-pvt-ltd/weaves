@@ -422,3 +422,18 @@ test('T5-I03 the usage ledger equals the run rows, is tenant-isolated and surviv
     expect(control[key], key).toBe(true);
   }
 });
+
+test('T6-I03 the kill switches take effect on the running stack and a quarantined tenant stops alone', async () => {
+  const control = fixture.kill_switch;
+  for (const key of ['command_ok', 'schedule_disabled', 'trigger_disabled', 'a_api_refused', 'a_webhook_refused',
+    'a_no_job_created', 'b_still_serves_and_completes', 'b_rows_untouched', 'repeat_is_idempotent', 'release_ok',
+    'a_api_restored', 'schedule_reenabled', 'trigger_reenabled', 'a_webhook_works_again', 'b_rows_untouched_after_release',
+    'quarantine_and_release_are_audited', 'audit_rows_name_operator_reason_and_correlation', 'ticket_is_recorded',
+    'other_tenant_has_no_audit_rows', 'audit_is_append_only', 'restricted_role_cannot_read_audit',
+    'read_only_refuses_writes_with_a_clear_503', 'read_only_still_serves_reads', 'read_only_clears',
+    'admissions_pause_refuses_new_work', 'admissions_pause_clears', 'worker_pause_leaves_work_queued',
+    'worker_pause_clears_and_work_completes', 'switches_need_no_restart', 'clear_returns_to_environment_defaults',
+    'switch_changes_are_audited', 'restricted_role_cannot_change_a_switch']) {
+    expect(control[key], key).toBe(true);
+  }
+});

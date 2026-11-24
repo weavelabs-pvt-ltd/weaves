@@ -107,6 +107,7 @@ services:
       - ${TEST_WAITLIST_SCRIPT:?}:/suite/operator/waitlist.py:ro
       - ${TEST_LIMITS_SCRIPT:?}:/suite/operator/organization_limits.py:ro
       - ${TEST_USAGE_REPORT_SCRIPT:?}:/suite/operator/usage_report.py:ro
+      - ${TEST_PLATFORM_CONTROL_SCRIPT:?}:/suite/operator/platform_control.py:ro
       - ${TEST_PRIVATE_DIR:?}/tls/cert.pem:/trust/ca.pem:ro
   frontend:
     image: ${TEST_FRONTEND_IMAGE:?}

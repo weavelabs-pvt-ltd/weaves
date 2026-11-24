@@ -53,6 +53,11 @@ class WorkerLoop:
             tick.name: None if tick.run_at_start else start for tick in registry.ticks
         }
 
+    def _claiming_paused(self) -> bool:
+        """True while an operator has paused claiming; running work finishes."""
+        paused = getattr(self._services, "worker_paused", None)
+        return paused is not None and paused()
+
     def run_ticks(self) -> None:
         """Run every due tick in registration order; exceptions propagate."""
         for tick in self._registry.ticks:
@@ -68,6 +73,8 @@ class WorkerLoop:
         Returns True when any work was done. Slice 5.2 replaces this step.
         """
         services = self._services
+        if self._claiming_paused():
+            return False
         job = services.execution.process_next_execution_job(self._worker_id)
         turn = (
             None
@@ -95,6 +102,8 @@ class WorkerLoop:
         The queue tried first alternates so neither starves the other.
         """
         services = self._services
+        if self._claiming_paused():
+            return False
         limits = self._limits
         extra = {} if limits is None else {"limits": limits}
         jobs_first = next(self._rotation) % 2 == 0

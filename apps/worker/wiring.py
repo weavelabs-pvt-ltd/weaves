@@ -37,4 +37,5 @@ def build_worker_services(
         ),
         reconcile_usage=runtime.usage_reconciler.reconcile,
         purge_usage=runtime.usage_reconciler.purge_expired,
+        worker_paused=runtime.platform_controls.worker_paused,
     )
