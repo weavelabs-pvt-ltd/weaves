@@ -32,6 +32,12 @@ from modules.auth.organization_retention import (
     PURGE_ORDER,
     RETAINED_AUDIT,
 )
+from modules.recovery.tombstones import (
+    ORGANIZATION_DELETED,
+    ORGANIZATION_PURGE_STARTED,
+    NullTombstones,
+    TombstoneSink,
+)
 from shared.request_context import (
     reset_request_principal,
     set_request_identity,
@@ -42,6 +48,8 @@ logger = logging.getLogger("product.worker")
 State = OrganizationLifecycleState
 BATCH = 200
 CLEAN_PASSES = 2
+# What a completed purge erased (categories only; see ``organization_retention``).
+PURGE_ERASED = ("tenant_records", "secrets", "api_credentials", "usage", "memberships")
 
 
 class OrganizationPurgeService:
@@ -57,6 +65,7 @@ class OrganizationPurgeService:
         credentials: Repository[ApiCredential],
         usage: UsageLedger,
         hook: Callable[[str], None] | None = None,
+        tombstones: TombstoneSink | None = None,
     ) -> None:
         """Bind the lifecycle state machine and the bulk data/secret ports."""
         self.lifecycle = lifecycle
@@ -66,6 +75,7 @@ class OrganizationPurgeService:
         self.credentials = credentials
         self.usage = usage
         self.hook = hook
+        self.tombstones: TombstoneSink = tombstones or NullTombstones()
 
     def _step(self, name: str) -> None:
         """Failure-injection seam: tests raise here to simulate a crash."""
@@ -108,6 +118,9 @@ class OrganizationPurgeService:
         actor = Actor.system()
         token = set_request_identity(actor.audit_id, org_id, "lifecycle")
         try:
+            # Fail closed: nothing is erased until the intent is durably recorded.
+            self._step("tombstone_started")
+            self.tombstones.record(ORGANIZATION_PURGE_STARTED, org_id)
             deleted = self._delete_everything(org_id)
             self._record_pass(org_id, deleted)
             if deleted:
@@ -197,6 +210,7 @@ class OrganizationPurgeService:
                 return False
             if self.usage.remaining_rows():
                 return False
+            self.tombstones.record(ORGANIZATION_DELETED, org_id, erased=PURGE_ERASED)
             self.lifecycle.finish_deletion(org_id)
         return True
 

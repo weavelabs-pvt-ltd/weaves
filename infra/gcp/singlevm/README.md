@@ -122,10 +122,48 @@ sudo bash /opt/weaves/singlevm/check_backup.sh /path/to/backup.sql.gz
 ```
 
 The check restores into a disposable database, compares every sorted COPY row
-with SHA-256 fingerprints, then drops only that verification database. Recovery
-into the live database requires explicitly stopping API/worker, restoring into
-an empty target, verifying the export and restarting the services. Preserve the
-encryption key corresponding to the backup.
+with SHA-256 fingerprints, then drops only that verification database. Recovery into the live database requires explicitly stopping API/worker, restoring into
+an empty target, verifying the export, **reconciling tombstones** and only then restarting
+the services. Preserve the encryption key corresponding to the backup.
+
+### Tombstones and restore reconciliation (Phase 6.2)
+
+An old backup contains tenants and credentials deleted or revoked since it was taken.
+Every organization purge, API-credential revocation or rotation, and secret deletion or
+rotation (connector credentials, provider keys) therefore appends a tombstone to
+`/opt/weaves/singlevm/tombstones/tombstones.jsonl` (mounted into the API and worker at
+`/var/lib/weaves/tombstones`, `WEAVES_TOMBSTONE_DIR`). The log is outside the database, one
+JSON object per line, hash-chained (`seq`, `prev`, `hash`), and holds ids, kinds and
+timestamps only: no tokens, secrets, names or emails. `backup.sh` writes
+`<dump>.tombstone-head` (log sequence and hash) before each dump.
+
+Failure behaviour: an organization purge writes its tombstone before erasing anything and
+again before reaching DELETED, and a secret is tombstoned before it is deleted or rotated;
+if the log is unwritable the operation is refused or retried on the next worker tick, never
+done silently. API-credential revocation is committed first (a security action is never
+blocked) and then recorded; a failed write returns an error and repeating the revoke
+records it. Rotation rolls back if it cannot be recorded. Keep the directory on durable
+disk and include it in VM snapshots; until off-host shipping exists (Phase 6.1) a lost VM
+disk loses the log.
+
+Restore procedure (API and worker stopped; run from `/opt/weaves/singlevm`):
+
+```sh
+R="docker compose --env-file runtime.env run --rm --no-deps -T product-api python -"
+$R mark-restore --backup /opt/weaves/backups/singlevm/weaves-X.sql.gz < restore_reconcile.py
+# restore the dump into an empty database, then rotate WEAVES_BROWSER_SESSION_SECRET
+$R apply --dry-run --head-file /opt/weaves/backups/singlevm/weaves-X.sql.gz.tombstone-head < restore_reconcile.py
+$R apply --head-file /opt/weaves/backups/singlevm/weaves-X.sql.gz.tombstone-head < restore_reconcile.py
+```
+
+`mark-restore` writes `restore-pending-<id>.json`. While it has no matching
+`restore-reconciled-<id>.json` the API and worker exit at start-up and `apply_release.py`
+refuses to release. `apply` replays purges (existing purge service, to DELETED), revocations
+and secret deletions, revokes every account session, writes a report and then the
+completion marker. It refuses (changing nothing) when the log is corrupt, shorter than the
+backup's recorded head, or no head is supplied (use `--no-head-check` only when the backup
+has no sidecar; rotated-secret tombstones are then skipped and listed). It is idempotent;
+rerun it with `--restore-id` after any interruption.
 
 ## Google sign-in runbook
 

@@ -14,6 +14,7 @@ from modules.auth.organization_lifecycle import (
 )
 from modules.auth.organization_purge import OrganizationPurgeService
 from modules.auth.organization_slugs import OrganizationSlugs
+from modules.recovery.tombstones import tombstones_from_env
 
 
 def configure_organization_administration(
@@ -66,4 +67,5 @@ def configure_organization_administration(
         secrets=dependencies.secret_store,
         credentials=dependencies.api_credentials,
         usage=dependencies.usage_ledger,
+        tombstones=tombstones_from_env(),
     )

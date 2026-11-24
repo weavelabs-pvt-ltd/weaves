@@ -36,6 +36,7 @@ from infrastructure.persistence.product_repositories import (
     create_product_repository_set,
 )
 from infrastructure.persistence.unit_of_work import InMemoryUnitOfWork
+from modules.recovery.restore_gate import assert_from_env
 from modules.usage.service import UsageSettings
 from shared.limits_config import LimitsConfig
 from shared.metrics import register_collector
@@ -50,6 +51,9 @@ def open_process_runtime(
     ``app_role`` overrides ``WEAVES_DB_APP_ROLE``; an empty string keeps the
     owner connection, which operator tooling uses to bypass tenant policies.
     """
+    if process != "cli":
+        # A restored database is never served before reconcile completes.
+        assert_from_env()
     settings = load_pool_settings(process=process)
     local_seeds = os.environ.get("WEAVES_SEED_LOCAL_DEFAULTS", "true").strip().lower()
     if local_seeds not in {"true", "false", "1", "0", "yes", "no"}:

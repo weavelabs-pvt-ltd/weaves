@@ -735,3 +735,10 @@ Operations
       ownership registry mentions "audited account erasure" but no code implements it.
 - [ ] Reporting and analytics access: should there be read replicas or a denormalised
       reporting schema instead of queries over `payload`?
+
+## Tombstones (Phase 6.2)
+
+Not in the database by design. `modules/recovery/tombstones.py` appends hash-chained JSON lines
+(`tombstones.jsonl` in `WEAVES_TOMBSTONE_DIR`) for organization purge, API credential revocation and
+secret deletion/rotation; `restore_reconcile.py` replays them after a restore. No migration was
+needed (29 stays unused by this slice). See `infra/gcp/singlevm/README.md`.

@@ -14,6 +14,32 @@ from urllib.request import urlopen
 CONFIG_FILES = ("compose.yaml", "Caddyfile", "backup.sh")
 
 
+def prepare_tombstones(root: Path) -> None:
+    """Refuse a release while a restore is unreconciled; keep the log dir usable.
+
+    The directory is bind-mounted into the API and worker (uid 10001). Markers
+    are written by ``restore_reconcile.py`` (see ``modules/recovery``).
+    """
+    directory = root / "tombstones"
+    pending = sorted(
+        p.name[len("restore-pending-") : -len(".json")]
+        for p in directory.glob("restore-pending-*.json")
+    )
+    done = {
+        p.name[len("restore-reconciled-") : -len(".json")]
+        for p in directory.glob("restore-reconciled-*.json")
+    }
+    unreconciled = [item for item in pending if item not in done]
+    if unreconciled:
+        raise RuntimeError(
+            "Refusing release: database restore not reconciled "
+            f"({', '.join(unreconciled)}); run restore_reconcile.py apply"
+        )
+    directory.mkdir(mode=0o750, exist_ok=True)
+    if hasattr(os, "chown") and os.geteuid() == 0:
+        os.chown(directory, 10001, 10001)
+
+
 def run(command: list[str], payload: str | None = None) -> str:
     """Capture output privately; deployment failures never echo runtime secrets."""
     result = subprocess.run(command, input=payload, text=True, capture_output=True)

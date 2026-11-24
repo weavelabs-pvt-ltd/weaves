@@ -143,3 +143,16 @@ def test_storage_layout_changes_are_rejected(host, monkeypatch):
     with pytest.raises(ValueError, match="volume layout"):
         release.apply_locked(host, "backend", "new", SHA, None)
     assert (host / "runtime.env").read_text() == OLD
+
+
+def test_release_refuses_while_a_restore_is_unreconciled(tmp_path):
+    from release_runtime import prepare_tombstones
+
+    prepare_tombstones(tmp_path)  # creates the log directory
+    directory = tmp_path / "tombstones"
+    assert directory.is_dir()
+    (directory / "restore-pending-abc.json").write_text("{}")
+    with pytest.raises(RuntimeError, match="not reconciled"):
+        prepare_tombstones(tmp_path)
+    (directory / "restore-reconciled-abc.json").write_text("{}")
+    prepare_tombstones(tmp_path)

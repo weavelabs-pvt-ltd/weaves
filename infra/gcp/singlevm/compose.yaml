@@ -13,6 +13,9 @@ x-runtime: &runtime
   # new work only. Per-organization overrides use organization_limits.py.
   WEAVES_LIMITS_MODE: ${WEAVES_LIMITS_MODE:-observe}
   WEAVES_ADMISSIONS_PAUSED: ${WEAVES_ADMISSIONS_PAUSED:-false}
+  # Append-only deletion/revocation tombstones outside the database (Phase 6.2).
+  # Host path /opt/weaves/singlevm/tombstones; see README "Backup and restore".
+  WEAVES_TOMBSTONE_DIR: /var/lib/weaves/tombstones
 # Connector settings. Empty values are harmless: the connector is then reported
 # as unavailable. The API starts OAuth flows and handles provider callbacks;
 # the worker refreshes tokens and mints runtime credentials, so it needs the
@@ -67,6 +70,8 @@ services:
       WEAVES_PUBLIC_FRONTEND_URL: https://app.weave-studio.in
       WEAVES_PUBLIC_API_BASE_URL: https://api.weave-studio.in
       CORS_ORIGINS: https://app.weave-studio.in
+    volumes:
+      - ./tombstones:/var/lib/weaves/tombstones
     ports:
       - 127.0.0.1:8001:8000
     depends_on:
@@ -82,6 +87,8 @@ services:
     <<: *defaults
     image: ${BACKEND_IMAGE:?required}
     command: python -m apps.worker.main
+    volumes:
+      - ./tombstones:/var/lib/weaves/tombstones
     environment:
       <<: [*runtime, *connectors_worker]
       WEAVES_WORKER_POLL_SECONDS: "3"
