@@ -190,6 +190,14 @@ Order: 6.0, then 6.1 to 6.8 in parallel groups, then 6.9, then 6.10. "Files" are
 - Tests: unit; PostgreSQL (flag read-through, append-only audit, restricted role); harness `T6-I03`
   (quarantine A mid-run: no new work, in-flight stops at boundary, B unaffected, resume restores) and
   permission-denial cases (customer Admin cannot call operator paths).
+- Built (6.4): modules/platform_controls, migration 30 (`platform_controls`, `operator_actions`,
+  `org_quarantines`), `platform_control.py`, `organization_lifecycle.py quarantine`, control `T6-I03`.
+  Deviations: the module is `modules/platform_controls` (not `modules/platform`, which shadows a stdlib
+  name); the operator audit helper is `modules/platform_controls/audit.py` plus
+  `apps/cli/operator_runtime.record_action` (scripts are streamed into the container and cannot import
+  siblings); quarantine suspends rather than revokes by default, revoking credentials is opt-in
+  (`--revoke-credentials`, irreversible, tombstoned); account sessions are never revoked (shared across
+  organizations); queued work is cancelled by workers when claimed rather than rewritten.
 - Migration: **yes (30)**. Parallel: not with 6.2 (shared lifecycle/credential files); sequence 6.2 then 6.4,
   or assign migration numbers up front (29 = 6.2, 30 = 6.4) and merge in that order.
 

@@ -16,6 +16,7 @@ BUNDLE_FILES = (
     "release_ledger.py",
     "rollback_release.py",
     "restore_reconcile.py",
+    "platform_control.py",
     "release_policy.json",
     "compose.yaml",
     "Caddyfile",

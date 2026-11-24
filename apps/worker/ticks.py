@@ -164,7 +164,8 @@ def _dispatch_schedules(services: WorkerServices) -> None:
 
 
 def _studio(services: WorkerServices) -> None:
-    if services.studio is not None:
+    paused = getattr(services, "worker_paused", None)
+    if services.studio is not None and not (callable(paused) and paused() is True):
         services.studio.tick()
 
 

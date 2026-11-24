@@ -56,6 +56,9 @@ if TYPE_CHECKING:
     from modules.models.bootstrap import ModelBootstrapService
     from modules.models.catalog import ModelCatalogService
     from modules.models.runtime import ModelService
+    from modules.platform_controls.audit import OperatorAudit
+    from modules.platform_controls.controls import PlatformControls
+    from modules.platform_controls.store import ControlsStore
     from modules.tasks.service import TaskService
     from modules.usage.service import UsageService
     from modules.workflows.automation_service import WorkflowAutomationService
@@ -94,6 +97,9 @@ class RuntimeCapabilityHost:
     identity_bootstrap_service: IdentityBootstrapService
     model_bootstrap_service: ModelBootstrapService
     admission: AdmissionService
+    controls_store: ControlsStore
+    platform_controls: PlatformControls
+    operator_audit: OperatorAudit
     _advisory_transaction_lock: Callable[[str], None] | None
     MAX_AGENT_CONTEXT_RECORDS: int
     MAX_AGENT_CONTEXT_SERIALIZED_CHARS: int

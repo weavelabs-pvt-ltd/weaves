@@ -29,3 +29,43 @@ def emit(event: str, **fields: Any) -> None:
     line = {"event": event, **fields}
     sys.stderr.write(json.dumps(line, sort_keys=True, default=str) + "\n")
     sys.stderr.flush()
+
+
+def record_action(
+    runtime: Any,
+    *,
+    operator: str,
+    command: str,
+    reason: str,
+    target: str = "",
+    org_id: str | None = None,
+    result: str = "ok",
+    details: dict[str, Any] | None = None,
+    ticket: str | None = None,
+    correlation_id: str | None = None,
+) -> bool:
+    """Append one ``operator_actions`` row; False (and a log line) if it failed.
+
+    Every mutating operator command calls this once, for success and for refusal.
+    A runtime without an audit store (an old test double) is skipped, never an
+    error; a real write failure is reported so the caller can exit non-zero.
+    """
+    audit = getattr(runtime, "operator_audit", None)
+    if audit is None:
+        return True
+    try:
+        audit.record(
+            operator=operator,
+            command=command,
+            reason=reason,
+            target=target,
+            org_id=org_id,
+            result=result,
+            details=details,
+            ticket=ticket,
+            correlation_id=correlation_id,
+        )
+    except Exception as exc:
+        emit("operator.audit_failed", command=command, error=type(exc).__name__)
+        return False
+    return True

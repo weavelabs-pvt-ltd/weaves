@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextlib import suppress
 
 from contracts.v1 import (
@@ -13,6 +14,8 @@ from contracts.v1 import (
 from modules.auth.account_sign_in import AccountSignInService
 from modules.auth.google_oidc import GoogleClaims
 from shared.clock import new_id, utc_now
+
+SIGNUPS_CLOSED = "signup_closed"
 
 
 class SignInRefused(Exception):
@@ -31,9 +34,15 @@ class _LostRace(Exception):
 class GoogleAccountResolver:
     """Match by OIDC subject, then by verified email, else create the account."""
 
-    def __init__(self, service: AccountSignInService) -> None:
-        """Share the account directory repositories."""
+    def __init__(
+        self,
+        service: AccountSignInService,
+        *,
+        signups_open: Callable[[], bool] | None = None,
+    ) -> None:
+        """Share the account directory repositories and the sign-up switch."""
         self._service = service
+        self._signups_open = signups_open
 
     def resolve(self, claims: GoogleClaims) -> Account:
         """Return the account, with both a verified OIDC and email identity."""
@@ -86,6 +95,8 @@ class GoogleAccountResolver:
 
     def _create(self, claims: GoogleClaims) -> Account:
         """Create a new account together with both of its identities."""
+        if self._signups_open is not None and not self._signups_open():
+            raise SignInRefused(SIGNUPS_CLOSED)
         now = utc_now()
         account = Account(
             id=new_id(),

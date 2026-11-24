@@ -31,6 +31,7 @@ from application.ports.admission import (
 from application.ports.limits import LimitPolicy, OrgLimits
 from contracts.v1.limits import LimitUsageView, OrganizationLimits
 from modules.limits.errors import LimitExceeded
+from modules.platform_controls.controls import PlatformControls
 
 logger = logging.getLogger("product.limits")
 
@@ -67,11 +68,30 @@ class AdmissionService:
         policy: LimitPolicy,
         counts: AdmissionCounts,
         lock: Callable[[str], None] | None = None,
+        controls: PlatformControls | None = None,
     ) -> None:
-        """Bind limits, counting and the transaction-scoped advisory lock."""
+        """Bind limits, counting, the advisory lock and the runtime switches."""
         self.policy = policy
         self._counts = counts
         self._lock = lock
+        self._controls = controls
+        self.controls = controls
+
+    def _paused(self, limits: OrgLimits) -> bool:
+        """The effective pause: the runtime switch over the environment default."""
+        if self._controls is None:
+            return limits.admissions_paused
+        return self._controls.snapshot().admissions_paused
+
+    def _refuse_if_forced_pause(self, org_id: str) -> None:
+        """An operator's explicit pause refuses work in every limits mode."""
+        if self._controls is not None and self._controls.snapshot().admissions_forced:
+            logger.warning("admission refused: platform pause org_id=%s", org_id)
+            raise LimitExceeded(
+                "admissions_paused",
+                retry_after_seconds=QUEUE_RETRY_AFTER_SECONDS,
+                message="New work is temporarily paused.",
+            )
 
     def _refuse(
         self,
@@ -123,10 +143,11 @@ class AdmissionService:
 
     def admit_work(self, org_id: str) -> None:
         """Admit one more queued turn or job (pause, global brake, org cap)."""
+        self._refuse_if_forced_pause(org_id)
         limits = self.policy.for_org(org_id)
         if not limits.active:
             return
-        if limits.admissions_paused:
+        if self._paused(limits):
             self._refuse(
                 limits,
                 org_id,
@@ -190,7 +211,7 @@ class AdmissionService:
         )
         return OrganizationLimits(
             mode=limits.mode,
-            admissions_paused=limits.admissions_paused,
+            admissions_paused=self._paused(limits),
             requests_per_minute=limits.requests_per_minute_org,
             limits=views,
         )

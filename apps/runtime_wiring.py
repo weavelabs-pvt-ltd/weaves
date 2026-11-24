@@ -36,6 +36,13 @@ from infrastructure.persistence.product_repositories import (
     create_product_repository_set,
 )
 from infrastructure.persistence.unit_of_work import InMemoryUnitOfWork
+from modules.platform_controls.audit import OperatorAudit
+from modules.platform_controls.controls import PlatformControls
+from modules.platform_controls.store import (
+    ControlsStore,
+    MemoryControlsStore,
+    PostgresControlsStore,
+)
 from modules.recovery.restore_gate import assert_from_env
 from modules.usage.service import UsageSettings
 from shared.limits_config import LimitsConfig
@@ -167,11 +174,18 @@ def _compose_with_model_client(
         close_storage=store.close if store is not None else _noop,
         check_storage=store.check if store is not None else _noop,
     )
+    controls_store: ControlsStore = (
+        PostgresControlsStore(store) if store is not None else MemoryControlsStore()
+    )
+    runtime.controls_store = controls_store
+    runtime.operator_audit = OperatorAudit(controls_store)
     runtime.admission = build_admission_service(
         store=store,
         repositories=repositories,
         lock=store.acquire_advisory_transaction_lock if store is not None else None,
+        controls_store=controls_store,
     )
+    runtime.platform_controls = cast(PlatformControls, runtime.admission.controls)
     capability_services = configure_capability_services(runtime)
     runtime.attach_capability_services(capability_services)
     return runtime

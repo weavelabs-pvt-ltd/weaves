@@ -11,6 +11,7 @@ from apps.api.authentication import install_authentication
 from apps.api.error_mapping import REQUEST_ID_HEADER, install_error_handlers
 from apps.api.limit_errors import install_limit_error_handlers
 from apps.api.metrics import install_metrics
+from apps.api.platform_gate import install_platform_gate
 from apps.api.request_limits import install_request_limits
 from apps.api.router import register_v0_routes
 from apps.api.wiring import build_api_process_services
@@ -38,6 +39,7 @@ def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
                 app.state.product_routes_registered = True
             app.state.authentication_services = process_services.authentication
             app.state.limit_policy = process_services.routes.limit_policy
+            app.state.platform_controls = process_services.routes.platform_controls
             process_services.bootstrap()
             yield
         finally:
@@ -53,7 +55,8 @@ def create_app(runtime: LocalPlatformRuntime | None = None) -> FastAPI:
     )
     install_error_handlers(app)
     install_limit_error_handlers(app)
-    # Inside authentication: the tenant identity is bound when it runs.
+    # Inside authentication: the request id and tenant identity are bound.
+    install_platform_gate(app)
     install_request_limits(app)
     install_metrics(app)
     install_authentication(app)

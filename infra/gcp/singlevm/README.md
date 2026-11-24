@@ -283,6 +283,74 @@ disallowed transition, wrong confirmation). Repeating an action is a no-op.
   removed. Backups taken before deletion still contain the data; restoring one
   needs the phase 6 retention procedure.
 * Time-limited support access is not provided: there is no operator HTTP surface.
+## Kill switches, tenant quarantine and the operator audit (operator)
+
+`platform_control.py` flips platform-wide switches at runtime, with no restart
+and no environment edit. It is streamed into the running API container like the
+other operator scripts, opens the owner connection and is never reachable over
+HTTP. It is installed with the other release tools (`TOOL_FILES`) and in the
+deploy bundle.
+
+```
+docker compose exec -T product-api python - status < platform_control.py
+docker compose exec -T product-api python - set --operator you@example.com \
+  --reason "incident 42" --ticket INC-42 --read-only true \
+  --message "Back in a few minutes." < platform_control.py
+docker compose exec -T product-api python - clear --operator you@example.com \
+  --reason "incident over" < platform_control.py
+docker compose exec -T product-api python - actions --limit 20 < platform_control.py
+```
+
+| Switch | Effect while set | Latency |
+|---|---|---|
+| `--admissions-paused true` | New work (tasks, runs, webhook and schedule enqueues) is refused with `429 limit_exceeded`, resource `admissions_paused`, in every limits mode. `false` overrides `WEAVES_ADMISSIONS_PAUSED=true`. | about 5 s |
+| `--worker-paused true` | Workers stop claiming jobs and turns and skip studio runs; running work finishes, queued work waits. | about 5 s plus one poll |
+| `--read-only true` | Every state-changing `/api/v0/` request (POST, PUT, PATCH, DELETE, webhooks) gets `503` with code `platform_read_only` (and `--message`); reads, health and CORS preflights are served. | about 5 s |
+| `--signup-enabled false` | New accounts cannot be created through Google sign-in (redirect code `signup_closed`); existing accounts still sign in. | about 5 s |
+
+A switch that was never set (or was cleared) means "use the environment
+default", so a fresh database changes nothing. Each process caches the row for 5
+seconds. If the database cannot be read the process keeps the last value it read
+(an explicit read-only stays on); before any successful read it uses the
+defaults. `clear` takes optional `--switch NAME` (repeatable) and
+`--clear-message`; with neither it clears everything.
+
+`organization_lifecycle.py` gains `quarantine`, `release-quarantine` and
+`quarantine-status` (all `--organization-id`; the first two need `--operator`,
+`--reason`, optional `--ticket`):
+
+```
+docker compose exec -T product-api python - quarantine --organization-id ORG \
+  --operator you@example.com --reason "abuse report 17" < organization_lifecycle.py
+docker compose exec -T product-api python - release-quarantine \
+  --organization-id ORG --operator you@example.com --reason "cleared" \
+  < organization_lifecycle.py
+```
+
+Quarantine suspends the organization (all its API credentials and sessions get
+`403`, workers cancel its work at the next boundary, schedule and webhook
+dispatch skip it), disables its active schedules and webhook triggers and
+records exactly which ids it changed in `org_quarantines`. It is reversible:
+`release-quarantine` re-enables only those schedules and triggers (and only if
+they are still disabled), resumes the organization only if quarantine suspended
+it (an earlier operator suspension stays), and never replays missed work. Only
+that organization is touched; account sessions are not revoked because the same
+person may belong to other organizations. `--revoke-credentials` additionally
+revokes the organization's API credentials. That is **irreversible**: each one
+writes a 6.2 tombstone first (so a restore cannot revive it) and release leaves
+it revoked. Connector secrets are not deleted; they are unreachable while the
+organization is suspended.
+
+Every mutating operator command (`organization_lifecycle.py`,
+`organization_limits.py`, `platform_control.py`) writes one row to the
+append-only `operator_actions` table: operator, command, target, organization,
+reason, ticket, `correlation_id` (also on the script's JSON log line), result
+`ok` or `refused`, and identifiers/counts only. The table rejects update,
+delete and truncate, and the restricted application role cannot read it. Read it
+with `platform_control.py actions` or SQL as the database owner. A non-zero exit
+status 3 means the action applied but its audit row could not be written; fix
+the cause and record the action by hand.
+
 ## Tenant limits (operator)
 
 Per-organization limits (queued work, tasks, seats, schedules, agents, workflows, tool calls per day and request

@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import logging
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 
@@ -79,12 +80,14 @@ class GoogleSignIn:
         config: GoogleConfig,
         provider: GoogleOidcProvider,
         service: AccountSignInService,
+        *,
+        signups_open: Callable[[], bool] | None = None,
     ) -> None:
-        """Bind settings, the provider and the account directory."""
+        """Bind settings, the provider, the account directory and the sign-up switch."""
         self.config = config
         self.provider = provider
         self.service = service
-        self._resolver = GoogleAccountResolver(service)
+        self._resolver = GoogleAccountResolver(service, signups_open=signups_open)
 
     def start(self, return_to: str) -> GoogleStart:
         """Create one 10-minute, single-use attempt bound to a fresh cookie secret."""

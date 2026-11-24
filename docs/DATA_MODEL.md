@@ -29,6 +29,7 @@ database foreign key (section 1.6).
 | `product_login_throttle` | Fixed-window attempt counters for sign-in and organization creation | migration 9 |
 | `tenant_scheduler_state` | Last claim time per organization, for round-robin worker claiming; no tenant content, pruned after a day, row security admits only the `queue` system purpose | migration 26 |
 | `usage_ledger`, `usage_daily` | Per-organization model-call usage (tokens, integer nano-USD) and its daily rollup; a deliberate exception to the one-table model | migration 27, `infrastructure/database/usage_schema.py` |
+| `platform_controls`, `operator_actions`, `org_quarantines` | Runtime kill switches (one row, NULL = environment default), the append-only operator audit trail and what each tenant quarantine changed; no tenant content; the restricted role can only read the switches | migration 30, `infrastructure/database/controls_schema.py` |
 | `product_schema_migrations` | Applied migration versions | `ProductPostgresStore._migrate` |
 | `product_plugin_ownership`, `product_plugin_ownership_rollout` | Explicit ownership of plugin descriptors, plus immutable rollout evidence | migration 20, applied only by an operator (`infrastructure/database/plugin_ownership.py`), never by start-up |
 
@@ -324,6 +325,28 @@ Indexes: `waitlist_entry_email_uq`, `waitlist_submission_token_uq`, `waitlist_su
 and CSRF and never touch accounts, organizations, users, sessions or the allowlist. Question sets and
 consent texts are immutable, locked files under `contracts/waitlist` (`published.lock.json`). Rate
 limiting reuses `product_login_throttle` with hashed buckets (no address is stored).
+
+### Platform controls, operator audit and quarantine (migration 30)
+
+`platform_controls` is a single row (`id = 1`): `admissions_paused`, `worker_paused`, `read_only`,
+`signup_enabled` (nullable booleans; NULL means the environment default applies, so an untouched
+database behaves exactly as before), `message`, `version`, `updated_by`, `reason`, `updated_at`. API
+and worker processes read it through a 5 second cache (`modules/platform_controls/controls.py`);
+a failed read keeps the last value read. Row security: everyone may `SELECT`, nobody but the owner
+role may write.
+
+`operator_actions` is append-only (triggers reject `UPDATE`, `DELETE` and `TRUNCATE`, even for the
+owner): `action_id`, `at`, `operator`, `command`, `target`, `org_id`, `reason`, `ticket`,
+`correlation_id`, `result` (`ok` or `refused`) and `details` (identifiers and counts only, never
+secrets or tenant content). Row security is on with no policy, so the restricted application role
+sees and writes nothing. Every mutating operator script writes a row, including the 5.1
+`organization_limits` changes and every lifecycle command.
+
+`org_quarantines` has one row per organization: `state` (`quarantined`, `released`), `changes` (the
+ids of schedules and webhook triggers it disabled, whether it suspended the organization, the
+credentials it revoked), who, why, `correlation_id` and timestamps. Release re-applies only
+`changes`. Same row security as `operator_actions`. Quarantined organizations are still ordinary
+organizations: the stop itself is the existing lifecycle suspension.
 
 ### Usage ledger (migration 27)
 

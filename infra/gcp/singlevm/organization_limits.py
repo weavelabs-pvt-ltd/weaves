@@ -11,7 +11,8 @@ example from the backend image:
 Subcommands: set (merges the given limits into the organization's override),
 clear (back to the environment defaults), show and list. Every change needs
 --operator and --reason, writes an ``organization.limits.override_*`` audit event
-attributed to the operator and one structured, secret-free log line. Caps that
+attributed to the operator, one append-only ``operator_actions`` row (with a
+correlation id, also for a refusal) and one structured, secret-free log line. Caps that
 are not named keep their current value. An override takes effect within about
 30 seconds (the API and worker cache it briefly). The process-wide switches
 (WEAVES_LIMITS_MODE, WEAVES_ADMISSIONS_PAUSED, the global queue cap) stay
@@ -26,8 +27,9 @@ import json
 import sys
 from typing import Any
 
-from apps.cli.operator_runtime import emit, open_owner_runtime
+from apps.cli.operator_runtime import emit, open_owner_runtime, record_action
 from modules.limits.overrides import OrganizationLimitOverrides
+from modules.platform_controls.audit import new_correlation_id
 
 # CLI flag -> OrgLimits field
 FLAGS: dict[str, str] = {
@@ -90,32 +92,61 @@ def execute(runtime: Any, args: argparse.Namespace) -> Any:
     return service.set(args.organization_id, args.operator, args.reason, values)
 
 
+def _changed_limits(args: argparse.Namespace) -> dict[str, int]:
+    return {
+        field: getattr(args, flag.replace("-", "_"))
+        for flag, field in FLAGS.items()
+        if getattr(args, flag.replace("-", "_"), None) is not None
+    }
+
+
+def _audit(runtime: Any, args: argparse.Namespace, cid: str, result: str) -> bool:
+    return record_action(
+        runtime,
+        operator=args.operator,
+        command=f"organization.limits.{args.command}",
+        reason=args.reason,
+        target=args.organization_id,
+        org_id=args.organization_id,
+        result=result,
+        details={"limits": _changed_limits(args)} if args.command == "set" else {},
+        correlation_id=cid,
+    )
+
+
 def run(argv: list[str], runtime: Any | None = None) -> int:
     """Parse arguments, execute and return a process exit status."""
     args = _parser().parse_args(argv)
     owned = runtime is None
     active = open_owner_runtime() if runtime is None else runtime
+    cid = new_correlation_id()
+    changing = args.command in {"set", "clear"}
     try:
         result = execute(active, args)
+        audited = _audit(active, args, cid, "ok") if changing else True
     except (ValueError, PermissionError, KeyError) as exc:
         emit(
             "operator.organization_limits.refused",
             command=args.command,
             reason=str(exc),
+            correlation_id=cid,
         )
+        if changing:
+            _audit(active, args, cid, "refused")
         return 2
     finally:
         if owned:
             active.close()
-    if args.command in {"set", "clear"}:
+    if changing:
         emit(
             "operator.organization_limits",
             command=args.command,
             organization_id=args.organization_id,
             operator=args.operator,
+            correlation_id=cid,
         )
     sys.stdout.write(json.dumps(result, default=str, sort_keys=True) + "\n")
-    return 0
+    return 0 if audited else 3
 
 
 if __name__ == "__main__":
