@@ -9,7 +9,9 @@ import pytest
 from application.runtime_constants import (
     STALE_EXECUTION_JOB_AFTER_SECONDS,
     STALE_RUN_AFTER_SECONDS,
+    STALE_TASK_TURN_AFTER_SECONDS,
 )
+from application.task_run_keys import task_run_key, task_turn_id_from_run_key
 from clients.model_providers.gateway import ModelGateway
 from contracts.v1 import (
     ExecutionJob,
@@ -17,6 +19,8 @@ from contracts.v1 import (
     ModelProviderType,
     ModelResponse,
     ModelUsage,
+    TaskTurnStatus,
+    UsageGroupBy,
     UsageState,
 )
 from shared.clock import utc_now
@@ -181,3 +185,80 @@ def test_retention_applies_to_live_organizations_only_through_the_tick():
     )
     assert runtime.usage_reconciler.purge_expired() == 2  # row and rollup
     assert runtime.usage_ledger._rows == {}
+
+
+def killed_task_turn(runtime):
+    """A task turn whose worker died inside the model call; returns its turn."""
+    task = runtime.task_service.create_task(
+        agent_id="local-assistant", title="Killed", initial_message="hello"
+    )
+    crash_before_write(runtime)
+    with pytest.raises(SimulatedCrash):
+        runtime.task_worker_service.process_next_turn("worker-killed")
+    (turn,) = runtime.task_turns.list_scoped(task.org_id, task.workspace_id)
+    assert turn.status is TaskTurnStatus.RUNNING
+    assert only_row(runtime).state is UsageState.RESERVED
+    return turn
+
+
+def tokens_counted(runtime, row):
+    day = utc_now().date()
+    totals = runtime.usage_ledger.summary(row.org_id, day, day, UsageGroupBy.DAY)[0]
+    return totals.total_tokens
+
+
+def test_run_key_round_trips_to_its_turn():
+    assert task_turn_id_from_run_key(task_run_key("turn-1", 2)) == "turn-1"
+    assert task_turn_id_from_run_key("job-1") is None
+    assert task_turn_id_from_run_key(None) is None
+    assert task_turn_id_from_run_key("task::run:1") is None
+
+
+def test_killed_task_turn_is_unknown_at_the_turn_lease_not_after_four_hours():
+    runtime = runtime_with_model()
+    turn = killed_task_turn(runtime)
+    # The worker is gone but the lease is still inside its fence: nothing is guessed.
+    soon = turn.updated_at + timedelta(seconds=STALE_TASK_TURN_AFTER_SECONDS - 10)
+    assert reconcile_at(runtime, soon) == 0
+    assert only_row(runtime).state is UsageState.RESERVED
+    expired = turn.updated_at + timedelta(seconds=STALE_TASK_TURN_AFTER_SECONDS + 5)
+    assert expired < turn.updated_at + timedelta(seconds=STALE_RUN_AFTER_SECONDS)
+    assert reconcile_at(runtime, expired) == 1
+    row = only_row(runtime)
+    assert row.state is UsageState.UNKNOWN and row.outcome == "lease_expired"
+    assert tokens_counted(runtime, row) == 0
+    assert reconcile_at(runtime, expired) == 0  # idempotent
+    # A late real settlement still upgrades the row exactly once.
+    restart(runtime)
+    assert runtime.usage_ledger.settle(_late(row, expired)) is True
+    assert runtime.usage_ledger.settle(_late(row, expired)) is False
+    assert only_row(runtime).state is UsageState.SETTLED
+    assert tokens_counted(runtime, row) == 29
+
+
+def test_a_heartbeating_task_turn_keeps_its_reservation_open():
+    runtime = runtime_with_model()
+    turn = killed_task_turn(runtime)
+    beat = turn.updated_at + timedelta(seconds=400)
+    runtime.task_turns.put(turn.model_copy(update={"updated_at": beat}))
+    assert reconcile_at(runtime, beat + timedelta(seconds=30)) == 0
+    assert only_row(runtime).state is UsageState.RESERVED
+    lapsed = beat + timedelta(seconds=STALE_TASK_TURN_AFTER_SECONDS + 5)
+    assert reconcile_at(runtime, lapsed) == 1
+    assert only_row(runtime).state is UsageState.UNKNOWN
+
+
+def test_a_requeued_task_turn_releases_the_dead_attempts_reservation():
+    runtime = runtime_with_model()
+    turn = killed_task_turn(runtime)
+    runtime.task_turns.put(
+        turn.model_copy(
+            update={
+                "status": TaskTurnStatus.QUEUED,
+                "worker_id": None,
+                "started_at": None,
+            }
+        )
+    )
+    assert reconcile_at(runtime, turn.updated_at + timedelta(seconds=30)) == 1
+    assert only_row(runtime).state is UsageState.UNKNOWN

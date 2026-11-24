@@ -59,6 +59,7 @@ def _configure_usage_services(
         runs=dependencies.runs,
         agent_runs=dependencies.agent_runs,
         execution_jobs=dependencies.execution_jobs,
+        task_turns=dependencies.task_turns,
         retention_days=dependencies.usage_settings.retention_days,
     )
 

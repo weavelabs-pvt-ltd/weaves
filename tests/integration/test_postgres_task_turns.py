@@ -1,11 +1,19 @@
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from contracts.v1 import TaskTurn, TaskTurnStatus
+import pytest
+
+from application.ports.usage import UsageSettlement
+from application.runtime_constants import (
+    STALE_RUN_AFTER_SECONDS,
+    STALE_TASK_TURN_AFTER_SECONDS,
+)
+from contracts.v1 import TaskTurn, TaskTurnStatus, UsageGroupBy, UsageState
 from infrastructure.database.store import ProductPostgresStore
 from infrastructure.persistence.product_repositories import (
     create_product_repository_set,
 )
+from shared.request_context import system_scope
 from tests.support.runtime import LocalPlatformRuntime
 
 
@@ -81,3 +89,75 @@ def test_postgres_task_api_and_worker_persist_a_complete_turn(
     assert runtime.task_service.get_task(task.task_id).title == "Postgres task"
     messages = runtime.task_service.list_messages(task.task_id)
     assert [message.role.value for message in messages] == ["user", "assistant"]
+
+
+class SimulatedCrash(BaseException):
+    """The worker process dies here; no ``except Exception`` may absorb it."""
+
+
+def test_postgres_killed_turn_reservation_is_unknown_at_the_turn_lease(
+    isolated_postgres_url, monkeypatch
+):
+    from cryptography.fernet import Fernet
+
+    monkeypatch.setenv("DATABASE_URL", isolated_postgres_url)
+    monkeypatch.setenv(
+        "WEAVES_SECRET_ENCRYPTION_KEY", Fernet.generate_key().decode("ascii")
+    )
+    runtime = LocalPlatformRuntime()
+    runtime.bootstrap()
+    task = runtime.task_service.create_task(
+        agent_id="local-assistant", title="Killed", initial_message="hello"
+    )
+
+    def dies(*args, **kwargs):
+        raise SimulatedCrash
+
+    with monkeypatch.context() as crashed:
+        crashed.setattr(runtime.usage_ledger, "settle", dies)
+        crashed.setattr(runtime.usage_service, "settle", dies)
+        with pytest.raises(SimulatedCrash):
+            runtime.task_worker_service.process_next_turn("worker-killed")
+    (turn,) = runtime.task_turns.list_scoped(task.org_id, task.workspace_id)
+    assert turn.status is TaskTurnStatus.RUNNING
+    reconciler = runtime.usage_reconciler
+
+    def reconcile_at(moment):
+        reconciler._clock = lambda: moment
+        return reconciler.reconcile()
+
+    with system_scope("usage"):
+        (reserved,) = runtime.usage_ledger.list_reserved_before(
+            turn.updated_at + timedelta(days=1), limit=10
+        )
+    assert reserved.state is UsageState.RESERVED
+    key = (reserved.org_id, reserved.reservation_key)
+    fence = STALE_TASK_TURN_AFTER_SECONDS
+    assert reconcile_at(turn.updated_at + timedelta(seconds=fence - 10)) == 0
+    expired = turn.updated_at + timedelta(seconds=fence + 5)
+    assert fence + 5 < STALE_RUN_AFTER_SECONDS
+    assert reconcile_at(expired) == 1
+    assert reconcile_at(expired) == 0
+    row = runtime.usage_ledger.get(*key)
+    assert row.state is UsageState.UNKNOWN and row.outcome == "lease_expired"
+    day = expired.date()
+    totals = runtime.usage_ledger.summary(key[0], day, day, UsageGroupBy.DAY)[0]
+    assert totals.total_tokens == 0
+    late = UsageSettlement(
+        org_id=row.org_id,
+        workspace_id=row.workspace_id,
+        reservation_key=row.reservation_key,
+        agent_run_id=row.agent_run_id,
+        run_id=row.run_id,
+        agent_id=row.agent_id,
+        provider_id=row.provider_id,
+        model_id=row.model_id,
+        input_tokens=21,
+        output_tokens=8,
+        estimated_cost_nano_usd=None,
+        outcome="late",
+        now=expired,
+    )
+    assert runtime.usage_ledger.settle(late) is True
+    assert runtime.usage_ledger.settle(late) is False
+    assert runtime.usage_ledger.get(*key).state is UsageState.SETTLED

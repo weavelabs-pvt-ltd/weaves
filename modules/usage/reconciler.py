@@ -13,7 +13,8 @@ of its own (runtime budgets reach 3600 s):
 
 The lease is expired when the workflow run is no longer running, the execution
 job that owns it stopped heartbeating (the same 120 s fence job recovery uses),
-or the run itself passed the run recovery fence.
+the run itself passed the run recovery fence, or, for a task turn's run, the turn
+stopped heartbeating (the same fence turn recovery uses) or is no longer running.
 """
 
 from __future__ import annotations
@@ -27,12 +28,16 @@ from application.ports.usage import UsageLedger, UsageSettlement
 from application.runtime_constants import (
     STALE_EXECUTION_JOB_AFTER_SECONDS,
     STALE_RUN_AFTER_SECONDS,
+    STALE_TASK_TURN_AFTER_SECONDS,
 )
+from application.task_run_keys import task_turn_id_from_run_key
 from contracts.v1 import (
     AgentRun,
     ExecutionJob,
     ExecutionJobStatus,
     RunStatus,
+    TaskTurn,
+    TaskTurnStatus,
     UsageEvent,
     WorkflowRun,
 )
@@ -56,6 +61,7 @@ class UsageReconciler:
         runs: Repository[WorkflowRun],
         agent_runs: Repository[AgentRun],
         execution_jobs: Repository[ExecutionJob],
+        task_turns: Repository[TaskTurn],
         retention_days: int,
         batch: int = 200,
         clock: Callable[[], datetime] = utc_now,
@@ -65,6 +71,7 @@ class UsageReconciler:
         self.runs = runs
         self.agent_runs = agent_runs
         self.execution_jobs = execution_jobs
+        self.task_turns = task_turns
         self.retention_days = retention_days
         self.batch = batch
         self._clock = clock
@@ -162,6 +169,18 @@ class UsageReconciler:
                 run.idempotency_key, run.org_id, run.workspace_id
             )
         except KeyError:
-            return False
+            return self._turn_lease_expired(run, now)
         stale = now - timedelta(seconds=STALE_EXECUTION_JOB_AFTER_SECONDS)
         return job.status not in _LIVE_JOB or job.updated_at <= stale
+
+    def _turn_lease_expired(self, run: WorkflowRun, now: datetime) -> bool:
+        """A task turn's run is orphaned once its turn stops heartbeating."""
+        turn_id = task_turn_id_from_run_key(run.idempotency_key)
+        if turn_id is None:
+            return False
+        try:
+            turn = self.task_turns.get_scoped(turn_id, run.org_id, run.workspace_id)
+        except KeyError:
+            return False
+        stale = now - timedelta(seconds=STALE_TASK_TURN_AFTER_SECONDS)
+        return turn.status is not TaskTurnStatus.RUNNING or turn.updated_at <= stale
