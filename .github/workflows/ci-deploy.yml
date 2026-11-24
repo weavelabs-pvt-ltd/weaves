@@ -15,6 +15,35 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: Detect schema and rehearsal changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      migrations: ${{ steps.diff.outputs.migrations }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Did the database schema or the rehearsal itself change
+        id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # Unknown base (manual run, new branch, force push) means assume changed.
+          paths='^(infrastructure/database/|scripts/release_rehearsal\.py|scripts/rehearsal/|infra/gcp/singlevm/release_policy\.json)'
+          if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ] \
+             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            changed=true
+          elif git diff --name-only "$BASE" "$GITHUB_SHA" | grep -Eq "$paths"; then
+            changed=true
+          else
+            changed=false
+          fi
+          echo "migrations=$changed" >> "$GITHUB_OUTPUT"
+          echo "Schema or rehearsal files changed: $changed"
+
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -51,8 +80,10 @@ jobs:
 
   tenancy:
     name: Phase 0 real-stack tenancy foundation
-    # Heavy (10 to 15 minutes): proven on the pull request; not repeated on the merge commit to main.
-    if: github.event_name != 'push'
+    needs: changes
+    # Heavy (10 to 15 minutes): proven on the pull request. It is repeated on the merge commit
+    # to main only when the database schema changed, so ordinary deploys stay fast.
+    if: github.event_name != 'push' || needs.changes.outputs.migrations == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -113,12 +144,42 @@ jobs:
         with:
           name: backend-tenancy-phase-0
           path: ${{ runner.temp }}/tenancy/artifacts/
-          retention-days: 7
+          retention-days: 30
+
+  rehearsal:
+    name: Release compatibility and rollback rehearsal
+    needs: changes
+    # Only when the schema (or the rehearsal) changed: the rehearsal builds two images and
+    # takes a few minutes, in parallel with the tenancy job. It uses no registry or cloud access.
+    if: needs.changes.outputs.migrations == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          # The minimum rollback revision is built from its own commit.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Upgrade, roll back to the minimum supported revision, roll forward
+        run: python3 scripts/release_rehearsal.py run --output "$RUNNER_TEMP/release-compat.json"
+      - name: Enforce the release gate on the manifest (fails closed)
+        run: python3 scripts/release_rehearsal.py verify "$RUNNER_TEMP/release-compat.json" --revision "$GITHUB_SHA"
+      - name: Publish the credential-free compatibility manifest
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: release-compat
+          path: ${{ runner.temp }}/release-compat.json
+          retention-days: 90
 
   deploy:
-    # Real-stack tenancy is skipped on pushes to main (it passed on the pull request); it must never have failed.
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.verify.result == 'success' && (needs.tenancy.result == 'success' || needs.tenancy.result == 'skipped') }}
-    needs: [verify, tenancy]
+    # A schema change must have passed the real-stack tenancy suite and the rollback rehearsal on this
+    # exact commit. Without one, the deploy waits only for verification (both jobs are skipped).
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.verify.result == 'success' && needs.changes.result == 'success' && (needs.tenancy.result == 'success' || (needs.tenancy.result == 'skipped' && needs.changes.outputs.migrations != 'true')) && (needs.changes.outputs.migrations != 'true' || needs.rehearsal.result == 'success') }}
+    needs: [changes, verify, tenancy, rehearsal]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
