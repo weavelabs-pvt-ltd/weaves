@@ -4,7 +4,7 @@ from collections.abc import Callable
 from datetime import datetime
 
 from application.ports.repository import Repository
-from contracts.v1 import Task, TaskMessage, TaskStatus
+from contracts.v1 import Task, TaskMessage, TaskStatus, TaskTurn
 from shared.request_context import (
     effective_org_id,
     effective_principal_id,
@@ -13,18 +13,20 @@ from shared.request_context import (
 
 
 class TaskQueryService:
-    """Read task pages and transcript messages through scoped repositories."""
+    """Read task pages, transcript messages and turns through scoped repositories."""
 
     def __init__(
         self,
         *,
         tasks: Repository[Task],
         messages: Repository[TaskMessage],
+        turns: Repository[TaskTurn],
         authorize_view: Callable[[], None],
     ) -> None:
         """Bind task storage and the workspace visibility policy."""
         self.tasks = tasks
         self.messages = messages
+        self.turns = turns
         self._authorize_view = authorize_view
 
     def list_tasks(
@@ -76,12 +78,32 @@ class TaskQueryService:
     ) -> tuple[TaskMessage, ...]:
         """Return a task transcript in chronological order."""
         task = self.get_task(task_id)
-        page = self.messages.list_task_messages_page(
+        page = self.messages.list_task_records_page(
             task.task_id,
             task.org_id,
             task.workspace_id,
             cursor_created_at=cursor_created_at,
-            cursor_message_id=cursor_message_id,
+            cursor_record_id=cursor_message_id,
+            limit=limit,
+        )
+        return tuple(reversed(page))
+
+    def list_turns(
+        self,
+        task_id: str,
+        *,
+        limit: int = 100,
+        cursor_created_at: datetime | None = None,
+        cursor_turn_id: str | None = None,
+    ) -> tuple[TaskTurn, ...]:
+        """Return a task's turns in chronological order, with the task's visibility."""
+        task = self.get_task(task_id)
+        page = self.turns.list_task_records_page(
+            task.task_id,
+            task.org_id,
+            task.workspace_id,
+            cursor_created_at=cursor_created_at,
+            cursor_record_id=cursor_turn_id,
             limit=limit,
         )
         return tuple(reversed(page))

@@ -264,19 +264,19 @@ class InMemoryRepository(
         )
         return tuple(self._clone(record) for record in selected[:limit])
 
-    def list_task_messages_page(
+    def list_task_records_page(
         self,
         task_id: OpaqueId,
         org_id: OpaqueId,
         workspace_id: OpaqueId,
         *,
         cursor_created_at: datetime | None,
-        cursor_message_id: str | None,
+        cursor_record_id: str | None,
         limit: int,
     ) -> tuple[TContract, ...]:
-        """Return a bounded newest-first transcript page for one task."""
-        if self._id_field != "message_id":
-            raise TypeError("task message paging requires a message repository")
+        """Return a bounded newest-first page of one task's messages or turns."""
+        if self._id_field not in {"message_id", "turn_id"}:
+            raise TypeError("task paging requires a task message or turn repository")
         if limit < 1:
             raise ValueError("limit must be positive")
         with self._lock:
@@ -293,7 +293,7 @@ class InMemoryRepository(
                     _record_value(record, "created_at"),
                     self._record_id(record),
                 )
-                < (cursor_created_at, cursor_message_id or "")
+                < (cursor_created_at, cursor_record_id or "")
             )
         ]
         selected.sort(

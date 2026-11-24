@@ -157,6 +157,11 @@ def _(w, ref):
     return "GET", f"/api/v0/tasks/{ref('task')}", None
 
 
+@case("task.turns.path_task_id", WS)
+def _(w, ref):
+    return "GET", f"/api/v0/tasks/{ref('task')}/turns", None
+
+
 @case("task.message.path_task_id", WS)
 def _(w, ref):
     return "POST", f"/api/v0/tasks/{ref('task')}/messages", {"content": "more"}
