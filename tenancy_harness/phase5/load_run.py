@@ -147,7 +147,7 @@ class Stack:
 def noisy_phase(stack, sampler, cell, args):
     """One cell of the matrix; returns the table row plus the full result."""
     slots, mode, cap, interval = cell
-    label = f"s{slots}-{mode}-c{cap}-b{interval}"
+    label = f"s{slots}-{mode}-c{cap}-b{interval:g}"
     stack.configure(slots, mode, cap)
     sampler.reset()
     code = stack.scenario(

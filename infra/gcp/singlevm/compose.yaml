@@ -93,10 +93,13 @@ services:
       <<: [*runtime, *connectors_worker]
       WEAVES_WORKER_POLL_SECONDS: "3"
       # Phase 5.2: executions run in slots while the supervisor keeps recovery
-      # and dispatch going. Staged rollout: 2 slots first (pool = slots * 2 + 4),
-      # raise to 4 after the 5.6 measurements. Set WEAVES_WORKER_SLOTS=1 and
-      # WEAVES_FAIR_CLAIM=false in runtime.env to restore the single loop.
-      WEAVES_WORKER_SLOTS: ${WEAVES_WORKER_SLOTS:-2}
+      # and dispatch going. Phase 5.6 measured 4 slots against 2 (docs/
+      # capacity-envelope.md): with WEAVES_LIMITS_MODE=enforce and a running cap
+      # of 2 per organization a normal tenant's queue delay p95 is 1.2 s beside a
+      # saturated one (18.6 s at 2 slots); pool 8 suffices (pool needs slots + 2).
+      # Set WEAVES_WORKER_SLOTS=1 and WEAVES_FAIR_CLAIM=false in runtime.env to
+      # restore the single loop. Without enforce the cap is only logged.
+      WEAVES_WORKER_SLOTS: ${WEAVES_WORKER_SLOTS:-4}
       WEAVES_FAIR_CLAIM: ${WEAVES_FAIR_CLAIM:-true}
       WEAVES_LIMIT_MAX_RUNNING_PER_ORG: ${WEAVES_LIMIT_MAX_RUNNING_PER_ORG:-2}
       WEAVES_LIMITS_MODE: ${WEAVES_LIMITS_MODE:-observe}

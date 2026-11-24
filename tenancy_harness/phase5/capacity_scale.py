@@ -231,8 +231,12 @@ def seed_history(big, template_org, count):
 
 
 def walk_pages(t, limit=PAGE):
-    """Follow ``next_cursor`` to the end: (tasks seen, pages, largest page)."""
-    seen, pages, largest, cursor = 0, 0, 0, ""
+    """Follow ``next_cursor`` to the end: (tasks seen, pages, largest page, 429s).
+
+    A refusal by the request limiter (the walk is faster than any person) is
+    waited out as ``Retry-After`` says, and counted.
+    """
+    seen, pages, largest, cursor, refused = 0, 0, 0, "", 0
     for _ in range(10_000):
         suffix = f"&cursor={cursor}" if cursor else ""
         response = request(
@@ -240,6 +244,10 @@ def walk_pages(t, limit=PAGE):
             f"/tasks?paginate=true&limit={limit}{suffix}",
             t["admin"]["headers"],
         )
+        if response.status_code == 429:
+            refused += 1
+            time.sleep(min(float(response.headers.get("retry-after", "1")), 10))
+            continue
         if response.status_code != 200:
             raise AssertionError(f"/tasks page: HTTP {response.status_code}")
         body = response.json()
@@ -247,7 +255,7 @@ def walk_pages(t, limit=PAGE):
         largest = max(largest, len(body["items"]))
         cursor = body["next_cursor"] or ""
         if not cursor:
-            return seen, pages, largest
+            return seen, pages, largest, refused
     raise AssertionError("cursor walk did not terminate")
 
 
@@ -261,13 +269,14 @@ def history_stage(tenants, args):
         big["org_id"],
     )[0][0]
     started = time.monotonic()
-    seen, pages, largest = walk_pages(big)
+    seen, pages, largest, refused = walk_pages(big)
     return {
         "tasks_in_history": total,
         "keyset_walk": {
             "tasks_seen": seen,
             "pages": pages,
             "largest_page": largest,
+            "rate_limited_retries": refused,
             "seconds": round(time.monotonic() - started, 1),
         },
         "idle_cost": idle_cost(args.idle_seconds),
@@ -327,6 +336,7 @@ def run(args):
     """All stages; the result is written for the orchestrator."""
     tenants = []
     stages = [stage(tenants, n, args) for n in args.stages]
+    write_result(args.label, {"config": vars(args), "stages": stages})
     result = {
         "config": vars(args),
         "started_at": now(),

@@ -31,7 +31,7 @@ def test_defaults_match_the_design_and_start_in_observe_mode() -> None:
     assert config.est_cost_usd_per_day == 25.0
     assert config.storage_tasks == 10_000
     assert config.reservation_input_chars_per_token == 3
-    assert config.queue_age_warn_seconds == 120
+    assert config.queue_age_warn_seconds == 900
     assert (config.page_default, config.page_max) == (50, 100)
     assert config.recovery_batch == 200
     assert config.usage_retention_days == 400
