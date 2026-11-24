@@ -324,7 +324,7 @@ def switch_results(b):
     )
     results["clear_returns_to_environment_defaults"] = stored == [(None, None, None)]
     results["switch_changes_are_audited"] = (
-        rows("SELECT count(*) FROM operator_actions WHERE command LIKE 'platform.%'")[
+        rows("SELECT count(*) FROM operator_actions WHERE command LIKE 'platform.%%'")[
             0
         ][0]
         == 6
