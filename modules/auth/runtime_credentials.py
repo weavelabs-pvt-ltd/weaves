@@ -26,6 +26,11 @@ from contracts.v1 import (
     Workspace,
     WorkspaceStatus,
 )
+from modules.recovery.tombstones import (
+    CREDENTIAL_REVOKED,
+    digest_of,
+    tombstones_from_env,
+)
 from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.errors import TenantInactive
@@ -34,6 +39,17 @@ from shared.request_context import (
     effective_principal_id,
     effective_workspace_id,
 )
+
+
+def _tombstone_revocation(credential: ApiCredential) -> None:
+    """Record that the credential must stay revoked across any restore."""
+    tombstones_from_env().record(
+        CREDENTIAL_REVOKED,
+        credential.org_id,
+        subject_kind="api_credential",
+        subject_id=credential.id,
+        subject_digest=digest_of(credential.token_digest),
+    )
 
 
 class CredentialRuntimeHost(ABC):
@@ -179,6 +195,8 @@ class CredentialRuntimeMixin(CredentialRuntimeHost):
         self.authorize_organization(requested_by_principal_id, Permission.USERS_MANAGE)
         credential = self.api_credentials.get_scoped(credential_id, effective_org_id())
         if credential.status is ApiCredentialStatus.REVOKED:
+            # A repeat call re-records (idempotent), so a failed tombstone heals.
+            _tombstone_revocation(credential)
             return credential
         timestamp = _now()
         revoked = ApiCredential.model_validate(
@@ -207,6 +225,9 @@ class CredentialRuntimeMixin(CredentialRuntimeHost):
                     created_at=timestamp,
                 )
             )
+        # Revocation is never blocked by the log; a failed write raises after the
+        # revocation committed and the caller's retry records it.
+        _tombstone_revocation(credential)
         return revoked
 
     def rotate_api_credential(
@@ -274,6 +295,9 @@ class CredentialRuntimeMixin(CredentialRuntimeHost):
                     created_at=timestamp,
                 )
             )
+            # Inside the unit of work: an unwritable log rolls the rotation back
+            # (the caller would otherwise lose the only copy of the new token).
+            _tombstone_revocation(credential)
         return replacement, token
 
     def authenticate_principal(self, principal_id: str) -> str:

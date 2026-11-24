@@ -23,6 +23,7 @@ from release_runtime import (
     candidate_env,
     compose,
     health_check,
+    prepare_tombstones,
     release_lock,
     run,
     validate_image,
@@ -76,6 +77,7 @@ TOOL_FILES = (
     "release_runtime.py",
     "release_ledger.py",
     "rollback_release.py",
+    "restore_reconcile.py",
     POLICY,
 )
 
@@ -90,6 +92,9 @@ def apply_locked(
 ) -> None:
     """Validate and pull first, then replace configuration with rollback on failure."""
     ensure_ledger(root)
+    # Refused before any pull or activation, like an unsafe redeploy: nothing was
+    # attempted, so no ledger row is written (the ledger records attempts).
+    prepare_tombstones(root)
     refuse_unsafe_redeploy(root, component, image, (bundle or root) / POLICY)
     env_path = root / "runtime.env"
     previous = env_path.read_text()

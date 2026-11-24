@@ -37,6 +37,8 @@ from infrastructure.secrets.store import (
     InMemorySecretStore,
     UnavailableSecretStore,
 )
+from modules.recovery.secret_tombstones import TombstonedSecretStore
+from modules.recovery.tombstones import NullTombstones, tombstones_from_env
 
 
 def build_secret_store(store: ProductPostgresStore | None) -> SecretStore:
@@ -46,7 +48,11 @@ def build_secret_store(store: ProductPostgresStore | None) -> SecretStore:
         return InMemorySecretStore()
     if not encryption_key:
         return UnavailableSecretStore()
-    return EncryptedPostgresSecretStore(store, encryption_key)
+    durable = EncryptedPostgresSecretStore(store, encryption_key)
+    sink = tombstones_from_env()
+    if isinstance(sink, NullTombstones):
+        return durable
+    return TombstonedSecretStore(durable, sink)
 
 
 def build_login_rate_limiter(store: ProductPostgresStore | None) -> LoginRateLimiter:

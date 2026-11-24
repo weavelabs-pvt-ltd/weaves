@@ -298,6 +298,30 @@ class OrganizationLifecycleService:
         finally:
             reset_request_principal(token)
 
+    def begin_restore_purge(self, org_id: str) -> bool:
+        """Force DELETING for an organization a tombstone says was purged.
+
+        Used only by restore reconciliation after an older backup revived the
+        organization. Returns False when the organization is unknown (created
+        after the backup) or already DELETING or DELETED.
+        """
+        actor = Actor.system()
+        try:
+            with self._operator_scope(org_id, actor):
+                if self.state_of(org_id) in {State.DELETING, State.DELETED}:
+                    return False
+                self._write(
+                    org_id,
+                    State.DELETING,
+                    actor,
+                    "Restore reconciliation: deletion recorded after the backup",
+                    "deleting",
+                    purge_now=True,
+                )
+                return True
+        except KeyError:
+            return False
+
     def finish_deletion(self, org_id: str) -> None:
         """Tombstone a fully purged organization: DELETED is terminal."""
         now = self.now()
