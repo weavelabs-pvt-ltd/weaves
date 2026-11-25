@@ -35,9 +35,13 @@ class OAuthStateService:
         self._secret_store = secret_store
 
     def authorize_current_principal(self) -> str:
-        """Authorize the current developer principal to manage connectors."""
+        """Authorize the request's principal to manage connectors.
+
+        The seeded local developer is only the fallback for local requests without
+        an authenticated principal, as everywhere else in the product.
+        """
         principal_id = self._credential_service.authenticate_principal(
-            "local-developer"
+            effective_principal_id("local-developer")
         )
         self._credential_service.authorize(principal_id, Permission.PLUGINS_MANAGE)
         return principal_id
