@@ -68,6 +68,11 @@ from contracts.v1 import (
     Workspace,
 )
 from contracts.v1 import ModelProvider as ModelProviderContract
+from contracts.v1.slack_access import (
+    SlackAccessSettings,
+    SlackAllowedChannel,
+    SlackAllowedUser,
+)
 from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
 from modules.auth.runtime_organizations import MockModelIdentifier
 from modules.limits.service import AdmissionService
@@ -105,6 +110,9 @@ class RuntimeCompositionInputs(Protocol):
     account_organization_requests: Repository[AccountOrganizationRequest]
     waitlist_entries: Repository[WaitlistEntry]
     waitlist_submissions: Repository[WaitlistSubmission]
+    slack_access_settings: Repository[SlackAccessSettings]
+    slack_allowed_users: Repository[SlackAllowedUser]
+    slack_allowed_channels: Repository[SlackAllowedChannel]
     evaluation_executions: Repository[EvaluationExecution]
     evaluation_reports: Repository[EvaluationReportRecord]
     evaluation_suites: Repository[EvaluationSuiteRecord]

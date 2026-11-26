@@ -560,6 +560,39 @@
       "scope_keys": [
         "id"
       ]
+    },
+    "slack_access_settings": {
+      "contract": "SlackAccessSettings",
+      "scope": "organization",
+      "privacy": "readable only inside its own organization (row policy); read and written only with the organization-level slack.manage permission (Owner and Admin by default)",
+      "system_access": "none: the Slack dispatcher reads these inside the organization's own tenant context",
+      "lifecycle": "removed with the organization by the generic purge sweep; exported without Slack message text",
+      "scope_keys": [
+        "org_id"
+      ],
+      "current_gap": null
+    },
+    "slack_allowed_users": {
+      "contract": "SlackAllowedUser",
+      "scope": "organization",
+      "privacy": "readable only inside its own organization (row policy); read and written only with the organization-level slack.manage permission (Owner and Admin by default)",
+      "system_access": "none: the Slack dispatcher reads these inside the organization's own tenant context",
+      "lifecycle": "removed with the organization by the generic purge sweep; exported without Slack message text",
+      "scope_keys": [
+        "org_id"
+      ],
+      "current_gap": null
+    },
+    "slack_allowed_channels": {
+      "contract": "SlackAllowedChannel",
+      "scope": "organization",
+      "privacy": "readable only inside its own organization (row policy); read and written only with the organization-level slack.manage permission (Owner and Admin by default)",
+      "system_access": "none: the Slack dispatcher reads these inside the organization's own tenant context",
+      "lifecycle": "removed with the organization by the generic purge sweep; exported without Slack message text",
+      "scope_keys": [
+        "org_id"
+      ],
+      "current_gap": null
     }
   },
   "auxiliary_tables": {
@@ -1627,6 +1660,76 @@
       "scope": "public_waitlist",
       "rule": "no sign-in, cookie or CSRF; a submission is reached only by its private X-Waitlist-Token; nothing touches accounts, organizations or the allowlist",
       "lifecycle": "public; rate limited per source, email and token; bounded retention"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/organization/slack/access",
+      "scope": "organization",
+      "rule": "validated per-request organization; organization-level slack.manage permission; every mutation audited; settings use optimistic settings_version; no Slack message text is stored or returned",
+      "lifecycle": "active tenant; removed with the organization"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v0/organization/slack/access",
+      "scope": "organization",
+      "rule": "validated per-request organization; organization-level slack.manage permission; every mutation audited; settings use optimistic settings_version; no Slack message text is stored or returned",
+      "lifecycle": "active tenant; removed with the organization"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/organization/slack/access/pause",
+      "scope": "organization",
+      "rule": "validated per-request organization; organization-level slack.manage permission; every mutation audited; settings use optimistic settings_version; no Slack message text is stored or returned",
+      "lifecycle": "active tenant; removed with the organization"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/organization/slack/access/people",
+      "scope": "organization",
+      "rule": "validated per-request organization; organization-level slack.manage permission; every mutation audited; settings use optimistic settings_version; no Slack message text is stored or returned",
+      "lifecycle": "active tenant; removed with the organization"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/organization/slack/access/people",
+      "scope": "organization",
+      "rule": "validated per-request organization; organization-level slack.manage permission; every mutation audited; settings use optimistic settings_version; no Slack message text is stored or returned",
+      "lifecycle": "active tenant; removed with the organization"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v0/organization/slack/access/people/{slack_user_id}",
+      "scope": "organization",
+      "rule": "validated per-request organization; organization-level slack.manage permission; every mutation audited; settings use optimistic settings_version; no Slack message text is stored or returned",
+      "lifecycle": "active tenant; removed with the organization"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/organization/slack/access/channels",
+      "scope": "organization",
+      "rule": "validated per-request organization; organization-level slack.manage permission; every mutation audited; settings use optimistic settings_version; no Slack message text is stored or returned",
+      "lifecycle": "active tenant; removed with the organization"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/organization/slack/access/channels",
+      "scope": "organization",
+      "rule": "validated per-request organization; organization-level slack.manage permission; every mutation audited; settings use optimistic settings_version; no Slack message text is stored or returned",
+      "lifecycle": "active tenant; removed with the organization"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v0/organization/slack/access/channels/{channel_id}",
+      "scope": "organization",
+      "rule": "validated per-request organization; organization-level slack.manage permission; every mutation audited; settings use optimistic settings_version; no Slack message text is stored or returned",
+      "lifecycle": "active tenant; removed with the organization"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/organization/slack/access/attempts",
+      "scope": "organization",
+      "rule": "validated per-request organization; organization-level slack.manage permission; every mutation audited; settings use optimistic settings_version; no Slack message text is stored or returned",
+      "lifecycle": "active tenant; removed with the organization"
     }
   ]
 }

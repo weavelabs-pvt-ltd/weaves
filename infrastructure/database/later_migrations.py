@@ -16,6 +16,7 @@ from infrastructure.database.organization_identity import (
 )
 from infrastructure.database.row_security import ROW_SECURITY_MIGRATION
 from infrastructure.database.scheduler_schema import SCHEDULER_MIGRATION
+from infrastructure.database.slack_access_schema import SLACK_ACCESS_MIGRATION
 from infrastructure.database.usage_schema import USAGE_MIGRATION
 from infrastructure.database.waitlist_schema import WAITLIST_MIGRATION
 
@@ -30,4 +31,6 @@ LATER_MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     BOUNDED_QUERIES_MIGRATION,
     CONTROLS_MIGRATION,
     APPROVALS_REMOVAL_MIGRATION,
+    # 32 is the Slack installation tables (S1/S2, a parallel slice).
+    SLACK_ACCESS_MIGRATION,
 )

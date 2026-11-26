@@ -27,7 +27,8 @@
         "skills.revoke",
         "artifacts.read",
         "actions.approve",
-        "audit.read"
+        "audit.read",
+        "slack.manage"
       ],
       "title": "Permission",
       "type": "string"

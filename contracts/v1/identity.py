@@ -69,6 +69,7 @@ class Permission(StrEnum):
     ARTIFACTS_READ = "artifacts.read"
     ACTIONS_APPROVE = "actions.approve"
     AUDIT_READ = "audit.read"
+    SLACK_MANAGE = "slack.manage"
 
 
 type SystemRoleKey = Literal["admin", "builder", "user"]

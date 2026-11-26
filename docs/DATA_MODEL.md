@@ -324,6 +324,31 @@ and CSRF and never touch accounts, organizations, users, sessions or the allowli
 consent texts are immutable, locked files under `contracts/waitlist` (`published.lock.json`). Rate
 limiting reuses `product_login_throttle` with hashed buckets (no address is stored).
 
+### Slack access (migration 33)
+
+The Slack bot's access policy (design: `docs/slack-bot-design.md` 3.3 and 3.5) adds three
+organization-scoped collections in `product_records`, so they inherit row-level security by
+`org_id`, are removed by the generic purge sweep (positions after `plugins`) and are exported
+(without any Slack message text):
+
+| Collection | Scope and key | Fields | Access |
+|---|---|---|---|
+| `slack_access_settings` (`SlackAccessSettings`, `org_id`) | organization; one row, record id = org id; absent until the first change (defaults apply) | mutable. `settings_version` (bumped by every settings, pause or allowlist change), `ask_enabled`, `connector_audience` (installation id to `everyone`/`allowed_people`/`not_in_slack`, default `not_in_slack`), `partial_answers`, `planner_profile_id`, `ask_limits`, `rules` (`create_task`, `pr_review`, `run_workflow`, `ask_private`: `off`/`user_only`/`channel_only`/`user_and_channel`/`user_or_channel`, default `off`), `workflow_ids`, `pr_review_repos`, `paused`, `qa_principal_id`/`qa_agent_version_id` (set by the Ask slice) | `slack.manage` (organization-level binding) |
+| `slack_allowed_users` (`SlackAllowedUser`, `id` = `{org_id}:{slack_user_id}`) | organization | mutable. `slack_user_id`, `principal_id` (administrator-asserted member mapping; null = listed by Slack id only), `note`, `added_by`. Unique per org by `slack_user_id` (`slack_allowed_users_org_user_uq`) | `slack.manage` |
+| `slack_allowed_channels` (`SlackAllowedChannel`, `id` = `{org_id}:{channel_id}`) | organization | mutable. `channel_id`, `name_cached`, `added_by`. Unique per org by `channel_id` (`slack_allowed_channels_org_channel_uq`) | `slack.manage` |
+
+Migration 33 (`infrastructure/database/slack_access_schema.py`) also creates the partial unique
+indexes the Ask slices will use (`slack_threads_key_uq`, `slack_feedback_turn_asker_uq`; those
+collections are registered later) and idempotently adds the permission `slack.manage` to stored
+`roles` whose `system_role_key` is `admin` or whose name is "Organization owner". The Admin preset
+grants every `Permission`, and `seed_standard_roles()` rewrites stored Admin roles at startup, so
+organizations created or seeded later get it without the migration. Audit actions written:
+`slack.access.settings_updated`, `slack.access.paused`, `slack.access.resumed`,
+`slack.access.user_added|user_updated|user_removed` (the assertion of a Slack id to a member),
+`slack.access.channel_added|channel_removed`, and per request `slack.decision` (plus
+`slack.execute.allowed|blocked`), none of which carries message text. Allowed Ask decisions are
+the rows Ask rate limits count (`target_type` `slack_ask_allowed`, rolling 10 minutes and 1 day).
+
 ### Removed: approval policies and approval requests (migration 31)
 
 The "Approvals & Policy" and "Artifacts & Audit" app sections were removed (owner decision,
