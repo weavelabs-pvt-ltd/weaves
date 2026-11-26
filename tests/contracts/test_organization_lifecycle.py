@@ -266,6 +266,19 @@ def test_no_operator_action_is_reachable_over_http(world):
         REQUEST,
         CANCEL,
         EXPORT,
+        # The Slack access page (permission slack.manage), not an operator action.
+        *(
+            f"/api/v0/organization/slack/access{suffix}"
+            for suffix in (
+                "",
+                "/pause",
+                "/people",
+                "/people/{slack_user_id}",
+                "/channels",
+                "/channels/{channel_id}",
+                "/attempts",
+            )
+        ),
     }
     for route in routes:
         assert not any(w in route.path for w in ("resume", "purge", "operator"))
