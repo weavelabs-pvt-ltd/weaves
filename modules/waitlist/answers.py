@@ -7,6 +7,7 @@ from typing import Any
 from contracts.v1 import WaitlistAnswer
 from modules.waitlist.errors import InvalidInput
 from modules.waitlist.questions import (
+    OTHER_MAX_LENGTH,
     OTHER_OPTION_ID,
     Question,
     QuestionType,
@@ -42,13 +43,24 @@ def _many_options(question: Question, value: Any) -> list[str]:
 
 
 def _other_text(question: Question, chosen: list[str], other: str | None) -> str | None:
+    """The Other text: required when Other is chosen on an ``allow_other`` question.
+
+    Sets published before a question asked what Other is (``allow_other``
+    false) keep accepting a bare ``other`` and also accept the text, so a
+    session started under that set can continue with the current questions.
+    """
     if other is None:
+        if question.allow_other and OTHER_OPTION_ID in chosen:
+            raise InvalidInput("Say what Other is")
         return None
-    if not question.allow_other or OTHER_OPTION_ID not in chosen:
+    if OTHER_OPTION_ID not in chosen:
         raise InvalidInput("Other text needs the Other option")
-    limit = question.other_max_length or 0
-    text = _clean_text(other, limit, "Other text")
-    return text or None
+    text = _clean_text(other, OTHER_MAX_LENGTH, "Other text")
+    if not text:
+        if question.allow_other:
+            raise InvalidInput("Say what Other is")
+        return None
+    return text
 
 
 def validate_answer(

@@ -46,7 +46,12 @@ def test_questions_are_served_with_cache_request_id_and_consent(client):
     assert response.headers["X-Request-Id"]
     assert "max-age" in response.headers["Cache-Control"]
     body = response.json()
-    assert body["version"] == 1 and len(body["questions"]) == 6
+    assert body["version"] == 2 and len(body["questions"]) == 6
+    other_caps = {q["id"] for q in body["questions"] if q.get("allow_other")}
+    assert other_caps == {"company_location", "role", "waiting_on", "tools"}
+    assert all(
+        q["other_max_length"] == 60 for q in body["questions"] if q.get("allow_other")
+    )
     assert (
         body["consent"]["version"] == "v1"
         and "store your email" in body["consent"]["text"]
@@ -54,7 +59,9 @@ def test_questions_are_served_with_cache_request_id_and_consent(client):
     types = {q["id"]: q["type"] for q in body["questions"]}
     assert types["company_size"] == "size_band" and types["tools"] == "multiple_choice"
     assert all(q["optional"] is True and q["summary_label"] for q in body["questions"])
-    assert client.get(f"{URL}/questions?version=1").json()["version"] == 1
+    old = client.get(f"{URL}/questions?version=1").json()
+    assert old["version"] == 1  # published sets stay served for older answers
+    assert not {q["id"] for q in old["questions"] if q.get("allow_other")} & {"role"}
     assert client.get(f"{URL}/questions?version=9").status_code == 404
 
 
@@ -64,7 +71,7 @@ def test_join_creates_one_entry_and_stores_only_a_token_digest(runtime, client):
     assert response.headers["X-Request-Id"] and "set-cookie" not in response.headers
     body = response.json()
     assert set(body) == {"token", "question_version", "answers"}
-    assert body["question_version"] == 1 and body["answers"] == {}
+    assert body["question_version"] == 2 and body["answers"] == {}
     (entry,) = _service(runtime).entries.list()
     (submission,) = _service(runtime).submissions.list()
     assert entry.email == "founder@acme-corp.test"
@@ -245,6 +252,19 @@ def test_answers_can_be_saved_changed_cleared_and_resumed(client):
         ("role", ["finance"], {}),
         ("role", 5, {}),
         ("role", "finance", {"other": "text"}),
+        ("role", "other", {}),
+        ("role", "other", {"other": ""}),
+        ("role", "other", {"other": "   "}),
+        ("role", "other", {"other": "x" * 61}),
+        ("role", "other", {"other": "bad\x00text"}),
+        ("role", "other", {"other": 5}),
+        ("company_location", "other", {}),
+        ("company_location", "other", {"other": "  "}),
+        ("company_location", "india", {"other": "Peru"}),
+        ("waiting_on", "other", {}),
+        ("tools", ["slack", "other"], {}),
+        ("tools", ["slack", "other"], {"other": " "}),
+        ("tools", ["slack"], {"other": "Linear"}),
         ("company_size", "1_10", {"other": "text"}),
         ("waiting_on", "numbers_reports", {"other": "text"}),
         ("waiting_on", "other", {"other": "x" * 61}),
@@ -275,13 +295,13 @@ def test_short_text_questions_enforce_type_and_length(runtime, tmp_path):
         "optional": True,
         "max_length": 280,
     }
-    base = bank.sets[2]
+    base = bank.sets[3]
     patched = base.model_copy(
         update={
             "questions": (*base.questions[:5], type(base.questions[0])(**text_question))
         }
     )
-    _service(runtime).bank = type(bank)(sets={2: patched}, consents=bank.consents)
+    _service(runtime).bank = type(bank)(sets={3: patched}, consents=bank.consents)
     client = client_for(runtime)
     token = join(client, EMAIL).json()["token"]
     assert answer(client, token, "wish", "z" * 280).status_code == 200
@@ -295,20 +315,20 @@ def test_a_changed_question_set_returns_409(runtime, tmp_path):
     client = client_for(runtime)
     token = join(client, EMAIL).json()["token"]
     _service(runtime).bank = extended_bank(tmp_path / "content")
-    stale = answer(client, token, "role", "finance", question_version=2)
+    stale = answer(client, token, "role", "finance", question_version=3)
     assert stale.status_code == 409 and stale.headers["X-Request-Id"]
     assert stale.json()["code"] == "question_version_changed"
     assert (
-        stale.json()["current_version"] == 2 and stale.json()["question_version"] == 1
+        stale.json()["current_version"] == 3 and stale.json()["question_version"] == 2
     )
     cleared = client.delete(
-        f"{URL}/submissions/current/answers/role?question_version=2",
+        f"{URL}/submissions/current/answers/role?question_version=3",
         headers=token_headers(token),
     )
     assert cleared.status_code == 409
-    assert join(client, "late@acme-corp.test", question_version=1).status_code == 409
-    fresh = join(client, "late@acme-corp.test", question_version=2)
-    assert fresh.status_code == 201 and fresh.json()["question_version"] == 2
+    assert join(client, "late@acme-corp.test", question_version=2).status_code == 409
+    fresh = join(client, "late@acme-corp.test", question_version=3)
+    assert fresh.status_code == 201 and fresh.json()["question_version"] == 3
     assert answer(client, token, "role", "finance").status_code == 200  # own version
 
 
