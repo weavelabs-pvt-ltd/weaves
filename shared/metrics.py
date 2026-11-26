@@ -262,6 +262,19 @@ MODEL_CALLS = REGISTRY.add(
 USAGE_TOKENS = REGISTRY.add(
     Counter("usage_tokens_total", "Model tokens used by direction.", ("direction",))
 )
+SLACK_EVENTS = REGISTRY.add(
+    Counter(
+        "slack_events_total",
+        "Slack Events API requests by event type and outcome (no org label).",
+        ("type", "outcome"),
+    )
+)
+SLACK_ACK_SECONDS = REGISTRY.add(
+    Histogram(
+        "slack_ack_seconds",
+        "Time from receiving a Slack event request to answering it.",
+    )
+)
 DB_POOL_IN_USE = REGISTRY.add(
     Gauge("db_pool_in_use", "Database connections currently checked out.")
 )

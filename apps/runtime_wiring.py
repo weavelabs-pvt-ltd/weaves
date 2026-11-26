@@ -21,6 +21,7 @@ from apps.runtime_adapters import (
     build_login_rate_limiter,
     build_runtime_adapters,
     build_secret_store,
+    build_slack_store,
     build_usage_ledger,
 )
 from apps.runtime_service_composition import configure_capability_services
@@ -178,6 +179,7 @@ def _compose_with_model_client(
         PostgresControlsStore(store) if store is not None else MemoryControlsStore()
     )
     runtime.controls_store = controls_store
+    runtime.slack_store = build_slack_store(store)
     runtime.operator_audit = OperatorAudit(controls_store)
     runtime.admission = build_admission_service(
         store=store,

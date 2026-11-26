@@ -518,7 +518,7 @@ Contract `contracts.v1.oauth.OAuthAuthorizationState`; `record_id` = `oauth_stat
 |---|---|---|---|
 | `schema_version` | literal(1) | - | default 1 |
 | `oauth_state_id` | str | min_length=1, max_length=128 | required |
-| `provider` | literal('github', 'slack', 'jira', 'mcp') | - | required |
+| `provider` | literal('github', 'slack', 'slack_bot', 'jira', 'mcp') | - | required |
 | `step` | literal('authorize', 'github_install', 'resource_selection') | - | default 'authorize' |
 | `principal_id` | str | min_length=1, max_length=128 | required |
 | `org_id` | str | min_length=1, max_length=128 | required |
@@ -1198,6 +1198,12 @@ Parsed from the migration and repeatable statements. `collection` is the partial
 | `task_turns_recent_idx` | migration 28 | `product_records` | no | `org_id, workspace_id, created_at` | `collection = 'task_turns'` |
 | `operator_actions_at_idx` | migration 30 | `operator_actions` | no | `at DESC` | `-` |
 | `operator_actions_org_idx` | migration 30 | `operator_actions` | no | `org_id, at DESC` | `org_id IS NOT NULL` |
+| `slack_installations_team_held_uq` | migration 32 | `slack_installations` | yes | `team_id` | `status IN ('active', 'suspended')` |
+| `slack_installations_org_team_uq` | migration 32 | `slack_installations` | yes | `org_id, team_id` | `-` |
+| `slack_installations_org_idx` | migration 32 | `slack_installations` | no | `org_id, updated_at` | `-` |
+| `slack_event_inbox_message_uq` | migration 32 | `slack_event_inbox` | yes | `team_id, channel_id, message_ts` | `event_type = 'app_mention'` |
+| `slack_event_inbox_pending_idx` | migration 32 | `slack_event_inbox` | no | `received_at` | `state = 'pending'` |
+| `slack_event_inbox_received_idx` | migration 32 | `slack_event_inbox` | no | `received_at` | `-` |
 | `account_identity_verified_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities' AND payload->>'verified_at' IS NOT NULL` |
 | `account_identity_owner_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'account_id'), (payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities'` |
 | `membership_account_org_uq` | repeatable (account schema) | `product_records` | yes | `org_id, (payload->>'account_id')` | `collection = 'memberships'` |

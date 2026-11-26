@@ -29,6 +29,7 @@ database foreign key (section 1.6).
 | `product_login_throttle` | Fixed-window attempt counters for sign-in and organization creation | migration 9 |
 | `tenant_scheduler_state` | Last claim time per organization, for round-robin worker claiming; no tenant content, pruned after a day, row security admits only the `queue` system purpose | migration 26 |
 | `usage_ledger`, `usage_daily` | Per-organization model-call usage (tokens, integer nano-USD) and its daily rollup; a deliberate exception to the one-table model | migration 27, `infrastructure/database/usage_schema.py` |
+| `slack_installations`, `slack_event_inbox` | The Slack bot: one workspace bound to one organization (token only as a secret-store reference) and the global, deduplicated queue of signed Slack events; a deliberate exception to the one-table model | migration 32, `infrastructure/database/slack_schema.py` |
 | `platform_controls`, `operator_actions`, `org_quarantines` | Runtime kill switches (one row, NULL = environment default), the append-only operator audit trail and what each tenant quarantine changed; no tenant content; the restricted role can only read the switches | migration 30, `infrastructure/database/controls_schema.py` |
 | `product_schema_migrations` | Applied migration versions | `ProductPostgresStore._migrate` |
 | `product_plugin_ownership`, `product_plugin_ownership_rollout` | Explicit ownership of plugin descriptors, plus immutable rollout evidence | migration 20, applied only by an operator (`infrastructure/database/plugin_ownership.py`), never by start-up |
@@ -323,6 +324,32 @@ Indexes: `waitlist_entry_email_uq`, `waitlist_submission_token_uq`, `waitlist_su
 and CSRF and never touch accounts, organizations, users, sessions or the allowlist. Question sets and
 consent texts are immutable, locked files under `contracts/waitlist` (`published.lock.json`). Rate
 limiting reuses `product_login_throttle` with hashed buckets (no address is stored).
+
+### Slack installations and event inbox (migration 32)
+
+Two real tables (`infrastructure/database/slack_schema.py`, ports in `application/ports/slack.py`,
+stores in `infrastructure/persistence/slack_store*.py`), because an event names only a `team_id`
+before any organization is known and the inbox needs a true unique key.
+
+`slack_installations` has one row per (organization, Slack workspace): `installation_id` (primary key),
+`team_id`, `org_id`, `workspace_id`, `team_name`, `enterprise_id`, `app_id`, `bot_user_id`,
+`bot_secret_ref` (an opaque reference into `product_secrets`, purpose `slack_bot_token`; the token itself is
+never in this table, a response or a log), `scopes`, `installed_by_principal_id`, `installed_by_name`,
+`installed_by_slack_user`, `status` (`active`, `revoked`, `uninstalled`, `suspended`), `installed_at`,
+`updated_at`, `revoked_at`. Indexes: `slack_installations_team_held_uq` (unique `team_id` while the status is
+`active` or `suspended`: a workspace belongs to exactly one organization), `slack_installations_org_team_uq`
+(one row per organization and workspace; a reinstall updates it and rotates the secret), and
+`slack_installations_org_idx`. Policy: a tenant sees only its own rows; the system purpose `slack` sees all.
+
+`slack_event_inbox` has `event_id` (primary key: Slack retries insert nothing), `team_id`, `org_id`,
+`installation_id`, `event_type` (`app_mention`, `reaction_added` for thumbs only), `state`
+(`pending`, `processing`, `done`, `dropped`), `drop_reason`, `attempts` (Slack retry number plus one),
+`request_id` (`slack-{event_id}`), `channel_id`, `user_id`, `message_ts`, `thread_ts`, `text` (the mention
+only, capped at 4,000 characters, never set on a dropped row, never logged) and `reaction`, `received_at`.
+`slack_event_inbox_message_uq` (unique `team_id, channel_id, message_ts` for `app_mention`) stops one
+message becoming two rows under different event ids. Only the system purpose `slack` can read or write it;
+no tenant can. Nothing deletes rows yet: the retention tick (7 days after processing) arrives with the
+dispatcher (S4); `purge_events` implements it.
 
 ### Removed: approval policies and approval requests (migration 31)
 

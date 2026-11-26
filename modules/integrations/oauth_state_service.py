@@ -48,7 +48,7 @@ class OAuthStateService:
 
     def create_state(
         self,
-        provider: Literal["github", "slack", "jira", "mcp"],
+        provider: Literal["github", "slack", "slack_bot", "jira", "mcp"],
         configuration: dict[str, Any],
         *,
         step: Literal[
@@ -78,7 +78,7 @@ class OAuthStateService:
     def consume_state(
         self,
         value: str,
-        provider: Literal["github", "slack", "jira", "mcp"],
+        provider: Literal["github", "slack", "slack_bot", "jira", "mcp"],
         step: Literal[
             "authorize", "github_install", "resource_selection"
         ] = "authorize",
