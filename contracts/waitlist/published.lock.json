@@ -1,6 +1,7 @@
 {
   "files": {
     "consent/v1.json": "0a72a7f09ee53fcba8a3cdb295af71076c9e96bdd082036a81d5f3dc0d5775a2",
-    "questions/v1.json": "475f55fe8ed1086c500a40bc313c8a556c49a0eda34d5cca72683435eaac8d6a"
+    "questions/v1.json": "475f55fe8ed1086c500a40bc313c8a556c49a0eda34d5cca72683435eaac8d6a",
+    "questions/v2.json": "37d653261d6bf594f2657c240c0448e56f65b0319d8547311ca186486eee2bb5"
   }
 }

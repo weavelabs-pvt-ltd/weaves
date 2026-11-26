@@ -8,6 +8,7 @@ from datetime import timedelta
 
 import pytest
 
+from contracts.v1 import WaitlistAnswer
 from modules.waitlist.questions import QuestionType
 from shared.clock import utc_now
 from tests.support.waitlist_world import (
@@ -46,7 +47,12 @@ def test_questions_are_served_with_cache_request_id_and_consent(client):
     assert response.headers["X-Request-Id"]
     assert "max-age" in response.headers["Cache-Control"]
     body = response.json()
-    assert body["version"] == 1 and len(body["questions"]) == 6
+    assert body["version"] == 2 and len(body["questions"]) == 6
+    other_caps = {q["id"] for q in body["questions"] if q.get("allow_other")}
+    assert other_caps == {"company_location", "role", "waiting_on", "tools"}
+    assert all(
+        q["other_max_length"] == 60 for q in body["questions"] if q.get("allow_other")
+    )
     assert (
         body["consent"]["version"] == "v1"
         and "store your email" in body["consent"]["text"]
@@ -54,7 +60,9 @@ def test_questions_are_served_with_cache_request_id_and_consent(client):
     types = {q["id"]: q["type"] for q in body["questions"]}
     assert types["company_size"] == "size_band" and types["tools"] == "multiple_choice"
     assert all(q["optional"] is True and q["summary_label"] for q in body["questions"])
-    assert client.get(f"{URL}/questions?version=1").json()["version"] == 1
+    old = client.get(f"{URL}/questions?version=1").json()
+    assert old["version"] == 1  # published sets stay served for older answers
+    assert not {q["id"] for q in old["questions"] if q.get("allow_other")} & {"role"}
     assert client.get(f"{URL}/questions?version=9").status_code == 404
 
 
@@ -64,7 +72,7 @@ def test_join_creates_one_entry_and_stores_only_a_token_digest(runtime, client):
     assert response.headers["X-Request-Id"] and "set-cookie" not in response.headers
     body = response.json()
     assert set(body) == {"token", "question_version", "answers"}
-    assert body["question_version"] == 1 and body["answers"] == {}
+    assert body["question_version"] == 2 and body["answers"] == {}
     (entry,) = _service(runtime).entries.list()
     (submission,) = _service(runtime).submissions.list()
     assert entry.email == "founder@acme-corp.test"
@@ -245,6 +253,19 @@ def test_answers_can_be_saved_changed_cleared_and_resumed(client):
         ("role", ["finance"], {}),
         ("role", 5, {}),
         ("role", "finance", {"other": "text"}),
+        ("role", "other", {}),
+        ("role", "other", {"other": ""}),
+        ("role", "other", {"other": "   "}),
+        ("role", "other", {"other": "x" * 61}),
+        ("role", "other", {"other": "bad\x00text"}),
+        ("role", "other", {"other": 5}),
+        ("company_location", "other", {}),
+        ("company_location", "other", {"other": "  "}),
+        ("company_location", "india", {"other": "Peru"}),
+        ("waiting_on", "other", {}),
+        ("tools", ["slack", "other"], {}),
+        ("tools", ["slack", "other"], {"other": " "}),
+        ("tools", ["slack"], {"other": "Linear"}),
         ("company_size", "1_10", {"other": "text"}),
         ("waiting_on", "numbers_reports", {"other": "text"}),
         ("waiting_on", "other", {"other": "x" * 61}),
@@ -265,6 +286,64 @@ def test_answer_validation_refuses_with_422(client, question, value, extra):
     assert resumed.json()["answers"] == {}
 
 
+def test_other_text_is_required_trimmed_and_saved_for_role_and_location(client):
+    token = join(client, EMAIL).json()["token"]
+    for question in ("role", "company_location"):
+        saved = answer(client, token, question, "other", other="  Chief of Staff  ")
+        assert saved.status_code == 200
+        assert saved.json()["answers"][question] == {
+            "value": "other",
+            "other": "Chief of Staff",
+        }
+        assert (
+            answer(client, token, question, "other", other="y" * 60).status_code == 200
+        )
+        # Changing to a plain option drops the text; a failed change keeps the old.
+        assert answer(client, token, question, "other", other=" ").status_code == 422
+        kept = client.get(f"{URL}/submissions/current", headers=token_headers(token))
+        assert kept.json()["answers"][question]["other"] == "y" * 60
+        plain = answer(
+            client, token, question, "finance" if question == "role" else "india"
+        )
+        assert plain.json()["answers"][question] == {
+            "value": "finance" if question == "role" else "india"
+        }
+        again = answer(client, token, question, "other", other="Z")
+        assert again.status_code == 200
+        gone = client.delete(
+            f"{URL}/submissions/current/answers/{question}",
+            headers=token_headers(token),
+        )
+        assert gone.status_code == 200 and question not in gone.json()["answers"]
+
+
+def test_answers_stored_before_other_text_was_required_stay_valid(runtime, client):
+    """A version 1 submission keeps its own rules and its bare 'other'."""
+    token = join(client, EMAIL).json()["token"]
+    service = _service(runtime)
+    (submission,) = service.submissions.list()
+    legacy = {
+        "role": WaitlistAnswer(value="other"),
+        "company_location": WaitlistAnswer(value="other"),
+    }
+    service.submissions.put(
+        submission.model_copy(update={"question_version": 1, "answers": legacy})
+    )
+    read = client.get(f"{URL}/submissions/current", headers=token_headers(token))
+    assert read.status_code == 200 and read.json()["question_version"] == 1
+    assert read.json()["answers"]["role"] == {"value": "other"}
+    # Own-version rules: version 1 never asked for the text on these two.
+    assert answer(client, token, "role", "other").status_code == 200
+    assert answer(client, token, "role", "other", other="x").status_code == 422
+    cleared = client.delete(
+        f"{URL}/submissions/current/answers/company_location",
+        headers=token_headers(token),
+    )
+    assert cleared.status_code == 200
+    # Untouched stored answers are never re-validated by reads or other PUTs.
+    assert answer(client, token, "company_size", "1_10").status_code == 200
+
+
 def test_short_text_questions_enforce_type_and_length(runtime, tmp_path):
     bank = extended_bank(tmp_path / "content")
     text_question = {
@@ -275,13 +354,13 @@ def test_short_text_questions_enforce_type_and_length(runtime, tmp_path):
         "optional": True,
         "max_length": 280,
     }
-    base = bank.sets[2]
+    base = bank.sets[3]
     patched = base.model_copy(
         update={
             "questions": (*base.questions[:5], type(base.questions[0])(**text_question))
         }
     )
-    _service(runtime).bank = type(bank)(sets={2: patched}, consents=bank.consents)
+    _service(runtime).bank = type(bank)(sets={3: patched}, consents=bank.consents)
     client = client_for(runtime)
     token = join(client, EMAIL).json()["token"]
     assert answer(client, token, "wish", "z" * 280).status_code == 200
@@ -295,20 +374,20 @@ def test_a_changed_question_set_returns_409(runtime, tmp_path):
     client = client_for(runtime)
     token = join(client, EMAIL).json()["token"]
     _service(runtime).bank = extended_bank(tmp_path / "content")
-    stale = answer(client, token, "role", "finance", question_version=2)
+    stale = answer(client, token, "role", "finance", question_version=3)
     assert stale.status_code == 409 and stale.headers["X-Request-Id"]
     assert stale.json()["code"] == "question_version_changed"
     assert (
-        stale.json()["current_version"] == 2 and stale.json()["question_version"] == 1
+        stale.json()["current_version"] == 3 and stale.json()["question_version"] == 2
     )
     cleared = client.delete(
-        f"{URL}/submissions/current/answers/role?question_version=2",
+        f"{URL}/submissions/current/answers/role?question_version=3",
         headers=token_headers(token),
     )
     assert cleared.status_code == 409
-    assert join(client, "late@acme-corp.test", question_version=1).status_code == 409
-    fresh = join(client, "late@acme-corp.test", question_version=2)
-    assert fresh.status_code == 201 and fresh.json()["question_version"] == 2
+    assert join(client, "late@acme-corp.test", question_version=2).status_code == 409
+    fresh = join(client, "late@acme-corp.test", question_version=3)
+    assert fresh.status_code == 201 and fresh.json()["question_version"] == 3
     assert answer(client, token, "role", "finance").status_code == 200  # own version
 
 

@@ -23,7 +23,7 @@ from contracts.v1 import (
 )
 from modules.waitlist.emails import entry_id, normalize_email
 from modules.waitlist.errors import InvalidInput
-from modules.waitlist.questions import Question, QuestionType
+from modules.waitlist.questions import Question, QuestionSet, QuestionType
 from modules.waitlist.service import SCOPE, WaitlistService
 from shared.clock import utc_now
 from shared.request_context import system_scope
@@ -158,6 +158,7 @@ class WaitlistAdmin:
             "utm_term",
             "utm_content",
             *(question.id for question in active.questions),
+            *(f"{question.id}_other" for question in _other_questions(active)),
         ]
         out = io.StringIO()
         writer = csv.writer(out, lineterminator="\n")
@@ -199,6 +200,7 @@ class WaitlistAdmin:
                 )
             ),
             *(labels.get(q.id, "") for q in self._bank.active.questions),
+            *(_other_text(latest, q.id) for q in _other_questions(self._bank.active)),
         ]
         return [_safe_cell(cell) for cell in cells]
 
@@ -300,11 +302,23 @@ def _label(question: Question | None, answer: Any) -> str:
     return f"{text} ({answer.other})" if answer.other else text
 
 
+def _other_questions(question_set: QuestionSet) -> list[Question]:
+    """The questions of a set that ask what Other is."""
+    return [q for q in question_set.questions if q.allow_other]
+
+
+def _other_text(latest: WaitlistSubmission | None, question_id: str) -> str:
+    """The stored Other text of one answer, empty when there is none."""
+    answer = latest.answers.get(question_id) if latest else None
+    return (answer.other or "") if answer else ""
+
+
 def _question_stats(
     question: Question, submissions: list[WaitlistSubmission], total: int
 ) -> dict[str, Any]:
     """Completion and distribution of one question over latest submissions."""
     distribution: Counter[str] = Counter()
+    other_texts: Counter[str] = Counter()
     answered = 0
     for submission in submissions:
         answer = submission.answers.get(question.id)
@@ -314,12 +328,21 @@ def _question_stats(
         if question.type is not QuestionType.SHORT_TEXT:
             values = answer.value if isinstance(answer.value, list) else [answer.value]
             distribution.update(str(v) for v in values)
-    return {
+            if answer.other:
+                other_texts[answer.other] += 1
+    result: dict[str, Any] = {
         "label": question.summary_label,
         "answered": answered,
         "completion": round(answered / total, 4) if total else 0.0,
         "distribution": dict(distribution.most_common()),
     }
+    if question.allow_other:
+        # Answers stored before the text was required have no text; they are
+        # still counted under "other" in the distribution.
+        result["other_texts"] = dict(
+            sorted(other_texts.items(), key=lambda item: (-item[1], item[0]))
+        )
+    return result
 
 
 def parse_date(text: str | None) -> date | None:

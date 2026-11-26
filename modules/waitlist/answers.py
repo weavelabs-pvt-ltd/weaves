@@ -42,13 +42,23 @@ def _many_options(question: Question, value: Any) -> list[str]:
 
 
 def _other_text(question: Question, chosen: list[str], other: str | None) -> str | None:
+    """The Other text: required when Other is chosen, refused otherwise.
+
+    Sets published before Other text existed on a question (``allow_other``
+    false) keep accepting a bare ``other`` so their answers stay valid.
+    """
+    picked = OTHER_OPTION_ID in chosen
     if other is None:
+        if question.allow_other and picked:
+            raise InvalidInput("Say what Other is")
         return None
-    if not question.allow_other or OTHER_OPTION_ID not in chosen:
+    if not question.allow_other or not picked:
         raise InvalidInput("Other text needs the Other option")
     limit = question.other_max_length or 0
     text = _clean_text(other, limit, "Other text")
-    return text or None
+    if not text:
+        raise InvalidInput("Say what Other is")
+    return text
 
 
 def validate_answer(

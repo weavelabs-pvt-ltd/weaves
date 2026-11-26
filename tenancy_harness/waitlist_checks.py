@@ -98,7 +98,7 @@ def flow_checks():
     other = second.json().get("token", "")
     return {
         "questions_served": asked.status_code == 200
-        and asked.json()["version"] == 1
+        and asked.json()["version"] == 2
         and len(asked.json()["questions"]) == 6
         and bool(asked.headers.get("X-Request-Id")),
         "join_creates_submission": first.status_code == 201
@@ -199,6 +199,65 @@ def operator_checks(token):
     }
 
 
+def other_checks():
+    """Other needs its text on role and location; operators see that text."""
+    address = "other.person@waitlist-company.test"
+    token = join(address, "wl-other").json().get("token", "")
+    asked = request("GET", BASE + "/questions", source_for("wl-reader")).json()
+    asking = {q["id"] for q in asked["questions"] if q.get("allow_other")}
+    refused = [
+        with_token("PUT", f"/answers/{question}", token, body, "wl-other")
+        for question in ("role", "company_location")
+        for body in (
+            {"value": "other"},
+            {"value": "other", "other": "   "},
+            {"value": "other", "other": "x" * 61},
+        )
+    ]
+    nothing = answers_of(token) == {}
+    saved = [
+        with_token(
+            "PUT",
+            f"/answers/{question}",
+            token,
+            {"value": "other", "other": text},
+            "wl-other",
+        )
+        for question, text in (
+            ("role", " Chief of Staff "),
+            ("company_location", "Peru"),
+        )
+    ]
+    resumed = with_token("GET", "", token, source="wl-other").json().get("answers", {})
+    status, out, _ = operator("list", "--domain-type", "company")
+    listed = {row["email"]: row for row in json.loads(out)} if status == 0 else {}
+    exported = operator("export", "--csv", *OPERATOR)
+    header, *lines = exported[1].splitlines()
+    mine = next((line for line in lines if address in line), "")
+    stats = json.loads(operator("stats")[1])["questions"]
+    erased = operator("delete", "--email", address, *OPERATOR)
+    return {
+        "other_text_is_asked_on_role_and_location": {"role", "company_location"}
+        <= asking,
+        "other_without_text_is_422_and_stores_nothing": all(
+            r.status_code == 422 for r in refused
+        )
+        and nothing,
+        "other_text_is_trimmed_and_resumes": all(r.status_code == 200 for r in saved)
+        and resumed.get("role") == {"value": "other", "other": "Chief of Staff"}
+        and resumed.get("company_location") == {"value": "other", "other": "Peru"},
+        "operator_shows_other_text": status == 0
+        and listed.get(address, {}).get("answers", {}).get("role")
+        == "Other (Chief of Staff)"
+        and "role_other" in header
+        and "Chief of Staff" in mine
+        and "Peru" in mine
+        and stats["role"]["other_texts"].get("Chief of Staff") == 1
+        and stats["company_location"]["other_texts"].get("Peru") == 1
+        and erased[0] == 0,
+    }
+
+
 def erasure_checks(token):
     """No account was created; erasing removes the entry, rows and the token."""
     status, out, _ = operator("delete", "--email", LOWER, *OPERATOR)
@@ -221,6 +280,7 @@ def waitlist_control():
     flow = flow_checks()
     token = flow.pop("token")
     result = {**flow, **refusal_checks()}
+    result.update(other_checks())
     result.update(operator_checks(token))
     result.update(erasure_checks(token))
     return result
