@@ -24,7 +24,7 @@ from modules.limits.http.routes import register_limits_routes
 from modules.models.http.routes import register_model_routes
 from modules.overview.http.routes import register_overview_routes
 from modules.skills.http.routes import register_skill_routes
-from modules.slack.access.http import register_slack_access_routes
+from modules.slack.http.access_routes import register_slack_access_routes
 from modules.tasks.http.routes import register_task_routes
 from modules.usage.http.routes import register_usage_routes
 from modules.waitlist.http.routes import register_waitlist_routes
