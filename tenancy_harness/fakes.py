@@ -1,4 +1,4 @@
-"""External provider fakes (models, MCP, Google) on the isolated Docker network."""
+"""External provider fakes (models, MCP, Google, Slack) on the isolated network."""
 
 import asyncio
 import contextlib
@@ -12,6 +12,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 
 from tenancy_harness.fake_google import router as google_router
+from tenancy_harness.fake_slack import router as slack_router
 
 HOLD_MARKER = "HOLD-FOR-USAGE-CRASH"
 HOLD_SECONDS = 100
@@ -49,6 +50,7 @@ async def lifespan(app):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(google_router)
+app.include_router(slack_router)
 
 
 @app.api_route("/v1/messages", methods=["POST"])
