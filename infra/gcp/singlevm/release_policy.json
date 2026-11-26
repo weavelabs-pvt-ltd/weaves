@@ -1,5 +1,5 @@
 {
   "min_rollback_schema_version": 33,
-  "min_rollback_revision": "d380fee5957ccb99a16c2c033725c07237be73f0",
+  "min_rollback_revision": "35d8e2c0ab4daf0934ad1df18d1e1a89b594df7a",
   "note": "Rollback targets must be healthy backend releases in releases.jsonl whose database schema head is at least min_rollback_schema_version. Raise it to the new migration number when a forward-only migration breaks older readers (migration 22 deleted data). Releases recorded before the ledger have no known schema head and are never rollback targets. min_rollback_revision is the commit the release rehearsal (scripts/release_rehearsal.py) builds as the oldest supported rollback image; raise it together with min_rollback_schema_version."
 }
