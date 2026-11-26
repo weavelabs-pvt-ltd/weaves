@@ -16,7 +16,10 @@ PAIR = json.loads(
 
 
 def test_t7_s00_is_declared_planned_and_never_required() -> None:
-    assert PAIR["planned_controls"]["T7-S00"] == "S0"
+    # The private-beta gate (R03) requires pair.json planned_controls to be empty,
+    # so Phase 7 declares its planned controls only in phase7.PLANNED.
+    assert PLANNED == {"T7-S00": ("S0", "slack_selftest")}
+    assert "T7-S00" not in PAIR["planned_controls"]
     assert "T7-S00" not in PAIR["required_controls"]
     assert not set(PLANNED) & set(PHASE5)
     loaded = importlib.import_module("tenancy_harness.phase7.slack_selftest")
