@@ -22,6 +22,8 @@ services:
       TENANCY_PUBLIC_ORIGIN: ${TEST_APP_ORIGIN:?}
       TENANCY_GOOGLE_CLIENT_ID: ${TEST_GOOGLE_CLIENT_ID:?}
       TENANCY_GOOGLE_CLIENT_SECRET: ${TEST_GOOGLE_CLIENT_SECRET:?}
+      # Made-up Slack signing secret for the fake Slack server (fixture only).
+      TENANCY_SLACK_SIGNING_SECRET: fixture-slack-signing-secret
     volumes:
       - ${TEST_HARNESS_DIR:?}:/suite/tenancy_harness:ro
       - ${TEST_PRIVATE_DIR:?}/tls:/tls:ro

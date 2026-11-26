@@ -47,6 +47,26 @@ need no other key.
 | Datadog | `WEAVES_MCP_ALLOWED_HOSTS` containing `mcp.datadoghq.com` and `app.datadoghq.com` |
 | Custom MCP | any non-empty `WEAVES_MCP_ALLOWED_HOSTS`, only for the hosts listed |
 
+### Slack bot settings (not deployed yet)
+
+The Slack bot (`docs/slack-bot-design.md`) adds three optional settings. They
+are **not** in `compose.yaml` and must not be added to `runtime.env` until the
+slice that reads them (S2, the signed events endpoint) ships; until then nothing
+reads them and the product behaves as before.
+
+| Variable | product-api | product-worker | Purpose |
+| --- | --- | --- | --- |
+| `WEAVES_SLACK_SIGNING_SECRET` | yes | no | Verifies `X-Slack-Signature` on events and interactions. Optional; required only when the bot is enabled |
+| `WEAVES_SLACK_ENABLED` | yes | yes | Kill switch, default `false`. `true` without the signing secret stops the process at start |
+| `WEAVES_SLACK_API_BASE_URL` | yes | yes | Slack API origin, default `https://slack.com/api`. Used only by the test harness to point at the fake Slack server |
+
+When S2 is deployed: copy the signing secret from the Slack app's Basic
+Information page (Signing Secret) into `runtime.env` as
+`WEAVES_SLACK_SIGNING_SECRET='<secret>'` (single quotes, never in Git, never
+printed), forward it under `environment:` for `product-api` in `compose.yaml`,
+recreate `product-api`, then switch Event Subscriptions on in the Slack app. It
+is a different value from `WEAVES_SLACK_OAUTH_CLIENT_SECRET`.
+
 ### MCP allowlist value for production
 
 ```
