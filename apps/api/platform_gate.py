@@ -22,6 +22,10 @@ from modules.platform_controls.errors import READ_ONLY_CODE, PlatformUnavailable
 logger = logging.getLogger("product.controls")
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+# Slack events keep arriving during maintenance: Ask stays allowed under
+# read-only (design 3.9) and a refusal would only make Slack retry and, after
+# enough failures, disable the subscription.
+EXEMPT_PATHS = frozenset({"/api/v0/slack/events"})
 API_PREFIX = "/api/v0/"
 DEFAULT_MESSAGE = (
     "The service is in read-only maintenance. Your data is safe; "
@@ -65,6 +69,7 @@ def install_platform_gate(app: FastAPI) -> None:
             controls is None
             or request.method in SAFE_METHODS
             or not request.url.path.startswith(API_PREFIX)
+            or request.url.path in EXEMPT_PATHS
         ):
             return await call_next(request)
         snapshot = await _snapshot(controls)

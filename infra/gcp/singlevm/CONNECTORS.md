@@ -47,25 +47,44 @@ need no other key.
 | Datadog | `WEAVES_MCP_ALLOWED_HOSTS` containing `mcp.datadoghq.com` and `app.datadoghq.com` |
 | Custom MCP | any non-empty `WEAVES_MCP_ALLOWED_HOSTS`, only for the hosts listed |
 
-### Slack bot settings (not deployed yet)
+### Slack bot settings
 
-The Slack bot (`docs/slack-bot-design.md`) adds three optional settings. They
-are **not** in `compose.yaml` and must not be added to `runtime.env` until the
-slice that reads them (S2, the signed events endpoint) ships; until then nothing
-reads them and the product behaves as before.
+The Slack bot (`docs/slack-bot-design.md`) adds three optional settings.
+`compose.yaml` forwards `WEAVES_SLACK_SIGNING_SECRET` and `WEAVES_SLACK_ENABLED`
+to `product-api` only, both with an empty default (empty means off), so nothing
+changes until the operator sets them in `runtime.env` on the VM.
 
 | Variable | product-api | product-worker | Purpose |
 | --- | --- | --- | --- |
-| `WEAVES_SLACK_SIGNING_SECRET` | yes | no | Verifies `X-Slack-Signature` on events and interactions. Optional; required only when the bot is enabled |
-| `WEAVES_SLACK_ENABLED` | yes | yes | Kill switch, default `false`. `true` without the signing secret stops the process at start |
-| `WEAVES_SLACK_API_BASE_URL` | yes | yes | Slack API origin, default `https://slack.com/api`. Used only by the test harness to point at the fake Slack server |
+| `WEAVES_SLACK_SIGNING_SECRET` | yes | no | Verifies `X-Slack-Signature` on events and interactions. Optional; unset means `POST /api/v0/slack/events` answers 503 and does nothing |
+| `WEAVES_SLACK_ENABLED` | yes | not yet | Kill switch, default off. `true` without the signing secret stops the process at start. While off, events are acked and dropped, and the install cannot start |
+| `WEAVES_SLACK_API_BASE_URL` | not forwarded | not forwarded | Slack API origin, default `https://slack.com/api`. Used only by the test harness to point at the fake Slack server |
 
-When S2 is deployed: copy the signing secret from the Slack app's Basic
-Information page (Signing Secret) into `runtime.env` as
-`WEAVES_SLACK_SIGNING_SECRET='<secret>'` (single quotes, never in Git, never
-printed), forward it under `environment:` for `product-api` in `compose.yaml`,
-recreate `product-api`, then switch Event Subscriptions on in the Slack app. It
-is a different value from `WEAVES_SLACK_OAUTH_CLIENT_SECRET`.
+The install also needs `WEAVES_SLACK_OAUTH_CLIENT_ID`, `WEAVES_SLACK_OAUTH_CLIENT_SECRET`
+(the same Slack app as the read connector) and `WEAVES_PUBLIC_API_BASE_URL`.
+
+Enable it (owner, on the VM, after the backend with S1/S2 is deployed): copy the
+signing secret from the Slack app's Basic Information page (Signing Secret) into
+`runtime.env` as `WEAVES_SLACK_SIGNING_SECRET='<secret>'` (single quotes, never in
+Git, never printed) and set `WEAVES_SLACK_ENABLED='true'`, recreate `product-api`,
+then in the Slack app switch Event Subscriptions on (the Request URL below
+verifies against the running endpoint). The signing secret is a different value
+from `WEAVES_SLACK_OAUTH_CLIENT_SECRET`.
+
+Slack app settings for the bot install and events (design section 5.1):
+
+| Slack setting | Value |
+| --- | --- |
+| OAuth & Permissions, Redirect URLs | add `https://api.weave-studio.in/api/v0/oauth/slack/install/callback` (keep the connector redirect `.../oauth/slack/callback`) |
+| OAuth & Permissions, Bot Token Scopes | `app_mentions:read`, `chat:write`, `channels:history`, `groups:history`, `channels:read`, `groups:read`, `reactions:read`, `reactions:write` |
+| Event Subscriptions, Request URL | `https://api.weave-studio.in/api/v0/slack/events` (turn on only after S2 is deployed and the secret is set) |
+| Event Subscriptions, bot events | `app_mention`, `reaction_added`, `app_uninstalled`, `tokens_revoked` |
+| Interactivity, slash commands, token rotation | leave off |
+
+An organization admin then opens Connections in the Weaves app and chooses Add to
+Slack. Enterprise Grid org-wide installs are refused; one Slack workspace can be
+bound to one Weaves organization at a time, and Disconnect (or an
+`app_uninstalled` event) frees it.
 
 ### MCP allowlist value for production
 

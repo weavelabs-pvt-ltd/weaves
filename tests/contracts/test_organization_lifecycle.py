@@ -260,6 +260,8 @@ def test_no_operator_action_is_reachable_over_http(world):
     assert organization == {
         "/api/v0/organization/settings",
         "/api/v0/organization/limits",
+        "/api/v0/organization/slack",
+        "/api/v0/organization/slack/{installation_id}",
         TRANSFER,
         "/api/v0/organization/members/{user_id}",
         LIFECYCLE,

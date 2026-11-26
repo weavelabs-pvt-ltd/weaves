@@ -510,6 +510,14 @@ in the repo; frontend vendoring in sync.
 
 Rollout: dark (`WEAVES_SLACK_ENABLED=false`), owner dev workspace and live smoke, then per installation.
 
+### S1/S2 as built (deviations from the sections above)
+
+- Install routes are `GET /api/v0/oauth/slack/install` (JSON `authorization_url`, so the signed-in app can call it with its session and then redirect) and the public `GET .../install/callback`; the status view is `GET /api/v0/organization/slack` and disconnect is `DELETE /api/v0/organization/slack/{installation_id}`. They need the existing `organizations.admin` permission (`slack.manage` arrives with S3). The OAuth state row uses provider `slack_bot`, so a connector state cannot complete a bot install.
+- Both migration-32 tables are real tables with their own row policies (like the usage ledger), not `product_records` collections; the `slack` purpose is inlined in their policies rather than added to `weaves_system_allows`. A workspace is bound while its installation is `active` or `suspended` (partial unique index); `revoked` and `uninstalled` rows free it, and the same organization reinstalling updates its row in place.
+- The inbox keeps `reaction_added` only for thumbs up/down (S4c's feedback), and no row for `app_uninstalled`/`tokens_revoked`, which act at once (only a bot-token revocation ends the bot; user-token revocations are ignored). Dropped rows (platform admissions paused, organization suspended or quarantined, installation suspended) are stored without text so a Slack retry cannot revive them. The `:eyes:` reaction runs after the response for newly stored mentions only.
+- `WEAVES_SLACK_ENABLED=false` still answers `url_verification` (so the Request URL can be saved) and acks and drops everything else; the install cannot start while it is off. The events route is exempt from the `read_only` platform gate (Ask stays allowed). Inbox retention (`purge_events`) exists but its worker tick ships with the dispatcher (S4).
+- Rollback floor: migration 32 is forward-only for older images (they refuse unknown versions), so the same pull request raises `infra/gcp/singlevm/release_policy.json` to schema 32 with the commit that introduces the migration as the floor revision; merge with a merge commit (not squash) so that revision stays reachable on main.
+
 ## 7. Decisions (owner replied "accept all", 2026-11-26: all ACCEPTED as recommended)
 
 1. **ACCEPTED** "Power itself from Slack" = core actions (ask, create task, review PR, status) without the web app; setup and admin stay in the web app. Slack as login and proactive agents are separate products.

@@ -491,5 +491,5 @@ def test_migration_list_is_contiguous_append_only_history():
     # 27 is reserved for Phase 5.3 until it merges; 29 (once 6.2's) is unused.
     full = [*range(1, 20), *range(21, SCHEMA_HEAD_VERSION + 1)]
     assert sorted(set(LISTED_VERSIONS)) == LISTED_VERSIONS
-    assert set(full) - set(LISTED_VERSIONS) <= {27, 29, 32}
+    assert set(full) - set(LISTED_VERSIONS) <= {27, 29}
     assert SCHEMA_HEAD_VERSION == 33

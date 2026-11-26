@@ -291,6 +291,8 @@ def run(args, harness):
         fair_claim_control(compose)
         usage_control(compose)
         seed_module(compose, "phase6.controls_checks")
+        seed_module(compose, "phase7.slack_install_checks")
+        seed_module(compose, "phase7.slack_event_checks")
         seed_module(compose, "phase5.correlation_checks")
         record_correlation_logs(compose, private)
         seed_module(compose, "phase5.bounded_queries_checks")

@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from application.ports.limits import LimitPolicy
+from apps.api.slack_wiring import SlackRouteServices, build_slack_route_services
 from apps.platform_runtime import LocalPlatformRuntime
 from modules.agents.runtime_lifecycle import AgentService
 from modules.auth.account_organizations import AccountOrganizationService
@@ -76,6 +77,7 @@ class ApiRouteServices:
     usage: UsageQueries
     platform_controls: PlatformControls
     slack_access: SlackAccessService
+    slack: SlackRouteServices
 
 
 def _google_sign_in(runtime: LocalPlatformRuntime) -> GoogleSignIn | None:
@@ -138,4 +140,5 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
         usage=runtime.usage_queries,
         platform_controls=runtime.platform_controls,
         slack_access=runtime.slack_access_service,
+        slack=build_slack_route_services(runtime),
     )

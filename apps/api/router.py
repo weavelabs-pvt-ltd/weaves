@@ -8,6 +8,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from apps.api.route_services import ApiRouteServices
+from apps.api.slack_wiring import register_slack_routes
 from modules.agents.http.routes import register_agent_routes
 from modules.auth.http.organization_administration_routes import (
     register_organization_administration_routes,
@@ -98,3 +99,4 @@ def register_v0_routes(app: FastAPI, services: ApiRouteServices) -> None:
     register_usage_routes(app, services.usage)
     register_waitlist_routes(app, services.waitlist)
     register_slack_access_routes(app, services.slack_access)
+    register_slack_routes(app, services.slack)

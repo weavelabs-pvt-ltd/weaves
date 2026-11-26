@@ -8,6 +8,7 @@ from threading import Event
 from typing import TYPE_CHECKING, Any
 
 from application.ports.repository import Repository
+from application.ports.slack import SlackStore
 from clients.integrations.mcp import McpHttpPlugin
 from clients.model_providers.gateway import ModelGateway
 from contracts.v1 import (
@@ -94,6 +95,7 @@ class RuntimeCapabilityHost:
     model_bootstrap_service: ModelBootstrapService
     admission: AdmissionService
     controls_store: ControlsStore
+    slack_store: SlackStore
     platform_controls: PlatformControls
     operator_audit: OperatorAudit
     _advisory_transaction_lock: Callable[[str], None] | None

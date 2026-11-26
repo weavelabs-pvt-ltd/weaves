@@ -281,6 +281,14 @@ INDEX_JUSTIFICATIONS = {
     "usage_ledger_org_time_idx": "per-organization usage windows and retention",
     "usage_daily_pkey": "one rollup row per organization, day, agent and model",
     "usage_daily_day_idx": "retention deletes old days across organizations",
+    "slack_installations_pkey": "one record per installation",
+    "slack_installations_team_held_uq": "a workspace binds one organization",
+    "slack_installations_org_team_uq": "one row per organization and workspace",
+    "slack_installations_org_idx": "an organization's installations, newest first",
+    "slack_event_inbox_pkey": "Slack retries insert one event once",
+    "slack_event_inbox_message_uq": "one app mention message is one inbox row",
+    "slack_event_inbox_pending_idx": "the dispatcher claims the oldest pending event",
+    "slack_event_inbox_received_idx": "inbox retention deletes old processed rows",
 }
 
 
@@ -311,6 +319,8 @@ def test_every_index_of_the_schema_is_justified(isolated_postgres_url):
         "platform_controls",
         "operator_actions",
         "org_quarantines",
+        "slack_installations",
+        "slack_event_inbox",
     }
     triggers = {
         row[0]

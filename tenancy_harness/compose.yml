@@ -58,6 +58,14 @@ services:
       WEAVES_LIFECYCLE_POLL_SECONDS: "1"
       WEAVES_LIMITS_MODE: enforce
       WEAVES_PUBLIC_FRONTEND_URL: ${TEST_APP_ORIGIN:?}
+      # Slack bot controls (T7-I01, T7-I02): the fake Slack server, with made-up
+      # credentials (fixtures only). The signing secret matches the fake's.
+      WEAVES_PUBLIC_API_BASE_URL: http://api:8000
+      WEAVES_SLACK_ENABLED: "true"
+      WEAVES_SLACK_SIGNING_SECRET: fixture-slack-signing-secret
+      WEAVES_SLACK_API_BASE_URL: http://provider:8081/slack/api
+      WEAVES_SLACK_OAUTH_CLIENT_ID: fixture-slack-client-id
+      WEAVES_SLACK_OAUTH_CLIENT_SECRET: fixture-slack-client-secret
       CORS_ORIGINS: ${TEST_APP_ORIGIN:?}
       PYTHONPATH: /app:/suite
       SSL_CERT_FILE: /trust/ca.pem

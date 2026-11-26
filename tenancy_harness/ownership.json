@@ -615,6 +615,14 @@
     "product_plugin_ownership_rollout": {
       "scope": "operator only",
       "purpose": "Immutable compatible reader image and activation counts for migration 20; never exposed through tenant APIs."
+    },
+    "slack_installations": {
+      "scope": "organization row, readable by the slack system purpose",
+      "purpose": "Binds one Slack workspace to one organization; holds only an opaque reference to the bot token in the secret store (migration 32)."
+    },
+    "slack_event_inbox": {
+      "scope": "global; only the slack system purpose can read or write it",
+      "purpose": "Deduplicates and queues Slack events; message text only for app mentions, deleted shortly after processing (migration 32)."
     }
   },
   "routes": [
@@ -1660,6 +1668,41 @@
       "scope": "public_waitlist",
       "rule": "no sign-in, cookie or CSRF; a submission is reached only by its private X-Waitlist-Token; nothing touches accounts, organizations or the allowlist",
       "lifecycle": "public; rate limited per source, email and token; bounded retention"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/oauth/slack/install",
+      "scope": "organization",
+      "rule": "signed-in organization admin (organizations.admin); single-use state bound to organization and principal; the organization is chosen by Weaves, never inferred from Slack",
+      "lifecycle": "active tenant; preserve global account and other memberships"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/oauth/slack/install/callback",
+      "scope": "one_time_oauth_context",
+      "rule": "public paths validate proof/state; protected paths validate principal, scope, permission and private audience",
+      "lifecycle": "proof/bootstrap or active tenant; bounded cleanup explicitly privileged"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v0/organization/slack",
+      "scope": "organization",
+      "rule": "signed-in organization admin (organizations.admin); never returns a token or secret reference",
+      "lifecycle": "active tenant; preserve global account and other memberships"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v0/organization/slack/{installation_id}",
+      "scope": "organization",
+      "rule": "signed-in organization admin (organizations.admin); only the caller's own organization's installation; revokes and deletes the bot token",
+      "lifecycle": "active tenant; preserve global account and other memberships"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v0/slack/events",
+      "scope": "signed_slack_context",
+      "rule": "no sign-in, cookie or CSRF; the Slack v0 HMAC signature over the raw body with a five-minute window is the only credential; the organization comes from the stored installation of the event's team, never from the payload",
+      "lifecycle": "public; global token bucket; unknown teams acked and dropped; inbox rows retained briefly and deleted with the organization"
     },
     {
       "method": "GET",
