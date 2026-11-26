@@ -12,7 +12,7 @@
     "catalog_ownership.py": "557b3d8f132e546a74322e166dbde535858e89809ab7ce558d94e63e673872dc",
     "client.py": "2d06bf8d7afa340722ab8f98c5c11ac9bbcf203d0676f2b1315a25ae7469a3e1",
     "compose.yml": "b00e7814f87df11e4a77bd868db3a9a4736b9e49ccf442cf9ae0d08c7c847497",
-    "controls.spec.cjs": "85ced181f394aa5a6711c6236b359b8dea565357105658b9b2cb695dcbc158e7",
+    "controls.spec.cjs": "cffa52b37c61021b890a635fd0377ef6242a45a226e5e2fd9fc870cfea6bb474",
     "diagnostics.py": "2729d7ddd3e3cb7f3ca8c09e36affd757a03ed18e2f4623babef6c3e7602dc0b",
     "fake_google.py": "2fe9d738a3b364e6b3aa3e2d2f0bdd2eb5e52d7b4422e90527a6cd651492decf",
     "fakes.py": "8cf554cf7e135f1ca89264d11e20c1a506346e65a705164e46956ab3afa36c99",
@@ -59,6 +59,6 @@
     "schedule_timezones.cjs": "8ec91d4a3a3b7ab8eb467a01183d012d04211eed5caf3b902240da569336185c",
     "schedule_timezones.py": "0ccaf8bde7d07c74af7d545449f83810892cf30a9a3c69a14ae3fd56049b7714",
     "seed.py": "1501229721019bf3205b7b0eb8d923eef41d8d48adcb544d48d01cecf0db5769",
-    "waitlist_checks.py": "7290a6de1e36061790b8ca00d4eb8cdbf2fd401f373341df9c1d4ba164e5e6c7"
+    "waitlist_checks.py": "7b5aad29be82611183e0d25f2ded5e655134a7dadc9c2e52c1abdcd35187e1a6"
   }
 }

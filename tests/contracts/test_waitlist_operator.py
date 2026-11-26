@@ -8,6 +8,7 @@ import json
 
 import pytest
 
+from contracts.v1 import WaitlistAnswer
 from tests.support.operator_scripts import run_script, waitlist
 from tests.support.waitlist_world import answer, client_for, join, memory_runtime
 
@@ -194,3 +195,50 @@ def test_the_script_refuses_to_run_with_demo_seeding(monkeypatch):
     monkeypatch.setenv("WEAVES_SEED_LOCAL_DEFAULTS", "true")
     with pytest.raises(RuntimeError, match="WEAVES_SEED_LOCAL_DEFAULTS=false"):
         waitlist.run(["list"])
+
+
+def test_other_text_shows_in_list_export_and_stats_and_legacy_rows_still_read(capsys):
+    runtime = memory_runtime()
+    client = client_for(runtime, "198.51.100.5")
+    new = join(client, "new@acme-corp.test").json()["token"]
+    answer(client, new, "role", "other", other="Chief of Staff")
+    answer(client, new, "company_location", "other", other="Peru")
+    answer(client, new, "tools", ["other"], other="Linear")
+    old = join(client, "old@acme-corp.test").json()["token"]
+    service = runtime.waitlist_service
+    entry = next(e for e in service.entries.list() if e.email.startswith("old"))
+    (submission,) = service.submissions.list_by_field("entry_id", entry.id)
+    del old
+    service.submissions.put(
+        submission.model_copy(
+            update={
+                "question_version": 1,
+                "answers": {
+                    "role": WaitlistAnswer(value="other"),
+                    "company_location": WaitlistAnswer(value="other"),
+                },
+            }
+        )
+    )
+    _, out, _ = _run(capsys, runtime, "list")
+    rows = {r["email"]: r for r in json.loads(out)}
+    assert rows["new@acme-corp.test"]["answers"]["role"] == "Other (Chief of Staff)"
+    assert rows["old@acme-corp.test"]["answers"]["role"] == "Other"
+    status, out, _ = _run(capsys, runtime, "export", "--csv", *OP)
+    exported = {r["email"]: r for r in csv.DictReader(io.StringIO(out))}
+    assert status == 0
+    new_row, old_row = exported["new@acme-corp.test"], exported["old@acme-corp.test"]
+    assert new_row["role_other"] == "Chief of Staff"
+    assert new_row["company_location_other"] == "Peru"
+    assert new_row["tools_other"] == "Linear" and new_row["waiting_on_other"] == ""
+    assert old_row["role"] == "Other" and old_row["role_other"] == ""
+    assert "company_size_other" not in new_row
+    status, out, _ = _run(capsys, runtime, "stats")
+    stats = json.loads(out)["questions"]
+    assert status == 0
+    assert stats["role"]["distribution"] == {"other": 2}
+    assert stats["role"]["other_texts"] == {"Chief of Staff": 1}
+    assert stats["company_location"]["other_texts"] == {"Peru": 1}
+    assert stats["tools"]["other_texts"] == {"Linear": 1}
+    assert "other_texts" not in stats["company_size"]
+    runtime.close()

@@ -1,0 +1,221 @@
+{
+  "version": 2,
+  "questions": [
+    {
+      "id": "company_location",
+      "type": "single_choice",
+      "prompt": "Where is your company based?",
+      "helper": "Pick one. It tells us which regions to open first.",
+      "summary_label": "Company location",
+      "optional": true,
+      "options": [
+        {
+          "id": "europe",
+          "label": "Europe (EU/EEA)"
+        },
+        {
+          "id": "united_kingdom",
+          "label": "United Kingdom"
+        },
+        {
+          "id": "middle_east",
+          "label": "Middle East (GCC)"
+        },
+        {
+          "id": "india",
+          "label": "India"
+        },
+        {
+          "id": "north_america",
+          "label": "North America"
+        },
+        {
+          "id": "other",
+          "label": "Other"
+        }
+      ],
+      "allow_other": true,
+      "other_max_length": 60
+    },
+    {
+      "id": "company_size",
+      "type": "size_band",
+      "prompt": "How many people work at your company?",
+      "helper": "A rough band is fine.",
+      "summary_label": "Company size",
+      "optional": true,
+      "options": [
+        {
+          "id": "1_10",
+          "label": "1–10"
+        },
+        {
+          "id": "11_50",
+          "label": "11–50"
+        },
+        {
+          "id": "51_200",
+          "label": "51–200"
+        },
+        {
+          "id": "201_1000",
+          "label": "201–1000"
+        },
+        {
+          "id": "1000_plus",
+          "label": "1000+"
+        }
+      ]
+    },
+    {
+      "id": "role",
+      "type": "single_choice",
+      "prompt": "What is your role?",
+      "helper": "Pick the closest fit.",
+      "summary_label": "Your role",
+      "optional": true,
+      "options": [
+        {
+          "id": "founder_ceo",
+          "label": "Founder / CEO"
+        },
+        {
+          "id": "operations",
+          "label": "Operations"
+        },
+        {
+          "id": "finance",
+          "label": "Finance"
+        },
+        {
+          "id": "sales_customer",
+          "label": "Sales or customer"
+        },
+        {
+          "id": "engineering_it",
+          "label": "Engineering or IT"
+        },
+        {
+          "id": "other",
+          "label": "Other"
+        }
+      ],
+      "allow_other": true,
+      "other_max_length": 60
+    },
+    {
+      "id": "waiting_on",
+      "type": "single_choice",
+      "prompt": "What do you most often wait on a colleague or expert for?",
+      "helper": "Pick the one that costs you the most time.",
+      "summary_label": "What you wait on",
+      "optional": true,
+      "options": [
+        {
+          "id": "numbers_reports",
+          "label": "Numbers and reports"
+        },
+        {
+          "id": "documents_policies",
+          "label": "Answers from documents or policies"
+        },
+        {
+          "id": "status_updates",
+          "label": "Status updates across tools"
+        },
+        {
+          "id": "routine_drafting",
+          "label": "Drafting routine replies or documents"
+        },
+        {
+          "id": "other",
+          "label": "Other"
+        }
+      ],
+      "allow_other": true,
+      "other_max_length": 60
+    },
+    {
+      "id": "ai_today",
+      "type": "single_choice",
+      "prompt": "How does your team use AI today?",
+      "helper": "Pick the closest description.",
+      "summary_label": "AI use today",
+      "optional": true,
+      "options": [
+        {
+          "id": "not_at_all",
+          "label": "Not at all"
+        },
+        {
+          "id": "individual_use",
+          "label": "A few people use ChatGPT or Claude on their own"
+        },
+        {
+          "id": "paid_team_tool",
+          "label": "A paid team AI tool"
+        },
+        {
+          "id": "built_into_workflows",
+          "label": "AI built into our workflows"
+        }
+      ]
+    },
+    {
+      "id": "tools",
+      "type": "multiple_choice",
+      "prompt": "Which tools does your team use most?",
+      "helper": "Pick all that apply.",
+      "summary_label": "Tools your team uses",
+      "optional": true,
+      "options": [
+        {
+          "id": "slack",
+          "label": "Slack"
+        },
+        {
+          "id": "microsoft_teams",
+          "label": "Microsoft Teams"
+        },
+        {
+          "id": "google_workspace",
+          "label": "Google Workspace"
+        },
+        {
+          "id": "microsoft_365",
+          "label": "Microsoft 365"
+        },
+        {
+          "id": "notion",
+          "label": "Notion"
+        },
+        {
+          "id": "jira",
+          "label": "Jira"
+        },
+        {
+          "id": "github",
+          "label": "GitHub"
+        },
+        {
+          "id": "hubspot",
+          "label": "HubSpot"
+        },
+        {
+          "id": "salesforce",
+          "label": "Salesforce"
+        },
+        {
+          "id": "zoho",
+          "label": "Zoho"
+        },
+        {
+          "id": "other",
+          "label": "Other"
+        }
+      ],
+      "allow_other": true,
+      "other_max_length": 60
+    }
+  ]
+}

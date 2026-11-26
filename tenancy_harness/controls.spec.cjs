@@ -337,7 +337,9 @@ test('TW-01 the public waitlist joins, answers, resumes and erases through the r
     'answer_cleared', 'resume_with_token_only', 'known_email_gets_a_new_submission', 'known_email_leaks_no_answers',
     'first_token_still_has_its_answers', 'no_cookie_set', 'invalid_token_is_401', 'invalid_email_is_422',
     'rate_limit_returns_429_with_retry_after', 'operator_list_matches_rows', 'operator_export_has_the_entry',
-    'operator_stats_count_entries', 'rows_are_global_and_hold_only_a_digest', 'operator_actions_are_audited',
+    'operator_stats_count_entries', 'other_text_is_asked_on_role_and_location',
+    'other_without_text_is_422_and_stores_nothing', 'other_text_is_trimmed_and_resumes', 'operator_shows_other_text',
+    'rows_are_global_and_hold_only_a_digest', 'operator_actions_are_audited',
     'no_account_or_session_created', 'operator_delete_erases_entry', 'erased_token_stops_working']) {
     expect(control[key], key).toBe(true);
   }

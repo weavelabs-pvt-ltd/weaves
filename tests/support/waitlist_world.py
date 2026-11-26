@@ -62,14 +62,14 @@ def answer(client: TestClient, token: str, question_id: str, value: Any, **extra
 
 
 def extended_bank(destination: Path) -> QuestionBank:
-    """A bank with a published version 2 (the first question reworded)."""
+    """A bank with a published version 3 (the first question reworded)."""
     shutil.copytree(CONTENT_ROOT, destination)
-    first = json.loads((destination / "questions/v1.json").read_text())
-    first["version"] = 2
+    first = json.loads((destination / "questions/v2.json").read_text())
+    first["version"] = 3
     first["questions"][0]["prompt"] = "Which region is your company based in?"
-    (destination / "questions/v2.json").write_text(json.dumps(first))
+    (destination / "questions/v3.json").write_text(json.dumps(first))
     lock = json.loads((destination / "published.lock.json").read_text())
-    lock["files"]["questions/v2.json"] = digest(destination / "questions/v2.json")
+    lock["files"]["questions/v3.json"] = digest(destination / "questions/v3.json")
     (destination / "published.lock.json").write_text(json.dumps(lock))
     return QuestionBank.load(destination)
 
