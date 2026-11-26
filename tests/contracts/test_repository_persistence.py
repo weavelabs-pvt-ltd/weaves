@@ -475,7 +475,8 @@ def test_database_at_previous_head_applies_only_the_newest_step():
     ]
     assert versions == [SCHEMA_HEAD_VERSION]
     sql = "\n".join(statement for statement, _ in connection.statements)
-    assert "DELETE FROM product_records WHERE collection IN" in sql
+    assert "CREATE TABLE IF NOT EXISTS slack_installations" in sql
+    assert "DELETE FROM product_records WHERE collection IN" not in sql
     assert "CREATE TABLE IF NOT EXISTS platform_controls" not in sql
     assert "workflow_runs_running_idx" not in sql
     assert "limits_turn_queued_org_idx" not in sql
