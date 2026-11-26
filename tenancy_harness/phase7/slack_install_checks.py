@@ -202,6 +202,8 @@ def disconnect_results(a, b):
         "/organization/slack/" + inst["installation_id"],
         a["admin"]["headers"],
     )
+    revoked_once = len(fake_calls("auth.revoke")) == revokes + 1
+    deleted = secret_before not in {row[0] for row in secret_rows()}
     moved = install(b)
     held = installation_rows()
     (mine,) = [i for i in status(b)["installations"] if i["status"] == "active"]
@@ -220,8 +222,8 @@ def disconnect_results(a, b):
         "another_organization_cannot_disconnect_it": other.status_code == 404,
         "disconnect_revokes_and_deletes_the_token": gone.status_code == 200
         and gone.json()["status"] == "uninstalled"
-        and len(fake_calls("auth.revoke")) == revokes + 1
-        and secret_before not in {row[0] for row in secret_rows()},
+        and revoked_once
+        and deleted,
         "freed_workspace_can_be_claimed_by_another_organization": moved.get(
             "slack_install"
         )

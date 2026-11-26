@@ -236,7 +236,18 @@ def organization_state_results(a):
     waited = until(dropped)
     control("clear", *OP)
     last = list(seen.values())[-1] if seen else None
+
+    def accepted_again():
+        event_id = f"Ev7CLEAR{len(seen)}"
+        seen[event_id] = None
+        deliver(mention(event_id, next_ts()))
+        seen[event_id] = inbox(event_id)
+        return seen[event_id] is not None and seen[event_id][0] == "pending"
+
+    # The switch has a short cache: later controls must not start before it is off.
+    cleared = until(accepted_again)
     return {
+        "the_platform_pause_clears_without_a_restart": cleared is not None,
         "a_suspended_organization_drops_events_without_text": acked(suspended)
         and inbox("Ev7SUSP")[:3] == ("dropped", "org_unavailable", None),
         "a_resumed_organization_accepts_events_again": acked(resumed)

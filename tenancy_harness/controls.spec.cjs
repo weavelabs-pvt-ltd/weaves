@@ -463,7 +463,8 @@ test('T7-I02 the signed Slack events endpoint dedupes, acks within three seconds
     'one_message_under_two_event_ids_is_one_row', 'parallel_deliveries_store_one_row_and_one_reaction',
     'a_failing_slack_api_does_not_fail_the_ack', 'a_slow_slack_api_does_not_delay_the_ack',
     'a_suspended_organization_drops_events_without_text', 'a_resumed_organization_accepts_events_again',
-    'the_platform_pause_drops_events_without_text', 'inbox_is_invisible_to_tenants_and_unscoped_roles',
+    'the_platform_pause_drops_events_without_text', 'the_platform_pause_clears_without_a_restart',
+    'inbox_is_invisible_to_tenants_and_unscoped_roles',
     'revoking_only_user_tokens_leaves_the_bot_alone', 'bot_token_revocation_marks_the_installation_revoked',
     'a_revoked_workspace_reinstalls_in_place', 'app_uninstalled_ends_it_and_deletes_the_token',
     'events_after_uninstall_are_acked_and_dropped']) {
