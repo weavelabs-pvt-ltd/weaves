@@ -492,7 +492,6 @@ flow; automatic PR reviews from webhooks; Slack as login; a channel-history inde
 managed-AI entitlements; a general agent tool loop (a separate product decision that would improve every flow here).
 
 ## Sources (read 2026-11-26 unless noted)
-
 Slack (docs.slack.dev): authentication/verifying-requests-from-slack, apis/events-api, reference/events/{app_mention,tokens_revoked}, authentication/{installing-with-oauth,
 using-token-rotation}, apis/events-api/using-socket-mode, reference/methods/{chat.postMessage,chat.postEphemeral}, interactivity/{handling-user-interaction,
 implementing-slash-commands}, changelog/2025/05/29/rate-limit-changes-for-non-marketplace-apps, slack-marketplace/slack-marketplace-app-guidelines-and-requirements.
