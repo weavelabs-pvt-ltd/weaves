@@ -332,9 +332,14 @@ def test_answers_stored_before_other_text_was_required_stay_valid(runtime, clien
     read = client.get(f"{URL}/submissions/current", headers=token_headers(token))
     assert read.status_code == 200 and read.json()["question_version"] == 1
     assert read.json()["answers"]["role"] == {"value": "other"}
-    # Own-version rules: version 1 never asked for the text on these two.
+    # Version 1 never required the text on these two.
     assert answer(client, token, "role", "other").status_code == 200
-    assert answer(client, token, "role", "other", other="x").status_code == 422
+    # The current questions ask for the text, so a v1 session may send it too.
+    kept = answer(client, token, "role", "other", other=" Chief ")
+    assert kept.status_code == 200
+    assert kept.json()["answers"]["role"] == {"value": "other", "other": "Chief"}
+    assert answer(client, token, "role", "other", other="x" * 61).status_code == 422
+    assert answer(client, token, "role", "finance", other="x").status_code == 422
     cleared = client.delete(
         f"{URL}/submissions/current/answers/company_location",
         headers=token_headers(token),
