@@ -93,7 +93,7 @@ class OAuthContextBase:
 
     def state_record(
         self,
-        provider: Literal["github", "slack", "jira", "mcp"],
+        provider: Literal["github", "slack", "slack_bot", "jira", "mcp"],
         configuration: dict[str, Any],
         *,
         step: Literal[
@@ -110,7 +110,7 @@ class OAuthContextBase:
     def take_state(
         self,
         value: str,
-        provider: Literal["github", "slack", "jira", "mcp"],
+        provider: Literal["github", "slack", "slack_bot", "jira", "mcp"],
         step: Literal[
             "authorize", "github_install", "resource_selection"
         ] = "authorize",
@@ -125,7 +125,9 @@ class OAuthContextBase:
         return record
 
     def discard_state(
-        self, value: str, provider: Literal["github", "slack", "jira", "mcp"]
+        self,
+        value: str,
+        provider: Literal["github", "slack", "slack_bot", "jira", "mcp"],
     ) -> None:
         """Handle the discard state step of the OAuth flow."""
         try:

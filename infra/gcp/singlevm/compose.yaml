@@ -67,6 +67,11 @@ services:
       WEAVES_ACCOUNT_ALLOWED_EMAIL_DOMAINS: ${WEAVES_ACCOUNT_ALLOWED_EMAIL_DOMAINS:-}
       WEAVES_ALLOW_ACCOUNT_ORGANIZATION_CREATION: ${WEAVES_ALLOW_ACCOUNT_ORGANIZATION_CREATION:-false}
       WEAVES_ACCOUNT_ORGANIZATION_LIMIT: ${WEAVES_ACCOUNT_ORGANIZATION_LIMIT:-3}
+      # Slack bot (docs/slack-bot-design.md). Empty means off: the events
+      # endpoint then answers 503 and nothing else changes. Set both in
+      # runtime.env on the VM only; the signing secret is never in Git.
+      WEAVES_SLACK_SIGNING_SECRET: ${WEAVES_SLACK_SIGNING_SECRET:-}
+      WEAVES_SLACK_ENABLED: ${WEAVES_SLACK_ENABLED:-}
       WEAVES_PUBLIC_FRONTEND_URL: https://app.weave-studio.in
       WEAVES_PUBLIC_API_BASE_URL: https://api.weave-studio.in
       CORS_ORIGINS: https://app.weave-studio.in

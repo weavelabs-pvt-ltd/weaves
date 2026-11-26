@@ -10,6 +10,7 @@ import httpx
 from application.ports.product_repositories import ProductRepositorySet
 from application.ports.runtime_adapters import RuntimeAdapterBundle
 from application.ports.secrets import SecretStore
+from application.ports.slack import SlackStore
 from application.ports.throttling import LoginRateLimiter
 from application.ports.usage import UsageLedger
 from clients.integrations.github import GitHubReadPlugin
@@ -73,6 +74,14 @@ def build_usage_ledger(store: ProductPostgresStore | None) -> UsageLedger:
     from infrastructure.persistence.usage_ledger_memory import InMemoryUsageLedger
 
     return InMemoryUsageLedger() if store is None else PostgresUsageLedger(store)
+
+
+def build_slack_store(store: ProductPostgresStore | None) -> SlackStore:
+    """Select the PostgreSQL Slack store or the process-local development one."""
+    from infrastructure.persistence.slack_store import PostgresSlackStore
+    from infrastructure.persistence.slack_store_memory import InMemorySlackStore
+
+    return InMemorySlackStore() if store is None else PostgresSlackStore(store)
 
 
 def build_runtime_adapters(

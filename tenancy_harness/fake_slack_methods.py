@@ -74,7 +74,8 @@ def oauth_v2_access(params, _token):
         "app_id": "A0FAKE001",
         "access_token": bot,
         "token_type": "bot",
-        "scope": "app_mentions:read,chat:write",
+        "scope": "app_mentions:read,chat:write,channels:history,groups:history,"
+        "channels:read,groups:read,reactions:read,reactions:write",
         "bot_user_id": "U0FAKEBOT",
         "team": None if enterprise else {"id": team, "name": "Fixture Workspace"},
         "enterprise": {"id": "E0FAKE001", "name": "Fixture Grid"}

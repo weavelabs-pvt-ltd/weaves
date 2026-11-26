@@ -438,3 +438,36 @@ test('T6-I03 the kill switches take effect on the running stack and a quarantine
     expect(control[key], key).toBe(true);
   }
 });
+
+test('T7-I01 the Slack bot install binds one workspace to one organization and keeps the token in the secret store', async () => {
+  const control = fixture.slack_install;
+  for (const key of ['start_refused_without_a_session', 'start_returns_the_bot_scopes_only',
+    'install_completes_and_redirects_ok', 'state_is_single_use', 'status_shows_workspace_installer_and_state',
+    'token_is_only_in_the_secret_store', 'no_token_in_responses_tables_audit_or_ciphertext', 'install_is_audited',
+    'second_organization_is_refused_with_a_clear_reason', 'refused_install_token_is_revoked',
+    'workspace_stays_bound_to_one_organization', 'reinstall_updates_in_place_and_rotates_the_token',
+    'enterprise_grid_org_wide_install_is_refused', 'rls_hides_the_installation_from_other_tenants_and_no_scope',
+    'another_organization_cannot_disconnect_it', 'disconnect_revokes_and_deletes_the_token',
+    'freed_workspace_can_be_claimed_by_another_organization', 'the_workspace_is_free_for_the_next_control',
+    'no_token_leaked_after_the_whole_flow']) {
+    expect(control[key], key).toBe(true);
+  }
+});
+
+test('T7-I02 the signed Slack events endpoint dedupes, acks within three seconds and reacts after the ack', async () => {
+  const control = fixture.slack_events;
+  for (const key of ['url_verification_is_echoed', 'forged_signature_is_refused_and_stores_nothing',
+    'stale_timestamp_is_refused_and_stores_nothing', 'unknown_team_is_acked_and_dropped',
+    'mention_is_acked_within_three_seconds_and_stored_pending', 'eyes_reaction_is_added_after_the_ack',
+    'a_repeated_event_id_is_stored_once', 'slack_retry_headers_are_deduplicated',
+    'one_message_under_two_event_ids_is_one_row', 'parallel_deliveries_store_one_row_and_one_reaction',
+    'a_failing_slack_api_does_not_fail_the_ack', 'a_slow_slack_api_does_not_delay_the_ack',
+    'a_suspended_organization_drops_events_without_text', 'a_resumed_organization_accepts_events_again',
+    'the_platform_pause_drops_events_without_text', 'the_platform_pause_clears_without_a_restart',
+    'inbox_is_invisible_to_tenants_and_unscoped_roles',
+    'revoking_only_user_tokens_leaves_the_bot_alone', 'bot_token_revocation_marks_the_installation_revoked',
+    'a_revoked_workspace_reinstalls_in_place', 'app_uninstalled_ends_it_and_deletes_the_token',
+    'events_after_uninstall_are_acked_and_dropped']) {
+    expect(control[key], key).toBe(true);
+  }
+});
