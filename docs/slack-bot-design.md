@@ -11,7 +11,7 @@ reviews, answers from org connectors (GitHub, Slack search, Jira, Notion, Datado
 - The platform already has tasks/worker, limits, usage ledger, request ids, kill switch, purge, secrets and RLS; missing is the Slack edge (installation, signed endpoint, inbox, access policy, reply path).
 - Access is two-tier (owner, 2026-11-26): **Ask** (pure Q&A, open to every Slack user, but only over data the admin marked shareable) and
   **Execute** (create task, PR review, run workflow, anything that persists work, spends meaningful AI or writes; off until an admin allowlists
-  channels/users per action in a dashboard "Slack access" page). Connector tokens are org-wide, so Ask must never reach unticked connectors.
+  channels/users per action in a dashboard "Slack access" page). Every request runs one pipeline: **discover tools, plan, check access per tool, respond only if all needed checks are green** (3.5.1). Connector tokens are org-wide, so access is Weaves-level entitlement, not source-system identity (3.5.2).
 - No tool loop and no write path (approvals backend removed in migration 31): v1 is read-only answers, task creation, Slack-only PR review.
 - Non-Marketplace apps get 1 request/min and 15 messages on `conversations.replies`. Recommended v1: slices S0 to S7 (section 6).
 
@@ -26,8 +26,7 @@ reviews, answers from org connectors (GitHub, Slack search, Jira, Notion, Datado
 | Plugin supports one capability, `slack.messages.search`, via `search.messages` (+ optional `conversations.replies`, limit 10), restricted to configured channel names and quoting the query so operators cannot widen scope | `clients/integrations/slack.py:48-69, 85-112, 130-150`; seeded at `modules/integrations/bootstrap.py:212-240` |
 | Channels discovered with the user token (`conversations.list`); setup docs list only user scopes and a Redirect URL; no signing-secret variable exists | `modules/integrations/http/oauth_resources.py:165-190`; `infra/gcp/singlevm/CONNECTORS.md` sections 1-2 |
 
-The Slack app "Weaves" is registered (per owner): client id/secret on the server, signing secret offline, bot scopes `app_mentions:read, chat:write,
-channels:history, groups:history`, the user scopes above, Event Subscriptions OFF. Nothing in the repo reads the signing secret yet.
+The Slack app "Weaves" is registered (per owner) with bot scopes `app_mentions:read, chat:write, channels:history, groups:history`, the user scopes above, Event Subscriptions OFF; nothing in the repo reads its signing secret yet.
 
 ### 1.2 No inbound chat or event triggers
 
@@ -64,9 +63,9 @@ idempotency, 202 with a `replayed` flag. A good pattern for "verify, store event
 
 ### 1.5 Gaps the bot must close
 
-No bot-token storage or `team_id -> org` mapping; no signed public endpoint with a global event-id inbox; no Slack-user to member mapping (tasks need a
-principal, `tasks/service.py:127`); no reply path or Slack origin on tasks; no GitHub PR files/diff capability, no write approval path, and connector
-reads take only a query string; model access is BYOK per org (managed AI is a future dependency).
+No bot-token storage or `team_id -> org` mapping; no signed endpoint with a global event inbox; no Slack-user mapping (tasks need a principal, `tasks/service.py:127`); no reply
+path or Slack origin on tasks; no per-request tool selection or per-asker access check (the runtime runs every allowed capability once); no GitHub PR files/diff capability,
+no write approval path; model access is BYOK per org (managed AI is a future dependency).
 
 ## 2. User flows
 
@@ -78,11 +77,11 @@ see the plain messages in 3.5 ("ask a Weaves admin"); there is no invitation or 
 ### F1. Ask: tag to answer (v1, Tier 1)
 
 - Trigger: `@Weaves <question>` by **any user** in a channel the bot was invited to, or in its thread (thread_ts = parent). DMs later.
-- Steps: endpoint verifies and stores `app_mention`; dispatcher resolves team -> org, classifies Ask, picks the Q&A agent version (open or trusted,
-  3.5), creates a hidden Q&A task as the Slack service principal (idempotency key `slack:{team}:{event_id}`); the worker runs it (connector reads once);
-  the `slack_reply` tick posts the answer in the thread.
-- Who: everyone, linked or not, within Ask rate limits. Open answers use model knowledge plus **only connectors ticked "available to everyone in
-  Slack"**; users allowed for `ask_private` also get unticked connectors, answered ephemerally.
+- Steps: endpoint verifies and stores `app_mention`; dispatcher resolves team -> org, classifies Ask, runs the cheap checks (3.5.1 steps 1-5) and creates a
+  hidden Q&A task as the Slack service principal (idempotency key `slack:{team}:{event_id}`); at worker pickup the pipeline discovers, plans and checks
+  tools, then the normal run fetches and answers; the `slack_reply` tick posts the answer in the thread.
+- Who: everyone, linked or not, within Ask limits. Data comes only from connectors that are healthy, needed by the question and whose audience setting
+  admits this asker; model-only general answers need no connector.
 - Bot posts: optional reaction, then one threaded message: answer (about 3,000 characters max, longer links to Weaves), "Sources" from the documents'
   `title`/`source_id`, and a task link (hidden Q&A tasks link to nothing).
 - Failure: a question naming a non-shared source gets the "needs access" message (3.5); a failed turn posts "I could not finish this (code, request id)"; no
@@ -98,7 +97,7 @@ see the plain messages in 3.5 ("ask a Weaves admin"); there is no invitation or 
 
 ### F3. PR review (two variants, Tier 2)
 
-- Trigger: `@Weaves review https://github.com/org/repo/pull/123` (strict URL parse). Allowed only if the access rule for `pr_review` passes **and** the repo is in the GitHub installation's repositories **and** on the admin's PR-review repo allowlist.
+- Trigger: `@Weaves review https://github.com/org/repo/pull/123` (strict URL parse). Pre-flight (3.5.1): `pr_review` rule passes, repo covered by the GitHub installation **and** on the admin's repo allowlist.
 - Variant A, Slack-only (v1, recommended): works with existing read permissions. New capability `github.pr.review_context` reads `GET /pulls/{n}` and
   `/pulls/{n}/files` (diff byte-capped; GitHub caps the files list at 3,000; which patches are omitted is UNVERIFIED, so tolerate missing patches). Capabilities
   get only `{"query": task}` (`runtime_run_capabilities.py:133`), so it parses the PR URL from that text. Reply: summary, risks, per-file notes, questions.
@@ -123,7 +122,7 @@ see the plain messages in 3.5 ("ask a Weaves admin"); there is no invitation or 
 
 | In v1 | Later |
 |---|---|
-| Tier 1 Ask for every Slack user (model-only plus admin-ticked connectors), per-user limits, `ask_private` for allowlisted users | F5 writes and confirmations; Jira comment; PR generation |
+| Tier 1 Ask for every Slack user through the discover/plan/check/respond pipeline (model-only plus connectors whose audience admits the asker), strict by default, per-user limits | F5 writes and confirmations; Jira comment; PR generation |
 | Tier 2 `create_task` and `pr_review` (Slack-only), off until configured; Slack access page, allowlists, audit | `run_workflow` (v1.1, S6b); message shortcut, slash command; PR review posted on GitHub |
 | Status (ephemeral); install, uninstall, kill switch, purge, limits | DMs, `message.*` follow-ups, channel picker (needs `channels:read`), self-link flow, Grid, Marketplace, managed AI |
 
@@ -169,8 +168,9 @@ Migration head is 31 (`infrastructure/database/later_migrations.py:22-33`). Numb
 |---|---|---|
 | `slack_installations` (relational, global) | one row per workspace | `team_id` UNIQUE (active), `enterprise_id`, `org_id`, `workspace_id`, `app_id`, `bot_user_id`, `bot_secret_ref`, `scopes`, `installed_by_principal_id`, `installed_by_slack_user`, `status` (active/revoked/uninstalled/suspended), `installed_at`, `revoked_at` |
 | `slack_event_inbox` (global) | dedupe + queue | see 3.2; RLS only for purpose `slack` |
+| `slack_connector_health` (product_records, org) | health snapshot per installation | `installation_id, status, reason_code, checked_at` (written by a `slack_health` tick every 10 min, ASSUMPTION, using `healthcheck_plugin_installation`) |
 | `slack_threads` (product_records, org) | Slack thread to task | `team_id, channel_id, thread_ts, task_id, requester_slack_user_id, requester_principal_id, tier, reply_state` |
-| `slack_access_settings` (product_records, org, one row) | the dashboard page (3.5) | `version`, `ask_enabled`, `ask_open_installation_ids[]`, `ask_limits{user,channel,org_day}`, `rules{create_task, pr_review, run_workflow, ask_private}` each `off|user_only|channel_only|user_and_channel|user_or_channel` (default `off`), `workflow_ids[]`, `pr_review_repos[]`, `qa_principal_id`, `qa_agent_versions{open,trusted}`, `paused`, `updated_by`, `updated_at` |
+| `slack_access_settings` (product_records, org, one row) | the dashboard page (3.5) | `version`, `ask_enabled`, `connector_audience{installation_id: everyone|allowed_people|not_in_slack}` (default `not_in_slack`), `partial_answers` (default false), `planner_profile_id`, `ask_limits{user,channel,org_day}`, `rules{create_task, pr_review, run_workflow, ask_private}` each `off|user_only|channel_only|user_and_channel|user_or_channel` (default `off`), `workflow_ids[]`, `pr_review_repos[]`, `qa_principal_id`, `qa_agent_version_id`, `paused`, `updated_by`, `updated_at` |
 | `slack_allowed_users` (product_records, org) | user allowlist | `slack_user_id` (unique per org), `principal_id` (null = listed by Slack id only), `note`, `added_by`, `added_at` |
 | `slack_allowed_channels` (product_records, org) | channel allowlist | `channel_id` (unique per org), `name_cached`, `added_by`, `added_at` |
 
@@ -199,18 +199,14 @@ message is Ask, never Execute.
 
 **Tier 1 Ask, open by default.** Any Slack user of the bound workspace in a channel where the bot was invited (linked or not; Slack's own invite is the channel
 gate). Questions run as a per-org Slack service principal (`PrincipalType.SERVICE_ACCOUNT`, `contracts/v1/identity.py:40`) holding only `agents.run` and
-`tasks.create` on the Q&A agent. Tasks are `audience=PRIVATE` to that principal with `origin.kind="slack_qa"`, hidden from the task list, and deleted by a
-retention tick after 30 days (ASSUMPTION). Two pinned agent versions (`pinned_version_id`, `tasks/service.py:123`): **open** = model knowledge plus
-connectors ticked "Available to everyone in Slack"; **trusted** = all enabled connectors, used only when `ask_private` passes (below) and answered
-ephemerally. Because the runtime has no tool loop, the open version simply does not hold unticked connectors, so a prompt cannot reach them.
-- Open-Q&A leak control: a connector is only offered in the dashboard with a risk label; the Slack-search connector (acts as its installer) is labelled
-  "not recommended" and stays inside its configured channel list. Defaults: no connector ticked, so answers are model-only.
-- Non-shareable need and user not allowed: answers are never silently degraded. If the text names an unshared source (Jira issue key regex, "Datadog",
-  an unshared host/URL, a repo not allowlisted), the bot posts ephemerally: "That needs <Jira>, which isn't open to everyone in Slack. Ask a Weaves admin
-  for access." Otherwise the open answer carries a footer line naming the sources used. (A tool-less runtime cannot know a question "needed" a connector, so
-  detection is explicit-mention only: UNVERIFIED value, listed as a risk.)
-- Rate limits (it spends the org's AI key): per Slack user 5 questions/10 min, per channel 20/10 min, per org 200/day, question capped at 1,000 characters
-  (ASSUMPTION, editable on the page); open Q&A may hold at most 1 of the org's 2 running slots (`WEAVES_LIMIT_MAX_RUNNING_PER_ORG`) so Execute work is not starved.
+`tasks.create` on one Q&A agent. Tasks are `audience=PRIVATE` to that principal with `origin.kind="slack_qa"`, hidden from the task list, deleted by a
+retention tick after 30 days (ASSUMPTION). The Q&A agent version lists all of the org's read capabilities, but **what a request may touch is narrowed per
+request** by the pipeline below, not by agent version.
+- Each connector has an **audience** setting: `everyone` (any Slack user), `allowed_people` (users passing the `ask_private` rule, answered ephemerally) or
+  `not_in_slack` (default for every connector). The dashboard shows each connector's scope (e.g. Slack channel list, GitHub repositories) next to it, and
+  the Slack-search connector, which acts as its installer, is labelled "not recommended".
+- Ask limits (it spends the org's AI key): per Slack user 5 questions/10 min, per channel 20/10 min, per org 200/day, 1,000 characters per question
+  (ASSUMPTION, editable); open Ask may hold at most 1 of the org's 2 running slots (`WEAVES_LIMIT_MAX_RUNNING_PER_ORG`) so Execute is not starved.
 
 **Tier 2 Execute, off until configured.** For each action type the admin picks a rule: `off` (default), `user_only`, `channel_only`, `user_and_channel`,
 `user_or_channel`. "User" = Slack user in `slack_allowed_users`; "channel" = channel in `slack_allowed_channels` (DMs never satisfy a channel rule).
@@ -219,14 +215,57 @@ Independent hard checks always apply on top: the user must map to an **active We
 **and** in `pr_review_repos`; `run_workflow` needs the workflow published and in `workflow_ids`. `ask_private` (trusted Ask) uses the same rule engine and
 may allow users listed by Slack id only, since it is read-only.
 
-**Mapping** is admin-asserted in the dashboard (pick a Weaves member and paste their Slack member ID, shown in Slack profile > Copy member ID); every
-assertion is audited. No self-link or invitation flow in v1; the one-time self-link is a later convenience. No email matching (needs `users:read.email`).
+#### 3.5.1 Request-time pipeline: discover, plan, check, respond (both tiers)
 
-**Validation at request time and at pickup.** The dispatcher evaluates the policy when it claims the inbox row and writes the decision. Settings can change
-before the worker runs, so the policy is re-evaluated with the current `slack_access_settings.version` in a small pre-run guard in
-`modules/tasks/worker_service.py:_process_claimed_turn` (`:111`) for turns whose `origin.kind` is `slack`: now blocked means the turn is cancelled with reason
-`slack_access_revoked`, audited, and the thread gets the blocked message. Saving settings also cancels still-queued Slack turns that no longer pass (bounded
-batch). Running turns finish; the kill switch still applies at claim.
+| Step | Where | What |
+|---|---|---|
+| 1-5 cheap gates | dispatcher, again at pickup | platform/org state and `read_only`, installation, settings `paused`, rate limits (3.9), then classification and the Execute rule and pre-flight (below) |
+| 6 DISCOVER | pickup | list the org's read capabilities with a status: installation `ACTIVE` (`PluginInstallationStatus`, `contracts/v1/plugins.py:54`), token present, `slack_connector_health` fresher than 15 min (ASSUMPTION), not quarantined/disabled. Stale or `ERROR` entries are re-probed live (`healthcheck_plugin_installation`, `runtime_installation_health.py:39`, 3 s timeout) only if the planner needs them; otherwise red with reason `unavailable` |
+| 7 PLAN | pickup | Execute: **fixed grammar, no model**: `pr_review` needs `github.pr.review_context`; `run_workflow` needs that workflow's capabilities. Ask: one **planner call** (below) |
+| 8 CHECK | pickup | per needed tool: health green AND access green for this asker (3.5.2); result recorded per tool |
+| 9 RESPOND | worker run | strict (default): run only if every needed tool is green; else no data and a short message. `partial_answers=true`: answer from green tools and say which were skipped. Model-only answers stay allowed when the plan needs no tool |
+
+**Minimal planner (Ask only).** The runtime has no tool loop (`runtime_run_capabilities.py:42-98` runs each capability once with the task text), so planning is one
+extra, tool-less model call by the org's own provider key: input = the question (marked untrusted, 1,000 characters) plus a list of discovered tools (id, label, one-line
+description; no data); output = JSON `{"needs": [≤3 presented ids], "general_ok": bool}`, validated in code (no provider structured-output feature found in
+`clients/model_providers`, so JSON-in-prompt plus strict parsing, UNVERIFIED that none exists). It runs on `planner_profile_id` (default: the agent's profile; a cheaper
+profile is recommended, D13). Cost: about 400-800 input and 60 output tokens per question, roughly +20-30% tokens and +1-3 s (ASSUMPTION), metered in the usage ledger
+under key `{agent_run_id}:plan` (the ledger today assumes one call per run, `docs/DATA_MODEL.md` usage section; S4a must extend it and re-test idempotency). It is skipped
+when discovery finds no usable tool. Regex hints (Jira key, PR URL, repo) are unioned into `needs`. **Failure:** timeout, invalid JSON or an unpresented id fails closed:
+if any tool was discovered the reply is "I couldn't work out which sources to check. Try again." with no data and no general answer; with no tools, model-only continues.
+**Why better than detection by explicit mention:** "what is the status of the checkout outage?" names no source yet needs Jira and Datadog; the planner finds it, so a red
+tool is reported instead of a confident model-only guess, and the footer lists consulted sources. **It is not a security boundary:** it only picks among presented
+ids; authorization is deterministic code at step 8; the answering run receives `origin.capability_ids` = needed AND green, and the capability loop fails closed
+(runs none) for Slack turns without that field (edit at `runtime_run_capabilities.py:42`).
+
+#### 3.5.2 What "access" means: (a) Weaves entitlement, recommended for v1; (b) identity, later
+
+- **(a) Weaves-level entitlement** (v1): the asker may use connector X if its audience admits them (`everyone`, or `allowed_people` and the user passes the rule), and
+  for Execute the allowlist rule, the mapped active member and that member's role permission pass. It **guarantees** that only people the admin entitled can
+  cause reads through that connector, in the channels and shapes the admin allowed, with a record of every decision. It **cannot guarantee** that the asker could open
+  that Jira project, private channel or Datadog dashboard themselves: connectors use an org-wide or installer token, so its reach is the ceiling and Weaves cannot see
+  the asker's rights in the source system. Mitigation: admins scope each connector to what its audience may see, and the page shows that scope beside the setting.
+- **(b) Identity-level** (later, stronger): each person connects their own account and the bot calls with the asker's token, so "green" means connected, valid and authorized in
+  the source system. Cost (ASSUMPTION 6-8 slices): per-(principal, installation) token store (secret purpose `user_connector_token`), a per-user connect page (connector OAuth is
+  already bound to the signed-in principal, #65), worker refresh, `plugin_gateway.invoke` taking a token override, per-user health, purge/tombstone coverage, GitHub user-to-server
+  tokens, unlinked users limited to model-only. The Slack-user-to-member mapping (3.5) is its prerequisite.
+
+**Red replies** (ephemeral where possible; no data, no list members, no request flow): "I can't check Jira right now (it's unavailable); nothing was looked up." / "Jira isn't
+open to everyone in Slack. Ask a Weaves admin." Partial mode ends "Skipped: Jira (unavailable)". Quarantine shows only "temporarily unavailable".
+
+**One decision record per request** (`audit_events`, action `slack.decision`, both tiers, no text or data): tier, action, tools considered, tools needed, per-tool health and
+access result with reason codes, planner (used, profile, valid/invalid/skipped, tokens), mode strict/partial, outcome (`answered`, `answered_partial`, `model_only`,
+`refused_access`, `refused_unavailable`, `planner_failed`, `blocked_rule`), `settings_version`, event and request ids. Repeats of the same blocked outcome per user merge with a counter.
+
+**Execute pre-flight** (fixed grammar, before any model call, repeated at pickup): the action rule passes; `pr_review`: the PR URL parses, its repo is covered by the GitHub installation
+(not stale) **and** in `pr_review_repos`; `run_workflow`: the workflow is published and in `workflow_ids`; the mapped member holds the Weaves permission. Any red path makes no connector call.
+
+**Mapping** is admin-asserted in the dashboard (pick a member, paste their Slack member ID); audited. No self-link, invitation flow or email matching in v1.
+
+**Validation at request time and at pickup.** The dispatcher runs steps 1-5 when it claims the inbox row. Settings, tokens and health can change before the worker
+runs, so the authoritative pass is a pre-run guard in `modules/tasks/worker_service.py:_process_claimed_turn` (`:111`) for turns whose `origin.kind` is `slack` or `slack_qa`: it
+re-runs steps 1-5, then 6-8, writes the decision record and sets `origin.capability_ids`. Blocked means the turn is cancelled (`slack_access_revoked`) or finishes with a fixed
+short message without calling the answer model. Saving settings also cancels still-queued Slack turns that no longer pass (bounded batch). Running turns finish.
 
 **What the user sees** (ephemeral to the asker; if Slack drops it in an inactive thread, one generic threaded line without internals):
 
@@ -239,15 +278,13 @@ batch). Running turns finish; the kill switch still applies at claim.
 | No Weaves member for that user | "Your Slack account isn't connected to a Weaves member. Ask a Weaves admin." |
 | Ask rate limit | "You're asking a lot; try again in N minutes." |
 
-Messages never name who is on a list. **Audit:** every Execute attempt (allowed or blocked) writes an `audit_events` row `slack.execute.allowed|blocked`
-with action, rule, reason code, `settings_version`, team, channel, Slack user, principal, event id and request id, no text. Repeated blocks by one user,
-action and reason merge into one row with a counter per 10 minutes (ASSUMPTION) so a spammer cannot flood audit. Ask is counted as metrics
-(`slack_ask_total{outcome}`), not audited per question, except rate-limit trips.
+Messages never name who is on a list. **Audit:** the per-request decision record above replaces separate allowed/blocked rows; Execute attempts also write
+`slack.execute.allowed|blocked`. Ask additionally counts metrics (`slack_ask_total{outcome}`).
 
 **Dashboard "Slack access" page** (new frontend page; edit permission `slack.manage`, Owner/Admin by default; members may view nothing):
 1. Status: workspace, bot state, Pause bot (`paused`), Reconnect/Disconnect.
-2. "Ask: open to everyone in Slack": toggle (default on after install), connectors table with checkbox "Available to everyone in Slack" (default none) and
-   the three limits. Notice: "Anyone in a channel where @Weaves is added can ask questions. Answers use your AI key and only the sources you tick here."
+2. "Ask: open to everyone in Slack": toggle (default on after install), a connectors table (scope summary, health, Audience dropdown, default "Not in Slack"),
+   the three limits, "Partial answers" toggle (default off: all sources green or no data) and planner model. Notice: "Anyone in a channel where @Weaves is added can ask questions. Answers use your AI key and only the sources you tick here."
 3. "Run things from Slack": a rule dropdown per action (Create task, Review PR, Run workflow, Generate PR shown disabled "coming later", Private data in
    answers), default "Off".
 4. Allowed people (member, Slack member ID, note; hint "Only these people can run the actions above") and allowed channels (paste the channel ID from
@@ -255,7 +292,6 @@ action and reason merge into one row with a counter per 10 minutes (ASSUMPTION) 
 5. Allowed repositories (repos the GitHub installation covers, stale entries flagged) and workflows ("Triggerable from Slack", published only).
 6. Recent Slack activity: last 50 allowed/blocked Execute attempts, no content.
 
-Bots read only channels they are in and private channels need an invite (Slack `app_mention` docs). Execute uses the org's chosen agent per action.
 
 ### 3.6 Tasks and attribution
 
@@ -285,7 +321,7 @@ bot must not become a free proxy: an entitlement check before dispatch (D7).
 ### 3.9 Kill switch, quarantine, suspension
 
 The dispatcher re-reads `platform_controls.admissions_paused`, org lifecycle state, `org_quarantines`, installation `status` and settings `paused` at every
-stage (order: platform/org, installation, `paused`, rate limits, tier rules). Quarantined or suspended org: inbox rows `dropped(reason)`, at most one neutral
+stage (order: platform/org and `read_only`, installation, `paused`, rate limits, classification and tier rule, then DISCOVER, PLAN, CHECK, RESPOND of 3.5.1). Quarantined or suspended org: inbox rows `dropped(reason)`, at most one neutral
 "Weaves is temporarily unavailable" per channel per hour. `read_only` platform flag: Ask allowed, Execute refused. Quarantine gains a step "installation
 suspended" (S7), reversed by `release-quarantine` through the recorded `changes` (6.4 pattern). `WEAVES_SLACK_ENABLED=false` acks and drops everything.
 
@@ -312,8 +348,9 @@ age above 120 s, ack p95 above 1.5 s, signature-failure spikes, Slack's disabled
 - **Connector tokens are org-shared**: a connector installation is workspace-scoped (`PluginInstallation.auth_ref`,
   `contracts/v1/plugins.py:127-131`), and the Slack search connector runs with the **installing user's** user token
   (`oauth_slack.py:50-57`), so any answer that uses it can quote messages from channels the asker cannot see. Defaults:
-  1. Open Ask uses an agent version that holds only connectors ticked "Available to everyone in Slack" (default none), so a prompt cannot reach others.
-  2. Unticked connectors are reachable only through `ask_private` (allowlisted users), always answered ephemerally to the asker, never in channel.
+  1. A connector's data reaches an answer only if the pipeline's per-tool check is green for that asker (3.5.1); default audience is `not_in_slack`, and the run receives
+     only `needed AND green` capability ids (fail closed otherwise).
+  2. `allowed_people` connectors answer ephemerally to the asker, never in channel. Access is Weaves-level entitlement; its limits are in 3.5.2.
   3. The Slack connector's own channel list (`clients/integrations/slack.py:48-69`) stays authoritative: the bot never searches beyond it.
   4. Admin UI warns: answers in a channel are visible to everyone in it, including guests and Slack Connect members; Slack does not tell us who is a guest without `users:read` (D2c).
 - **Prompt injection** (Slack text, PR diffs): today the agent has read-only calls with bounded output and no write path, so the worst case is a
@@ -375,22 +412,29 @@ after S2, S4 and S6.
 | S0 prelude | Config: `WEAVES_SLACK_SIGNING_SECRET`, `WEAVES_SLACK_ENABLED`, compose forwarding, `pair.json` T7-S* planned, fake Slack server skeleton, `modules/slack/` package, Slack client with fixed base URL | `shared/slack_config.py`, `clients/slack/`, `tenancy_harness/fake_slack.py`, `infra/gcp/singlevm/compose.yaml`, `CONNECTORS.md` | no | none | unit config; fake serves/verifies | none | none | 1.5 h |
 | S1 install | Bot install flow, installation row, token in secret store, team to org binding, admin status view | `modules/slack/installation_*.py`, `modules/integrations/http/oauth_slack_install.py`, `slack_schema.py`, `row_security.py` purpose `slack`, `ownership.json` | **yes (32)** | `SlackInstallation` | PG: unique team_id, cross-org claim refused, RLS; harness: install via fake | S0 | S3 (design only) | 2.5 h |
 | S2 events ingest | Signed endpoint, url_verification, inbox, dedupe, retries, kill switch checks | `modules/slack/http/events.py`, `modules/slack/inbox.py`, `apps/api/router.py` | **yes (32, same file as S1)** | event envelope models | forged/old/duplicate/retry events, 3 s ack with slow DB, replay, unknown team | S1 | S3 | 2.5 h |
-| S3 Slack access | Policy engine (`evaluate(action, user, channel, repo/workflow)` pure function), settings/allowlist collections, admin-asserted user mapping, `slack.manage` permission, settings API with version + queued-turn cancel, dashboard "Slack access" page (weaves-app) | `modules/slack/access/*.py`, HTTP routes, `contracts/v1/slack_access.py`, frontend page + `docs/handoff-specs` | **yes (33)** | `SlackAccessSettings`, `SlackAllowedUser/Channel` | pure-function matrix (5 rules x user/channel listed x linked); PG: unique allowlists, RLS, role backfill, non-admin refused; version bump cancels queued turns | S1 | S2, S4 stubs | 3 h backend + 3 h frontend |
-| S4 Ask + dispatch | `slack_dispatch`/`slack_reply` ticks, classification, Slack service principal and two pinned Q&A agent versions, `origin`, Ask limits and 1-slot cap, worker pre-run guard, audit rows, blocked messages, F1, F4, citations, Q&A retention tick | `modules/slack/dispatcher.py`, `reply.py`, `classify.py`, `apps/worker/ticks.py`, `modules/tasks/worker_service.py` (guard), `contracts/v1/tasks.py` (origin) | no | `TaskOrigin` | harness matrix T7-A* (3.5): Ask by unlinked user works; open Ask makes zero calls to unticked connectors (`tool_invocations` count); `ask_private` ephemeral only; blocked Execute makes zero tasks and zero provider calls (relay count); settings change between enqueue and pickup cancels; quarantine, `paused`, `read_only`; per-user limit; live run | S2, S3 | S5 | 3.5 h |
-| S5 create task | F2(a): intent parse, rule gate `create_task`, watch mode, idempotency | `modules/slack/intents.py` | no | none | blocked/allowed matrix for `create_task`; ambiguous intent stays Ask; duplicate event | S4 | S6 | 1.5 h |
+| S3 Slack access | Policy engine (`evaluate(action, user, channel, repo/workflow)` pure function), settings/allowlist collections, admin-asserted user mapping, `slack.manage` permission, settings API with version + queued-turn cancel, per-connector audience, partial/planner settings, `slack_connector_health`, dashboard "Slack access" page (weaves-app) | `modules/slack/access/*.py`, HTTP routes, `contracts/v1/slack_access.py`, frontend page + `docs/handoff-specs` | **yes (33)** | `SlackAccessSettings`, `SlackAllowedUser/Channel` | pure-function matrix (5 rules x user/channel listed x linked); PG: unique allowlists, RLS, role backfill, non-admin refused; version bump cancels queued turns | S1 | S2, S4 stubs | 3.5 h backend + 3 h frontend |
+| S4a pipeline core | `modules/slack/pipeline/` (discover, planner call with strict JSON, per-tool check, strict/partial respond, fixed short replies), decision record, `origin.capability_ids` narrowing with fail-closed edit, planner usage key `{agent_run_id}:plan`, `slack_health` tick | `modules/slack/pipeline/*.py`, `modules/agents/runtime_run_capabilities.py` (`:42`), `modules/usage/service.py`, `modules/tasks/worker_service.py` (guard), `apps/worker/ticks.py` | no (ledger key fits text column: verify) | `SlackDecision`, `TaskOrigin` | matrix T7-P* (below); no connector call on any red path; planner cannot add ids; usage rows settle once | S3 | S4 stubs | 3.5 h |
+| S4 Ask + dispatch | `slack_dispatch`/`slack_reply` ticks, classification, Slack service principal and single Q&A agent version, Ask limits and 1-slot cap, blocked messages, F1, F4, citations, Q&A retention tick | `modules/slack/dispatcher.py`, `reply.py`, `classify.py`, `apps/worker/ticks.py`, `contracts/v1/tasks.py` (origin) | no | `TaskOrigin` | harness T7-A*: unlinked user Asks; blocked Execute makes zero tasks and zero provider calls (relay count); settings change between enqueue and pickup cancels; quarantine, `paused`, `read_only`; per-user limit; live run | S2, S3, S4a | S5 | 3 h |
+| S5 create task | F2(a): intent parse, rule gate `create_task`, watch mode, idempotency | `modules/slack/intents.py` | no | none | blocked/allowed matrix for `create_task`; ambiguous intent stays Ask; duplicate event | S4a | S6 | 1.5 h |
 | S5b shortcut/slash | F2(b),(c): interactions and commands endpoints, ack within 3 s, `response_url` host check | `modules/slack/http/interactions.py` | no | payload models | signature, expired trigger, thread limitation | S4 | S6, S7 | 2 h |
-| S6 PR review (Slack-only) | `github.pr.review_context` capability, review agent template, F3 variant A, rule gate `pr_review` + repo allowlist check at dispatch and at pickup | `clients/integrations/github.py`, `modules/integrations/bootstrap.py`, `modules/agents/templates.py`, `modules/slack/intents.py` | no | capability spec | repo covered but not allowlisted, allowlisted but not covered, truncated patches, 3,000-file PR; live run | S4 | S5 | 2.5 h |
+| S6 PR review (Slack-only) | `github.pr.review_context` capability, review agent template, F3 variant A, rule gate `pr_review` + pre-flight (repo covered and allowlisted) via the shared pipeline at dispatch and pickup | `clients/integrations/github.py`, `modules/integrations/bootstrap.py`, `modules/agents/templates.py`, `modules/slack/intents.py` | no | capability spec | repo covered but not allowlisted, allowlisted but not covered, truncated patches, 3,000-file PR; live run | S4 | S5 | 2.5 h |
 | S7 lifecycle and purge | `app_uninstalled`/`tokens_revoked`, quarantine step, org purge step `slack`, tombstone, revocation on `invalid_auth` | `modules/auth/organization_purge.py`, `organization_lifecycle.py`, `modules/slack/lifecycle.py` | **maybe (34)** | none | purge then restore reconcile (T6-I01 style), uninstall during run | S2 | S5, S6 | 2.5 h |
 | S6b run workflow (v1.1) | `run <workflow>` intent, `workflow_ids` flag check, member `workflows.run` | `modules/slack/intents.py`, workflows service | no | none | unflagged/unpublished workflow blocked | S4 | S6, S7 | 2 h |
 | S8 writes and confirm (later) | Proposal store, Block Kit confirm, GitHub review post (variant B), Jira comment | new `modules/proposals/`, write capabilities, App permission change | **yes (35 reserved)** | `ActionProposal` | double-click, expiry, wrong confirmer, injection corpus | S5b, S6, owner D4 | none | 3 h x 2 |
 | S9 hardening | Rate-limit tuning, optional token rotation, Grid, runbook, alerts | docs, metrics, `infra` | no | none | 429 chaos | S4 | S8 | 2 h |
 
-Critical path: S0, S1, S2, S3 (policy engine) then S4, S5/S6. S7 must land **before any second org is invited**.
+Critical path: S0, S1, S2, S3, S4a, S4, then S5/S6. S7 must land **before any second org is invited**.
 Parallel: after S2 merges, S3 (policy engine first), S6 and S7 can run in separate worktrees; shared hot files (`later_migrations.py`, `row_security.py`,
-`ticks.py`, `worker_service.py` guard) are append-only or tiny, and migration numbers 32 to 35 are reserved up front. Total v1 (S0 to S7): 8 slices, about 24 to
-28 h of agent time (ASSUMPTION; S3 and S4 grew about 4 h for the access model), plus 2 h for S6b.
+`ticks.py`, `worker_service.py` guard) are append-only or tiny, and migration numbers 32 to 35 are reserved up front. Total v1 (S0 to S7 incl. S4a): 9 slices, about 29 to
+34 h of agent time (ASSUMPTION; +5 h for the pipeline: S4a 3.5 h, S3 +0.5 h, S6 +0.5 h, matrix tests +0.5 h), plus 2 h for S6b.
 
-Rollout: dark (`WEAVES_SLACK_ENABLED=false`), then the owner's dev workspace and live smoke, then per installation.
+**Pipeline test matrix T7-P\*** (fake Slack server plus fake connector servers that count requests; pairwise-generated, about 40 cases): tool health {healthy, error, disabled, token
+expired, stale then live probe fails} x access {everyone, allowed_people with user listed, with user not listed, not_in_slack} x planner {needs none, one, two, invalid JSON,
+timeout, unpresented id, injected "use Jira"} x tier {Ask, Execute pre-flight} x mode {strict, partial} x org state {ok, quarantined, read_only}. Assertions: **zero requests
+to any red or unneeded fake connector**; no answer-model call on short-circuit; planner usage row settled once; the decision record exists with per-tool results and
+contains no question text (grep audit and logs); partial mode names skipped tools; replies never name list members.
+
+Rollout: dark (`WEAVES_SLACK_ENABLED=false`), owner dev workspace and live smoke, then per installation.
 
 ## 7. Decisions needed from the owner
 
@@ -412,9 +456,8 @@ Rollout: dark (`WEAVES_SLACK_ENABLED=false`), then the owner's dev workspace and
    after a proposal/confirm backend exists, because B is a write.
 4. **Writes in v1?** None, GitHub review comment only, or also Jira comment. Recommend **none** (no approval backend, 1.3; injection risk, 4.1).
 5. **Agent selection.** One default agent per workspace or per-channel mapping. Recommend **one default per action now**; per-channel is a later settings field.
-6. **Which connectors are open to everyone in Slack.** Recommend a per-connector checkbox "Available to everyone in Slack", default none (model-only),
-   the Slack-search connector labelled "not recommended"; unticked connectors only via `ask_private`, ephemeral. A blocked user is told "ask a Weaves
-   admin" (no request flow). Alternative: no private connector use in Slack at all.
+6. **Connector audience.** Per connector `everyone`, `allowed_people` or `not_in_slack`; recommend default `not_in_slack`, the Slack-search connector labelled "not
+   recommended", blocked users told "ask a Weaves admin" (no request flow). Alternative: no private connector use in Slack at all.
 7. **Managed AI dependency.** BYOK only (today), wait, or a minimal managed key. Recommend **BYOK only in v1**; clear refusal without a provider; reserved
    entitlement hook (3.8).
 8. **Marketplace timing.** Never, after partners hit Slack's limits, or at public launch. Recommend **decide at the first external install**; ship as a
@@ -422,16 +465,24 @@ Rollout: dark (`WEAVES_SLACK_ENABLED=false`), then the owner's dev workspace and
 9. **Smaller calls (recommend all as stated).** Enterprise Grid: refuse org-wide installs in v1. Token rotation: off in v1 (irreversible once on).
    Slack-origin message retention: keep as task data, no archive, subject to legal review of Slack's API terms (4.2).
 
+10. **Strict vs partial answers.** Strict (all needed sources green or no data) or partial (answer from green sources, name the skipped). Recommend **strict default**,
+    org setting "Partial answers" off: a half answer that looks complete is worse than a clear refusal for a first release.
+11. **Meaning of "access".** (a) Weaves entitlement or (b) per-person source identity. Recommend **(a) for v1** with admins scoping each connector to what its audience
+    may see (3.5.2), and **(b) as a planned later slice group** (6-8 slices, ASSUMPTION) before any customer with strict per-person data rules; decide the timing at the first such customer.
+12. **Planner model and cost.** The same model as the agent, a cheaper profile, or a fixed grammar only (no planner, explicit mentions). Recommend a **cheaper profile on the
+    org's own key** (+20-30% tokens per question, ASSUMPTION); measure it in the live run before deciding on any default.
+13. **Planner failure with tools installed.** Fail closed ("try again") or fall back to model-only. Recommend **fail closed**.
+
 ## 8. Risks and what not to build now
 
 Risks
 
-1. **Leakage through shared connector tokens** (4.1). Mitigation: open Ask holds only ticked connectors (default none), `ask_private` is ephemeral.
-   Residual: detecting "needs a non-shared source" works only on explicit mentions, so some questions get a model-only answer (UNVERIFIED how often).
+1. **Leakage through shared connector tokens** (4.1). Mitigation: per-request per-tool check, default audience `not_in_slack`, ephemeral for `allowed_people`.
+   Residual: access is Weaves-level; the org token may see more than the asker could (3.5.2). Planner misses (a data question judged general) give model-only answers (UNVERIFIED rate).
 2. **Slack rate limits** on thread context (1/min, 15 messages); sources conflict on existing installs. Mitigation: mention-only context, serialization.
 3. **Slack API terms** (storage, LLM use) read from secondary sources. Mitigation: legal review first, no archive, no bulk reads.
 4. **Ack under load**: a slow DB causes retries and a disabled subscription. Mitigation: one signature check plus one insert; slow-DB fake test.
-5. **Agent runtime is not an agent loop**: one query string, five documents, no structured input; PR review and connector answers stay shallow. Do not oversell.
+5. **No tool loop**: the planner is a one-shot router, not an agent loop; one query string and five documents per connector keep answers shallow, and the planner adds cost and 1-3 s (ASSUMPTION).
 6. **No write path** and no approval backend: every write feature needs a proposal/confirm service first.
 7. **Single VM capacity** (4 slots, per-org running cap 2): busy channels queue; status must say "queued"; open Ask is capped at 1 running slot.
 8. **Stale mappings and operations**: membership is re-derived on every event; secret rotation and token loss need runbook steps (S9).
@@ -445,6 +496,6 @@ managed-AI entitlements; a general agent tool loop (a separate product decision 
 Slack (docs.slack.dev): authentication/verifying-requests-from-slack, apis/events-api, reference/events/{app_mention,tokens_revoked}, authentication/{installing-with-oauth,
 using-token-rotation}, apis/events-api/using-socket-mode, reference/methods/{chat.postMessage,chat.postEphemeral}, interactivity/{handling-user-interaction,
 implementing-slash-commands}, changelog/2025/05/29/rate-limit-changes-for-non-marketplace-apps, slack-marketplace/slack-marketplace-app-guidelines-and-requirements.
-Search results only: app_uninstalled, team_access_revoked, Slack API Terms (slack.com/terms-of-service/api), Hunton and Cloud Wars write-ups. GitHub (docs.github.com):
+Search results only: app_uninstalled, team_access_revoked, Slack API Terms, Hunton/Cloud Wars. GitHub (docs.github.com):
 rest/authentication/permissions-required-for-github-apps, rest/pulls/{reviews,pulls}, webhooks/webhook-events-and-payloads (`pull_request` actions not in the fetched part,
-UNVERIFIED). Not verified anywhere: message-shortcut scope, Grid per-workspace events, which event additions force a re-install.
+UNVERIFIED). Unverified: message-shortcut scope, Grid per-workspace events, re-install triggers.
