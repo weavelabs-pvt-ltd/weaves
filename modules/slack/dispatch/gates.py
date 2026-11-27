@@ -15,11 +15,13 @@ from datetime import datetime
 from application.ports.slack import SlackInstallation
 from contracts.v1 import OrganizationLifecycleState
 from modules.slack.access.engine import check_state, evaluate
+from modules.slack.access.execute_limits import AuditExecuteUsageReader
 from modules.slack.access.models import (
     AccessRequest,
     Action,
     Decision,
     InstallationState,
+    MemberStanding,
     OrgState,
     PlatformState,
 )
@@ -41,6 +43,7 @@ class DispatchGates:
         *,
         access: SlackAccessService,
         usage_reader: AuditAskUsageReader,
+        execute_usage_reader: AuditExecuteUsageReader,
         execute_targets: ExecuteTargets,
         slack_enabled: Callable[[], bool],
         admissions_paused: Callable[[], bool],
@@ -50,6 +53,7 @@ class DispatchGates:
         """Bind the state readers (the same ones the worker guard uses)."""
         self._access = access
         self._usage = usage_reader
+        self._execute_usage = execute_usage_reader
         self._targets = execute_targets
         self._enabled = slack_enabled
         self._paused = admissions_paused
@@ -85,8 +89,12 @@ class DispatchGates:
         now: datetime,
         question_chars: int = 0,
         repo: str | None = None,
+        event_id: str | None = None,
     ) -> Decision:
-        """The engine's decision for this asker and action with no tools needed."""
+        """The engine's decision for this asker and action with no tools needed.
+
+        ``event_id`` is the request being decided: Execute limits never count it.
+        """
         return evaluate(
             self._request(
                 installation,
@@ -96,6 +104,7 @@ class DispatchGates:
                 now=now,
                 question_chars=question_chars,
                 repo=repo,
+                event_id=event_id,
             )
         )
 
@@ -109,6 +118,7 @@ class DispatchGates:
         now: datetime,
         question_chars: int = 0,
         repo: str | None = None,
+        event_id: str | None = None,
     ) -> AccessRequest:
         user_listed, channel_listed, member = self._access.asker_standing(
             slack_user_id, channel_id
@@ -133,7 +143,28 @@ class DispatchGates:
             repo=self._targets.repo(repo, org_id, installation.workspace_id),
             question_chars=question_chars,
             ask_usage=lambda: self._usage.load(org_id, slack_user_id, channel_id, now),
+            execute_usage=(
+                (
+                    lambda: self._execute_usage.load(
+                        org_id,
+                        slack_user_id,
+                        channel_id,
+                        now,
+                        exclude_event_id=event_id,
+                    )
+                )
+                if action.is_execute
+                else None
+            ),
         )
+
+    def member(self, slack_user_id: str, channel_id: str) -> MemberStanding | None:
+        """The Weaves member the asker was mapped to (``None``: unmapped)."""
+        return self._access.asker_standing(slack_user_id, channel_id)[2]
+
+    def default_task_agent_id(self) -> str | None:
+        """The agent that runs ``task:`` requests, if an admin chose one."""
+        return self._access.policy_settings().default_task_agent_id
 
     def settings_version(self) -> int:
         """The settings version a request is created under."""

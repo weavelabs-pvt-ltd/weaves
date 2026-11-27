@@ -179,6 +179,16 @@ def build_decision_event(
     )
 
 
+def execute_allowed_id(context: DecisionContext) -> str:
+    """The audit id of an allowed Execute request (one per Slack event).
+
+    A dispatcher retry or the pickup guard writes the same id, so a request is
+    never counted twice.
+    """
+    raw = f"execute-allowed|{context.org_id}|{context.event_id}"
+    return "slack-exec-" + hashlib.sha256(raw.encode()).hexdigest()[:40]
+
+
 def build_execute_event(
     decision: Decision, context: DecisionContext, now: datetime
 ) -> AuditEvent:
@@ -191,11 +201,14 @@ def build_execute_event(
         "slack_user_id": context.slack_user_id,
         "channel_id": context.channel_id,
         "principal_id": context.principal_id,
+        "event_id": context.event_id,
         "settings_version": decision.settings_version,
         "repeat_count": 1,
     }
     event_id = (
-        new_id() if decision.allowed else _merge_id(action, decision, context, now)
+        execute_allowed_id(context)
+        if decision.allowed
+        else _merge_id(action, decision, context, now)
     )
     return _event(
         event_id=event_id,
@@ -235,9 +248,25 @@ class DecisionRecorder:
             )
         return stored
 
+    def record_execute_attempt(
+        self, decision: Decision, context: DecisionContext, now: datetime
+    ) -> AuditEvent:
+        """Record only ``slack.execute.allowed|blocked`` (the dispatcher's half).
+
+        The full ``slack.decision`` of an allowed Execute request is written by the
+        pickup guard, which knows the tools; the attempt record is idempotent per
+        Slack event, so writing it from both places counts the request once.
+        """
+        return self._write(
+            build_execute_event(decision, context, now), merge=not decision.allowed
+        )
+
     def _write(self, event: AuditEvent, *, merge: bool) -> AuditEvent:
         if not merge:
-            return self._audit.create(event)
+            try:
+                return self._audit.create(event)
+            except ValueError:  # an allowed Execute attempt already recorded
+                return self._audit.get_scoped(event.audit_event_id, event.org_id)
         try:
             current = self._audit.get_scoped(event.audit_event_id, event.org_id)
         except KeyError:

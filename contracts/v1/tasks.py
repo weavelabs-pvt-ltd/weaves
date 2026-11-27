@@ -94,6 +94,23 @@ class TurnOrigin(ProductContract):
     verdict: TurnVerdict | None = None
 
 
+class TaskOrigin(ProductContract):
+    """Where a task came from, as everyone who can see the task may know it.
+
+    This is the *public* summary of a Slack origin (it is part of the task API).
+    It holds a display snapshot and the thread link only: never the Slack team,
+    user or event ids, the thread timestamp, access decisions or message text.
+    The internal ids live on the turn's ``TurnOrigin`` and ``slack_threads``.
+    """
+
+    kind: Literal["slack"]
+    channel_id: OpaqueId | None = None
+    # Only a channel an admin allowlisted has a name; private channels stay unnamed.
+    channel_name: str | None = Field(default=None, max_length=80)
+    requested_by_name: str | None = Field(default=None, max_length=160)
+    permalink: str | None = Field(default=None, max_length=600)
+
+
 class Task(MutableWorkspaceScopedContract):
     """User-owned task conversation pinned to one agent version."""
 
@@ -121,6 +138,7 @@ class Task(MutableWorkspaceScopedContract):
     # stable code and ``retryable`` to offer the right next step.
     latest_turn_error: ErrorSummary | None = None
     idempotency_key: OpaqueId | None = None
+    origin: TaskOrigin | None = None
     completed_at: AwareDatetime | None = None
     archived_at: AwareDatetime | None = None
 

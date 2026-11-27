@@ -38,6 +38,7 @@ class FakeSlackWeb:
     faults: dict[str, list[str]] = field(default_factory=dict)
     status_supported: bool = True
     sequence: int = 0
+    workspace_url: str = "https://acme-test.slack.com/"
 
     def client(self) -> SlackApiClient:
         """A Slack client over this fake (no sleeping on rate limits)."""
@@ -68,6 +69,9 @@ class FakeSlackWeb:
             if fault == "500":
                 return httpx.Response(500, json={"ok": False})
             return httpx.Response(200, json={"ok": False, "error": fault})
+        if method == "auth.test":
+            body = {"ok": True, "url": self.workspace_url, "team_id": TEAM}
+            return httpx.Response(200, json=body)
         return httpx.Response(200, json=self._ok(method, params))
 
     def _ok(self, method: str, params: dict[str, str]) -> dict[str, Any]:
@@ -80,6 +84,7 @@ class FakeSlackWeb:
             for message in self.messages:
                 if message["ts"] == params["ts"]:
                     message["text"] = params["text"]
+                    message["blocks"] = params.get("blocks")
             return {"ok": True, "channel": params["channel"], "ts": params["ts"]}
         if method == "chat.delete":
             for message in self.messages:

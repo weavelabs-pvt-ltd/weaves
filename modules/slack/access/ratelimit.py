@@ -43,7 +43,7 @@ class RateVerdict:
         return self.reason is not None
 
 
-def _wait(
+def wait_seconds(
     stamps: tuple[datetime, ...], limit: int, window: timedelta, now: datetime
 ) -> int | None:
     """Seconds until fewer than ``limit`` stamps remain in the window, or None."""
@@ -68,7 +68,7 @@ def check_ask_limits(limits: AskLimits, usage: AskUsage, now: datetime) -> RateV
     )
     best = RateVerdict()
     for reason, stamps, limit, window in candidates:
-        wait = _wait(stamps, limit, window, now)
+        wait = wait_seconds(stamps, limit, window, now)
         if wait is not None and wait > best.retry_after_seconds:
             best = RateVerdict(reason, wait)
     return best

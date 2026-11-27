@@ -123,6 +123,81 @@
       "title": "TaskAudience",
       "type": "string"
     },
+    "TaskOrigin": {
+      "additionalProperties": false,
+      "description": "Where a task came from, as everyone who can see the task may know it.\n\nThis is the *public* summary of a Slack origin (it is part of the task API).\nIt holds a display snapshot and the thread link only: never the Slack team,\nuser or event ids, the thread timestamp, access decisions or message text.\nThe internal ids live on the turn's ``TurnOrigin`` and ``slack_threads``.",
+      "properties": {
+        "channel_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Channel Id"
+        },
+        "channel_name": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Channel Name"
+        },
+        "kind": {
+          "const": "slack",
+          "title": "Kind",
+          "type": "string"
+        },
+        "permalink": {
+          "anyOf": [
+            {
+              "maxLength": 600,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Permalink"
+        },
+        "requested_by_name": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Requested By Name"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "TaskOrigin",
+      "type": "object"
+    },
     "TaskStatus": {
       "description": "Lifecycle state chosen by the user for a task.",
       "enum": [
@@ -321,6 +396,17 @@
       "minLength": 1,
       "title": "Org Id",
       "type": "string"
+    },
+    "origin": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TaskOrigin"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "private_skill_snapshots": {
       "items": {

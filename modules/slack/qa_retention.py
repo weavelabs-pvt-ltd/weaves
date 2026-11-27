@@ -113,7 +113,11 @@ class SlackRetention:
         return removed
 
     def _purge_org(self, org_id: str, team_id: str, cutoff: datetime) -> int:
-        expired = self._threads.list_before("updated_at", cutoff, limit=BATCH_PER_ORG)
+        # Only hidden Q&A conversations expire; a created task is a normal task
+        # (and its thread row is what keeps "Already tracked" working).
+        expired = self._threads.list_before(
+            "updated_at", cutoff, limit=BATCH_PER_ORG, equals={"kind": "ask"}
+        )
         count = 0
         for row in expired:
             if row.org_id != org_id or row.team_id != team_id:
@@ -129,11 +133,6 @@ class SlackRetention:
 
     def _delete_conversation(self, row: SlackThread) -> None:
         org, workspace = row.org_id, row.workspace_id
-        if row.kind != "ask":
-            # A review is the member's own task (it is listed and has a page): only
-            # the thread map expires, never the task or its result.
-            _remove(self._threads, row.id)
-            return
         with self._uow():
             turns = self._turns.list_by_field("task_id", row.task_id)
             for turn in turns:

@@ -160,7 +160,7 @@ def test_review_rows_are_invisible_to_another_tenant(pg_rworld: ReviewWorld) -> 
     assert runtime.slack_threads.get_scoped(row.id, ORG).id == row.id
 
 
-def test_retention_drops_the_thread_map_of_an_old_review_and_keeps_the_task(
+def test_retention_never_sweeps_a_review_row_or_its_task(
     pg_rworld: ReviewWorld,
 ) -> None:
     _go(pg_rworld)
@@ -168,9 +168,9 @@ def test_retention_drops_the_thread_map_of_an_old_review_and_keeps_the_task(
     retention = pg_rworld.runtime.slack_retention
     retention._clock = lambda: datetime.now(UTC) + timedelta(days=40)
 
-    assert retention.run() == 1
+    assert retention.run() == 0
 
-    assert pg_rworld.aworld.threads() == []
+    assert len(pg_rworld.aworld.threads()) == 1
     assert pg_rworld.runtime.tasks.get(task.task_id).task_id == task.task_id
     assert sorted(m.role.value for m in pg_rworld.runtime.task_messages.list()) == [
         "assistant",

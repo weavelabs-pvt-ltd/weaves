@@ -90,8 +90,12 @@ class Repository(Protocol[TContract]):
         cursor_created_at: datetime | None,
         cursor_task_id: str | None,
         limit: int,
+        origin_kind: str | None = None,
     ) -> tuple[TContract, ...]:
-        """Return one bounded task page in newest-first keyset order."""
+        """Return one bounded task page in newest-first keyset order.
+
+        ``origin_kind`` keeps only tasks created from that origin (``slack``).
+        """
         ...
 
     def list_task_records_page(

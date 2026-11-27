@@ -127,6 +127,8 @@ def complete_checks(args, compose, frontend, harness, private, port, report, liv
                 {"stage": "provenance", "browser_cases": browser_outcomes(raw)}
             )
             report["live_ai"] = verify_flow(compose, private, raw)
+            if args.live_slack_task:
+                report["live_ai"] = with_slack_task(compose, private, report["live_ai"])
             report["live_ai"]["usage_ledger"] = relay_matches_ledger(
                 report["live_ai"], private, Path.home() / ".config/weaves-testing"
             )
@@ -141,6 +143,23 @@ def complete_checks(args, compose, frontend, harness, private, port, report, liv
         raise RuntimeError(
             "Required tenancy inventory failed; inspect private browser output"
         )
+
+
+def with_slack_task(compose, private, evidence):
+    """Opt-in: one real ``task:`` run (one more model call), then compare all calls."""
+    seed_module(compose, "phase7.slack_task_live")
+    extra = json.loads((private / "live-slack-task.json").read_text())
+    if not extra.get("passed") or len(extra["calls"]) != 1:
+        raise RuntimeError("The live Slack task control failed; inspect private files")
+    calls = evidence["verified_model_calls"] + [
+        {
+            **item,
+            "input_tokens": item["ledger_input_tokens"],
+            "output_tokens": item["ledger_output_tokens"],
+        }
+        for item in extra["calls"]
+    ]
+    return {**evidence, "verified_model_calls": calls, "slack_task": extra["checks"]}
 
 
 def api_only_outcome(raw):
@@ -259,12 +278,25 @@ def usage_control(compose):
     seed_module(compose, "phase5.usage_checks", "finish")
 
 
+def seed_controls(compose):
+    """The API-driven controls that run before the Playwright cases."""
+    seed_module(compose, "observe")
+    seed_module(compose, "lifecycle_checks")
+    seed_module(compose, "waitlist_checks")
+    limits_control(compose)
+    fair_claim_control(compose)
+    usage_control(compose)
+    seed_module(compose, "phase6.controls_checks")
+    slack_controls(compose)
+
+
 def slack_controls(compose):
-    """T7-I01 install, I02 events, I03 lifecycle, I04 Ask, I05 feedback, I06 review."""
+    """T7-I01 to I07: install, events, lifecycle, Ask, feedback, task, PR review."""
     seed_module(compose, "phase7.slack_install_checks")
     seed_module(compose, "phase7.slack_event_checks")
     seed_module(compose, "phase7.slack_lifecycle_checks")
     seed_module(compose, "phase7.slack_ask_checks")
+    seed_module(compose, "phase7.slack_task_checks")
     seed_module(compose, "phase7.slack_feedback_checks")
     seed_module(compose, "phase7.slack_review_checks")
 
@@ -310,14 +342,7 @@ def run(args, harness):
         compose.run("up", "-d", "worker")
         if live and args.live_slack_review_only:
             return live_review_only(args, compose, private)
-        seed_module(compose, "observe")
-        seed_module(compose, "lifecycle_checks")
-        seed_module(compose, "waitlist_checks")
-        limits_control(compose)
-        fair_claim_control(compose)
-        usage_control(compose)
-        seed_module(compose, "phase6.controls_checks")
-        slack_controls(compose)
+        seed_controls(compose)
         seed_module(compose, "phase5.correlation_checks")
         record_correlation_logs(compose, private)
         seed_module(compose, "phase5.bounded_queries_checks")
@@ -404,6 +429,11 @@ def main():
         action="store_true",
         help="With --live-anthropic-env: run only the one-call PR review live "
         "control (T7 live) instead of the standard three-call live smoke.",
+    )
+    parser.add_argument(
+        "--live-slack-task",
+        action="store_true",
+        help="with --live-anthropic-env: one more model call, a real task: run",
     )
     parser.add_argument("--canvas-probe", action="store_true")
     parser.add_argument("--output", type=Path, default=Path(".local/tenancy"))

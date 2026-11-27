@@ -511,6 +511,25 @@ test('T7-I04 a Slack mention becomes one hidden task and one answer, with the wo
   }
 });
 
+test('T7-I06 @Weaves task: creates a normal task as the mapped member, with the receipt, the result, Already tracked and private refusals', async () => {
+  const control = fixture.slack_task;
+  for (const key of ['the_task_is_a_normal_workspace_task_created_as_the_mapped_member',
+    'it_is_listed_with_its_slack_origin_and_in_the_normal_list',
+    'the_origin_has_a_slack_thread_link_and_no_slack_internals',
+    'the_first_message_is_created_then_edited_into_the_receipt',
+    'the_result_is_one_new_message_with_the_full_result_pointer', 'both_messages_link_to_the_task_in_weaves',
+    'never_more_than_two_posts_per_request', 'the_egress_scrubber_and_sanitizer_hold',
+    'the_inbox_row_is_settled_without_its_text', 'one_allowed_execute_record_per_request',
+    'a_repeat_task_in_the_thread_is_already_tracked_with_view_task',
+    'a_replayed_event_creates_no_second_task_or_post', 'an_empty_task_asks_for_the_text_and_creates_nothing',
+    'a_rule_that_is_off_is_refused_privately_with_scene_e', 'no_default_agent_is_told_privately',
+    'the_execute_limit_is_told_privately_with_the_wait', 'blocked_requests_create_no_task',
+    'the_blocked_attempts_are_audited_without_text', 'an_unknown_default_agent_is_rejected_by_the_settings_api',
+    'thread_rows_are_invisible_to_other_tenants_and_unscoped_roles', 'no_task_text_in_thread_rows_or_audit']) {
+    expect(control[key], key).toBe(true);
+  }
+});
+
 test('T7-I05 the asker thumbs on a Slack answer become one rating, the latest wins and nothing else counts', async () => {
   const control = fixture.slack_feedback;
   for (const key of ['the_askers_thumbs_up_on_our_answer_is_one_rating',
@@ -527,7 +546,7 @@ test('T7-I05 the asker thumbs on a Slack answer become one rating, the latest wi
   }
 });
 
-test('T7-I06 a Slack PR review posts the review once, with the receipt, a partial and an unreadable PR, and no injection or GitHub write', async () => {
+test('T7-I07 a Slack PR review posts the review once, with the receipt, a partial and an unreadable PR, and no injection or GitHub write', async () => {
   const control = fixture.slack_review;
   for (const key of ['the_review_is_one_message_in_the_scene_d_format',
     'a_working_message_becomes_the_receipt_when_one_was_posted', 'never_more_than_two_bot_posts_per_request',

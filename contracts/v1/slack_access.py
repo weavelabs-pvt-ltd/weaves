@@ -57,6 +57,18 @@ class AskLimits(_Strict):
     max_question_chars: int = Field(default=1000, ge=50, le=4000)
 
 
+class ExecuteLimits(_Strict):
+    """How often one person and one channel may run Execute actions (all actions).
+
+    Execute spends the organization's AI key and persists work, so it has its own
+    rolling windows, separate from Ask: defaults 10 per 10 minutes per Slack user
+    and 30 per 10 minutes per channel (design 3.8).
+    """
+
+    user_per_10_min: int = Field(default=10, ge=1, le=1000)
+    channel_per_10_min: int = Field(default=30, ge=1, le=10000)
+
+
 class ExecuteRules(_Strict):
     """One rule per action; every action is off until an admin turns it on."""
 
@@ -77,6 +89,10 @@ class SlackSettingsFields(_Strict):
     planner_profile_id: OpaqueId | None = None
     ask_limits: AskLimits = Field(default_factory=AskLimits)
     rules: ExecuteRules = Field(default_factory=ExecuteRules)
+    # The one agent that runs ``task:`` requests from Slack (decision 5). Omitted
+    # from a replacement means "keep the current one" (older clients never send it).
+    default_task_agent_id: OpaqueId | None = None
+    execute_limits: ExecuteLimits = Field(default_factory=ExecuteLimits)
     workflow_ids: list[OpaqueId] = Field(
         default_factory=list, max_length=MAX_ALLOWED_WORKFLOWS
     )
@@ -114,8 +130,13 @@ class SlackAccessSettings(MutableOrgScopedContract):
     planner_profile_id: OpaqueId | None = None
     ask_limits: AskLimits = Field(default_factory=AskLimits)
     rules: ExecuteRules = Field(default_factory=ExecuteRules)
+    default_task_agent_id: OpaqueId | None = None
+    execute_limits: ExecuteLimits = Field(default_factory=ExecuteLimits)
     workflow_ids: list[OpaqueId] = Field(default_factory=list)
     pr_review_repos: list[str] = Field(default_factory=list)
+    # Slack workspace address by team id (``https://acme.slack.com/``, from
+    # ``auth.test``), cached by the bot to build links to a thread; not editable.
+    workspace_urls: dict[str, str] = Field(default_factory=dict, max_length=20)
     # Set by the Ask slice when it provisions the Q&A service principal.
     qa_principal_id: OpaqueId | None = None
     qa_agent_version_id: OpaqueId | None = None

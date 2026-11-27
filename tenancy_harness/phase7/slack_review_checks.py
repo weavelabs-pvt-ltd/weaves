@@ -1,4 +1,4 @@
-"""Control T7-I06: a PR review in Slack on the real stack (slice S6).
+"""Control T7-I07: a PR review in Slack on the real stack (slice S6).
 
 Slack, GitHub and the model are fakes (``fake_slack``, ``fake_github``,
 ``fake_review_model``); everything else is real: the signed mention goes through
@@ -47,7 +47,7 @@ from tenancy_harness.phase7.slack_support import (
 from tenancy_harness.resources import tenant
 from tenancy_harness.seed import require_disposable_database
 
-CONTROL_ID = "T7-I06"
+CONTROL_ID = "T7-I07"
 SLICE = "S6"
 FIXTURE = "slack_review"
 CHANNEL = "C0FAKE001"

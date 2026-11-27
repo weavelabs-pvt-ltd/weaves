@@ -6,7 +6,14 @@ from contextlib import AbstractContextManager
 from typing import Any
 
 from application.ports.repository import Repository
-from contracts.v1 import AuditEvent, ModelProfile, Permission, PluginInstallation
+from contracts.v1 import (
+    AgentDefinition,
+    AgentStatus,
+    AuditEvent,
+    ModelProfile,
+    Permission,
+    PluginInstallation,
+)
 from contracts.v1.slack_access import (
     SlackAccessSettings,
     SlackAccessView,
@@ -20,10 +27,11 @@ from modules.slack.access.decision_audit import (
 )
 from modules.slack.access.models import MemberStanding, PolicySettings
 from shared.clock import utc_now
-from shared.request_context import effective_org_id
+from shared.request_context import effective_org_id, effective_workspace_id
 
 ATTEMPTS_LIMIT = 50
 _EDITABLE = tuple(SlackSettingsFields.model_fields)
+_KEEP_WHEN_OMITTED = frozenset({"default_task_agent_id", "execute_limits"})
 _CHECKED_PERMISSIONS = frozenset(
     {
         Permission.TASKS_CREATE.value,
@@ -44,6 +52,7 @@ class SlackAccessService:
         installations: Repository[PluginInstallation],
         model_profiles: Repository[ModelProfile],
         audit_events: Repository[AuditEvent],
+        agents: Repository[AgentDefinition] | None = None,
     ) -> None:
         """Bind validation sources and the member permission probe."""
         self._ctx = context
@@ -51,6 +60,7 @@ class SlackAccessService:
         self._installations = installations
         self._profiles = model_profiles
         self._audit = audit_events
+        self._agents = agents
 
     # --- administrator API -------------------------------------------------
 
@@ -90,6 +100,11 @@ class SlackAccessService:
                     "The Slack access settings changed; reload and try again"
                 )
             changes = {name: getattr(fields, name) for name in _EDITABLE}
+            if (
+                current is not None
+            ):  # fields an older client never sends stay as they are
+                for name in _KEEP_WHEN_OMITTED - fields.model_fields_set:
+                    changes[name] = getattr(current, name)
             changed = sorted(
                 name
                 for name in _EDITABLE
@@ -107,6 +122,8 @@ class SlackAccessService:
                     "settings_version": saved.settings_version,
                     "changed": changed,
                     "rules": saved.rules.model_dump(),
+                    "default_task_agent_id": saved.default_task_agent_id,
+                    "execute_limits": saved.execute_limits.model_dump(),
                     "ask_enabled": saved.ask_enabled,
                     "partial_answers": saved.partial_answers,
                 },
@@ -174,11 +191,24 @@ class SlackAccessService:
         unknown = set(fields.connector_audience) - known
         if unknown:
             raise ValueError("connector_audience names an unknown connector")
+        if fields.default_task_agent_id is not None:
+            self._validate_task_agent(fields.default_task_agent_id, org)
         if fields.planner_profile_id is not None:
             try:
                 self._profiles.get_scoped(fields.planner_profile_id, org)
             except KeyError:
                 raise ValueError("planner_profile_id is not a model profile") from None
+
+    def _validate_task_agent(self, agent_id: str, org: str) -> None:
+        """The default task agent must be an active agent of this organization."""
+        if self._agents is None:
+            raise ValueError("default_task_agent_id cannot be checked here")
+        try:
+            agent = self._agents.get_scoped(agent_id, org, effective_workspace_id())
+        except KeyError:
+            raise ValueError("default_task_agent_id is not an agent here") from None
+        if agent.status is not AgentStatus.ACTIVE:
+            raise ValueError("default_task_agent_id must be an active agent")
 
     # --- runtime (dispatcher and worker call these under tenant context) ----
 
@@ -246,6 +276,29 @@ class SlackAccessService:
             "Slack Q&A agent changed",
             metadata,
         )
+
+    def workspace_url(self, team_id: str) -> str | None:
+        """The cached Slack workspace address of ``team_id`` (``None`` if unknown)."""
+        record = self._ctx.current()
+        return record.workspace_urls.get(team_id) if record is not None else None
+
+    def remember_workspace_url(self, team_id: str, url: str) -> None:
+        """Cache the workspace address without bumping ``settings_version``.
+
+        It is a fact fetched from Slack, not an administrator's change, so an open
+        settings page does not go stale and queued turns are not cancelled.
+        """
+        with self._ctx.mutation():
+            record = self._ctx.current()
+            if record is None:
+                self._ctx.bump("system:slack", workspace_urls={team_id: url})
+                return
+            urls = {**record.workspace_urls, team_id: url}
+            self._ctx.settings.put(
+                record.model_copy(
+                    update={"workspace_urls": urls, "updated_at": utc_now()}
+                )
+            )
 
     def planner_profile_id(self) -> str | None:
         """The model profile the administrator chose for the Ask planner, if any."""
