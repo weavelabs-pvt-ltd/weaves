@@ -329,15 +329,16 @@ def record_results(a):
 
 
 def free_workspace():
-    """Let the earlier controls' organization give the fake workspace back."""
-    old = tenant("p7a")
-    for item in status(old).get("installations", []):
-        if item["status"] in ("active", "suspended"):
-            request(
-                "DELETE",
-                "/organization/slack/" + item["installation_id"],
-                old["admin"]["headers"],
-            )
+    """Let the earlier controls' organizations give the fake workspace back."""
+    for label in ("p7a", "p7r"):
+        old = tenant(label)
+        for item in status(old).get("installations", []):
+            if item["status"] in ("active", "suspended"):
+                request(
+                    "DELETE",
+                    "/organization/slack/" + item["installation_id"],
+                    old["admin"]["headers"],
+                )
 
 
 def setup(a):
@@ -394,7 +395,7 @@ def main():
     require_disposable_database()
     reset_fake()
     free_workspace()
-    a = tenant("p7i")
+    a = tenant("p7e")  # no connector; creating a new org would hit the rate limit
     setup(a)
     results = stop_results(a)
     results.update(requester_results(a))

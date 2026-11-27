@@ -135,7 +135,7 @@ def main():
         raise ValueError("Live Slack control needs the bounded relay configuration")
     new_series("7L", 1700009)  # T7-I08 used Ev7B... in this database
     reset_fake()
-    a = tenant("p7i")  # the organization T7-I08 left installed
+    a = tenant("p7e")  # the organization T7-I08 left installed
     if install(a).get("slack_install") != "ok":  # a fresh token after the reset
         raise AssertionError("the Slack install for the live control failed")
     model = connect_real_model(a, config)
