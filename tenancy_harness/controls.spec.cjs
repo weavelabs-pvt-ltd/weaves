@@ -526,6 +526,10 @@ test('T7-I06 @Weaves task: creates a normal task as the mapped member, with the 
     'the_execute_limit_is_told_privately_with_the_wait', 'blocked_requests_create_no_task',
     'the_blocked_attempts_are_audited_without_text', 'an_unknown_default_agent_is_rejected_by_the_settings_api',
     'thread_rows_are_invisible_to_other_tenants_and_unscoped_roles', 'no_task_text_in_thread_rows_or_audit']) {
+    expect(control[key], key).toBe(true);
+  }
+});
+
 test('T7-I05 the asker thumbs on a Slack answer become one rating, the latest wins and nothing else counts', async () => {
   const control = fixture.slack_feedback;
   for (const key of ['the_askers_thumbs_up_on_our_answer_is_one_rating',
