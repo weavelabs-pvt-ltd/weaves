@@ -40,6 +40,7 @@ ASKER = "U0FEEDASK1"
 OTHER = "U0FEEDOTH1"
 MARKER = "QUOKKA5519"
 TS = iter(f"1700002{n:03d}.000100" for n in range(1, 999))
+DIAGNOSIS = {}
 EVENTS = iter(f"Ev7F{n:03d}" for n in range(1, 999))
 
 
@@ -81,7 +82,8 @@ def ask(org_id, text):
     event_id = next(EVENTS)
     body = mention(event_id, ts, text=f"<@{BOT_USER}> {text}", user=ASKER)
     body["event"]["channel"] = CHANNEL
-    deliver(body)
+    report = deliver(body)
+    DIAGNOSIS["event"] = (event_id, report.get("delivered"))
 
     def answered():
         row = thread_for(org_id, event_id)
@@ -284,7 +286,12 @@ def main():
             k: (thread or {}).get(k)
             for k in ("run_state", "reply_state", "reply_error")
         }
-        raise AssertionError(f"the question was not answered: {shown}")
+        event_id = DIAGNOSIS.get("event", ("", None))[0]
+        whispers = fake("GET", "/_control/state")["ephemerals"][-2:]
+        raise AssertionError(
+            f"the question was not answered: {shown} {DIAGNOSIS} "
+            f"inbox={inbox(event_id)} whispers={whispers}"
+        )
     results = rating_results(org, thread["answer_ts"], thread)
     results.update(ignored_results(org, thread["answer_ts"], user_ts))
     results.update(final_results(org, thread["answer_ts"]))

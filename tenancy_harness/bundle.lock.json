@@ -57,7 +57,7 @@
     "phase7/__init__.py": "9fafdfbe69447660474e77b9d3c007318e698493f5775887e49a274c17dbcccb",
     "phase7/slack_ask_checks.py": "fab37a3eb97c3cbae857463c723cf734b8fd6a50defd7c36dcb51e39ca68f774",
     "phase7/slack_event_checks.py": "863a1869008814e3e26da90e6023914ede17a17e1e254480ce5e322a20f936f4",
-    "phase7/slack_feedback_checks.py": "c714b9f00342e880ccf0c94827da564ba99dbab5e905264b67ce4c4d62f828ab",
+    "phase7/slack_feedback_checks.py": "65bca6336b495fa774fa5305c3b1fffca1984c77dc577213b2fdabbdc050b275",
     "phase7/slack_install_checks.py": "79b3df0820b82f280976e1b3f0c01e30e2912c8e9bc074fbed86a3403abacc93",
     "phase7/slack_lifecycle_checks.py": "0e474d52e190fb663c0b48d1d798ec159f76e91f0101b5c45a9d08eeaa42d848",
     "phase7/slack_selftest.py": "b575baea51f179a8ceccc7ea64b91001403020d84aadb1b6c8621d684b444d84",
