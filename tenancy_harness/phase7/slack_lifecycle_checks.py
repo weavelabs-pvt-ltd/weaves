@@ -185,8 +185,9 @@ def revocation_results(a):
         "tokens_revoked", TEAM_A, "Ev7LATK02", tokens={"bot": ["U0FAKEBOT"]}
     )
     revoked = mine(a["org_id"], TEAM_A)
+    token_left = secrets_of(a["org_id"])
     reinstalled = install(a, code="life-a4")
-    DETAILS["revocation"] = [acked(bot), revoked, secrets_of(a["org_id"])]
+    DETAILS["revocation"] = [acked(bot), revoked, token_left]
     return {
         "a_clean_reinstall_follows_an_uninstall": back.get("slack_install") == "ok"
         and mine(a["org_id"], TEAM_A)[0] == "active",
@@ -194,7 +195,7 @@ def revocation_results(a):
         and still == "active",
         "bot_token_revocation_ends_it_and_deletes_the_token": acked(bot)
         and revoked == ("revoked", False)
-        and secrets_of(a["org_id"]) == 0,
+        and token_left == 0,
         "a_revoked_workspace_reinstalls_in_place": reinstalled.get("slack_install")
         == "ok"
         and len(installations(TEAM_A)) == 2
@@ -217,22 +218,25 @@ def quarantine_results(a, b):
     freed = lifecycle("release-quarantine", "--organization-id", a["org_id"], *OP)
     restored = mine(a["org_id"], TEAM_A)[0]
     post("Ev7LAQ002", TEAM_A)
+    queued = inbox("Ev7LAQ002")[0]
     revokes = len(fake_calls("auth.revoke"))
     final = lifecycle(
         "quarantine", "--organization-id", a["org_id"], *OP, "--revoke-credentials"
     )
     ended = mine(a["org_id"], TEAM_A)
+    token_left = secrets_of(a["org_id"])
+    revoked_calls = len(fake_calls("auth.revoke")) - revokes
     lifecycle("release-quarantine", "--organization-id", a["org_id"], *OP)
     after = mine(a["org_id"], TEAM_A)
     reinstalled = install(a, code="life-a5")
     DETAILS["quarantine"] = [
         freed,
         restored,
-        inbox("Ev7LAQ002"),
+        queued,
         final,
         ended,
-        secrets_of(a["org_id"]),
-        len(fake_calls("auth.revoke")) - revokes,
+        token_left,
+        revoked_calls,
         after,
     ]
     return {
@@ -246,11 +250,11 @@ def quarantine_results(a, b):
         and installations(TEAM_B) == [(b["org_id"], "active", True)],
         "release_restores_the_suspended_installation": freed[0] == 0
         and restored == "active"
-        and inbox("Ev7LAQ002")[0] == "pending",
+        and queued == "pending",
         "quarantine_with_revocation_ends_the_token_for_good": final[0] == 0
         and ended == ("revoked", False)
-        and secrets_of(a["org_id"]) == 0
-        and len(fake_calls("auth.revoke")) == revokes + 1
+        and token_left == 0
+        and revoked_calls == 1
         and after[0] == "revoked",
         "the_admin_can_reinstall_after_a_quarantine": reinstalled.get("slack_install")
         == "ok",
