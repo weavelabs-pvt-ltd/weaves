@@ -128,7 +128,16 @@ def rating_results(org_id, answer_ts, thread):
     """The asker's thumbs up, then a thumbs down with a skin tone."""
     up_id, _ = react(answer_ts)
     until(lambda: len(ratings(org_id)) == 1, limit=45)
-    (first,) = ratings(org_id) or [{}]
+    if not ratings(org_id):
+        pending = rows(
+            "SELECT event_id, state, drop_reason FROM slack_event_inbox "
+            "WHERE event_type = 'reaction_added'"
+        )
+        raise AssertionError(
+            f"no rating was stored: inbox={inbox(up_id)} all={pending} "
+            f"answer_ts={thread.get('answer_ts')}"
+        )
+    (first,) = ratings(org_id)
     down_id, _ = react(answer_ts, reaction="-1::skin-tone-3")
     until(lambda: ratings(org_id)[:1] and ratings(org_id)[0]["value"] == -1, limit=45)
     after = ratings(org_id)
