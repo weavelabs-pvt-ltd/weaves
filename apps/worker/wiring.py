@@ -43,5 +43,12 @@ def build_worker_services(
             if (refresher := runtime.slack_health_refresher) is not None
             else None
         ),
+        dispatch_slack=(
+            dispatcher.run if (dispatcher := runtime.slack_dispatcher) else None
+        ),
+        reply_slack=(
+            reply_tick.run if (reply_tick := runtime.slack_reply_tick) else None
+        ),
+        purge_slack=(retention.run if (retention := runtime.slack_retention) else None),
         worker_paused=runtime.platform_controls.worker_paused,
     )

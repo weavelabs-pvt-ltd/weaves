@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from typing import Any
 
 from application.ports.repository import Repository
@@ -18,6 +19,7 @@ from modules.slack.access.decision_audit import (
     EXECUTE_BLOCKED_ACTION,
 )
 from modules.slack.access.models import MemberStanding, PolicySettings
+from shared.clock import utc_now
 from shared.request_context import effective_org_id
 
 ATTEMPTS_LIMIT = 50
@@ -183,6 +185,46 @@ class SlackAccessService:
     def policy_settings(self) -> PolicySettings:
         """The engine's view of the current settings."""
         return PolicySettings.from_record(self._ctx.current())
+
+    def qa_ids(self) -> tuple[str | None, str | None]:
+        """The Q&A service principal and the first Q&A agent version, if provisioned."""
+        record = self._ctx.current()
+        if record is None:
+            return None, None
+        return record.qa_principal_id, record.qa_agent_version_id
+
+    def remember_qa(self, principal_id: str, agent_version_id: str) -> None:
+        """Store the provisioned Q&A ids without bumping ``settings_version``.
+
+        Provisioning is not an administrator's settings change and must not make
+        an open settings page conflict or cancel queued turns. Call inside
+        ``mutation()``.
+        """
+        record = self._ctx.current()
+        ids = {"qa_principal_id": principal_id, "qa_agent_version_id": agent_version_id}
+        if record is None:
+            self._ctx.bump("system:slack", **ids)
+            return
+        self._ctx.settings.put(
+            record.model_copy(update={**ids, "updated_at": utc_now()})
+        )
+
+    def mutation(self) -> AbstractContextManager[None]:
+        """Serialize this organization's Slack access writes (one transaction)."""
+        return self._ctx.mutation()
+
+    def audit_system(
+        self, action: str, target_id: str, metadata: dict[str, Any]
+    ) -> None:
+        """One audit event for a change the bot made by itself (ids only)."""
+        self._ctx.audit(
+            "system:slack",
+            action,
+            "slack_qa_agent",
+            target_id,
+            "Slack Q&A agent changed",
+            metadata,
+        )
 
     def planner_profile_id(self) -> str | None:
         """The model profile the administrator chose for the Ask planner, if any."""

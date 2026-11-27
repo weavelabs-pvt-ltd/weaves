@@ -15,9 +15,11 @@ installation, inbox and secret as they were. No token appears in any table,
 audit row or ciphertext.
 """
 
+import time
+
 from tenancy_harness.client import request
 from tenancy_harness.lifecycle_checks import state_of, wait_for
-from tenancy_harness.phase6.controls_checks import lifecycle
+from tenancy_harness.phase6.controls_checks import control, lifecycle
 from tenancy_harness.phase7.slack_event_checks import acked, next_ts
 from tenancy_harness.phase7.slack_install_checks import no_token_anywhere
 from tenancy_harness.phase7.slack_support import (
@@ -312,6 +314,10 @@ def main():
         raise AssertionError("the install for the lifecycle control did not complete")
     if install(b, code="life-b").get("slack_install") != "ok":
         raise AssertionError("the second install did not complete")
+    # The S4 dispatcher would settle the pending rows this control inspects, so it
+    # is held off (operator worker pause, short cache) until the control is done.
+    control("set", *OP, "--worker-paused", "true")
+    time.sleep(7)
     try:
         results = uninstall_results(a, b)
         results.update(takeover_results(a, b))
@@ -322,6 +328,7 @@ def main():
             status(b)
         )
     finally:
+        control("clear", *OP)
         reset_fake()
     results["details"] = DETAILS
     record(FIXTURE, results, CONTROL_ID)

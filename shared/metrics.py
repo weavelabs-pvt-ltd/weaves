@@ -320,6 +320,63 @@ SLACK_TURN_GUARD = REGISTRY.add(
         ("outcome",),
     )
 )
+SLACK_DISPATCH = REGISTRY.add(
+    Counter(
+        "slack_dispatch_total",
+        "Slack mentions handled by the dispatcher by intent and outcome "
+        "(no org label, no text).",
+        ("intent", "outcome"),
+    )
+)
+SLACK_INBOX_AGE = REGISTRY.add(
+    Histogram(
+        "slack_inbox_age_seconds",
+        "Age of a Slack inbox row when the dispatcher handles it.",
+        buckets=(0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600),
+    )
+)
+SLACK_REPLY = REGISTRY.add(
+    Counter(
+        "slack_reply_total",
+        "Slack replies by kind and outcome (no org label, no text).",
+        ("kind", "outcome"),
+    )
+)
+SLACK_REPLY_SECONDS = REGISTRY.add(
+    Histogram(
+        "slack_reply_seconds",
+        "Time from the mention reaching the inbox to the answer being posted.",
+        buckets=(1, 2, 5, 10, 20, 30, 60, 120, 300, 600, 900),
+    )
+)
+SLACK_POSTS = REGISTRY.add(
+    Counter(
+        "slack_posts_total",
+        "Slack Web API write calls by method and outcome (error code only).",
+        ("method", "outcome"),
+    )
+)
+SLACK_API_429 = REGISTRY.add(
+    Counter(
+        "slack_api_429_total",
+        "Slack Web API rate-limit answers by method.",
+        ("method",),
+    )
+)
+SLACK_SCRUB = REGISTRY.add(
+    Counter(
+        "slack_scrub_total",
+        "Outgoing Slack messages by scrubber result (clean, redacted, refused).",
+        ("result",),
+    )
+)
+SLACK_RETENTION = REGISTRY.add(
+    Counter(
+        "slack_retention_total",
+        "Rows removed by the Slack retention tick by kind.",
+        ("kind",),
+    )
+)
 DB_POOL_IN_USE = REGISTRY.add(
     Gauge("db_pool_in_use", "Database connections currently checked out.")
 )

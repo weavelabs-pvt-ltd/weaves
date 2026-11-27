@@ -604,6 +604,17 @@
         "org_id"
       ],
       "current_gap": null
+    },
+    "slack_threads": {
+      "contract": "SlackThread",
+      "scope": "organization",
+      "privacy": "readable only inside its own organization (row policy); ids, timestamps and state codes of one Slack thread's latest request, never message text, an answer or a token",
+      "system_access": "none: the slack_dispatch, slack_reply and slack_retention worker ticks bind each organization's own tenant context before they read or write",
+      "lifecycle": "the hidden Q&A task and this row are deleted 30 days after the request by the slack_retention tick; removed with the organization by the generic purge sweep",
+      "scope_keys": [
+        "org_id"
+      ],
+      "current_gap": null
     }
   },
   "auxiliary_tables": {

@@ -490,3 +490,23 @@ test('T7-I03 the Slack bot lifecycle ends, suspends and purges cleanly on the re
     expect(control[key], key).toBe(true);
   }
 });
+
+test('T7-I04 a Slack mention becomes one hidden task and one answer, with the working message, private refusals and cheap exits', async () => {
+  const control = fixture.slack_ask;
+  for (const key of ['the_mention_becomes_one_hidden_private_task',
+    'the_task_is_owned_by_a_service_account_with_two_permissions', 'the_hidden_task_is_not_listed_for_the_admin',
+    'eyes_reaction_then_one_new_answer_in_the_thread', 'the_answer_carries_the_evidence_and_timing_line',
+    'the_egress_scrubber_and_sanitizer_hold', 'the_inbox_row_is_settled_without_its_text',
+    'a_replayed_event_creates_no_second_task_or_answer', 'the_request_id_is_slack_event',
+    'a_slow_answer_shows_one_working_message_edited_in_place', 'the_working_message_becomes_the_receipt',
+    'never_more_than_two_posts_per_request', 'a_follow_up_mention_continues_the_same_conversation',
+    'help_and_greeting_are_threaded_replies', 'status_is_private',
+    'a_missing_pr_link_asks_for_a_re_mention_with_an_example', 'a_command_without_its_rule_is_refused_privately',
+    'cheap_exits_create_no_task_and_count_nothing',
+    'a_failed_plan_says_try_again_privately_and_posts_nothing_public',
+    'the_ask_limit_is_told_privately_with_the_wait', 'a_paused_bot_says_it_is_unavailable',
+    'no_model_provider_is_told_privately', 'thread_rows_are_invisible_to_other_tenants_and_unscoped_roles',
+    'no_question_text_in_thread_rows_or_audit']) {
+    expect(control[key], key).toBe(true);
+  }
+});

@@ -341,6 +341,15 @@ def _allowed(
     )
 
 
+def check_state(request: AccessRequest) -> Decision | None:
+    """Only the platform, organization, installation and pause gates (cheap exits).
+
+    ``None`` means the state allows the bot to speak; it never looks at limits or
+    rules, so a help or greeting reply is not refused for a user's Ask quota.
+    """
+    return _state_gate(request, [])
+
+
 def evaluate(request: AccessRequest) -> Decision:
     """Decide one Slack request; see the module docstring for the check order."""
     checks: list[str] = []

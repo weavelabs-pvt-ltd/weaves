@@ -345,6 +345,17 @@ collection, no migration:
 |---|---|---|---|
 | `slack_connector_health` (`SlackConnectorHealth`, `id` = the plugin installation id) | organization; one row per connector installation, a cache | mutable. `installation_id`, `status` (`healthy`/`error`/`token_expired`/`rate_limited`/`disabled`), `reason_code`, `checked_at`. Rewritten every ten minutes by the worker's `slack_health` tick and by a live re-probe (3 s) of a needed tool whose snapshot is stale; never a token or connector data. Removed by the generic purge sweep and exported | system job only (the tick binds each organization's own tenant context) |
 
+The Ask flow (S4, `modules/slack/dispatch/` and `modules/slack/reply/`) registers
+`slack_threads` (unique index of migration 33, no new migration) and adds two inbox operations:
+
+| Collection | Scope and key | Fields | Access |
+|---|---|---|---|
+| `slack_threads` (`SlackThread`, `id` = `{org_id}:{team_id}:{channel_id}:{thread_ts}:ask`) | organization; one row per Slack thread and kind (`slack_threads_key_uq`) | mutable. Thread level: `task_id` (the hidden Q&A task), `requester_*`. Latest request: `turn_id`, `event_id`, `request_id`, `message_ts`, `requested_at`, `request_count`, `run_state` (`queued`/`running`/`cancel_requested`/`done`/`failed`/`stopped`), `status_ts` (working message, or `native`), `status_text_key`, `answer_ts` (or `private`), `reply_state` (`pending`/`posted`/`undeliverable`), `reply_attempts`, `next_attempt_at` (backoff and the 45 s posting lease), `reply_error` (a code), `posts`, `private_sent`, `finished_at`. Ids, timestamps and state codes only: never message text, an answer, a token or connector data. Deleted with its hidden task 30 days after the thread's last activity (`slack_retention` tick); removed by the organization purge sweep and exported | the three Slack worker ticks only (each binds the organization's tenant context first) |
+
+`slack_event_inbox` rows leave `pending` through `settle_event` (a compare-and-set to `done` or
+`dropped`, which also clears the stored question text); `list_events` can filter by `event_type`
+so the Ask dispatcher claims only `app_mention` rows and the reaction rows stay for S4c.
+
 `task_turns` gains an optional `origin` (`TurnOrigin`: `kind` `slack`/`slack_qa`, team, channel,
 thread, asker and event ids, `action`, optional `repo`/`workflow_id`, the approved
 `capability_ids` and the guard's `verdict`; never message text). It is part of the turn's JSON

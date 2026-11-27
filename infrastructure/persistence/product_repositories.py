@@ -61,6 +61,7 @@ from contracts.v1.slack_access import (
     SlackAllowedUser,
     SlackConnectorHealth,
 )
+from contracts.v1.slack_threads import SlackThread
 from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
 from infrastructure.database.store import ProductPostgresStore
 from infrastructure.persistence.correlated_audit import (
@@ -186,6 +187,7 @@ REPOSITORY_SPECS: tuple[tuple[str, str, str, type[ProductContract]], ...] = (
     ("slack_allowed_users", "slack_allowed_users", "id", SlackAllowedUser),
     ("slack_allowed_channels", "slack_allowed_channels", "id", SlackAllowedChannel),
     ("slack_connector_health", "slack_connector_health", "id", SlackConnectorHealth),
+    ("slack_threads", "slack_threads", "id", SlackThread),
     ("waitlist_entries", "waitlist_entries", "id", WaitlistEntry),
     ("waitlist_submissions", "waitlist_submissions", "id", WaitlistSubmission),
 )

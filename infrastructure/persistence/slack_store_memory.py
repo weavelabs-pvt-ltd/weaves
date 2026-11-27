@@ -10,6 +10,7 @@ from application.ports.slack import (
     HELD_STATUSES,
     ClaimResult,
     InboxEvent,
+    InboxState,
     InstallationStatus,
     SlackInstallation,
 )
@@ -116,12 +117,33 @@ class InMemorySlackStore:
             return True
 
     def list_events(
-        self, *, state: str | None = None, limit: int = 100
+        self,
+        *,
+        state: str | None = None,
+        limit: int = 100,
+        event_type: str | None = None,
     ) -> list[InboxEvent]:
         """Inbox rows oldest first."""
         with self._lock:
-            rows = [e for e in self._events.values() if state in (None, e.state)]
+            rows = [
+                e
+                for e in self._events.values()
+                if state in (None, e.state) and event_type in (None, e.event_type)
+            ]
         return sorted(rows, key=lambda e: (e.received_at, e.event_id))[:limit]
+
+    def settle_event(
+        self, event_id: str, state: InboxState, *, reason: str | None = None
+    ) -> bool:
+        """Move a pending row to ``state`` once; later callers get ``False``."""
+        with self._lock:
+            row = self._events.get(event_id)
+            if row is None or row.state != "pending":
+                return False
+            self._events[event_id] = replace(
+                row, state=state, drop_reason=reason, text=None
+            )
+            return True
 
     def purge_events(
         self,

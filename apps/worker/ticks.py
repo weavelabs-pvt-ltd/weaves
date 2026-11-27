@@ -29,6 +29,9 @@ USAGE_RECONCILE_SECONDS = 30
 USAGE_RETENTION_SECONDS = 3600
 SLACK_LIFECYCLE_SECONDS = 600
 SLACK_HEALTH_SECONDS = 600
+SLACK_DISPATCH_SECONDS = 1
+SLACK_REPLY_SECONDS = 1
+SLACK_RETENTION_SECONDS = 900
 
 
 @dataclass(frozen=True)
@@ -180,6 +183,40 @@ def _refresh_slack_health(services: WorkerServices) -> None:
         logger.info("slack connector health refreshed count=%d", written)
 
 
+def _run_slack(name: str, action: Callable[[], int] | None) -> None:
+    """Run one Slack tick; a Slack failure never disturbs the worker loop."""
+    if action is None:
+        return
+    try:
+        count = action()
+    except Exception:
+        logger.exception("slack %s tick failed", name)
+        return
+    if count:
+        logger.info("slack %s handled count=%d", name, count)
+
+
+def _slack_dispatch(services: WorkerServices) -> None:
+    """Turn mentions into turns, unless an operator paused the workers.
+
+    A paused worker claims no new work, and a mention becoming a task is new work:
+    the inbox simply keeps the rows until the pause is cleared. Replies for work
+    that already ran are not held back.
+    """
+    paused = services.worker_paused
+    if callable(paused) and paused() is True:
+        return
+    _run_slack("dispatch", services.dispatch_slack)
+
+
+def _slack_reply(services: WorkerServices) -> None:
+    _run_slack("reply", services.reply_slack)
+
+
+def _slack_retention(services: WorkerServices) -> None:
+    _run_slack("retention", services.purge_slack)
+
+
 def _dispatch_schedules(services: WorkerServices) -> None:
     scheduled_jobs = services.workflow_automation.dispatch_due_workflow_schedules()
     if scheduled_jobs:
@@ -259,5 +296,12 @@ def build_tick_registry(
     # Phase 7 Slack bot: connector health snapshots the request pipeline reads
     # (S4a, every ten minutes; the first refresh runs at start).
     registry.register(Tick("slack_health", SLACK_HEALTH_SECONDS, _refresh_slack_health))
+    # S4 Ask: mentions to hidden Q&A turns, replies and working status, retention
+    # of hidden conversations (inbox rows expire in the S7 lifecycle tick).
+    registry.register(Tick("slack_dispatch", SLACK_DISPATCH_SECONDS, _slack_dispatch))
+    registry.register(Tick("slack_reply", SLACK_REPLY_SECONDS, _slack_reply))
+    registry.register(
+        Tick("slack_qa_retention", SLACK_RETENTION_SECONDS, _slack_retention)
+    )
 
     return registry
