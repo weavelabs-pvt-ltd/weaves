@@ -347,7 +347,15 @@ def run(args, harness):
         # failing control can be diagnosed after the disposable stack is removed.
         with (private / "service.log").open("w") as log:
             compose.run("logs", "--no-color", "api", "worker", stdout=log, check=False)
+        print_dispatch_failures(private / "service.log")
         compose.run("down", "--volumes", "--remove-orphans")
+
+
+def print_dispatch_failures(path):
+    """Print only the error kinds of failed Slack dispatches (never message text)."""
+    for line in path.read_text(errors="replace").splitlines():
+        if "slack_dispatch_failed" in line or "slack_reply_row_failed" in line:
+            print(line.split("|", 1)[-1][-260:])
 
 
 def main():
