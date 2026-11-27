@@ -24,7 +24,8 @@ _MENTION_LEFTOVER = re.compile(r"@[UW][A-Z0-9]{2,31}\b")
 _BULLET = re.compile(r"^\s*(?:[-*+•]|\d{1,2}[.)])\s+(.+)$")
 _HEADING = re.compile(r"^\s*#{1,6}\s+")
 _RULE = re.compile(r"^\s*(?:-{3,}|\*{3,}|_{3,}|\|.*\|)\s*$")
-_INLINE_MARKS = re.compile(r"[*_~`]+")
+# Emphasis marks only: an underscore inside a word (``snake_case``) is kept.
+_INLINE_MARKS = re.compile(r"[*~`]+|(?<![A-Za-z0-9])_+|_+(?![A-Za-z0-9])")
 _LINK = re.compile(r"\[([^\]]+)\]\([^)]+\)")
 
 

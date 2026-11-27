@@ -1,6 +1,7 @@
 """Opt-in live control: a real ``task:`` run end to end (never a required control).
 
-Run only with ``--live-anthropic-env`` and ``--live-slack-task``: the product's own
+Run only with ``--live-anthropic-env`` and ``--live-slack-task`` (which replaces the
+three-call live flow for that run): the product's own
 provider client calls Anthropic through the budget relay (the same path as
 ``LIVE-I01``), and everything else is the stack of ``T7-I06`` with the fake Slack
 server. ONE model call is planned and no other call exists: an Execute request is

@@ -5,8 +5,12 @@ import shlex
 import sqlite3
 
 
-def load_config(path):
-    """Read only the explicitly supplied local test key, without shell evaluation."""
+def load_config(path, calls=3):
+    """Read only the explicitly supplied local test key, without shell evaluation.
+
+    ``calls`` is the number of planned model calls: three for the live flow, one for
+    the opt-in Slack task control (the relay itself admits at most three per run).
+    """
     if path is None:
         return None
     values = {}
@@ -28,7 +32,7 @@ def load_config(path):
         "api_key": key,
         "solo_model": model or "claude-haiku-5-5",
         "workflow_model": model or "claude-sonnet-5-5",
-        "max_model_calls": 3,
+        "max_model_calls": calls,
     }
 
 

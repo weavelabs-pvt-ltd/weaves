@@ -62,7 +62,7 @@ For local debugging only, `run.py --api-only` omits the controls that need the s
 
 ### Opt-in live check (`--live-slack-task`)
 
-With `--live-anthropic-env` the harness already makes three live calls through the budget relay (LIVE-I01 to LIVE-I04). `--live-slack-task` adds ONE more (four in all, never part of CI): `phase7/slack_task_live.py` creates a fresh organization with a real Anthropic provider priced like the relay, a connector-free agent as the Slack default, and delivers a signed `task:` mention to the fake Slack server. It requires the task to be created as the mapped member, the real answer posted exactly once (two bot posts), exactly one settled row in the usage ledger and no API key in any row or message; its ledger evidence joins the other calls in the relay-versus-ledger comparison.
+With `--live-anthropic-env` the harness makes three live calls through the budget relay (LIVE-I01 to LIVE-I04; the relay admits three per run). `--live-slack-task` replaces that flow for the run with ONE call (never part of CI): `phase7/slack_task_live.py` creates a fresh organization with a real Anthropic provider priced like the relay, a connector-free agent as the Slack default, and delivers a signed `task:` mention to the fake Slack server. It requires the task to be created as the mapped member, the real answer posted exactly once (two bot posts), exactly one settled row in the usage ledger and no API key in any row or message; its ledger evidence is compared with the relay's own accounting like the other live calls.
 
 ## Required cases and known issues
 

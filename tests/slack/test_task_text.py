@@ -41,6 +41,15 @@ def test_the_title_is_plain_words_from_the_first_line(text: str, title: str) -> 
     assert title_of(text) == title
 
 
+def test_identifiers_with_underscores_survive_in_titles_and_results() -> None:
+    assert title_of("sync jira_issue_key and _draft_ notes") == (
+        "sync jira_issue_key and draft notes"
+    )
+    shown = digest("Used the snake_case field.\n- see LIVE_CHECK_TOKEN")
+    assert shown.summary == "Used the snake_case field."
+    assert shown.bullets == ("see LIVE_CHECK_TOKEN",)
+
+
 def test_a_long_title_is_cut_at_a_word_with_an_ellipsis() -> None:
     title = title_of("word " * 60)
 

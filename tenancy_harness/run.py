@@ -108,18 +108,19 @@ def complete_checks(args, compose, frontend, harness, private, port, report, liv
     if live and report["foundation_passed"]:
         report["live_ai"] = {"passed": False, "stage": "preparing"}
         try:
-            prepare_flow(compose)
-            report["live_ai"]["stage"] = "browser"
-            raw = browser(frontend, harness, private, port, live=True)
-            report["live_ai"].update(
-                {"stage": "provenance", "browser_cases": browser_outcomes(raw)}
-            )
-            report["live_ai"] = verify_flow(compose, private, raw)
             if args.live_slack_task:
-                report["live_ai"] = with_slack_task(compose, private, report["live_ai"])
-            report["live_ai"]["usage_ledger"] = relay_matches_ledger(
-                report["live_ai"], private, Path.home() / ".config/weaves-testing"
-            )
+                report["live_ai"] = slack_task_only(compose, private)
+            else:
+                prepare_flow(compose)
+                report["live_ai"]["stage"] = "browser"
+                raw = browser(frontend, harness, private, port, live=True)
+                report["live_ai"].update(
+                    {"stage": "provenance", "browser_cases": browser_outcomes(raw)}
+                )
+                report["live_ai"] = verify_flow(compose, private, raw)
+                report["live_ai"]["usage_ledger"] = relay_matches_ledger(
+                    report["live_ai"], private, Path.home() / ".config/weaves-testing"
+                )
         finally:
             report["testing_budget"] = Ledger(
                 Path.home() / ".config/weaves-testing"
@@ -133,21 +134,26 @@ def complete_checks(args, compose, frontend, harness, private, port, report, liv
         )
 
 
-def with_slack_task(compose, private, evidence):
-    """Opt-in: one real ``task:`` run (one more model call), then compare all calls."""
+def slack_task_only(compose, private):
+    """Opt-in: ONE real ``task:`` run (one model call) instead of the three-call flow.
+
+    The relay's own budget and the usage ledger are compared for that single call.
+    """
     seed_module(compose, "phase7.slack_task_live")
     extra = json.loads((private / "live-slack-task.json").read_text())
     if not extra.get("passed") or len(extra["calls"]) != 1:
         raise RuntimeError("The live Slack task control failed; inspect private files")
-    calls = evidence["verified_model_calls"] + [
-        {
-            **item,
-            "input_tokens": item["ledger_input_tokens"],
-            "output_tokens": item["ledger_output_tokens"],
-        }
-        for item in extra["calls"]
-    ]
-    return {**evidence, "verified_model_calls": calls, "slack_task": extra["checks"]}
+    evidence = {
+        "passed": True,
+        "real_provider": "anthropic",
+        "planned_model_calls": 1,
+        "slack_task": extra["checks"],
+        "verified_model_calls": list(extra["calls"]),
+    }
+    evidence["usage_ledger"] = relay_matches_ledger(
+        evidence, private, Path.home() / ".config/weaves-testing"
+    )
+    return evidence
 
 
 def api_only_outcome(raw):
@@ -173,7 +179,7 @@ def api_only_outcome(raw):
 
 def live_configuration(args, private, project, envfile):
     """Require a funded existing ledger before enabling networked live testing."""
-    config = load_config(args.live_anthropic_env)
+    config = load_config(args.live_anthropic_env, 1 if args.live_slack_task else 3)
     if config:
         directory = Path.home() / ".config/weaves-testing"
         ledger = Ledger(directory)
@@ -381,7 +387,8 @@ def main():
     parser.add_argument(
         "--live-slack-task",
         action="store_true",
-        help="with --live-anthropic-env: one more model call, a real task: run",
+        help="with --live-anthropic-env: ONE model call, a real task: run, in place of "
+        "the three-call live flow",
     )
     parser.add_argument("--canvas-probe", action="store_true")
     parser.add_argument("--output", type=Path, default=Path(".local/tenancy"))
