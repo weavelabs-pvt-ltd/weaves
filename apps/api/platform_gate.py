@@ -24,8 +24,9 @@ logger = logging.getLogger("product.controls")
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 # Slack events keep arriving during maintenance: Ask stays allowed under
 # read-only (design 3.9) and a refusal would only make Slack retry and, after
-# enough failures, disable the subscription.
-EXEMPT_PATHS = frozenset({"/api/v0/slack/events"})
+# enough failures, disable the subscription. A Stop press must work then too
+# (design 3.12); what Try again may do is decided by the worker's gates.
+EXEMPT_PATHS = frozenset({"/api/v0/slack/events", "/api/v0/slack/interactions"})
 API_PREFIX = "/api/v0/"
 DEFAULT_MESSAGE = (
     "The service is in read-only maintenance. Your data is safe; "

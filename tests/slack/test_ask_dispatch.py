@@ -202,8 +202,8 @@ CHEAP = [
     ("hi", copy.GREETING, False),
     ("thanks", copy.THANKS, False),
     ("status", copy.NO_ACTIVITY, True),
-    ("stop", copy.COMING_SOON["stop"], True),
-    ("retry", copy.COMING_SOON["retry"], True),
+    ("stop", copy.NO_ACTIVITY, True),
+    ("retry", copy.NOTHING_TO_RETRY, True),
     ("review", copy.MISSING_PR, False),
     ("run", copy.MISSING_WORKFLOW, False),
 ]

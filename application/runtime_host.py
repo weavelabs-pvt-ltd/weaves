@@ -58,6 +58,7 @@ if TYPE_CHECKING:
     from modules.platform_controls.controls import PlatformControls
     from modules.platform_controls.store import ControlsStore
     from modules.slack.dispatch.dispatcher import SlackDispatcher
+    from modules.slack.interactions.tick import SlackInteractionTick
     from modules.slack.pipeline.health import SlackHealthRefresher
     from modules.slack.qa_retention import SlackRetention
     from modules.slack.reply.tick import SlackReplyTick
@@ -103,6 +104,7 @@ class RuntimeCapabilityHost:
     slack_health_refresher: SlackHealthRefresher | None
     slack_dispatcher: SlackDispatcher | None
     slack_reply_tick: SlackReplyTick | None
+    slack_interactions: SlackInteractionTick | None
     slack_retention: SlackRetention | None
     platform_controls: PlatformControls
     operator_audit: OperatorAudit

@@ -46,10 +46,11 @@ def _status(world: World, installation) -> str:
 def test_the_tick_is_registered_every_ten_minutes_after_the_phase_five_ticks():
     registry = build_tick_registry(schedule_interval=5, lifecycle_interval=30)
     names = [t.name for t in registry.ticks]
-    assert names[-4:] == [
+    assert names[-5:] == [
         "slack_health",
         "slack_dispatch",
         "slack_reply",
+        "slack_interactions",
         "slack_qa_retention",
     ]
     assert names.index("metrics_gauges") < names.index("slack_health")

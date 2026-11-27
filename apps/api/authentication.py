@@ -39,6 +39,7 @@ _PUBLIC_EXACT_PATHS = {
     "/api/v0/oauth/slack/install/callback",
     # Authenticated by the Slack request signature, not by a session or token.
     "/api/v0/slack/events",
+    "/api/v0/slack/interactions",
     "/api/v0/oauth/jira/callback",
     "/api/v0/oauth/mcp/callback",
 }

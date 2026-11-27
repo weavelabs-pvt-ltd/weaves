@@ -18,6 +18,7 @@ from application.ports.slack import SlackInstallation
 from contracts.v1.slack_threads import SlackThread
 from modules.slack import copy
 from modules.slack.dispatch.threads import ThreadBook
+from modules.slack.reply.blocks import retry_button, stop_button
 from modules.slack.reply.compose import Reply
 from modules.slack.reply.poster import PostError, SlackPoster
 from modules.slack.reply.status_text import text_for
@@ -71,14 +72,24 @@ class Delivery:
                     row.model_copy(update={"status_text_key": key}), target.now
                 )
         if row.status_ts and row.status_ts != NATIVE:
-            self._poster.edit(target.installation, row.channel_id, row.status_ts, text)
+            self._poster.edit(
+                target.installation,
+                row.channel_id,
+                row.status_ts,
+                text,
+                button=stop_button(row.run_ref),
+            )
             return self._book.save(
                 row.model_copy(update={"status_text_key": key}), target.now
             )
         if row.posts >= 2:
             return row
         ts = self._poster.post(
-            target.installation, row.channel_id, text, thread_ts=row.thread_ts
+            target.installation,
+            row.channel_id,
+            text,
+            thread_ts=row.thread_ts,
+            button=stop_button(row.run_ref),
         )
         SLACK_REPLY.inc(kind="status", outcome="posted")
         return self._book.save(
@@ -96,16 +107,27 @@ class Delivery:
             return row
         if reply.ephemeral:
             return self._private(row, reply, target)
+        again = (
+            retry_button(row.run_ref, row.retries) if reply.kind == "failure" else None
+        )
         if reply.kind == "failure" and row.status_ts and row.status_ts != NATIVE:
             self._poster.edit(
-                target.installation, row.channel_id, row.status_ts, reply.text
+                target.installation,
+                row.channel_id,
+                row.status_ts,
+                reply.text,
+                button=again,
             )
             SLACK_REPLY.inc(kind="failure", outcome="edited")
             return self._delivered(row, row.status_ts, reply, target, posts=0)
         if row.posts >= 2:
             raise PostError("permanent", "post_budget")
         ts = self._poster.post(
-            target.installation, row.channel_id, reply.text, thread_ts=row.thread_ts
+            target.installation,
+            row.channel_id,
+            reply.text,
+            thread_ts=row.thread_ts,
+            button=again,
         )
         SLACK_REPLY.inc(kind=reply.kind, outcome="posted")
         return self._delivered(row, ts, reply, target, posts=1)
@@ -124,6 +146,14 @@ class Delivery:
         row = self._book.save(row.model_copy(update={"private_sent": True}), target.now)
         self._withdraw_status(row, target)
         return self._delivered(row, PRIVATE, reply, target, posts=0)
+
+    def _clear_native(self, row: SlackThread, target: Target) -> None:
+        try:
+            self._poster.native_status(
+                target.installation, row.channel_id, row.thread_ts, ""
+            )
+        except PostError as error:
+            logger.warning("slack_status_clear_failed code=%s", error.code)
 
     def _withdraw_status(self, row: SlackThread, target: Target) -> None:
         """A private reply leaves no public working message behind (best effort)."""
@@ -178,6 +208,50 @@ class Delivery:
             row.requester_slack_user_id,
             text,
             thread_ts=row.thread_ts,
+        )
+
+    # -- stop ----------------------------------------------------------------
+
+    def stopped(self, row: SlackThread, target: Target) -> SlackThread:
+        """Turn the working message into "Stopped." (no buttons) and close the row.
+
+        With no editable working message (native status, or none posted yet) a
+        short "Stopped." is posted in the thread instead. A message Slack says is
+        gone does not keep the request open: it is closed all the same.
+        """
+        ts = row.status_ts if row.status_ts and row.status_ts != NATIVE else None
+        posts = row.posts
+        if row.status_ts == NATIVE:
+            self._clear_native(row, target)
+        try:
+            if ts is not None:
+                self._poster.edit(target.installation, row.channel_id, ts, copy.STOPPED)
+            else:
+                ts = self._poster.post(
+                    target.installation,
+                    row.channel_id,
+                    copy.STOPPED,
+                    thread_ts=row.thread_ts,
+                )
+                posts += 1
+        except PostError as error:
+            if error.kind != "permanent":
+                raise
+            logger.warning("slack_stopped_edit_failed code=%s", error.code)
+        SLACK_REPLY.inc(kind="stopped", outcome="edited")
+        return self._book.save(
+            row.model_copy(
+                update={
+                    "run_state": "stopped",
+                    "reply_state": "posted",
+                    "answer_ts": ts or row.answer_ts or PRIVATE,
+                    "posts": posts,
+                    "finished_at": target.now,
+                    "next_attempt_at": None,
+                    "reply_error": "",
+                }
+            ),
+            target.now,
         )
 
     # -- the receipt ---------------------------------------------------------

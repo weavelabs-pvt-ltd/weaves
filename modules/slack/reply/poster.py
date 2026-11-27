@@ -18,6 +18,7 @@ from application.ports.secrets import SecretStore
 from application.ports.slack import SlackInstallation
 from clients.slack.client import SlackApiClient
 from clients.slack.errors import SlackApiError, SlackRateLimited, SlackTokenError
+from modules.slack.reply.blocks import Button, message_blocks
 from modules.slack.text.mrkdwn import has_unsafe_angle
 from modules.slack.text.scrub import Scrubbed, ScrubberUnavailable, scrub
 from shared.metrics import SLACK_API_429, SLACK_POSTS, SLACK_SCRUB
@@ -141,27 +142,42 @@ class SlackPoster:
         text: str,
         *,
         thread_ts: str,
+        button: Button | None = None,
     ) -> str:
-        """Post a new message in the thread; returns its ``ts``."""
+        """Post a new message in the thread (maybe with a button); returns ``ts``."""
         final = finalize(text, self._scrubber)
         token = self._token(installation)
+        blocks = message_blocks(final.text, button) or None
         ref = self._call(
             "chat.postMessage",
             lambda: self._api.post_message(
-                token, channel, text=final.text, thread_ts=thread_ts
+                token, channel, text=final.text, blocks=blocks, thread_ts=thread_ts
             ),
         )
         return ref.ts
 
     def edit(
-        self, installation: SlackInstallation, channel: str, ts: str, text: str
+        self,
+        installation: SlackInstallation,
+        channel: str,
+        ts: str,
+        text: str,
+        *,
+        button: Button | None = None,
     ) -> None:
-        """Edit one of our messages in place."""
+        """Edit one of our messages in place.
+
+        The blocks are always sent: the button the message should have now, or
+        none, which is what removes a Stop or Try again button that is obsolete.
+        """
         final = finalize(text, self._scrubber)
         token = self._token(installation)
+        blocks = message_blocks(final.text, button)
         self._call(
             "chat.update",
-            lambda: self._api.update_message(token, channel, ts, text=final.text),
+            lambda: self._api.update_message(
+                token, channel, ts, text=final.text, blocks=blocks
+            ),
         )
 
     def delete(self, installation: SlackInstallation, channel: str, ts: str) -> None:

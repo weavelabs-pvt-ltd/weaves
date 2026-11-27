@@ -8,6 +8,7 @@ run under the organization's tenant context like every other collection.
 
 from __future__ import annotations
 
+import secrets
 from datetime import datetime
 
 from application.ports.repository import Repository
@@ -25,6 +26,11 @@ class ThreadBook:
     def key(org_id: str, team_id: str, channel_id: str, thread_ts: str) -> str:
         """The record id of an Ask thread."""
         return thread_record_id(org_id, team_id, channel_id, thread_ts, "ask")
+
+    @staticmethod
+    def new_ref() -> str:
+        """A fresh random reference for one request's buttons (opaque, unguessable)."""
+        return secrets.token_urlsafe(16)
 
     def find(
         self, org_id: str, team_id: str, channel_id: str, thread_ts: str
@@ -82,7 +88,45 @@ class ThreadBook:
                     "posts": 0,
                     "private_sent": False,
                     "finished_at": None,
+                    "run_ref": self.new_ref(),
+                    "retries": 0,
                 }
             ),
             now,
+        )
+
+    def retried(
+        self,
+        row: SlackThread,
+        *,
+        turn_id: str,
+        status_ts: str | None,
+        now: datetime,
+    ) -> SlackThread:
+        """The row of the next attempt of a failed request (Try again).
+
+        The failure message becomes the working message (``status_ts``), the
+        request is the same one (same asker, event and request id), the retry
+        counter goes up and the buttons get a new reference, so the old one can
+        never act on the new attempt. The caller saves it.
+        """
+        return row.model_copy(
+            update={
+                "turn_id": turn_id,
+                "run_state": "queued",
+                "stage": "",
+                "status_ts": status_ts,
+                "status_text_key": "retrying" if status_ts else "",
+                "answer_ts": None,
+                "reply_state": "pending",
+                "reply_attempts": 0,
+                "next_attempt_at": None,
+                "reply_error": "",
+                "posts": 1 if status_ts else 0,
+                "private_sent": False,
+                "finished_at": None,
+                "requested_at": now,
+                "run_ref": self.new_ref(),
+                "retries": row.retries + 1,
+            }
         )

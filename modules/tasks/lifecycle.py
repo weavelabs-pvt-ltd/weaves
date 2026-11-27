@@ -26,6 +26,10 @@ from shared.request_context import (
 TURN_NOT_RETRYABLE = "task.turn_not_retryable"
 
 
+class _TurnAlreadyFinished(Exception):
+    """A worker finished the turn while it was being cancelled (roll back)."""
+
+
 class TaskLifecycleMixin:
     """Provide task lifecycle transitions with audience-aware authorization."""
 
@@ -42,48 +46,84 @@ class TaskLifecycleMixin:
         self._authorize(
             effective_principal_id("local-developer"), Permission.WORKFLOWS_RUN
         )
-        with self._open_unit_of_work():
-            task = self.tasks.get_scoped(
-                task_id, effective_org_id(), effective_workspace_id()
-            )
-            if (
-                task.audience is TaskAudience.PRIVATE
-                and task.audience_owner_principal_id
-                != effective_principal_id("local-developer")
-            ):
-                raise KeyError("task not found")
-            turn = self.turns.get_scoped(turn_id, task.org_id, task.workspace_id)
-            if turn.task_id != task_id or task.active_turn_id != turn_id:
-                return
-            now = utc_now()
-            cancelled = TaskTurn.model_validate(
-                turn.model_copy(
-                    update={
-                        "status": TaskTurnStatus.CANCELLED,
-                        "worker_id": None,
-                        "finished_at": now,
-                        "updated_at": now,
-                        "error": None,
-                    }
-                ).model_dump()
-            )
-            self.turns.put(cancelled)
-            updated = Task.model_validate(
-                task.model_copy(
-                    update={
-                        "active_turn_id": None,
-                        "active_turn_status": None,
-                        "latest_turn_status": TaskTurnStatus.CANCELLED,
-                        "latest_turn_error": None,
-                        "updated_at": now,
-                    }
-                ).model_dump()
-            )
-            self.tasks.put_if_task_state(
-                updated,
-                expected_status=TaskStatus.OPEN.value,
-                expected_active_turn_id=turn_id,
-            )
+        self._cancel_active_turn(
+            task_id,
+            turn_id,
+            owner=effective_principal_id("local-developer"),
+            origin_only=False,
+        )
+
+    def cancel_origin_turn(self, task_id: str, turn_id: str) -> bool:
+        """Cancel an active turn that came from an outside channel (Slack Stop).
+
+        For internal callers that have already authorized the person (the Slack
+        press check): no permission is checked here, and only a turn that carries
+        an ``origin`` can be cancelled this way. The worker sees the cancelled
+        status at its next stage boundary, drops what it was reading and discards
+        any late answer (its lease is gone). Returns whether a turn was cancelled;
+        ``False`` when it had already finished.
+        """
+        return self._cancel_active_turn(task_id, turn_id, owner=None, origin_only=True)
+
+    def _cancel_active_turn(
+        self, task_id: str, turn_id: str, *, owner: str | None, origin_only: bool
+    ) -> bool:
+        try:
+            with self._open_unit_of_work():
+                return self._cancel_in_transaction(
+                    task_id, turn_id, owner=owner, origin_only=origin_only
+                )
+        except _TurnAlreadyFinished:
+            return False  # the transaction rolled back: the turn keeps its result
+
+    def _cancel_in_transaction(
+        self, task_id: str, turn_id: str, *, owner: str | None, origin_only: bool
+    ) -> bool:
+        task = self.tasks.get_scoped(
+            task_id, effective_org_id(), effective_workspace_id()
+        )
+        if (
+            owner is not None
+            and task.audience is TaskAudience.PRIVATE
+            and task.audience_owner_principal_id != owner
+        ):
+            raise KeyError("task not found")
+        turn = self.turns.get_scoped(turn_id, task.org_id, task.workspace_id)
+        if turn.task_id != task_id or task.active_turn_id != turn_id:
+            return False
+        if origin_only and turn.origin is None:
+            return False
+        now = utc_now()
+        cancelled = TaskTurn.model_validate(
+            turn.model_copy(
+                update={
+                    "status": TaskTurnStatus.CANCELLED,
+                    "worker_id": None,
+                    "finished_at": now,
+                    "updated_at": now,
+                    "error": None,
+                }
+            ).model_dump()
+        )
+        self.turns.put(cancelled)
+        updated = Task.model_validate(
+            task.model_copy(
+                update={
+                    "active_turn_id": None,
+                    "active_turn_status": None,
+                    "latest_turn_status": TaskTurnStatus.CANCELLED,
+                    "latest_turn_error": None,
+                    "updated_at": now,
+                }
+            ).model_dump()
+        )
+        if not self.tasks.put_if_task_state(
+            updated,
+            expected_status=TaskStatus.OPEN.value,
+            expected_active_turn_id=turn_id,
+        ):
+            raise _TurnAlreadyFinished
+        return True
 
     def complete_task(self, task_id: str) -> Task:
         """Mark an idle task completed; its history remains available."""

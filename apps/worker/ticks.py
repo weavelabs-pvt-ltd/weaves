@@ -31,6 +31,7 @@ SLACK_LIFECYCLE_SECONDS = 600
 SLACK_HEALTH_SECONDS = 600
 SLACK_DISPATCH_SECONDS = 1
 SLACK_REPLY_SECONDS = 1
+SLACK_INTERACTIONS_SECONDS = 1
 SLACK_RETENTION_SECONDS = 900
 
 
@@ -213,6 +214,15 @@ def _slack_reply(services: WorkerServices) -> None:
     _run_slack("reply", services.reply_slack)
 
 
+def _slack_interactions(services: WorkerServices) -> None:
+    """Carry out Stop and Try again presses; never held by the worker pause.
+
+    Stopping is safe and must keep working while an operator has paused claiming
+    (design 3.12); Try again is refused by its own gates in that case.
+    """
+    _run_slack("interactions", services.interact_slack)
+
+
 def _slack_retention(services: WorkerServices) -> None:
     _run_slack("retention", services.purge_slack)
 
@@ -300,6 +310,10 @@ def build_tick_registry(
     # of hidden conversations (inbox rows expire in the S7 lifecycle tick).
     registry.register(Tick("slack_dispatch", SLACK_DISPATCH_SECONDS, _slack_dispatch))
     registry.register(Tick("slack_reply", SLACK_REPLY_SECONDS, _slack_reply))
+    # S4b: Stop and Try again presses stored by the signed interactions endpoint.
+    registry.register(
+        Tick("slack_interactions", SLACK_INTERACTIONS_SECONDS, _slack_interactions)
+    )
     registry.register(
         Tick("slack_qa_retention", SLACK_RETENTION_SECONDS, _slack_retention)
     )

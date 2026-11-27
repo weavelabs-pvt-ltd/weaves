@@ -23,13 +23,11 @@ HELP = (
 GREETING = "Hi! Tag me with a question in a thread and I'll look it up."
 THANKS = "You're welcome."
 
-# Text commands that arrive in later slices: recognized, never executed.
+# Execute commands that arrive in later slices: recognized, never executed.
 COMING_SOON = {
     "task": "Creating tasks from Slack is coming soon.",
     "review": "Pull request reviews from Slack are coming soon.",
     "run": "Running workflows from Slack is coming soon.",
-    "stop": "Stopping a request from Slack is coming soon.",
-    "retry": "Retrying a request from Slack is coming soon.",
 }
 
 # Scene F: missing detail (a re-mention is needed to answer it).
@@ -67,6 +65,20 @@ WRITING = ":pencil2: Writing the answer…"
 RECEIPT = ":white_check_mark: Done in {elapsed}"
 PRIVATE_RECEIPT = ":lock: I've replied to you privately."
 UNDELIVERED = ":warning: I couldn't post the answer here (ref {ref})."
+
+
+# Stop and Try again (design 3.12): buttons and the ``@Weaves stop|retry`` fallback.
+STOPPED = ":octagonal_sign: Stopped."
+RETRYING = ":arrows_counterclockwise: Retrying…"
+ALREADY_STOPPED = "Already stopped."
+ALREADY_RETRYING = "Already retrying."
+NO_LONGER_AVAILABLE = "That's no longer available."
+ONLY_REQUESTER_STOP = "Only the person who asked, or an admin, can stop this."
+ONLY_REQUESTER_RETRY = "Only the person who asked, or an admin, can retry this."
+RETRY_LIMIT = (
+    "I've already retried this 3 times. Mention me with your question to ask again."
+)
+NOTHING_TO_RETRY = "There's nothing to retry in this thread."
 
 
 def failure(ref: str) -> str:

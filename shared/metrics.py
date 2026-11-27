@@ -377,6 +377,14 @@ SLACK_RETENTION = REGISTRY.add(
         ("kind",),
     )
 )
+SLACK_INTERACTIONS = REGISTRY.add(
+    Counter(
+        "slack_interactions_total",
+        "Slack Stop and Try again presses by action, outcome and reason code "
+        "(no org label, no text).",
+        ("action", "outcome", "reason"),
+    )
+)
 DB_POOL_IN_USE = REGISTRY.add(
     Gauge("db_pool_in_use", "Database connections currently checked out.")
 )

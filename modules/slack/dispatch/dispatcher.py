@@ -7,7 +7,8 @@ context, classifies the text by the fixed grammar and then either
 * queues a hidden Q&A turn for an Ask (nothing else happens here: the worker's
   guard runs the pipeline at pickup and the reply tick posts what comes out), or
 * answers a cheap exit (help, greeting, status, a text command that is not live
-  yet, a refusal) with no task, no model call and no Ask quota.
+  yet, a refusal) with no task, no model call and no Ask quota, or
+* carries out ``stop`` or ``retry`` for the thread through ``RunControls``.
 
 Claiming is a compare-and-set on the inbox row's state, so two dispatchers (or a
 replay after a crash) never act on one event twice: refusals and cheap replies
@@ -31,6 +32,8 @@ from modules.slack.dispatch.ask_flow import AskFlow, AskKind, AskResult, request
 from modules.slack.dispatch.cheap import CheapExits
 from modules.slack.dispatch.gates import DispatchGates
 from modules.slack.events import tenant_of
+from modules.slack.interactions.controls import RunControls
+from modules.slack.interactions.press import PressContext
 from modules.slack.reply.loss import InstallationLoss
 from modules.slack.reply.throttle import NoticeThrottle
 from shared.clock import utc_now
@@ -56,6 +59,7 @@ class SlackDispatcher:
         gates: DispatchGates,
         ask: AskFlow,
         cheap: CheapExits,
+        controls: RunControls,
         loss: InstallationLoss,
         enabled: Callable[[], bool],
         clock: Callable[[], datetime] = utc_now,
@@ -66,6 +70,7 @@ class SlackDispatcher:
         self._gates = gates
         self._ask = ask
         self._cheap = cheap
+        self._controls = controls
         self._loss = loss
         self._enabled = enabled
         self._clock = clock
@@ -125,6 +130,8 @@ class SlackDispatcher:
             intent = classify(event.text, installation.bot_user_id)
             if intent.kind is IntentKind.ASK:
                 return self._ask_event(installation, event, intent, now)
+            if intent.kind in (IntentKind.STOP, IntentKind.RETRY):
+                return self._control_event(installation, event, intent, now)
             return self._cheap_event(installation, event, intent, now)
 
     def _drop(self, event: InboxEvent, reason: str, intent: str) -> int:
@@ -184,6 +191,35 @@ class SlackDispatcher:
             return  # one neutral line per channel per hour
         outcome = Outcome.RATE_LIMITED.value if result.kind is AskKind.LIMITED else ""
         self._post(installation, event, copy.refusal(text, outcome), private=True)
+
+    # -- stop and retry by text -----------------------------------------------------
+
+    def _control_event(
+        self,
+        installation: SlackInstallation,
+        event: InboxEvent,
+        intent: Intent,
+        now: datetime,
+    ) -> int:
+        """``@Weaves stop|retry``: the same rules as the buttons, answered privately.
+
+        Stop skips the state gate on purpose (it must work while the bot is paused
+        or the platform is in maintenance); Try again runs every gate itself.
+        """
+        if not self._done(event, intent, "control"):
+            return 0
+        ctx = PressContext(
+            channel_id=event.channel_id or "",
+            thread_ts=event.thread_ts or event.message_ts,
+            user_id=event.user_id or "",
+            source="text",
+            request_id=request_id_of(event),
+            now=now,
+        )
+        reply = self._controls.press(installation, intent.kind.value, ctx)
+        if reply:
+            self._post(installation, event, reply, private=True)
+        return 1
 
     # -- cheap exits --------------------------------------------------------------
 

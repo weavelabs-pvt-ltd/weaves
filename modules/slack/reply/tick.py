@@ -57,6 +57,23 @@ def backoff_seconds(attempts: int) -> float:
     return float(min(MAX_BACKOFF, 5 * 2 ** max(0, attempts - 1)))
 
 
+STOP_STATES = ("cancel_requested", "stopped")
+
+
+def _stopped(row: SlackThread, turn: TaskTurn) -> bool:
+    """Stop was pressed: the row says so, or the turn was cancelled by a person.
+
+    A turn the worker's guard cancelled carries its ``cancel_reason`` (the access
+    policy no longer passes) and is answered with the refusal instead.
+    """
+    if row.run_state in STOP_STATES:
+        return True
+    if turn.status is not TaskTurnStatus.CANCELLED:
+        return False
+    verdict = turn.origin.verdict if turn.origin else None
+    return verdict is None or verdict.cancel_reason is None
+
+
 class SlackReplyTick:
     """The worker tick that posts and edits Slack messages for pending requests."""
 
@@ -181,6 +198,8 @@ class SlackReplyTick:
         self, row: SlackThread, turn: TaskTurn, now: datetime
     ) -> tuple[str, str] | None:
         """What the row needs now: ``(kind, detail)`` or ``None`` for nothing."""
+        if _stopped(row, turn):
+            return ("stopped", "")
         if row.answer_ts is not None:
             return ("receipt", "")
         if turn.status in (TaskTurnStatus.QUEUED, TaskTurnStatus.RUNNING):
@@ -243,6 +262,8 @@ class SlackReplyTick:
             elif kind == "receipt":
                 self._delivery.finish_status(row, target)
                 SLACK_REPLY.inc(kind="receipt", outcome="closed")
+            elif kind == "stopped":
+                self._delivery.stopped(row, target)
             else:
                 self._deliver(row, turn, kind, target)
         except PostError as error:
@@ -259,6 +280,10 @@ class SlackReplyTick:
     def _deliver(
         self, row: SlackThread, turn: TaskTurn, kind: str, target: Target
     ) -> None:
+        latest = self._latest(row)
+        if latest.run_state in STOP_STATES:  # Stop landed while this step ran
+            self._delivery.stopped(latest, target)
+            return
         reply = (
             self._timeout_reply(turn)
             if kind == "timeout"
