@@ -272,6 +272,8 @@ def slack_controls(compose):
 def run(args, harness):
     """Build, seed, execute, report, and always remove this run's containers."""
     partial = args.api_only or bool(args.only_control)
+    if args.live_slack_review_only and os.environ.get("CI"):
+        raise RuntimeError("--live-slack-review-only is a local aid, never CI")
     if partial and (os.environ.get("CI") or args.live_anthropic_env):
         raise RuntimeError("--api-only/--only-control are local aids, never CI or live")
     backend, frontend = args.backend.resolve(), args.frontend.resolve()
@@ -306,6 +308,8 @@ def run(args, harness):
         compose.run("up", "-d", "postgres", "provider", "api", "frontend")
         compose.run("run", "--rm", "--no-deps", "seed")
         compose.run("up", "-d", "worker")
+        if live and args.live_slack_review_only:
+            return live_review_only(args, compose, private)
         seed_module(compose, "observe")
         seed_module(compose, "lifecycle_checks")
         seed_module(compose, "waitlist_checks")
@@ -351,6 +355,16 @@ def run(args, harness):
         compose.run("down", "--volumes", "--remove-orphans")
 
 
+def live_review_only(args, compose, private):
+    """Local opt-in: just the one-call live review, without the required controls."""
+    directory = Path.home() / ".config/weaves-testing"
+    try:
+        evidence = review_flow(compose, private, directory)
+        print(json.dumps({"live_ai": evidence}, indent=2))
+    finally:
+        print(json.dumps({"testing_budget": Ledger(directory).snapshot()}, indent=2))
+
+
 def print_dispatch_failures(path):
     """Print only the error kinds of failed Slack dispatches (never message text)."""
     for line in path.read_text(errors="replace").splitlines():
@@ -379,6 +393,12 @@ def main():
     )
     parser.add_argument("--repeat-each", type=int, default=1)
     parser.add_argument("--live-anthropic-env", type=Path)
+    parser.add_argument(
+        "--live-slack-review-only",
+        action="store_true",
+        help="With --live-anthropic-env and --live-slack-review: skip the required "
+        "controls and run only the one-call live PR review (local, never CI).",
+    )
     parser.add_argument(
         "--live-slack-review",
         action="store_true",
