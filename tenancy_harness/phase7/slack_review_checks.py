@@ -236,6 +236,23 @@ def review(a, number, repo="acme/api"):
     return event_id, ts, (rowset[0] if rowset and done else None)
 
 
+def github_read_only():
+    """GitHub saw only the two reads of #123 and tokens limited to one repository."""
+    calls = github("/_control/calls")
+    gets = [
+        c["path"]
+        for c in calls["calls"]
+        if c["method"] == "GET" and "/pulls/" in c["path"]
+    ]
+    tokens = [c for c in calls["calls"] if c["method"] == "POST"]
+    return (
+        gets == ["/repos/acme/api/pulls/123", "/repos/acme/api/pulls/123/files"]
+        and calls["unexpected"] == []
+        and len(tokens) >= 1
+        and all(c.get("repositories") == ["api"] for c in tokens)
+    )
+
+
 def normal_results(a):
     """The injection-bearing pull request #123 and a model that has been fooled."""
     org = a["org_id"]
@@ -244,13 +261,7 @@ def normal_results(a):
     texts = [p["text"] for p in posts(ts)]
     answer = next((t for t in texts if t.startswith("*Review of ")), "")
     receipt = [t for t in texts if t.startswith(":white_check_mark:")]
-    calls = github("/_control/calls")
-    gets = [
-        c["path"]
-        for c in calls["calls"]
-        if c["method"] == "GET" and "/pulls/" in c["path"]
-    ]
-    token_calls = [c for c in calls["calls"] if c["method"] == "POST"]
+    read_only = github_read_only()
     (task,) = [
         t[0]
         for t in tasks(org)
@@ -303,11 +314,7 @@ def normal_results(a):
             task["task_id"],
         )[0][0]
         == "Review pull request " + URL.format(123),
-        "github_is_only_read_inside_the_pull_request": gets
-        == ["/repos/acme/api/pulls/123", "/repos/acme/api/pulls/123/files"]
-        and calls["unexpected"] == []
-        and len(token_calls) >= 1
-        and all(c.get("repositories") == ["api"] for c in token_calls),
+        "github_is_only_read_inside_the_pull_request": read_only,
         "a_replayed_event_posts_nothing_more": again["delivered"]
         and len(review_posts(ts)) == 1
         and len(tasks(org)) == counted,
