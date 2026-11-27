@@ -118,6 +118,9 @@ class PipelineRequest:
     planner_target: PlannerTarget | None = None
     workspace_id: str = ""
     workflow_capability_ids: tuple[str, ...] = ()
+    # ``create_task``: the capabilities the task's pinned agent version lists. The
+    # task may use those of them that are read tools and green, never more.
+    agent_capability_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

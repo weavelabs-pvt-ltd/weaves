@@ -25,6 +25,7 @@ from application.ports.slack import SlackStore
 from application.ports.turn_guard import CANCEL_REASON_REVOKED, GuardDecision
 from application.task_run_keys import planner_usage_key
 from contracts.v1 import (
+    AgentVersion,
     AuditEvent,
     AuditTargetScope,
     OrganizationLifecycleState,
@@ -80,6 +81,7 @@ class SlackTurnGuard:
         audit_events: Repository[AuditEvent],
         planner_targets: PlannerTargets,
         execute_targets: ExecuteTargets,
+        agent_versions: Repository[AgentVersion],
         slack_enabled: Callable[[], bool],
         admissions_paused: Callable[[], bool],
         read_only: Callable[[], bool],
@@ -94,6 +96,7 @@ class SlackTurnGuard:
         self._audit = audit_events
         self._planner_targets = planner_targets
         self._execute_targets = execute_targets
+        self._agent_versions = agent_versions
         self._enabled = slack_enabled
         self._paused = admissions_paused
         self._read_only = read_only
@@ -200,7 +203,20 @@ class SlackTurnGuard:
                 self._access.planner_profile_id(), task
             ),
             workspace_id=task.workspace_id,
+            agent_capability_ids=self._agent_capabilities(task, action),
         )
+
+    def _agent_capabilities(self, task: Task, action: Action) -> tuple[str, ...]:
+        """The pinned agent version's capability ids (``create_task`` only)."""
+        if action is not Action.CREATE_TASK:
+            return ()
+        try:
+            version = self._agent_versions.get_scoped(
+                task.agent_version_id, task.org_id, task.workspace_id
+            )
+        except KeyError:
+            return ()
+        return tuple(version.allowed_capability_ids)
 
     def _installation_state(self, origin: TurnOrigin, org_id: str) -> InstallationState:
         held = self._store.find_by_team(origin.team_id)

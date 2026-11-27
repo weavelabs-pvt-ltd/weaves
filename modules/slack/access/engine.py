@@ -22,6 +22,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from modules.slack.access import messages
+from modules.slack.access.execute_limits import check_execute_limits
 from modules.slack.access.models import (
     ACCESS_REASONS,
     AccessRequest,
@@ -227,6 +228,26 @@ def _preflight_gate(request: AccessRequest, checks: list[str]) -> Decision | Non
     return None
 
 
+def _execute_limits_gate(request: AccessRequest, checks: list[str]) -> Decision | None:
+    """Execute limits (per user and per channel); only when the caller counts them."""
+    if not request.action.is_execute or request.execute_usage is None:
+        return None
+    checks.append("execute_limits")
+    verdict = check_execute_limits(
+        request.settings.execute_limits, request.execute_usage(), request.now
+    )
+    if verdict.reason is None:
+        return None
+    return _decision(
+        request,
+        Outcome.RATE_LIMITED,
+        verdict.reason,
+        checks,
+        message=messages.rate_limited(verdict.retry_after_seconds),
+        retry=verdict.retry_after_seconds,
+    )
+
+
 def _tool_result(request: AccessRequest, tool_index: int) -> ToolResult:
     tool = request.tools[tool_index]
     reason: Reason | None = None
@@ -280,11 +301,12 @@ def _with_results(decision: Decision, results: tuple[ToolResult, ...]) -> Decisi
 
 def _tools_gate(request: AccessRequest, checks: list[str]) -> Decision:
     checks.append("tools")
-    mode = (
-        Mode.PARTIAL
-        if request.settings.partial_answers and request.action is Action.ASK
-        else Mode.STRICT
+    # A task runs with the agent's own connectors and does not need every one of
+    # them: red ones are skipped and named, never a reason to refuse the task.
+    partial = request.action is Action.CREATE_TASK or (
+        request.settings.partial_answers and request.action is Action.ASK
     )
+    mode = Mode.PARTIAL if partial else Mode.STRICT
     results = tuple(_tool_result(request, i) for i in range(len(request.tools)))
     green = tuple(r.tool_id for r in results if r.green)
     red = [r for r in results if not r.green]
@@ -358,5 +380,6 @@ def evaluate(request: AccessRequest) -> Decision:
         or _limits_gate(request, checks)
         or _tier_gate(request, checks)
         or _preflight_gate(request, checks)
+        or _execute_limits_gate(request, checks)
         or _tools_gate(request, checks)
     )

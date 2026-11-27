@@ -148,6 +148,7 @@ class PostgresQueryRepositoryMixin[TContract]:
         cursor_created_at: datetime | None,
         cursor_task_id: str | None,
         limit: int,
+        origin_kind: str | None = None,
     ) -> tuple[TContract, ...]:
         """Return a bounded newest-first task page using indexed predicates."""
         if self._collection != "tasks":
@@ -165,6 +166,9 @@ class PostgresQueryRepositoryMixin[TContract]:
             if value is not None:
                 query += f" AND payload->>'{field}' = %s"
                 params += (value,)
+        if origin_kind is not None:
+            query += " AND payload->'origin'->>'kind' = %s"
+            params += (origin_kind,)
         query += " AND (COALESCE(payload->>'audience', 'workspace') <> 'private'"
         query += " OR payload->>'audience_owner_principal_id' = %s)"
         params += (visible_to_principal_id,)

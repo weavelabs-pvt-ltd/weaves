@@ -10,6 +10,7 @@ from enum import StrEnum
 from contracts.v1.slack_access import (
     AskLimits,
     ConnectorAudience,
+    ExecuteLimits,
     ExecuteRules,
     SlackAccessSettings,
 )
@@ -152,6 +153,8 @@ class PolicySettings:
     partial_answers: bool = False
     ask_limits: AskLimits = field(default_factory=AskLimits)
     rules: ExecuteRules = field(default_factory=ExecuteRules)
+    execute_limits: ExecuteLimits = field(default_factory=ExecuteLimits)
+    default_task_agent_id: str | None = None
     workflow_ids: frozenset[str] = frozenset()
     pr_review_repos: frozenset[str] = frozenset()
     paused: bool = False
@@ -168,6 +171,8 @@ class PolicySettings:
             partial_answers=record.partial_answers,
             ask_limits=record.ask_limits,
             rules=record.rules,
+            execute_limits=record.execute_limits,
+            default_task_agent_id=record.default_task_agent_id,
             workflow_ids=frozenset(record.workflow_ids),
             pr_review_repos=frozenset(record.pr_review_repos),
             paused=record.paused,
@@ -223,6 +228,14 @@ class AskUsage:
 
 
 @dataclass(frozen=True)
+class ExecuteUsage:
+    """Timestamps of this org's counted Execute decisions (newest window only)."""
+
+    user: tuple[datetime, ...] = ()
+    channel: tuple[datetime, ...] = ()
+
+
+@dataclass(frozen=True)
 class AccessRequest:
     """Everything the engine needs; it performs no I/O and reads no clock."""
 
@@ -243,6 +256,9 @@ class AccessRequest:
     tools: tuple[NeededTool, ...] = ()
     question_chars: int = 0
     ask_usage: Callable[[], AskUsage] | None = None
+    # Execute limits are checked only when the caller supplies the usage (the
+    # dispatcher does; the pickup guard does not, so a request never counts itself).
+    execute_usage: Callable[[], ExecuteUsage] | None = None
 
 
 @dataclass(frozen=True)

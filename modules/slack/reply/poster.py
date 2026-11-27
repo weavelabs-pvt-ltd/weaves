@@ -13,6 +13,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
+from urllib.parse import urlsplit
 
 from application.ports.secrets import SecretStore
 from application.ports.slack import SlackInstallation
@@ -66,6 +68,42 @@ class FinalText:
 
     text: str
     redactions: int = 0
+
+
+@dataclass(frozen=True)
+class LinkButton:
+    """A URL button (``View in Weaves``): fixed label, our own app URL."""
+
+    label: str
+    url: str
+
+
+def message_blocks(text: str, button: LinkButton | None) -> list[dict[str, Any]]:
+    """Blocks for a message that may carry a link button.
+
+    Editing a message with ``text`` alone keeps its old blocks, so a message that
+    ever had a button is always sent (and edited) with explicit blocks.
+    """
+    blocks: list[dict[str, Any]] = [
+        {"type": "section", "text": {"type": "mrkdwn", "text": text}}
+    ]
+    if button is not None:
+        parts = urlsplit(button.url)
+        if parts.scheme not in ("http", "https") or parts.username or not parts.netloc:
+            raise PostError("permanent", "bad_button_url")
+        blocks.append(
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": button.label[:75]},
+                        "url": button.url[:2000],
+                    }
+                ],
+            }
+        )
+    return blocks
 
 
 def finalize(text: str, scrubber: Callable[[str], Scrubbed] = scrub) -> FinalText:
@@ -141,27 +179,43 @@ class SlackPoster:
         text: str,
         *,
         thread_ts: str,
+        rich: bool = False,
+        button: LinkButton | None = None,
     ) -> str:
-        """Post a new message in the thread; returns its ``ts``."""
+        """Post a new message in the thread; returns its ``ts``.
+
+        ``rich`` sends the text as a block (with the optional link button).
+        """
         final = finalize(text, self._scrubber)
+        blocks = message_blocks(final.text, button) if rich else None
         token = self._token(installation)
         ref = self._call(
             "chat.postMessage",
             lambda: self._api.post_message(
-                token, channel, text=final.text, thread_ts=thread_ts
+                token, channel, text=final.text, thread_ts=thread_ts, blocks=blocks
             ),
         )
         return ref.ts
 
     def edit(
-        self, installation: SlackInstallation, channel: str, ts: str, text: str
+        self,
+        installation: SlackInstallation,
+        channel: str,
+        ts: str,
+        text: str,
+        *,
+        rich: bool = False,
+        button: LinkButton | None = None,
     ) -> None:
-        """Edit one of our messages in place."""
+        """Edit one of our messages in place (``rich`` replaces its blocks too)."""
         final = finalize(text, self._scrubber)
+        blocks = message_blocks(final.text, button) if rich else None
         token = self._token(installation)
         self._call(
             "chat.update",
-            lambda: self._api.update_message(token, channel, ts, text=final.text),
+            lambda: self._api.update_message(
+                token, channel, ts, text=final.text, blocks=blocks
+            ),
         )
 
     def delete(self, installation: SlackInstallation, channel: str, ts: str) -> None:

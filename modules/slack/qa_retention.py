@@ -113,7 +113,11 @@ class SlackRetention:
         return removed
 
     def _purge_org(self, org_id: str, team_id: str, cutoff: datetime) -> int:
-        expired = self._threads.list_before("updated_at", cutoff, limit=BATCH_PER_ORG)
+        # Only hidden Q&A conversations expire; a created task is a normal task
+        # (and its thread row is what keeps "Already tracked" working).
+        expired = self._threads.list_before(
+            "updated_at", cutoff, limit=BATCH_PER_ORG, equals={"kind": "ask"}
+        )
         count = 0
         for row in expired:
             if row.org_id != org_id or row.team_id != team_id:

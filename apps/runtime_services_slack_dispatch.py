@@ -14,12 +14,15 @@ from apps.platform_runtime import LocalPlatformRuntime
 from clients.slack.client import SlackApiClient
 from contracts.v1 import OrganizationLifecycleState
 from modules.models.defaults import default_active_model_profile
+from modules.slack.access.decision_audit import DecisionRecorder
+from modules.slack.access.execute_limits import AuditExecuteUsageReader
 from modules.slack.access.ratelimit import AuditAskUsageReader
 from modules.slack.dispatch.ask_flow import AskFlow
 from modules.slack.dispatch.cheap import CheapExits
 from modules.slack.dispatch.dispatcher import SlackDispatcher
 from modules.slack.dispatch.gates import DispatchGates
 from modules.slack.dispatch.qa_agent import QaProvisioner
+from modules.slack.dispatch.task_flow import TaskFlow
 from modules.slack.dispatch.threads import ThreadBook
 from modules.slack.pipeline.discovery import ToolDiscovery
 from modules.slack.pipeline.health import HealthSnapshots
@@ -30,7 +33,10 @@ from modules.slack.reply.loss import InstallationLoss
 from modules.slack.reply.poster import SlackPoster
 from modules.slack.reply.steps import RunSteps
 from modules.slack.reply.tick import SlackReplyTick
+from modules.slack.tasks.links import TaskLinks
+from modules.slack.tasks.reply import TaskReply
 from shared.slack_config import (
+    app_url_from_environment,
     native_status_from_environment,
     reply_deadline_seconds_from_environment,
     slack_api_base_url_from_environment,
@@ -43,6 +49,7 @@ def _gates(runtime: LocalPlatformRuntime) -> DispatchGates:
     return DispatchGates(
         access=runtime.slack_access_service,
         usage_reader=AuditAskUsageReader(runtime.audit_events),
+        execute_usage_reader=AuditExecuteUsageReader(runtime.audit_events),
         execute_targets=ExecuteTargets(
             installations=runtime.installations, workflows=runtime.workflows
         ),
@@ -85,6 +92,8 @@ def _reply_tick(
     book: ThreadBook,
     delivery: Delivery,
     loss: InstallationLoss,
+    links: TaskLinks,
+    poster: SlackPoster,
 ) -> SlackReplyTick:
     lifecycle = runtime.organization_lifecycle_service
     return SlackReplyTick(
@@ -100,6 +109,14 @@ def _reply_tick(
             installations=runtime.installations,
         ),
         delivery=delivery,
+        task_reply=TaskReply(
+            poster=poster,
+            book=book,
+            tasks=runtime.tasks,
+            agents=runtime.agents,
+            task_messages=runtime.task_messages,
+            links=links,
+        ),
         loss=loss,
         enabled=slack_enabled_from_environment,
         org_active=lambda org_id: (
@@ -130,6 +147,26 @@ def _retention(runtime: LocalPlatformRuntime) -> SlackRetention:
     )
 
 
+def _task_flow(
+    runtime: LocalPlatformRuntime,
+    gates: DispatchGates,
+    book: ThreadBook,
+    links: TaskLinks,
+) -> TaskFlow:
+    return TaskFlow(
+        gates=gates,
+        tasks=runtime.task_service,
+        task_records=runtime.tasks,
+        agents=runtime.agents,
+        book=book,
+        recorder=DecisionRecorder(runtime.audit_events),
+        allowlists=runtime.slack_access_service.allowlists,
+        links=links,
+        unit_of_work=runtime._unit_of_work,
+        lock=runtime._advisory_transaction_lock,
+    )
+
+
 def attach_slack_dispatch(
     runtime: LocalPlatformRuntime, api: SlackApiClient | None = None
 ) -> None:
@@ -149,6 +186,12 @@ def attach_slack_dispatch(
         secrets=runtime.secret_store,
         audit_events=runtime.audit_events,
     )
+    links = TaskLinks(
+        access=runtime.slack_access_service,
+        api=api,
+        secrets=runtime.secret_store,
+        app_url=app_url_from_environment,
+    )
     runtime.slack_dispatcher = SlackDispatcher(
         store=runtime.slack_store,
         gates=gates,
@@ -158,9 +201,12 @@ def attach_slack_dispatch(
             tasks=runtime.task_service,
             book=book,
         ),
+        task=_task_flow(runtime, gates, book, links),
         cheap=CheapExits(poster=poster, book=book, gates=gates),
         loss=loss,
         enabled=slack_enabled_from_environment,
     )
-    runtime.slack_reply_tick = _reply_tick(runtime, book, Delivery(poster, book), loss)
+    runtime.slack_reply_tick = _reply_tick(
+        runtime, book, Delivery(poster, book), loss, links, poster
+    )
     runtime.slack_retention = _retention(runtime)

@@ -26,12 +26,11 @@ from modules.slack.access.models import Action, Outcome, Reason
 from modules.slack.classify import Intent, IntentKind
 from modules.slack.dispatch.gates import DispatchGates
 from modules.slack.dispatch.threads import ThreadBook
-from modules.slack.reply.poster import PostError, SlackPoster
+from modules.slack.reply.poster import LinkButton, PostError, SlackPoster
 from modules.slack.reply.status_text import running_label
 
 logger = logging.getLogger("product.slack")
 _EXECUTE_ACTIONS = {
-    IntentKind.TASK: ("task", Action.CREATE_TASK, "create_task"),
     IntentKind.REVIEW: ("review", Action.PR_REVIEW, "pr_review"),
     IntentKind.RUN: ("run", Action.RUN_WORKFLOW, "run_workflow"),
 }
@@ -146,6 +145,7 @@ class CheapExits:
         text: str,
         *,
         private: bool,
+        button: LinkButton | None = None,
     ) -> str:
         """Post the reply once (one quick retry); returns an outcome label."""
         channel = event.channel_id or ""
@@ -161,7 +161,14 @@ class CheapExits:
                         thread_ts=thread_ts,
                     )
                 else:
-                    self._poster.post(installation, channel, text, thread_ts=thread_ts)
+                    self._poster.post(
+                        installation,
+                        channel,
+                        text,
+                        thread_ts=thread_ts,
+                        rich=button is not None,
+                        button=button,
+                    )
                 return "posted"
             except PostError as error:
                 if error.kind == "token":

@@ -103,3 +103,13 @@ class SlackConfig:
             enabled=_enabled(source.get("WEAVES_SLACK_ENABLED")),
             api_base_url=_api_base_url(source.get("WEAVES_SLACK_API_BASE_URL")),
         )
+
+
+def app_url_from_environment(env: Mapping[str, str] | None = None) -> str | None:
+    """``WEAVES_PUBLIC_FRONTEND_URL`` (the Weaves app address) or ``None`` if unset.
+
+    Used to build the "View task" links; without it the messages carry no link.
+    """
+    source = os.environ if env is None else env
+    raw = (source.get("WEAVES_PUBLIC_FRONTEND_URL") or "").strip().rstrip("/")
+    return raw if raw.startswith(("http://", "https://")) else None

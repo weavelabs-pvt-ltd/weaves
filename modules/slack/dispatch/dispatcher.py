@@ -30,8 +30,10 @@ from modules.slack.classify import Intent, IntentKind, classify
 from modules.slack.dispatch.ask_flow import AskFlow, AskKind, AskResult, request_id_of
 from modules.slack.dispatch.cheap import CheapExits
 from modules.slack.dispatch.gates import DispatchGates
+from modules.slack.dispatch.task_flow import TaskFlow, TaskKind, TaskResult
 from modules.slack.events import tenant_of
 from modules.slack.reply.loss import InstallationLoss
+from modules.slack.reply.poster import LinkButton
 from modules.slack.reply.throttle import NoticeThrottle
 from shared.clock import utc_now
 from shared.correlation import extend_context
@@ -55,6 +57,7 @@ class SlackDispatcher:
         store: SlackStore,
         gates: DispatchGates,
         ask: AskFlow,
+        task: TaskFlow,
         cheap: CheapExits,
         loss: InstallationLoss,
         enabled: Callable[[], bool],
@@ -65,6 +68,7 @@ class SlackDispatcher:
         self._store = store
         self._gates = gates
         self._ask = ask
+        self._task = task
         self._cheap = cheap
         self._loss = loss
         self._enabled = enabled
@@ -125,6 +129,8 @@ class SlackDispatcher:
             intent = classify(event.text, installation.bot_user_id)
             if intent.kind is IntentKind.ASK:
                 return self._ask_event(installation, event, intent, now)
+            if intent.kind is IntentKind.TASK:
+                return self._task_event(installation, event, intent, now)
             return self._cheap_event(installation, event, intent, now)
 
     def _drop(self, event: InboxEvent, reason: str, intent: str) -> int:
@@ -184,6 +190,50 @@ class SlackDispatcher:
             return  # one neutral line per channel per hour
         outcome = Outcome.RATE_LIMITED.value if result.kind is AskKind.LIMITED else ""
         self._post(installation, event, copy.refusal(text, outcome), private=True)
+
+    # -- task: ----------------------------------------------------------------------
+
+    def _task_event(
+        self,
+        installation: SlackInstallation,
+        event: InboxEvent,
+        intent: Intent,
+        now: datetime,
+    ) -> int:
+        result = self._task.run(installation, event, intent.arg, now)
+        if result.created_work:
+            return 1 if self._done(event, intent, result.kind.value) else 0
+        if result.kind is TaskKind.DROPPED:
+            return self._drop(event, result.reason or "dropped", intent.kind.value)
+        if not self._done(event, intent, result.kind.value):
+            return 0
+        neutral = result.reason in ("platform_paused", "org_unavailable", "bot_paused")
+        if neutral and not self._throttle.allow(
+            installation.team_id, event.channel_id or "", self._clock()
+        ):
+            return 1  # one neutral line per channel per hour
+        self._post_task(installation, event, result)
+        return 1
+
+    def _post_task(
+        self, installation: SlackInstallation, event: InboxEvent, result: TaskResult
+    ) -> None:
+        button = (
+            LinkButton(result.button_label, result.button_url)
+            if result.button_label and result.button_url
+            else None
+        )
+        outcome = self._cheap.send(
+            installation,
+            event,
+            result.message or messages.UNAVAILABLE,
+            private=not result.public,
+            button=button,
+        )
+        if outcome == "token":
+            self._loss(installation)
+        if outcome != "posted":
+            SLACK_DISPATCH.inc(intent="reply", outcome=f"post_{outcome}"[:40])
 
     # -- cheap exits --------------------------------------------------------------
 
