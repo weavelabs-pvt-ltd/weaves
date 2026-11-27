@@ -149,7 +149,7 @@ def rating_results(org_id, answer_ts, thread):
         == "hashed"
         and str(first.get("asker_ref", "")).startswith("hmac:")
         and ASKER not in str(first),
-        "a_later_thumbs_down_replaces_it_latest_wins": len(after) == 1
+        "a_later_thumbs_down_replaces_it_newest_wins": len(after) == 1
         and after[0]["value"] == -1
         and inbox(down_id) == ("done", None),
     }
