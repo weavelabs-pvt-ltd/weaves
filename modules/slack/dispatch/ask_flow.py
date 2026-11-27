@@ -22,10 +22,11 @@ from contracts.v1 import TaskAudience, TurnOrigin
 from contracts.v1.slack_threads import SlackThread
 from modules.limits.errors import LimitExceeded
 from modules.slack.access import messages
-from modules.slack.access.models import Action, Outcome
+from modules.slack.access.models import Action, Outcome, Reason
 from modules.slack.dispatch.gates import DispatchGates
 from modules.slack.dispatch.qa_agent import NoModel, QaProvisioner, QaUnavailable
 from modules.slack.dispatch.threads import ThreadBook
+from modules.slack.model_status import ModelConnectivity
 from modules.tasks.service import TaskService
 from shared.clock import utc_now
 from shared.correlation import extend_context
@@ -83,8 +84,10 @@ class AskFlow:
         qa: QaProvisioner,
         tasks: TaskService,
         book: ThreadBook,
+        model: ModelConnectivity,
     ) -> None:
-        """Bind the gates, the Q&A provisioning, the task service and thread rows."""
+        """Bind the gates, Q&A provisioning, the task service and thread rows."""
+        self._model = model
         self._gates = gates
         self._qa = qa
         self._tasks = tasks
@@ -110,10 +113,12 @@ class AskFlow:
         )
         if not decision.allowed:
             return _refusal(decision.outcome, decision.reason, decision.message)
+        if not self._model.connected(installation.org_id):
+            return AskResult(AskKind.NO_MODEL, reason=Reason.NO_MODEL.value)
         try:
             target = self._qa.ensure(installation.org_id, installation.workspace_id)
         except NoModel:
-            return AskResult(AskKind.NO_MODEL)
+            return AskResult(AskKind.NO_MODEL, reason=Reason.NO_MODEL.value)
         except QaUnavailable:
             return AskResult(
                 AskKind.UNAVAILABLE, messages.UNAVAILABLE, "qa_unavailable"

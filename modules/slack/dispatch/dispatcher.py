@@ -37,7 +37,7 @@ from modules.slack.interactions.controls import RunControls
 from modules.slack.interactions.press import PressContext
 from modules.slack.reply.loss import InstallationLoss
 from modules.slack.reply.poster import LinkButton
-from modules.slack.reply.throttle import NoticeThrottle
+from modules.slack.reply.throttle import NO_MODEL_WINDOW, NoticeThrottle
 from shared.clock import utc_now
 from shared.correlation import extend_context
 from shared.metrics import SLACK_DISPATCH, SLACK_INBOX_AGE
@@ -67,8 +67,13 @@ class SlackDispatcher:
         enabled: Callable[[], bool],
         clock: Callable[[], datetime] = utc_now,
         budget_seconds: float = TICK_BUDGET_SECONDS,
+        no_model_throttle: NoticeThrottle | None = None,
     ) -> None:
-        """Bind the store, the gates, the two flows and the state readers."""
+        """Bind the store, the gates, the two flows and the state readers.
+
+        ``no_model_throttle`` is shared with the reply tick (one "no AI model is
+        connected" line per thread per ten minutes, whichever stage noticed).
+        """
         self._store = store
         self._gates = gates
         self._ask = ask
@@ -80,6 +85,7 @@ class SlackDispatcher:
         self._clock = clock
         self._budget = budget_seconds
         self._throttle = NoticeThrottle()
+        self._no_model_throttle = no_model_throttle or NoticeThrottle(NO_MODEL_WINDOW)
         self._failures: dict[str, int] = {}
 
     def run(self) -> int:
@@ -186,10 +192,12 @@ class SlackDispatcher:
     def _refuse(
         self, installation: SlackInstallation, event: InboxEvent, result: AskResult
     ) -> None:
-        text = {
-            AskKind.NO_MODEL: copy.NO_MODEL,
-            AskKind.BUSY: copy.BUSY,
-        }.get(result.kind, result.message or messages.UNAVAILABLE)
+        if result.kind is AskKind.NO_MODEL:
+            self._say_no_model(installation, event)
+            return
+        text = {AskKind.BUSY: copy.BUSY}.get(
+            result.kind, result.message or messages.UNAVAILABLE
+        )
         neutral = result.reason in ("platform_paused", "org_unavailable", "bot_paused")
         if neutral and not self._throttle.allow(
             installation.team_id, event.channel_id or "", self._clock()
@@ -226,6 +234,18 @@ class SlackDispatcher:
         if reply:
             self._post(installation, event, reply, private=True)
         return 1
+
+    def _say_no_model(self, installation: SlackInstallation, event: InboxEvent) -> None:
+        """Tell the thread, publicly and once per ten minutes, that no model is set up.
+
+        Never private: it reveals nothing sensitive and Slack does not reliably
+        show a private message in a thread the asker is not looking at.
+        """
+        thread_ts = event.thread_ts or event.message_ts or ""
+        if self._no_model_throttle.allow(
+            installation.team_id, event.channel_id or "", self._clock(), thread_ts
+        ):
+            self._post(installation, event, copy.NO_MODEL, private=False)
 
     # -- task: ----------------------------------------------------------------------
 
