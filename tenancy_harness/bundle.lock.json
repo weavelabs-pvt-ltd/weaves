@@ -12,7 +12,7 @@
     "catalog_ownership.py": "557b3d8f132e546a74322e166dbde535858e89809ab7ce558d94e63e673872dc",
     "client.py": "2d06bf8d7afa340722ab8f98c5c11ac9bbcf203d0676f2b1315a25ae7469a3e1",
     "compose.yml": "934c18dfe764824b1abe5ac0cd62ada0ae9190cb56832375282bccb47b0f8ee5",
-    "controls.spec.cjs": "8f3cbefcc2899d16bfc571635fc610a6e3dbdc83e2ffc5724582c9e5d9c802a7",
+    "controls.spec.cjs": "c84f0038cbe11e3132be91ed9b667c5cbfd9538fe363d66064f70ce82c09d0da",
     "diagnostics.py": "2729d7ddd3e3cb7f3ca8c09e36affd757a03ed18e2f4623babef6c3e7602dc0b",
     "fake_google.py": "2fe9d738a3b364e6b3aa3e2d2f0bdd2eb5e52d7b4422e90527a6cd651492decf",
     "fake_slack.py": "ad47ef0043834ff734a422551b482c76ff239ad1a8dfc23e694ffd395d471ed8",

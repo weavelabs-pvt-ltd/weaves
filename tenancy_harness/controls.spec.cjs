@@ -523,6 +523,9 @@ test('T7-I05 the asker thumbs on a Slack answer become one rating, the latest wi
     'the_pepper_lives_in_the_secret_store_once', 'the_rating_is_invisible_to_other_tenants_and_unscoped_roles',
     'no_question_text_or_raw_slack_id_in_the_rating',
     'no_question_text_in_the_audit_trail_and_no_feedback_audit_noise']) {
+    expect(control[key], key).toBe(true);
+  }
+});
 
 test('T7-I06 Stop and Try again: signed presses, who may press, cancellation, no late answer, gates and audit', async () => {
   const control = fixture.slack_interactions;
