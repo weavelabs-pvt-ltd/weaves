@@ -113,7 +113,7 @@ class SlackDispatcher:
         if count < MAX_FAILURES:
             return 0
         self._failures.pop(event.event_id, None)
-        return self._drop(event, ("dispatch_error:" + type(error).__name__ + ":" + str(error))[:180], "unknown")  # TEMP-DIAG
+        return self._drop(event, ("dispatch_error:" + type(error).__name__ + ":" + str(error))[:700], "unknown")  # TEMP-DIAG
 
     # -- one event ---------------------------------------------------------------
 

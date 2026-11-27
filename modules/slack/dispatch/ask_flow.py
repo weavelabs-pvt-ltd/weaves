@@ -125,7 +125,18 @@ class AskFlow:
             # One dispatcher thread per process creates at a time; across processes
             # the database's unique task key is the guard.
             with self._lock, extend_context(request_id=request_id_of(event)):
-                return self._queue(installation, event, question, target.agent_id, now)
+                try:
+                    return self._queue(installation, event, question, target.agent_id, now)
+                except PermissionError as denied:  # TEMP-DIAG
+                    org = installation.org_id
+                    mine = [
+                        (b.workspace_id, [str(p) for p in self._qa._roles.get_scoped(b.role_id, org).permissions])
+                        for b in self._qa._bindings.list_scoped(org)
+                        if b.principal_id == target.principal_id
+                    ]
+                    raise RuntimeError(
+                        f"{denied} inst_ws={installation.workspace_id} principal={target.principal_id} bindings={mine} qa_ids={self._qa._access.qa_ids()}"
+                    ) from denied
         except LimitExceeded as error:
             text = (
                 messages.rate_limited(error.retry_after_seconds)
