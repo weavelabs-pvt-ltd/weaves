@@ -33,6 +33,7 @@ from apps.slack_lifecycle_wiring import wire_slack_lifecycle
 from contracts.v1.base import ProductContract
 from infrastructure.config.settings import PoolSettings, load_pool_settings
 from infrastructure.database.pool import open_postgres_pool
+from infrastructure.database.purge_lock import PostgresPurgeLock
 from infrastructure.database.queue_metrics import publish_queue_gauges
 from infrastructure.database.store import ProductPostgresStore
 from infrastructure.http.model_egress import open_model_http_client
@@ -196,6 +197,8 @@ def _compose_with_model_client(
     runtime.platform_controls = cast(PlatformControls, runtime.admission.controls)
     capability_services = configure_capability_services(runtime)
     runtime.attach_capability_services(capability_services)
+    if store is not None:
+        runtime.organization_purge_service.lock = PostgresPurgeLock(store)
     wire_slack_lifecycle(runtime)
     attach_slack_pipeline(runtime)
     attach_slack_dispatch(runtime)

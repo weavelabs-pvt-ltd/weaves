@@ -31,8 +31,8 @@ this line together.
 | Public signup | closed: account allowlist set, `WEAVES_PUBLIC_REGISTRATION=false` | closed |
 | Memory budget | API about 75 MiB, worker about 55 MiB, PostgreSQL 60 to 110 MiB measured; far below 4 GB | not monitored (no alerts) |
 
-Not supported: more than one worker container (a purge race with several worker processes
-is known and unfixed), horizontal scaling, zero-downtime deploys, high availability. A VM
+Not supported: more than one worker container in production (the organization purge itself
+is safe with several worker processes; the rest is not load-tested that way), horizontal scaling, zero-downtime deploys, high availability. A VM
 restart or loss stops every tenant.
 
 ## 2. Declared private-beta load

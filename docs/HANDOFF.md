@@ -256,6 +256,10 @@ protocol" describes the stricter expand/contract process you should adopt before
 - Non-admin members see no organization-timezone default in the schedule editor (the server default
   still applies); needs a small read endpoint.
 - Deleted data persists in older backups.
+- The organization purge is single-executor per organization: one bounded pass runs under a
+  PostgreSQL session advisory try-lock (`infrastructure/database/purge_lock.py`), so several worker
+  processes are safe and a busy organization is skipped until the next tick. The lock dies with its
+  connection, so a crashed worker never strands a purge. Production still runs one worker.
 - An in-flight worker's last write after a purge is mitigated (lease fencing, activity checks,
   repeated empty passes) but not blocked by the database.
 - `/account/oauth` start has no rate limit (it writes one short-lived row per call).
