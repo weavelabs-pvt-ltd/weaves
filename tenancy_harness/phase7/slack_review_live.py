@@ -116,6 +116,8 @@ def main():
                     old["admin"]["headers"],
                 )
     checks.EVENTS = iter(f"Ev7Z{n:03d}" for n in range(1, 99))
+    # A message ts the earlier controls used would be a duplicate of theirs.
+    checks.TS = iter(f"1700003{n:03d}.000100" for n in range(1, 99))
     t = tenant("p7l")
     model = provider_profile(t, config)
     if install(t).get("slack_install") != "ok":
