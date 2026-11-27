@@ -1187,9 +1187,9 @@ Contract `contracts.v1.slack_threads.SlackThread`; `record_id` = `id`.
 | `team_id` | str | min_length=1, max_length=128 | required |
 | `channel_id` | str | min_length=1, max_length=128 | required |
 | `thread_ts` | str | min_length=1, max_length=32 | required |
-| `kind` | literal('ask') | - | default 'ask' |
+| `kind` | literal('ask', 'review') | - | default 'ask' |
 | `task_id` | str | min_length=1, max_length=128 | required |
-| `tier` | literal('ask') | - | default 'ask' |
+| `tier` | literal('ask', 'execute') | - | default 'ask' |
 | `requester_slack_user_id` | str | min_length=1, max_length=128 | required |
 | `requester_principal_id` | str | min_length=1, max_length=128 | required |
 | `turn_id` | str | min_length=1, max_length=128 | required |
