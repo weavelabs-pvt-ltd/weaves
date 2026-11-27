@@ -52,6 +52,9 @@ CODES = {
 }
 
 
+DETAILS = {}
+
+
 def inbox(event_id):
     """One inbox row as the owner sees it: state, reason, text, organization."""
     found = rows(
@@ -183,6 +186,7 @@ def revocation_results(a):
     )
     revoked = mine(a["org_id"], TEAM_A)
     reinstalled = install(a, code="life-a4")
+    DETAILS["revocation"] = [acked(bot), revoked, secrets_of(a["org_id"])]
     return {
         "a_clean_reinstall_follows_an_uninstall": back.get("slack_install") == "ok"
         and mine(a["org_id"], TEAM_A)[0] == "active",
@@ -221,6 +225,16 @@ def quarantine_results(a, b):
     lifecycle("release-quarantine", "--organization-id", a["org_id"], *OP)
     after = mine(a["org_id"], TEAM_A)
     reinstalled = install(a, code="life-a5")
+    DETAILS["quarantine"] = [
+        freed,
+        restored,
+        inbox("Ev7LAQ002"),
+        final,
+        ended,
+        secrets_of(a["org_id"]),
+        len(fake_calls("auth.revoke")) - revokes,
+        after,
+    ]
     return {
         "quarantine_suspends_the_installation": held[0] == 0
         and suspended == "suspended"
@@ -305,6 +319,7 @@ def main():
         )
     finally:
         reset_fake()
+    results["details"] = DETAILS
     record(FIXTURE, results, CONTROL_ID)
 
 
