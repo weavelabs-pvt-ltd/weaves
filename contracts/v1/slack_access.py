@@ -11,7 +11,14 @@ from __future__ import annotations
 import re
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+)
 
 from contracts.v1.base import MutableOrgScopedContract, OpaqueId
 
@@ -137,6 +144,26 @@ class SlackAllowedChannel(MutableOrgScopedContract):
     channel_id: SlackChannelId
     name_cached: str = Field(default="", max_length=120)
     added_by: OpaqueId
+
+
+ConnectorHealthStatus = Literal[
+    "healthy", "error", "token_expired", "rate_limited", "disabled"
+]
+
+
+class SlackConnectorHealth(MutableOrgScopedContract):
+    """The latest health snapshot of one connector installation (a cache).
+
+    The record id is the plugin installation id. The ``slack_health`` worker tick
+    refreshes it every ten minutes; it holds a status and a reason code, never
+    a token or connector data.
+    """
+
+    id: OpaqueId
+    installation_id: OpaqueId
+    status: ConnectorHealthStatus
+    reason_code: str = Field(default="", max_length=64)
+    checked_at: AwareDatetime
 
 
 def allowed_user_record_id(org_id: str, slack_user_id: str) -> str:

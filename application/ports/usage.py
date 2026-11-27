@@ -1,7 +1,8 @@
 """Usage ledger port: idempotent reserve, settle, release and rollups.
 
 One row per model call keyed by ``(org_id, reservation_key)``; the key is the
-agent run id, and each agent run makes at most one provider request. Every
+agent run id, and each agent run makes at most one provider request (the Slack Ask
+planner's call has its own row under ``{run key}:plan``). Every
 mutation is safe to repeat: a replayed reserve returns the existing row and a
 replayed settle changes nothing, so tokens are never counted twice.
 """

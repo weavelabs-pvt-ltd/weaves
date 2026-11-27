@@ -30,7 +30,7 @@ from application.runtime_constants import (
     STALE_RUN_AFTER_SECONDS,
     STALE_TASK_TURN_AFTER_SECONDS,
 )
-from application.task_run_keys import task_turn_id_from_run_key
+from application.task_run_keys import PLANNER_KEY_SUFFIX, task_turn_id_from_run_key
 from contracts.v1 import (
     AgentRun,
     ExecutionJob,
@@ -49,6 +49,9 @@ from shared.request_context import system_scope
 logger = logging.getLogger("product.usage")
 _LIVE_JOB = {ExecutionJobStatus.RUNNING, ExecutionJobStatus.CANCEL_REQUESTED}
 SCOPE = "usage"
+# A planner call's own deadline is 8 s; a reservation older than this has no live
+# call behind it (its thread settles or fails the row itself otherwise).
+PLANNER_GRACE = timedelta(seconds=120)
 
 
 class UsageReconciler:
@@ -100,7 +103,18 @@ class UsageReconciler:
                 cutoff, self.batch
             ) + self.ledger.purge_deleted_organizations(self.batch)
 
+    def _resolve_planner(self, event: UsageEvent, now: datetime) -> int:
+        """The Slack Ask planner's row has no agent run: only age decides it."""
+        if event.reserved_at > now - PLANNER_GRACE:
+            return 0
+        marked = self.ledger.mark_unknown(
+            event.org_id, event.reservation_key, outcome="planner_expired", now=now
+        )
+        return int(marked)
+
     def _resolve(self, event: UsageEvent, now: datetime) -> int:
+        if event.reservation_key.endswith(PLANNER_KEY_SUFFIX):
+            return self._resolve_planner(event, now)
         agent_run = self._find(self.agent_runs, event.agent_run_id, event)
         if agent_run is not None and agent_run.input_tokens is not None:
             settled = self.ledger.settle(self._settlement(event, agent_run, now))

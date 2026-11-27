@@ -41,6 +41,12 @@ def _api_base_url(raw: str | None) -> str:
     return value
 
 
+def slack_enabled_from_environment(env: Mapping[str, str] | None = None) -> bool:
+    """Only the kill switch, for processes that never see the signing secret."""
+    source = os.environ if env is None else env
+    return _enabled(source.get("WEAVES_SLACK_ENABLED"))
+
+
 @dataclass(frozen=True)
 class SlackConfig:
     """Signing secret, kill switch and API origin; the secret never prints."""
