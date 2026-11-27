@@ -20,6 +20,7 @@ import httpx
 
 from application.ports.slack import SlackInstallation
 from contracts.v1 import (
+    ModelProviderType,
     ModelRequest,
     ModelResponse,
     ModelUsage,
@@ -279,6 +280,30 @@ class World:
         return done
 
 
+def connect_fake_model(runtime: Any) -> None:
+    """Make the seeded mock look like a connected, real kind of provider.
+
+    The built-in ``local`` provider is the test placeholder that Slack treats as
+    "no model connected". The suites that exercise real answers re-kind it as an
+    OpenAI-compatible provider with a credential reference, and route that kind to
+    the deterministic mock adapter, so no network and no key are involved.
+    """
+    gateway = runtime.model_gateway
+    gateway._adapters[ModelProviderType.OPENAI_COMPATIBLE] = gateway._adapters[
+        ModelProviderType.LOCAL
+    ]
+    for provider in runtime.providers.list():
+        if provider.provider_type is ModelProviderType.LOCAL:
+            runtime.providers.put(
+                provider.model_copy(
+                    update={
+                        "provider_type": ModelProviderType.OPENAI_COMPATIBLE,
+                        "auth_ref": "secret:fake-model-key",
+                    }
+                )
+            )
+
+
 def build_world(
     *, with_jira: bool = True, capabilities: tuple[str, ...] = (JIRA, SLACK)
 ) -> World:
@@ -286,6 +311,7 @@ def build_world(
     runtime = LocalPlatformRuntime()
     world = World(runtime=runtime)
     runtime.bootstrap()
+    connect_fake_model(runtime)
     world.models.hook(runtime.model_gateway)
     runtime.jira_plugin._client = _client(world, world.connectors.jira)
     runtime.slack_plugin._client = _client(world, world.connectors.slack)

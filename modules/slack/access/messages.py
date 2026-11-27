@@ -25,6 +25,7 @@ NOT_MAPPED = (
     "Your Slack account isn't connected to a Weaves member. Ask a Weaves admin."
 )
 NO_PERMISSION = "Your Weaves role doesn't allow this. Ask a Weaves admin."
+NO_MODEL = "No AI model is connected. Ask a Weaves admin to connect one."
 PLANNER_FAILED = "I couldn't work out which sources to check. Try again."
 TARGET_MISSING = "I need a link to a pull request or the name of a workflow for that."
 REPO_NOT_ENABLED = "That repository isn't enabled for Slack."
@@ -54,6 +55,7 @@ _FIXED: dict[Reason, str | None] = {
     Reason.MEMBER_INACTIVE: NOT_MAPPED,
     Reason.PERMISSION_MISSING: NO_PERMISSION,
     Reason.PLANNER_FAILED: PLANNER_FAILED,
+    Reason.NO_MODEL: NO_MODEL,
     Reason.TARGET_MISSING: TARGET_MISSING,
     Reason.REPO_NOT_COVERED: REPO_NOT_ENABLED,
     Reason.REPO_NOT_ALLOWED: REPO_NOT_ENABLED,

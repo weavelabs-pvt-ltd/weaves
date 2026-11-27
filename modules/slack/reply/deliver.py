@@ -25,6 +25,8 @@ from shared.metrics import SLACK_REPLY, SLACK_REPLY_SECONDS
 
 logger = logging.getLogger("product.slack")
 NATIVE = "native"  # ``status_ts`` marker: the status lives in Slack's own UI
+# Replies that take the place of the working message instead of adding a post.
+_EDIT_IN_PLACE = ("failure", "no_model")
 PRIVATE = "private"  # ``answer_ts`` marker: the answer was an ephemeral message
 
 
@@ -96,11 +98,11 @@ class Delivery:
             return row
         if reply.ephemeral:
             return self._private(row, reply, target)
-        if reply.kind == "failure" and row.status_ts and row.status_ts != NATIVE:
+        if reply.kind in _EDIT_IN_PLACE and row.status_ts and row.status_ts != NATIVE:
             self._poster.edit(
                 target.installation, row.channel_id, row.status_ts, reply.text
             )
-            SLACK_REPLY.inc(kind="failure", outcome="edited")
+            SLACK_REPLY.inc(kind=reply.kind, outcome="edited")
             return self._delivered(row, row.status_ts, reply, target, posts=0)
         if row.posts >= 2:
             raise PostError("permanent", "post_budget")
@@ -125,7 +127,27 @@ class Delivery:
         self._withdraw_status(row, target)
         return self._delivered(row, PRIVATE, reply, target, posts=0)
 
-    def _withdraw_status(self, row: SlackThread, target: Target) -> None:
+    def withhold(self, row: SlackThread, target: Target) -> SlackThread:
+        """Close a request whose notice was suppressed: no post, no working message."""
+        self._withdraw_status(row, target, leave_note=False)
+        return self._book.save(
+            row.model_copy(
+                update={
+                    "answer_ts": PRIVATE,
+                    "run_state": "failed",
+                    "reply_state": "posted",
+                    "finished_at": target.now,
+                    "next_attempt_at": None,
+                    "reply_attempts": 0,
+                    "reply_error": "",
+                }
+            ),
+            target.now,
+        )
+
+    def _withdraw_status(
+        self, row: SlackThread, target: Target, *, leave_note: bool = True
+    ) -> None:
         """A private reply leaves no public working message behind (best effort)."""
         try:
             if row.status_ts == NATIVE:
@@ -138,6 +160,8 @@ class Delivery:
                         target.installation, row.channel_id, row.status_ts
                     )
                 except PostError:
+                    if not leave_note:
+                        raise
                     self._poster.edit(
                         target.installation,
                         row.channel_id,
@@ -150,7 +174,7 @@ class Delivery:
     def _delivered(
         self, row: SlackThread, ts: str, reply: Reply, target: Target, *, posts: int
     ) -> SlackThread:
-        done = "failed" if reply.kind == "failure" else "done"
+        done = "failed" if reply.kind in _EDIT_IN_PLACE else "done"
         saved = self._book.save(
             row.model_copy(
                 update={

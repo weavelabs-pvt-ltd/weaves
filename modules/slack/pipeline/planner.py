@@ -24,6 +24,7 @@ from contracts.v1 import (
     ModelRequest,
     ModelResponse,
 )
+from modules.slack.model_status import is_connectivity_failure, provider_readiness
 from modules.slack.pipeline.deadline import DeadlineExceeded, run_with_deadline
 from modules.slack.pipeline.models import (
     MAX_PLANNED_TOOLS,
@@ -120,8 +121,11 @@ class AskPlanner:
         """Ask the planner which of ``tools`` the question needs."""
         profile_id = target.profile.id if target is not None else None
         started = time.monotonic()
-        if target is None:
-            return self._finish(PlannerStatus.ERROR, started, None)
+        if (
+            target is None
+            or not provider_readiness(target.profile, target.provider).connected
+        ):
+            return self._finish(PlannerStatus.NO_MODEL, started, profile_id)
         presented = frozenset(tool.tool_id for tool in tools)
         messages = build_messages(question, tools)
         try:
@@ -133,7 +137,11 @@ class AskPlanner:
             )
         except DeadlineExceeded:
             return self._finish(PlannerStatus.TIMEOUT, started, profile_id)
-        except (ModelGatewayError, UsageLimitExceeded, ValueError):
+        except ModelGatewayError as error:
+            lost = is_connectivity_failure(error.code, error.http_status, error.message)
+            status = PlannerStatus.NO_MODEL if lost else PlannerStatus.ERROR
+            return self._finish(status, started, profile_id)
+        except (UsageLimitExceeded, ValueError):
             return self._finish(PlannerStatus.ERROR, started, profile_id)
         except Exception:  # a planner problem must fail closed, never crash a turn
             logger.exception("planner call failed")

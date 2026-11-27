@@ -91,7 +91,7 @@ see the plain messages in 3.5 ("ask a Weaves admin"), with no invitation or acce
 | **F Missing detail** | e.g. `review` without a link | Asks in words with an example: "Reply with @Weaves and the PR link, for example @Weaves review https://github.com/acme/api/pull/42" (re-mention required) |
 | **G Waiting, failing, stopping** | slow or failed work | Queued (after 10 s, ASSUMPTION) then "Still working (2 min)…", then at 5 min "This is taking longer than expected. I'll keep going and post here." with **Stop**. Failure: "`:warning:` I couldn't finish this (ref a1b2c3)" with **Try again**. Stop: message becomes "`:octagonal_sign:` Stopped." Details in 3.12 |
 | **H Small exits** | empty mention, greeting, `status` | Empty mention: help with three examples. Greeting: a greeting. `status`: private (ephemeral) state and elapsed time. None creates a task or calls a model (fixed grammar) |
-| **I System** | maintenance, limit, no model | "Weaves is unavailable right now. Try again later." / "You've reached the limit; try again at 14:20." / "No AI model is connected. Ask a Weaves admin." Optional welcome message: **out of v1** |
+| **I System** | maintenance, limit, no model | "Weaves is unavailable right now. Try again later." / "You've reached the limit; try again at 14:20." / "No AI model is connected. Ask a Weaves admin to connect one." (public, in the thread) Optional welcome message: **out of v1** |
 
 Mobile and dark variants use the same blocks (no layout width assumptions; text under 3,000 characters per section block). Ephemeral posts in a not-yet-active thread may not show
 (Slack `chat.postEphemeral` docs); then the bot retries once at channel level, UNVERIFIED which is visible, and the dev-workspace test in 2.3 covers it.
@@ -234,7 +234,7 @@ description; no data); output = JSON `{"needs": [≤3 presented ids], "general_o
 profile is recommended, decision 12). Cost: about 400-800 input and 60 output tokens per question, roughly +20-30% tokens and +1-3 s (ASSUMPTION), metered in the usage ledger
 under key `{agent_run_id}:plan` (the ledger today assumes one call per run, `docs/DATA_MODEL.md` usage section; S4a must extend it and re-test idempotency). It is skipped
 when discovery finds no usable tool. Regex hints (Jira key, PR URL, repo) are unioned into `needs`. **Failure:** timeout, invalid JSON or an unpresented id fails closed:
-if any tool was discovered the reply is "I couldn't work out which sources to check. Try again." with no data and no general answer; with no tools, model-only continues.
+if any tool was discovered the reply is "I couldn't work out which sources to check. Try again." with no data and no general answer; with no tools, model-only continues. A planner that fails because no model is connected or reachable (no usable profile, the test placeholder, a refused key, a timeout, an unreachable provider) is not an "unusable plan": the reply is "No AI model is connected. Ask a Weaves admin to connect one." (see "No AI model connected" at the end of the S4 sections).
 **Why better than detection by explicit mention:** "what is the status of the checkout outage?" names no source yet needs Jira and Datadog; the planner finds it, so a red
 tool is reported instead of a confident model-only guess, and the footer lists consulted sources. **It is not a security boundary:** it only picks among presented
 ids; authorization is deterministic code at step 8; the answering run receives `origin.capability_ids` = needed AND green, and the capability loop fails closed
@@ -306,6 +306,8 @@ in a thread append a message (`add_message`, `tasks/service.py:359`) re-checked 
 
 - `chat.postMessage` with `thread_ts` = the parent message `ts`; keep text under 4,000 characters (truncated beyond 40,000; Slack docs). Model mrkdwn is
   sanitized: `<!channel>`, `<!here>`, `<@U..>` and unlisted links neutralized, `parse=none`, `unfurl_links/media=false`.
+- "No AI model is connected." is the one system line that is a normal threaded reply, not ephemeral (it reveals nothing, and private messages are
+  unreliable in an inactive thread); see "No AI model connected".
 - About 1 message/second per channel; at most 2 new posts and 6 edits per request. Citations list connector document titles/ids only, never invented links.
 - `slack_threads.reply_state`: `pending -> posted | undeliverable`; the returned `ts` is stored and checked before re-posting (no Slack idempotency key; a rare duplicate is accepted).
 - Thread context: `conversations.replies` is, for commercially distributed apps outside the Marketplace, rate tier 1 (1 request/min) and 15 messages per
@@ -536,7 +538,7 @@ Three worker ticks, all behind `WEAVES_SLACK_ENABLED`, each binding an organizat
 | F missing detail (threaded) | `Reply with @Weaves and the PR link, for example @Weaves review https://github.com/acme/api/pull/42` / `Tell me which workflow to run, for example @Weaves run weekly-report` |
 | G failure | `:warning: I couldn't finish this (ref a1b2c3).` (the turn id's last six characters; no error text; the working message becomes this text) |
 | H small exits | help (three examples), `Hi! Tag me with a question in a thread and I'll look it up.`, `You're welcome.`, private `status` (`Working on your last question: Checking Jira… (12s so far).` or `Nothing is running in this thread.`), `Pull request reviews from Slack are coming soon.` (and the run, stop, retry variants; private; the `task:` variant went away with S5) |
-| I system | `Weaves is unavailable right now. Try again later.` (paused bot, platform pause, quarantine; once per channel per hour), `:hourglass_flowing_sand: You're asking a lot; try again in 3 minutes.`, `No AI model is connected. Ask a Weaves admin.`, `I couldn't work out which sources to check. Try again.` (planner failure, private) |
+| I system | `Weaves is unavailable right now. Try again later.` (paused bot, platform pause, quarantine; once per channel per hour), `:hourglass_flowing_sand: You're asking a lot; try again in 3 minutes.`, `No AI model is connected. Ask a Weaves admin to connect one.` (**public, threaded**, once per thread per ten minutes), `I couldn't work out which sources to check. Try again.` (planner failure, private) |
 
 **Egress scrubber** (`modules/slack/text/scrub.py`, applied to every post, edit and whisper by `SlackPoster`, **fails closed**: any error in the scrubber, or text that still holds raw Slack markup, means the message is not sent and the row is `undeliverable`). Removed: private key blocks, Slack tokens (`xox*`, `xapp-`) and webhook URLs, GitHub tokens, Anthropic and OpenAI-style `sk-` keys, AWS access keys, Google API keys, JWTs, bearer tokens, `password/secret/api_key/token = value` assignments, credentials inside URLs, e-mail addresses (a flag turns this off), Luhn-valid card numbers, US SSNs. The replacement is a fixed `[category removed]`; only categories and counts are returned. **Sanitizer** (`modules/slack/text/mrkdwn.py`, deterministic, no model): `<!channel>`, `<!here>`, `<@U…>`, `<#C…>` and every other angle-bracket form lose their meaning (a zero-width space after the sigil), `&`, `<`, `>` are escaped, links survive only for allow-listed hosts (none in v1: a link keeps its label and shows the bare host, a bare URL loses its scheme), headings, bold, italics, strikethrough, bullets, rules, tables (monospace) and code fences are converted, messages go out as plain `text` with `parse=none` and no unfurling, are capped at 3,800 characters without cutting inside a fence and end with "Read the full answer in Weaves." (hidden Q&A tasks have no page, so that sentence is a placeholder until the owner decides what it should point to). `split_fenced` keeps fences balanced for longer, multi-message results (S5).
 
@@ -679,3 +681,34 @@ No migration was needed: `slack_feedback` is registered like the S4 collections 
 Where this differs from the text above: (1) `slack_threads` keeps only the latest request of a thread, so a reaction on an answer that a follow-up has already replaced is `not_our_answer` (kept as is; the earlier answer was the asker's old request); (2) the thread is found by scanning the organization's `slack_threads` rows for `answer_ts` (at most 30 days of rows; a partial index belongs in the next migration, like the reply scan); (3) the `at` of a rating is the receive time, not Slack's `event_ts`; (4) no org-admin summary endpoint; (5) the web thumbs (`source="web"`) are reserved in the contract and not built.
 
 Tests: unit and in-process tests `tests/slack/test_feedback_tick.py` and `tests/slack/test_feedback_refs_report.py` (reaction names, latest wins, stale delivery, idempotent replay, wrong user, wrong message, working message, bot's own, other emoji, private and missing answers, follow-up, mapped member and late mapping, every state, read-only hold, poison row, no ids in logs, metrics or audit, HMAC stability and per-org separation, pepper in the secret store and not in the settings view, retention bound, counts, request lookup, CSV, tick registration), PostgreSQL tests under the restricted role in `tests/integration/test_postgres_slack_feedback.py` (and the extended export, purge and purpose lists in `test_postgres_slack_access.py` and `test_postgres_slack.py`), and the real-stack control `T7-I05` (`tenancy_harness/phase7/slack_feedback_checks.py`, a required control).
+
+### No AI model connected (public, threaded; found in production 2026-11-28)
+
+An organization that only had the built-in "Deterministic mock" provider got the private "I couldn't work out which sources to check" and, because Slack does
+not reliably show private messages in an inactive thread, the asker saw nothing. Owner rule: when the model is not connected, or no AI connectivity is
+present, the bot always says **`No AI model is connected. Ask a Weaves admin to connect one.`**
+
+**Helper** (`modules/slack/model_status.py`). `ModelConnectivity.readiness(org_id)` reads the organization's default model profile (the same
+`default_active_model_profile` rule the Q&A agent uses) and its provider; "not connected" when: there is no active default profile; the profile or provider is
+disabled; the provider kind is `ModelProviderType.LOCAL` (the seeded test placeholder; decided by kind, never by display name); or the provider has no
+`auth_ref`. `provider_readiness(profile, provider)` is the pure rule, reused by the planner for its own target. `is_connectivity_failure(code, http_status,
+summary)` maps error classes seen while the model is in use: `model.credential_unavailable`, `auth_ref_missing`, `adapter_missing`, `disabled`,
+`provider_disabled`, `provider_unsupported`, `mode_unavailable`, `egress_denied`, `redirect_blocked`, `timeout`, `transport_error`, and `upstream_error` with
+HTTP 401, 403, 407, 502, 503 or 504. Everything else (400, 429, 500, invalid or empty response, unusable planner JSON) is not connectivity.
+
+**Where it applies.**
+
+| Stage | Detection | Result |
+|---|---|---|
+| Dispatcher (`AskFlow.run`, after the S3 gates allow the request) | `ModelConnectivity.connected` is false | `AskKind.NO_MODEL`: no task, no Q&A provisioning, no planner, no decision record (so nothing counts against Ask limits); the inbox row is settled, then one public threaded post |
+| Planner (`AskPlanner.plan`) | no usable target, target not connected, a connectivity error class, or the planner deadline passed | `PlannerStatus.NO_MODEL` (or `TIMEOUT`), decision `refused_unavailable` with reason `no_model` (not `planner_failed`); the reply tick posts the fixed text publicly in place of the working message |
+| Answering run | the failed turn's error code is a connectivity class | `compose.failure` returns the public `no_model` reply instead of "I couldn't finish this (ref ...)" |
+
+"I couldn't work out which sources to check" stays only for unusable planner output (invalid JSON, an unpresented id, a 400/429/500 or a usage cap) with a
+reachable model; "I couldn't finish this (ref ...)" stays for every other failure. No provider text is ever copied into a message, log, metric or audit record.
+
+**Delivery and dedupe.** The text is not ephemeral. It goes through the same `SlackPoster` (scrubber and sanitizer), one post per request, exactly once (the
+inbox row or thread row is settled first). When a working message already exists it is edited into the notice (no second post). A shared in-process
+`NoticeThrottle` keyed by team, channel and thread allows one notice per thread per ten minutes, whichever stage noticed first; a suppressed late notice
+withdraws the working message and closes the request without posting. A restart forgets the memory (at worst one repeated line). `task:` (Execute) is not
+gated here yet.

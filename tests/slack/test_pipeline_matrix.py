@@ -90,6 +90,17 @@ def _plan_names(case: dict[str, str]) -> list[str] | None:
     }[case["planner"]]
 
 
+def _planner_failure(
+    case: dict[str, str], names: list[str] | None, presented: set[str]
+) -> Expected | None:
+    """A planner that timed out is "no model connected"; bad output is not."""
+    if case["planner"] == "timeout":
+        return Expected("refused_unavailable", planner_calls=1)
+    if names is None or any(name not in presented for name in names):
+        return Expected("planner_failed", planner_calls=1)
+    return None
+
+
 def oracle(case: dict[str, str]) -> Expected:
     """The design's answer, written without the pipeline's own helpers."""
     health, access, tier, org = (
@@ -104,8 +115,9 @@ def oracle(case: dict[str, str]) -> Expected:
         return _execute(health, org)
     names = _plan_names(case)
     presented = {SLACK} | ({JIRA} if health in PRESENTED else set())
-    if names is None or any(name not in presented for name in names):
-        return Expected("planner_failed", planner_calls=1)
+    failed = _planner_failure(case, names, presented)
+    if failed is not None:
+        return failed
     if not names:
         return Expected("model_only", planner_calls=1)
     reasons: dict[str, str | None] = {}
