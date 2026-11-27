@@ -109,6 +109,29 @@ def seed(world, tenant="a"):
         ).status_code
         == 200
     )
+    org = world["b" if tenant == "b" else "a"][0].id
+    with psycopg.connect(world["url"], autocommit=True) as connection:
+        insert(
+            connection,
+            "slack_feedback",
+            f"{org}:turn-1:hmac:1",
+            org,
+            {
+                "schema_version": 1,
+                "id": f"{org}:turn-1:hmac:1",
+                "org_id": org,
+                "answer_ref": "C0CHAN001:1700000001.000100",
+                "turn_id": "turn-1",
+                "task_id": "task-1",
+                "asker_ref": "hmac:1",
+                "asker_kind": "hashed",
+                "value": 1,
+                "source": "slack",
+                "at": "2026-11-27T12:00:00+00:00",
+                "created_at": "2026-11-27T12:00:00+00:00",
+                "updated_at": "2026-11-27T12:00:00+00:00",
+            },
+        )
     return h
 
 
@@ -359,6 +382,9 @@ def test_export_includes_slack_access_but_no_message_text(world):
     assert len(data["slack_access_settings"]) == 1
     assert [r["slack_user_id"] for r in data["slack_allowed_users"]] == [ASKER]
     assert [r["channel_id"] for r in data["slack_allowed_channels"]] == [CHANNEL]
+    (rating,) = data["slack_feedback"]
+    assert (rating["value"], rating["asker_kind"]) == (1, "hashed")
+    assert "text" not in rating and "reason" not in rating
 
 
 class _Capture:
@@ -375,6 +401,7 @@ def test_purge_removes_the_organizations_slack_rows_and_only_those(world):
         "slack_access_settings",
         "slack_allowed_users",
         "slack_allowed_channels",
+        "slack_feedback",
     }
     deleted = world["client"].post(
         REQUEST, headers=headers(world), json={"confirm_name": "Org A"}

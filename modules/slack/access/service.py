@@ -209,6 +209,27 @@ class SlackAccessService:
             record.model_copy(update={**ids, "updated_at": utc_now()})
         )
 
+    def feedback_pepper_ref(self) -> str | None:
+        """The secret-store reference of the feedback pepper, if one exists."""
+        record = self._ctx.current()
+        return record.feedback_pepper_ref if record is not None else None
+
+    def remember_feedback_pepper(self, secret_ref: str) -> None:
+        """Keep the pepper's reference without bumping ``settings_version``.
+
+        Like ``remember_qa`` this is not an administrator's settings change. Call
+        inside ``mutation()``.
+        """
+        record = self._ctx.current()
+        if record is None:
+            self._ctx.bump("system:slack", feedback_pepper_ref=secret_ref)
+            return
+        self._ctx.settings.put(
+            record.model_copy(
+                update={"feedback_pepper_ref": secret_ref, "updated_at": utc_now()}
+            )
+        )
+
     def mutation(self) -> AbstractContextManager[None]:
         """Serialize this organization's Slack access writes (one transaction)."""
         return self._ctx.mutation()
