@@ -14,8 +14,8 @@ from application.ports.slack import SlackStore
 from application.ports.slack_feedback import FeedbackAdmin
 from application.ports.throttling import LoginRateLimiter
 from application.ports.usage import UsageLedger
-from clients.integrations.github import GitHubReadPlugin
 from clients.integrations.github_app_auth import GitHubAppTokenProvider
+from clients.integrations.github_pr_review import GitHubReviewPlugin
 from clients.integrations.jira import JiraReadPlugin
 from clients.integrations.mcp import McpHttpPlugin
 from clients.integrations.oauth import OAuthTokenResolver
@@ -41,6 +41,7 @@ from infrastructure.secrets.store import (
 )
 from modules.recovery.secret_tombstones import TombstonedSecretStore
 from modules.recovery.tombstones import NullTombstones, tombstones_from_env
+from shared.github_config import github_api_base_url_from_environment
 
 
 def build_secret_store(store: ProductPostgresStore | None) -> SecretStore:
@@ -111,9 +112,11 @@ def build_runtime_adapters(
         provider_http_client, secret_store
     )
     oauth_resolver = OAuthTokenResolver(secret_store, http_client)
-    github_app_provider = GitHubAppTokenProvider(http_client)
-    github_plugin = GitHubReadPlugin(
+    github_base = github_api_base_url_from_environment()
+    github_app_provider = GitHubAppTokenProvider(http_client, api_base_url=github_base)
+    github_plugin = GitHubReviewPlugin(
         http_client,
+        api_base_url=github_base,
         installation_token_provider=github_app_provider,
     )
     slack_plugin = SlackReadPlugin(oauth_resolver, http_client)

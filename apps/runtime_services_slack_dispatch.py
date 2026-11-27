@@ -35,6 +35,11 @@ from modules.slack.reply.poster import SlackPoster
 from modules.slack.reply.steps import RunSteps
 from modules.slack.reply.throttle import NO_MODEL_WINDOW, NoticeThrottle
 from modules.slack.reply.tick import SlackReplyTick
+from modules.slack.review.agent import ReviewEnabler, ReviewProvisioner
+from modules.slack.review.book import ReviewBook
+from modules.slack.review.flow import ReviewFlow
+from modules.slack.review.reply import ReviewReply
+from modules.slack.review.stats import ReviewProgress
 from modules.slack.tasks.links import TaskLinks
 from modules.slack.tasks.reply import TaskReply
 from shared.slack_config import (
@@ -89,6 +94,28 @@ def _provisioner(runtime: LocalPlatformRuntime) -> QaProvisioner:
     )
 
 
+def _review_flow(runtime: LocalPlatformRuntime, gates: DispatchGates) -> ReviewFlow:
+    return ReviewFlow(
+        gates=gates,
+        provisioner=ReviewProvisioner(
+            agents=runtime.agents,
+            agent_versions=runtime.agent_versions,
+            agent_service=runtime.agent_service,
+            model_profiles=runtime.model_profiles,
+            default_profile=lambda: default_active_model_profile(
+                runtime.model_profiles, runtime.model_configurations
+            ),
+            mutation=runtime.slack_access_service.mutation,
+        ),
+        enabler=ReviewEnabler(
+            installations=runtime.installations, audit_events=runtime.audit_events
+        ),
+        tasks=runtime.task_service,
+        book=ReviewBook(runtime.slack_threads),
+        recorder=DecisionRecorder(runtime.audit_events),
+    )
+
+
 def _reply_tick(
     runtime: LocalPlatformRuntime,
     no_model_throttle: NoticeThrottle,
@@ -128,6 +155,14 @@ def _reply_tick(
         unit_of_work=runtime._unit_of_work,
         lock=runtime._advisory_transaction_lock,
         native_status=native_status_from_environment,
+        kinds={
+            "review": ReviewReply(
+                progress=ReviewProgress(
+                    runs=runtime.runs, invocations=runtime.tool_invocations
+                ),
+                task_messages=runtime.task_messages,
+            )
+        },
         deadline=timedelta(seconds=reply_deadline_seconds_from_environment()),
         no_model_throttle=no_model_throttle,
     )
@@ -213,6 +248,7 @@ def attach_slack_dispatch(
         ),
         task=_task_flow(runtime, gates, book, links),
         cheap=CheapExits(poster=poster, book=book, gates=gates),
+        review=_review_flow(runtime, gates),
         loss=loss,
         enabled=slack_enabled_from_environment,
         no_model_throttle=no_model_throttle,

@@ -178,3 +178,8 @@ class DispatchGates:
         """Whether the asker and the channel are on the allowlists (two booleans)."""
         user, channel, _ = self._access.asker_standing(slack_user_id, channel_id)
         return user, channel
+
+    def member_principal(self, slack_user_id: str, channel_id: str) -> str | None:
+        """The Weaves member an admin mapped this Slack user to, if any."""
+        _, _, member = self._access.asker_standing(slack_user_id, channel_id)
+        return member.principal_id if member is not None else None

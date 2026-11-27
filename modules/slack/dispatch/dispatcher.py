@@ -35,6 +35,7 @@ from modules.slack.events import tenant_of
 from modules.slack.reply.loss import InstallationLoss
 from modules.slack.reply.poster import LinkButton
 from modules.slack.reply.throttle import NO_MODEL_WINDOW, NoticeThrottle
+from modules.slack.review.flow import ReviewFlow
 from shared.clock import utc_now
 from shared.correlation import extend_context
 from shared.metrics import SLACK_DISPATCH, SLACK_INBOX_AGE
@@ -59,6 +60,7 @@ class SlackDispatcher:
         ask: AskFlow,
         task: TaskFlow,
         cheap: CheapExits,
+        review: ReviewFlow | None = None,
         loss: InstallationLoss,
         enabled: Callable[[], bool],
         clock: Callable[[], datetime] = utc_now,
@@ -73,6 +75,7 @@ class SlackDispatcher:
         self._store = store
         self._gates = gates
         self._ask = ask
+        self._review = review
         self._task = task
         self._cheap = cheap
         self._loss = loss
@@ -135,6 +138,8 @@ class SlackDispatcher:
             intent = classify(event.text, installation.bot_user_id)
             if intent.kind is IntentKind.ASK:
                 return self._ask_event(installation, event, intent, now)
+            if intent.kind is IntentKind.REVIEW and intent.arg and self._review:
+                return self._review_event(installation, event, intent, now)
             if intent.kind is IntentKind.TASK:
                 return self._task_event(installation, event, intent, now)
             return self._cheap_event(installation, event, intent, now)
@@ -167,6 +172,27 @@ class SlackDispatcher:
         now: datetime,
     ) -> int:
         result = self._ask.run(installation, event, intent.text, now)
+        return self._settle_flow(installation, event, intent, result, now)
+
+    def _review_event(
+        self,
+        installation: SlackInstallation,
+        event: InboxEvent,
+        intent: Intent,
+        now: datetime,
+    ) -> int:
+        assert self._review is not None
+        result = self._review.run(installation, event, intent.arg, now)
+        return self._settle_flow(installation, event, intent, result, now)
+
+    def _settle_flow(
+        self,
+        installation: SlackInstallation,
+        event: InboxEvent,
+        intent: Intent,
+        result: AskResult,
+        now: datetime,
+    ) -> int:
         if result.kind is AskKind.BUSY and self._should_wait(event, now):
             return 0  # the earlier answer is still going out; try again next tick
         if result.created_work:

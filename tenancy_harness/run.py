@@ -17,6 +17,7 @@ from tenancy_harness.live_host import (
     relay_matches_ledger,
     verify_flow,
 )
+from tenancy_harness.live_review import review_flow
 from tenancy_harness.report import (
     failure_messages,
     specs,
@@ -105,7 +106,18 @@ def complete_checks(args, compose, frontend, harness, private, port, report, liv
             "verify",
         )
         report["fake_canvas_provenance"] = True
-    if live and report["foundation_passed"]:
+    if live and report["foundation_passed"] and args.live_slack_review:
+        report["live_ai"] = {"passed": False, "stage": "slack_review"}
+        try:
+            report["live_ai"] = review_flow(
+                compose, private, Path.home() / ".config/weaves-testing"
+            )
+        finally:
+            report["testing_budget"] = Ledger(
+                Path.home() / ".config/weaves-testing"
+            ).snapshot()
+            write_report(args.output.resolve(), report)
+    elif live and report["foundation_passed"]:
         report["live_ai"] = {"passed": False, "stage": "preparing"}
         try:
             prepare_flow(compose)
@@ -266,19 +278,34 @@ def usage_control(compose):
     seed_module(compose, "phase5.usage_checks", "finish")
 
 
+def seed_controls(compose):
+    """The API-driven controls that run before the Playwright cases."""
+    seed_module(compose, "observe")
+    seed_module(compose, "lifecycle_checks")
+    seed_module(compose, "waitlist_checks")
+    limits_control(compose)
+    fair_claim_control(compose)
+    usage_control(compose)
+    seed_module(compose, "phase6.controls_checks")
+    slack_controls(compose)
+
+
 def slack_controls(compose):
-    """T7-I01 install, I02 events, I03 lifecycle, I04 Ask, I06 task (fake Slack)."""
+    """T7-I01 to I07: install, events, lifecycle, Ask, feedback, task, PR review."""
     seed_module(compose, "phase7.slack_install_checks")
     seed_module(compose, "phase7.slack_event_checks")
     seed_module(compose, "phase7.slack_lifecycle_checks")
     seed_module(compose, "phase7.slack_ask_checks")
     seed_module(compose, "phase7.slack_task_checks")
     seed_module(compose, "phase7.slack_feedback_checks")
+    seed_module(compose, "phase7.slack_review_checks")
 
 
 def run(args, harness):
     """Build, seed, execute, report, and always remove this run's containers."""
     partial = args.api_only or bool(args.only_control)
+    if args.live_slack_review_only and os.environ.get("CI"):
+        raise RuntimeError("--live-slack-review-only is a local aid, never CI")
     if partial and (os.environ.get("CI") or args.live_anthropic_env):
         raise RuntimeError("--api-only/--only-control are local aids, never CI or live")
     backend, frontend = args.backend.resolve(), args.frontend.resolve()
@@ -313,14 +340,9 @@ def run(args, harness):
         compose.run("up", "-d", "postgres", "provider", "api", "frontend")
         compose.run("run", "--rm", "--no-deps", "seed")
         compose.run("up", "-d", "worker")
-        seed_module(compose, "observe")
-        seed_module(compose, "lifecycle_checks")
-        seed_module(compose, "waitlist_checks")
-        limits_control(compose)
-        fair_claim_control(compose)
-        usage_control(compose)
-        seed_module(compose, "phase6.controls_checks")
-        slack_controls(compose)
+        if live and args.live_slack_review_only:
+            return live_review_only(args, compose, private)
+        seed_controls(compose)
         seed_module(compose, "phase5.correlation_checks")
         record_correlation_logs(compose, private)
         seed_module(compose, "phase5.bounded_queries_checks")
@@ -354,7 +376,25 @@ def run(args, harness):
         # failing control can be diagnosed after the disposable stack is removed.
         with (private / "service.log").open("w") as log:
             compose.run("logs", "--no-color", "api", "worker", stdout=log, check=False)
+        print_dispatch_failures(private / "service.log")
         compose.run("down", "--volumes", "--remove-orphans")
+
+
+def live_review_only(args, compose, private):
+    """Local opt-in: just the one-call live review, without the required controls."""
+    directory = Path.home() / ".config/weaves-testing"
+    try:
+        evidence = review_flow(compose, private, directory)
+        print(json.dumps({"live_ai": evidence}, indent=2))
+    finally:
+        print(json.dumps({"testing_budget": Ledger(directory).snapshot()}, indent=2))
+
+
+def print_dispatch_failures(path):
+    """Print only the error kinds of failed Slack dispatches (never message text)."""
+    for line in path.read_text(errors="replace").splitlines():
+        if "slack_dispatch_failed" in line or "slack_reply_row_failed" in line:
+            print(line.split("|", 1)[-1][-260:])
 
 
 def main():
@@ -378,6 +418,18 @@ def main():
     )
     parser.add_argument("--repeat-each", type=int, default=1)
     parser.add_argument("--live-anthropic-env", type=Path)
+    parser.add_argument(
+        "--live-slack-review-only",
+        action="store_true",
+        help="With --live-anthropic-env and --live-slack-review: skip the required "
+        "controls and run only the one-call live PR review (local, never CI).",
+    )
+    parser.add_argument(
+        "--live-slack-review",
+        action="store_true",
+        help="With --live-anthropic-env: run only the one-call PR review live "
+        "control (T7 live) instead of the standard three-call live smoke.",
+    )
     parser.add_argument(
         "--live-slack-task",
         action="store_true",

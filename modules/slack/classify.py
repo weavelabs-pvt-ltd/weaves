@@ -18,6 +18,8 @@ import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from clients.integrations.github_pr_url import parse_pull_request_url
+
 
 class IntentKind(StrEnum):
     """What the mention is, as far as the fixed grammar can tell."""
@@ -49,10 +51,6 @@ class Intent:
         return self.kind in (IntentKind.TASK, IntentKind.REVIEW, IntentKind.RUN)
 
 
-_PR_URL = re.compile(
-    r"https://github\.com/([A-Za-z0-9][A-Za-z0-9._-]{0,99})/([A-Za-z0-9._-]{1,100})"
-    r"/pull/(\d{1,7})(?:[/?#][^\s>]*)?"
-)
 _SLACK_LINK = re.compile(r"<(https?://[^|>\s]+)(?:\|[^>]*)?>")
 _MENTION = re.compile(r"<@([A-Z0-9]{2,32})(?:\|[^>]*)?>")
 _WORDS = re.compile(r"[a-z']+")
@@ -91,11 +89,18 @@ def clean_text(raw: str, bot_user_id: str) -> str:
 
 
 def parse_pr_url(text: str) -> str | None:
-    """``owner/name#number`` for the first pull request URL in ``text``."""
-    match = _PR_URL.search(text)
-    if match is None:
-        return None
-    return f"{match.group(1)}/{match.group(2)}#{match.group(3)}"
+    """``owner/name#number`` (lower case) of the one pull request link in ``text``.
+
+    Strict (see ``github_pr_url``): any other link, a look-alike host or two
+    different pull requests make it ``None``.
+    """
+    found = parse_pull_request_url(text)
+    return found.ref if found is not None else None
+
+
+def _mentions_link(text: str) -> bool:
+    lowered = text.lower()
+    return "http" in lowered or "github.com" in lowered
 
 
 def _bare(text: str) -> str:
@@ -110,7 +115,11 @@ def _command(text: str, bare: str) -> Intent | None:
     rest, verb = rest.strip(), head.lower()
     if verb == "review":
         url = parse_pr_url(rest)
-        if url or _bare(rest) in ("", "pr", "a pr", "this", "this pr"):
+        if (
+            url
+            or _mentions_link(rest)
+            or _bare(rest) in ("", "pr", "a pr", "this", "this pr")
+        ):
             return Intent(IntentKind.REVIEW, text, url or "")
     if verb == "run" and (not rest or _WORKFLOW.fullmatch(rest) is not None):
         return Intent(IntentKind.RUN, text, rest)

@@ -152,11 +152,19 @@ class IntegrationInstallationMixin(RuntimeCapabilityHost):
             enabled_capability_ids=(
                 tuple(
                     dict.fromkeys(
-                        (*existing.enabled_capability_ids, "github.code.search")
+                        (
+                            *existing.enabled_capability_ids,
+                            "github.code.search",
+                            "github.pr.review_context",
+                        )
                     )
                 )
                 if existing
-                else ("github.issues.search", "github.code.search")
+                else (
+                    "github.issues.search",
+                    "github.code.search",
+                    "github.pr.review_context",
+                )
             ),
             status=(
                 PluginInstallationStatus.DISABLED

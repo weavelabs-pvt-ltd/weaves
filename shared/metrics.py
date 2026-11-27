@@ -289,6 +289,13 @@ SLACK_EXECUTE = REGISTRY.add(
         ("action", "outcome"),
     )
 )
+SLACK_REVIEW = REGISTRY.add(
+    Counter(
+        "slack_review_total",
+        "Slack PR reviews delivered by outcome (no org, repository or text).",
+        ("outcome",),
+    )
+)
 SLACK_PLANNER = REGISTRY.add(
     Counter(
         "slack_planner_total",

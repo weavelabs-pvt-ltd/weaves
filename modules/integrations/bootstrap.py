@@ -15,6 +15,7 @@ from contracts.v1 import (
 )
 from contracts.v1.base import ProductContract
 from modules.integrations.context_search import read_context_search
+from modules.integrations.github_review_spec import github_pr_review_capability
 
 TProduct = TypeVar("TProduct", bound=ProductContract)
 
@@ -177,9 +178,14 @@ class IntegrationBootstrapService:
                 plugin_type="github",
                 display_name="GitHub",
                 description=(
-                    "Read-only search across issues, pull requests, and source code."
+                    "Read-only search across issues, pull requests, and source code, "
+                    "and pull request reading for review."
                 ),
-                capability_manifest=(github_search, github_code_search),
+                capability_manifest=(
+                    github_search,
+                    github_code_search,
+                    github_pr_review_capability(),
+                ),
                 configuration_schema={
                     "type": "object",
                     "properties": {

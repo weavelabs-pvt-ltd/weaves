@@ -16,6 +16,10 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 
 SLACK_KINDS = frozenset({"slack", "slack_qa"})
+# Capabilities that exist only for an Execute request of the Slack bot: a run
+# with no Slack origin (a web task, a workflow) or an Ask never runs them, even
+# when an agent version lists them.
+SLACK_EXECUTE_ONLY = frozenset({"github.pr.review_context"})
 
 
 @dataclass(frozen=True)
@@ -48,8 +52,11 @@ def allowed_capabilities(configured: Sequence[str]) -> tuple[str, ...]:
     Narrowing never adds a capability: the result is a subset of ``configured``.
     """
     origin = _ORIGIN.get()
-    if origin is None or origin.kind not in SLACK_KINDS:
-        return tuple(configured)
+    if origin is None or origin.kind != "slack":
+        allowed = tuple(item for item in configured if item not in SLACK_EXECUTE_ONLY)
+        if origin is None or origin.kind not in SLACK_KINDS:
+            return allowed
+        configured = allowed
     if origin.capability_ids is None:
         return ()
     approved = set(origin.capability_ids)

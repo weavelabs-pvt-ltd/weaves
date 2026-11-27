@@ -159,6 +159,10 @@ class AgentRunCapabilitiesMixin(RuntimeCapabilityHost):
             )
             raise
         documents = result.output.get("documents", [])
+        output_summary: dict[str, Any] = {"result_count": len(documents)}
+        stats = result.output.get("stats")
+        if isinstance(stats, dict):  # counts a connector reports about its read
+            output_summary["stats"] = stats
         invocation = ToolInvocation(
             invocation_id=_id(),
             run_id=run_id,
@@ -170,7 +174,7 @@ class AgentRunCapabilitiesMixin(RuntimeCapabilityHost):
             status=InvocationStatus.SUCCEEDED,
             risk_level=capability.risk_level or RiskLevel.LOW,
             input_summary={"query": task},
-            output_summary={"result_count": len(documents)},
+            output_summary=output_summary,
             created_at=started,
             updated_at=result.finished_at,
             started_at=result.started_at,
