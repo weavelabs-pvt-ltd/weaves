@@ -17,6 +17,7 @@ from tenancy_harness.live_host import (
     relay_matches_ledger,
     verify_flow,
 )
+from tenancy_harness.live_review import review_flow
 from tenancy_harness.report import (
     failure_messages,
     specs,
@@ -105,7 +106,18 @@ def complete_checks(args, compose, frontend, harness, private, port, report, liv
             "verify",
         )
         report["fake_canvas_provenance"] = True
-    if live and report["foundation_passed"]:
+    if live and report["foundation_passed"] and args.live_slack_review:
+        report["live_ai"] = {"passed": False, "stage": "slack_review"}
+        try:
+            report["live_ai"] = review_flow(
+                compose, private, Path.home() / ".config/weaves-testing"
+            )
+        finally:
+            report["testing_budget"] = Ledger(
+                Path.home() / ".config/weaves-testing"
+            ).snapshot()
+            write_report(args.output.resolve(), report)
+    elif live and report["foundation_passed"]:
         report["live_ai"] = {"passed": False, "stage": "preparing"}
         try:
             prepare_flow(compose)
@@ -248,11 +260,12 @@ def usage_control(compose):
 
 
 def slack_controls(compose):
-    """T7-I01 install, I02 events, I03 lifecycle, I04 Ask (fake Slack, real stack)."""
+    """T7-I01 install, I02 events, I03 lifecycle, I04 Ask, I05 PR review (fakes)."""
     seed_module(compose, "phase7.slack_install_checks")
     seed_module(compose, "phase7.slack_event_checks")
     seed_module(compose, "phase7.slack_lifecycle_checks")
     seed_module(compose, "phase7.slack_ask_checks")
+    seed_module(compose, "phase7.slack_review_checks")
 
 
 def run(args, harness):
@@ -357,6 +370,12 @@ def main():
     )
     parser.add_argument("--repeat-each", type=int, default=1)
     parser.add_argument("--live-anthropic-env", type=Path)
+    parser.add_argument(
+        "--live-slack-review",
+        action="store_true",
+        help="With --live-anthropic-env: run only the one-call PR review live "
+        "control (T7 live) instead of the standard three-call live smoke.",
+    )
     parser.add_argument("--canvas-probe", action="store_true")
     parser.add_argument("--output", type=Path, default=Path(".local/tenancy"))
     run(parser.parse_args(), Path(__file__).resolve().parent)

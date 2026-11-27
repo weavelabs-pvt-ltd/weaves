@@ -10,6 +10,8 @@ Every name, token and text here is made up. The set covers the review cases:
 * ``acme/api#9``: a binary file, a file GitHub sent without a patch, one source file;
 * ``acme/api#404``, ``#403``, ``#429``: GitHub answers an error (not found,
   forbidden, rate limited);
+* ``acme/api#200`` (slow model) and ``#300`` (the model answers badly): markers
+  the fake model reacts to;
 * ``acme/private#5``: a small pull request in a repository that is connected but
   not on the admin's allowlist.
 """
@@ -127,12 +129,20 @@ def _private() -> tuple[dict[str, Any], list[dict[str, Any]]]:
     return _pull(5, "Private change", "", files), files
 
 
+def _marked(number: int, title: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    files = [_file("app/main.py", _patch("app/main.py"))]
+    return _pull(number, title, "", files), files
+
+
 PULLS: dict[tuple[str, int], tuple[dict[str, Any], list[dict[str, Any]]]] = {
     ("acme/api", 123): _normal(),
     ("acme/api", 41): _partial(),
     ("acme/api", 7): _large(),
     ("acme/api", 9): _binaries(),
     ("acme/private", 5): _private(),
+    # The fake model sleeps on "tenancy-slow=N" and answers badly on the other mark.
+    ("acme/api", 200): _marked(200, "A slow review tenancy-slow=6"),
+    ("acme/api", 300): _marked(300, "A broken model answer tenancy-review-bad"),
 }
 ERRORS = {
     ("acme/api", 404): 404,

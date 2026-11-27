@@ -1,4 +1,4 @@
-"""T7-I01 to T7-I04 (install, events, lifecycle, Ask) are required controls, wired."""
+"""T7-I01 to T7-I05 (install, events, lifecycle, Ask, PR review) are wired."""
 
 import importlib
 import json
@@ -14,6 +14,7 @@ CONTROLS = (
     ("T7-I02", "S2", "slack_event_checks", "slack_events"),
     ("T7-I03", "S7", "slack_lifecycle_checks", "slack_lifecycle"),
     ("T7-I04", "S4", "slack_ask_checks", "slack_ask"),
+    ("T7-I05", "S6", "slack_review_checks", "slack_review"),
 )
 
 
@@ -60,6 +61,7 @@ def test_the_stack_gives_the_api_the_fake_slack_with_made_up_credentials() -> No
         "WEAVES_SLACK_API_BASE_URL: http://provider:8081/slack/api",
         "WEAVES_SLACK_SIGNING_SECRET: fixture-slack-signing-secret",
         "WEAVES_SLACK_OAUTH_CLIENT_ID: fixture-slack-client-id",
+        "WEAVES_GITHUB_API_BASE_URL: http://provider:8081/github",
     ):
         assert line in compose
     assert "TENANCY_SLACK_SIGNING_SECRET: fixture-slack-signing-secret" in compose
