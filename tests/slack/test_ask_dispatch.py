@@ -405,7 +405,8 @@ def test_no_active_model_profile_says_so_and_creates_nothing(aworld: AskWorld) -
     aworld.dispatch()
 
     assert _tasks(aworld) == []
-    assert aworld.slack.ephemerals[0]["text"] == copy.NO_MODEL
+    assert aworld.slack.ephemerals == []  # told in the thread, not privately
+    assert [m["text"] for m in aworld.slack.messages] == [copy.NO_MODEL]
     assert aworld.runtime.slack_access_service.qa_ids() == (None, None)
 
 

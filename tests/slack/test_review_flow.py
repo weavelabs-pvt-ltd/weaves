@@ -277,7 +277,9 @@ def test_a_review_and_an_ask_can_share_a_thread(rworld: ReviewWorld) -> None:
     assert len(rworld.tasks()) == 2
 
 
-def test_a_review_without_an_ai_model_is_told_privately(rworld: ReviewWorld) -> None:
+def test_a_review_without_an_ai_model_says_so_in_the_thread(
+    rworld: ReviewWorld,
+) -> None:
     from contracts.v1 import ModelProfileStatus
 
     rworld.allow()
@@ -288,7 +290,7 @@ def test_a_review_without_an_ai_model_is_told_privately(rworld: ReviewWorld) -> 
     rworld.review(123)
     rworld.aworld.dispatch()
 
-    assert rworld.aworld.slack.ephemerals[-1]["text"] == copy.NO_MODEL
+    assert rworld.aworld.slack.texts()[-1] == copy.NO_MODEL  # said in the thread
     assert rworld.tasks() == []
 
 

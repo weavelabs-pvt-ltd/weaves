@@ -24,6 +24,7 @@ from modules.slack.dispatch.gates import DispatchGates
 from modules.slack.dispatch.qa_agent import QaProvisioner
 from modules.slack.dispatch.task_flow import TaskFlow
 from modules.slack.dispatch.threads import ThreadBook
+from modules.slack.model_status import ModelConnectivity
 from modules.slack.pipeline.discovery import ToolDiscovery
 from modules.slack.pipeline.health import HealthSnapshots
 from modules.slack.pipeline.targets import ExecuteTargets
@@ -32,6 +33,7 @@ from modules.slack.reply.deliver import Delivery
 from modules.slack.reply.loss import InstallationLoss
 from modules.slack.reply.poster import SlackPoster
 from modules.slack.reply.steps import RunSteps
+from modules.slack.reply.throttle import NO_MODEL_WINDOW, NoticeThrottle
 from modules.slack.reply.tick import SlackReplyTick
 from modules.slack.review.agent import ReviewEnabler, ReviewProvisioner
 from modules.slack.review.book import ReviewBook
@@ -116,6 +118,7 @@ def _review_flow(runtime: LocalPlatformRuntime, gates: DispatchGates) -> ReviewF
 
 def _reply_tick(
     runtime: LocalPlatformRuntime,
+    no_model_throttle: NoticeThrottle,
     book: ThreadBook,
     delivery: Delivery,
     loss: InstallationLoss,
@@ -161,6 +164,7 @@ def _reply_tick(
             )
         },
         deadline=timedelta(seconds=reply_deadline_seconds_from_environment()),
+        no_model_throttle=no_model_throttle,
     )
 
 
@@ -211,6 +215,7 @@ def attach_slack_dispatch(
     the client uses the process HTTP client and ``WEAVES_SLACK_API_BASE_URL``.
     """
     gates = _gates(runtime)
+    no_model_throttle = NoticeThrottle(NO_MODEL_WINDOW)
     book = ThreadBook(runtime.slack_threads)
     api = api or SlackApiClient(
         runtime.http_client, api_base_url=slack_api_base_url_from_environment()
@@ -235,14 +240,20 @@ def attach_slack_dispatch(
             qa=_provisioner(runtime),
             tasks=runtime.task_service,
             book=book,
+            model=ModelConnectivity(
+                model_profiles=runtime.model_profiles,
+                providers=runtime.providers,
+                model_configurations=runtime.model_configurations,
+            ),
         ),
         task=_task_flow(runtime, gates, book, links),
         cheap=CheapExits(poster=poster, book=book, gates=gates),
         review=_review_flow(runtime, gates),
         loss=loss,
         enabled=slack_enabled_from_environment,
+        no_model_throttle=no_model_throttle,
     )
     runtime.slack_reply_tick = _reply_tick(
-        runtime, book, Delivery(poster, book), loss, links, poster
+        runtime, no_model_throttle, book, Delivery(poster, book), loss, links, poster
     )
     runtime.slack_retention = _retention(runtime)

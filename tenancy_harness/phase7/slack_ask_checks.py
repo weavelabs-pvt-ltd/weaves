@@ -355,7 +355,7 @@ def planner_results(a):
 
 
 def refusal_results(a):
-    """The limit, the paused bot and a missing AI model."""
+    """The limit, the paused bot and a missing AI model (told in the thread)."""
     from modules.slack import copy
     from modules.slack.access import messages
 
@@ -387,9 +387,11 @@ def refusal_results(a):
     event_id, ts, _ = ask("what is idempotency?")
     settled_inbox(event_id)
     time.sleep(1.5)
-    results["no_model_provider_is_told_privately"] = [
-        w["text"] for w in whispers(ts)
-    ] == [copy.NO_MODEL] and task_count(org) == tasks
+    results["no_model_is_told_in_the_thread_for_everyone"] = (
+        [m["text"] for m in bot_posts(ts)] == [copy.NO_MODEL]
+        and whispers(ts) == []
+        and task_count(org) == tasks
+    )
     flip(org, "active")
     return results
 

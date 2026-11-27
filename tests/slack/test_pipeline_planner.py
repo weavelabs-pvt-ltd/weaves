@@ -189,8 +189,9 @@ def test_the_planner_has_no_model_target_so_the_pipeline_fails_closed(pworld: Wo
     _fresh(pworld)
     pipeline_request = replace(_ask(pworld), planner_target=None)
     result = pworld.pipeline().run_pipeline(pipeline_request)
-    assert result.outcome.value == "planner_failed"
-    assert result.planner.status is PlannerStatus.ERROR
+    assert result.outcome.value == "refused_unavailable"
+    assert result.planner.status is PlannerStatus.NO_MODEL
+    assert result.message == messages.NO_MODEL
     assert pworld.models.planner_calls == 0 and result.capability_ids == ()
 
 
@@ -248,7 +249,8 @@ def test_a_slow_planner_times_out_and_still_settles_its_own_row(pworld: World):
     )
     assert time.monotonic() - started < 0.45
     assert result.planner.status is PlannerStatus.TIMEOUT
-    assert result.outcome.value == "planner_failed"
+    assert result.outcome.value == "refused_unavailable"
+    assert result.message == messages.NO_MODEL
     time.sleep(0.6)
     row = pworld.runtime.usage_service.ledger.get(ORG, pipeline_request.usage_key)
     assert row is not None and row.state is UsageState.SETTLED
