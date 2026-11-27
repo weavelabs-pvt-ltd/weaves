@@ -384,6 +384,14 @@ SLACK_RETENTION = REGISTRY.add(
         ("kind",),
     )
 )
+SLACK_FEEDBACK = REGISTRY.add(
+    Counter(
+        "slack_feedback_total",
+        "Slack thumbs reactions settled by the feedback tick by value (up, down, "
+        "none) and outcome (no org label, no user, no text).",
+        ("value", "outcome"),
+    )
+)
 DB_POOL_IN_USE = REGISTRY.add(
     Gauge("db_pool_in_use", "Database connections currently checked out.")
 )

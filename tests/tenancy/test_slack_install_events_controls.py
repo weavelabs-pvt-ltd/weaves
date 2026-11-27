@@ -1,4 +1,4 @@
-"""T7-I01 to T7-I05 (install, events, lifecycle, Ask, PR review) are wired."""
+"""T7-I01 to T7-I06 (install to PR review) are required controls, wired."""
 
 import importlib
 import json
@@ -14,7 +14,8 @@ CONTROLS = (
     ("T7-I02", "S2", "slack_event_checks", "slack_events"),
     ("T7-I03", "S7", "slack_lifecycle_checks", "slack_lifecycle"),
     ("T7-I04", "S4", "slack_ask_checks", "slack_ask"),
-    ("T7-I05", "S6", "slack_review_checks", "slack_review"),
+    ("T7-I05", "S4c", "slack_feedback_checks", "slack_feedback"),
+    ("T7-I06", "S6", "slack_review_checks", "slack_review"),
 )
 
 

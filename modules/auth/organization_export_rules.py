@@ -53,6 +53,7 @@ EXPORT_COLLECTIONS: tuple[str, ...] = (
     "slack_allowed_channels",
     "slack_connector_health",
     "slack_threads",
+    "slack_feedback",
     "skill_definitions",
     "skill_versions",
     "skill_publications",

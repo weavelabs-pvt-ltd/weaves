@@ -328,11 +328,12 @@ by `shared/limits_config.py`.
 * **One VM, one worker container, one API process.** Any restart or VM loss
   stops all tenants; a killed running turn waits about five minutes (the stale
   lease) before it is retried. There is no horizontal scaling and no capacity for
-  two worker containers without fixing the race below.
-* **Organization purge race with more than one worker process** (PR #52):
-  the purge tick's two read-modify-write steps on the lifecycle record are not
-  locked, so two worker processes can lose an update of `clean_ticks`. One
-  container runs today. A fix would wrap them in `guard.mutation()`.
+  two worker containers; the organization purge is now safe with several worker
+  processes (below), but the other worker ticks were not load-tested with two.
+* **Organization purge with more than one worker process** (fixed): one pass of
+  one organization's purge runs under a PostgreSQL session advisory try-lock, so a
+  second process skips that organization until its next tick (tests with two
+  runtimes ticking at once). Other worker ticks were not exercised with two workers here.
 * **The API process is the first ceiling** (about 53 requests per second here),
   and there is no global request budget, only per-organization and per-principal
   limits.

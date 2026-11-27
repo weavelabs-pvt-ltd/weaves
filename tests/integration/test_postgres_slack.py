@@ -46,6 +46,7 @@ OTHER_PURPOSES = (
     "catalog",
     "oauth",
     "usage",
+    "feedback",
     "waitlist",
 )
 

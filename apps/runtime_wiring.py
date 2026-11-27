@@ -21,16 +21,19 @@ from apps.runtime_adapters import (
     build_login_rate_limiter,
     build_runtime_adapters,
     build_secret_store,
+    build_slack_feedback_admin,
     build_slack_store,
     build_usage_ledger,
 )
 from apps.runtime_service_composition import configure_capability_services
 from apps.runtime_services_slack_dispatch import attach_slack_dispatch
+from apps.runtime_services_slack_feedback import attach_slack_feedback
 from apps.runtime_services_slack_pipeline import attach_slack_pipeline
 from apps.slack_lifecycle_wiring import wire_slack_lifecycle
 from contracts.v1.base import ProductContract
 from infrastructure.config.settings import PoolSettings, load_pool_settings
 from infrastructure.database.pool import open_postgres_pool
+from infrastructure.database.purge_lock import PostgresPurgeLock
 from infrastructure.database.queue_metrics import publish_queue_gauges
 from infrastructure.database.store import ProductPostgresStore
 from infrastructure.http.model_egress import open_model_http_client
@@ -183,6 +186,7 @@ def _compose_with_model_client(
     )
     runtime.controls_store = controls_store
     runtime.slack_store = build_slack_store(store)
+    runtime.slack_feedback_admin = build_slack_feedback_admin(store, repositories)
     runtime.operator_audit = OperatorAudit(controls_store)
     runtime.admission = build_admission_service(
         store=store,
@@ -193,9 +197,12 @@ def _compose_with_model_client(
     runtime.platform_controls = cast(PlatformControls, runtime.admission.controls)
     capability_services = configure_capability_services(runtime)
     runtime.attach_capability_services(capability_services)
+    if store is not None:
+        runtime.organization_purge_service.lock = PostgresPurgeLock(store)
     wire_slack_lifecycle(runtime)
     attach_slack_pipeline(runtime)
     attach_slack_dispatch(runtime)
+    attach_slack_feedback(runtime)
     return runtime
 
 

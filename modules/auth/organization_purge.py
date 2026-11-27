@@ -28,6 +28,7 @@ from contracts.v1 import (
 )
 from modules.auth.lifecycle_actor import Actor
 from modules.auth.organization_lifecycle import OrganizationLifecycleService
+from modules.auth.organization_purge_lock import MemoryPurgeLock, PurgeLock
 from modules.auth.organization_retention import (
     KEEP_COLLECTIONS,
     PURGE_ORDER,
@@ -87,6 +88,7 @@ class OrganizationPurgeService:
         hook: Callable[[str], None] | None = None,
         tombstones: TombstoneSink | None = None,
         slack: SlackDataPurge | None = None,
+        lock: PurgeLock | None = None,
     ) -> None:
         """Bind the lifecycle state machine and the bulk data/secret ports."""
         self.lifecycle = lifecycle
@@ -99,6 +101,8 @@ class OrganizationPurgeService:
         self.tombstones: TombstoneSink = tombstones or NullTombstones()
         # Set after composition (the Slack store is built outside the capability set).
         self.slack = slack
+        # Replaced at composition with a database-wide lock on PostgreSQL.
+        self.lock: PurgeLock = lock or MemoryPurgeLock()
 
     def _step(self, name: str) -> None:
         """Failure-injection seam: tests raise here to simulate a crash."""
@@ -119,25 +123,44 @@ class OrganizationPurgeService:
         progressed = 0
         for org_id in dict.fromkeys([*due, *[r.id for r in deleting]]):
             try:
-                self._advance(org_id)
-                progressed += 1
+                progressed += int(self._advance(org_id))
             except Exception:
                 logger.exception("organization purge failed org_id=%s", org_id)
         return progressed
 
-    def _advance(self, org_id: str) -> None:
-        self._step("begin")
-        self.lifecycle.begin_deleting(org_id)
-        token = set_request_identity(Actor.system().audit_id, org_id, "lifecycle")
-        try:
-            deleting = self.lifecycle.state_of(org_id) is State.DELETING
-        finally:
-            reset_request_principal(token)
-        if deleting:
-            self.purge_pass(org_id)
+    def _advance(self, org_id: str) -> bool:
+        """One pass for one organization, or nothing if another process has it.
+
+        The lock covers the whole bounded pass (each step handles at most BATCH
+        rows), not each step: the checkpoint and ``clean_ticks`` accounting are a
+        read-modify-write sequence across steps, so another process interleaving
+        between steps could still lose an update. It is per organization, so
+        other organizations are never held, and it is never waited on.
+        """
+        with self.lock.hold(org_id) as acquired:
+            if not acquired:
+                logger.info("organization purge busy elsewhere org_id=%s", org_id)
+                return False
+            self._step("begin")
+            self.lifecycle.begin_deleting(org_id)
+            token = set_request_identity(Actor.system().audit_id, org_id, "lifecycle")
+            try:
+                deleting = self.lifecycle.state_of(org_id) is State.DELETING
+            finally:
+                reset_request_principal(token)
+            if deleting:
+                self._run_pass(org_id)
+            return True
 
     def purge_pass(self, org_id: str) -> bool:
-        """Run every step once; return True when the organization is DELETED."""
+        """Run every step once; return True when the organization is DELETED.
+
+        Returns False without running when another process holds the purge.
+        """
+        with self.lock.hold(org_id) as acquired:
+            return self._run_pass(org_id) if acquired else False
+
+    def _run_pass(self, org_id: str) -> bool:
         actor = Actor.system()
         token = set_request_identity(actor.audit_id, org_id, "lifecycle")
         try:

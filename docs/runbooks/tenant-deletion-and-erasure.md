@@ -10,7 +10,10 @@ For a customer organization that asks to leave or asks for its data to be erased
 2. Deletion is requested; **7-day grace period** (`WEAVES_ORGANIZATION_DELETION_GRACE_DAYS`,
    default 7). During grace the tenant is read-only except export and cancellation.
 3. The worker purges in bounded steps (poll `WEAVES_LIFECYCLE_POLL_SECONDS`, default 30 s);
-   a crash or restart resumes safely. State becomes `DELETED`, which is final.
+   a crash or restart resumes safely. State becomes `DELETED`, which is final. Only one
+   worker process purges a given organization at a time (a database advisory lock held for
+   one bounded pass); another worker skips it and logs `organization purge busy elsewhere`,
+   which is normal. The lock is dropped with its connection if a worker dies.
 4. Copies in backups age out: on-host dumps are deleted after 7 days and the disk snapshot
    schedule keeps 7 days, so **data of a deleted tenant can remain in backups for up to
    about 7 days (cron 19:45 UTC dump plus 20:00 UTC snapshot) after DELETED**. Those copies

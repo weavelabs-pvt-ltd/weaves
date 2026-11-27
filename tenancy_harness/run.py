@@ -260,11 +260,12 @@ def usage_control(compose):
 
 
 def slack_controls(compose):
-    """T7-I01 install, I02 events, I03 lifecycle, I04 Ask, I05 PR review (fakes)."""
+    """T7-I01 install, I02 events, I03 lifecycle, I04 Ask, I05 feedback, I06 review."""
     seed_module(compose, "phase7.slack_install_checks")
     seed_module(compose, "phase7.slack_event_checks")
     seed_module(compose, "phase7.slack_lifecycle_checks")
     seed_module(compose, "phase7.slack_ask_checks")
+    seed_module(compose, "phase7.slack_feedback_checks")
     seed_module(compose, "phase7.slack_review_checks")
 
 
