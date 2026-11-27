@@ -11,6 +11,7 @@ from application.ports.product_repositories import ProductRepositorySet
 from application.ports.runtime_adapters import RuntimeAdapterBundle
 from application.ports.secrets import SecretStore
 from application.ports.slack import SlackStore
+from application.ports.slack_feedback import FeedbackAdmin
 from application.ports.throttling import LoginRateLimiter
 from application.ports.usage import UsageLedger
 from clients.integrations.github import GitHubReadPlugin
@@ -82,6 +83,20 @@ def build_slack_store(store: ProductPostgresStore | None) -> SlackStore:
     from infrastructure.persistence.slack_store_memory import InMemorySlackStore
 
     return InMemorySlackStore() if store is None else PostgresSlackStore(store)
+
+
+def build_slack_feedback_admin(
+    store: ProductPostgresStore | None, repositories: ProductRepositorySet
+) -> FeedbackAdmin:
+    """Select the PostgreSQL feedback admin or the in-memory one."""
+    from infrastructure.persistence.slack_feedback_admin import (
+        InMemoryFeedbackAdmin,
+        PostgresFeedbackAdmin,
+    )
+
+    if store is None:
+        return InMemoryFeedbackAdmin(repositories.get("slack_feedback"))
+    return PostgresFeedbackAdmin(store)
 
 
 def build_runtime_adapters(

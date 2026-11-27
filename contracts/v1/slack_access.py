@@ -119,6 +119,10 @@ class SlackAccessSettings(MutableOrgScopedContract):
     # Set by the Ask slice when it provisions the Q&A service principal.
     qa_principal_id: OpaqueId | None = None
     qa_agent_version_id: OpaqueId | None = None
+    # Opaque secret-store reference of the organization's feedback pepper (the
+    # key behind the asker references of unmapped Slack users); never returned
+    # by the settings API.
+    feedback_pepper_ref: str | None = Field(default=None, max_length=200)
     paused: bool = False
     updated_by: str = Field(default="", max_length=320)
 

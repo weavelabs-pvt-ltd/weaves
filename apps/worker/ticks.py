@@ -32,6 +32,7 @@ SLACK_HEALTH_SECONDS = 600
 SLACK_DISPATCH_SECONDS = 1
 SLACK_REPLY_SECONDS = 1
 SLACK_RETENTION_SECONDS = 900
+SLACK_FEEDBACK_SECONDS = 2
 
 
 @dataclass(frozen=True)
@@ -217,6 +218,18 @@ def _slack_retention(services: WorkerServices) -> None:
     _run_slack("retention", services.purge_slack)
 
 
+def _slack_feedback(services: WorkerServices) -> None:
+    """Rate answers from thumbs reactions; held while an operator paused workers."""
+    paused = services.worker_paused
+    if callable(paused) and paused() is True:
+        return
+    _run_slack("feedback", services.feedback_slack)
+
+
+def _slack_feedback_retention(services: WorkerServices) -> None:
+    _run_slack("feedback retention", services.purge_slack_feedback)
+
+
 def _dispatch_schedules(services: WorkerServices) -> None:
     scheduled_jobs = services.workflow_automation.dispatch_due_workflow_schedules()
     if scheduled_jobs:
@@ -302,6 +315,15 @@ def build_tick_registry(
     registry.register(Tick("slack_reply", SLACK_REPLY_SECONDS, _slack_reply))
     registry.register(
         Tick("slack_qa_retention", SLACK_RETENTION_SECONDS, _slack_retention)
+    )
+    # S4c reaction feedback: thumbs to ratings (every 2 s) and 400 day retention.
+    registry.register(Tick("slack_feedback", SLACK_FEEDBACK_SECONDS, _slack_feedback))
+    registry.register(
+        Tick(
+            "slack_feedback_retention",
+            SLACK_RETENTION_SECONDS,
+            _slack_feedback_retention,
+        )
     )
 
     return registry

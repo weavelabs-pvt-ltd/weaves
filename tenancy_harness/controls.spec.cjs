@@ -510,3 +510,19 @@ test('T7-I04 a Slack mention becomes one hidden task and one answer, with the wo
     expect(control[key], key).toBe(true);
   }
 });
+
+test('T7-I05 the asker thumbs on a Slack answer become one rating, the latest wins and nothing else counts', async () => {
+  const control = fixture.slack_feedback;
+  for (const key of ['the_askers_thumbs_up_on_our_answer_is_one_rating',
+    'the_rating_joins_to_its_turn_task_and_request', 'the_rating_keeps_the_agent_model_and_connector_snapshot',
+    'the_asker_is_a_keyed_hash_not_the_slack_id', 'a_later_thumbs_down_replaces_it_newest_wins',
+    'a_redelivered_event_is_stored_once', 'another_users_reaction_changes_nothing',
+    'a_reaction_on_a_message_that_is_not_our_answer_changes_nothing',
+    'our_own_reaction_and_other_emoji_are_never_stored', 'ignored_reactions_leave_the_rating_as_it_was',
+    'the_thumbsup_alias_with_a_skin_tone_counts_as_a_thumbs_up', 'reaction_inbox_rows_are_settled_without_text',
+    'the_pepper_lives_in_the_secret_store_once', 'the_rating_is_invisible_to_other_tenants_and_unscoped_roles',
+    'no_question_text_or_raw_slack_id_in_the_rating',
+    'no_question_text_in_the_audit_trail_and_no_feedback_audit_noise']) {
+    expect(control[key], key).toBe(true);
+  }
+});
