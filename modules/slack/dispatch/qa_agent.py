@@ -40,6 +40,7 @@ from contracts.v1 import (
 from modules.slack.access.models import ToolHealth
 from modules.slack.access.service import SlackAccessService
 from modules.slack.pipeline.discovery import ToolDiscovery
+from modules.slack.pipeline.models import PR_REVIEW_CAPABILITY
 from shared.clock import new_id, utc_now
 
 logger = logging.getLogger("product.slack")
@@ -161,6 +162,7 @@ class QaProvisioner:
             for tool in self._discovery.discover(org_id, workspace_id, self._clock())
             if tool.health
             is not ToolHealth.DISABLED  # a turned-off connector cannot run
+            and tool.tool_id != PR_REVIEW_CAPABILITY  # reviews have their own agent
         ]
         counts = Counter(tool.tool_id for tool in found)
         wanted = sorted(tool_id for tool_id, n in counts.items() if n == 1)

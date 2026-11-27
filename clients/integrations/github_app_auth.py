@@ -20,8 +20,11 @@ def _b64url(value: bytes) -> str:
 class GitHubAppTokenProvider:
     """Mint and cache installation tokens limited to configured repositories."""
 
-    def __init__(self, client: httpx.Client) -> None:
+    def __init__(
+        self, client: httpx.Client, *, api_base_url: str = "https://api.github.com"
+    ) -> None:
         self._client = client
+        self._api_base_url = api_base_url.rstrip("/")
         self._lock = RLock()
         self._cache: dict[tuple[str, tuple[str, ...]], tuple[str, datetime]] = {}
 
@@ -80,7 +83,7 @@ class GitHubAppTokenProvider:
             token_request["repositories"] = repo_names
         try:
             response = self._client.post(
-                f"https://api.github.com/app/installations/{installation_id}/access_tokens",
+                f"{self._api_base_url}/app/installations/{installation_id}/access_tokens",
                 json=token_request,
                 headers={
                     "Accept": "application/vnd.github+json",

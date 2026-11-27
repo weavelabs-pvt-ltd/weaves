@@ -102,3 +102,20 @@ def test_the_origin_contract_is_strict_and_round_trips_on_a_turn():
     with pytest.raises(ValidationError):
         _origin(action="delete_everything")
     assert _origin().capability_ids is None  # unset means fail closed
+
+
+READER = "github.pr.review_context"
+
+
+def test_the_pull_request_reader_runs_only_for_a_slack_execute_turn():
+    listed = (*CONFIGURED, READER)
+    # A web task, a workflow or any run with no Slack origin never runs it.
+    assert allowed_capabilities(listed) == CONFIGURED
+    # A hidden Slack Q&A turn never runs it, even if it were approved.
+    with bound_run_origin(RunOrigin("slack_qa", (*CONFIGURED, READER))):
+        assert READER not in allowed_capabilities(listed)
+    # A Slack review turn runs exactly what its pipeline approved.
+    with bound_run_origin(RunOrigin("slack", (READER,))):
+        assert allowed_capabilities(listed) == (READER,)
+    with bound_run_origin(RunOrigin("slack", ())):
+        assert allowed_capabilities(listed) == ()

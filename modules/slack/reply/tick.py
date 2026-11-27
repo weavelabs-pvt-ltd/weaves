@@ -33,6 +33,7 @@ from modules.slack.dispatch.threads import ThreadBook
 from modules.slack.events import tenant_of
 from modules.slack.reply import compose
 from modules.slack.reply.deliver import Delivery, Target
+from modules.slack.reply.kinds import ReplyKind
 from modules.slack.reply.loss import InstallationLoss
 from modules.slack.reply.poster import PostError
 from modules.slack.reply.status_text import DEFAULT_DEADLINE, desired_key
@@ -77,6 +78,7 @@ class SlackReplyTick:
         unit_of_work: Callable[[], AbstractContextManager[None]],
         lock: Callable[[str], None] | None,
         native_status: Callable[[], bool] = lambda: False,
+        kinds: Mapping[str, ReplyKind] | None = None,
         deadline: timedelta = DEFAULT_DEADLINE,
         clock: Callable[[], datetime] = utc_now,
         budget_seconds: float = TICK_BUDGET_SECONDS,
@@ -96,6 +98,7 @@ class SlackReplyTick:
         self._uow = unit_of_work
         self._lock = lock
         self._native = native_status
+        self._kinds: Mapping[str, ReplyKind] = kinds or {}
         self._deadline = deadline
         self._clock = clock
         self._budget = budget_seconds
@@ -195,13 +198,17 @@ class SlackReplyTick:
             return ("timeout", "")
         running = turn.status is TaskTurnStatus.RUNNING
         verdict = turn.origin.verdict if turn.origin else None
-        waiting = self._steps.waiting_for(turn) if running else []
-        key = desired_key(
-            age=age,
-            running=running,
-            guard_done=verdict is not None,
-            waiting_for=waiting,
-        )
+        kind = self._kinds.get(row.kind)
+        if kind is not None:
+            key = kind.working_key(row, turn, age, running)
+        else:
+            waiting = self._steps.waiting_for(turn) if running else []
+            key = desired_key(
+                age=age,
+                running=running,
+                guard_done=verdict is not None,
+                waiting_for=waiting,
+            )
         if key is None or key == row.status_text_key:
             return None
         return ("status", key)
@@ -238,10 +245,14 @@ class SlackReplyTick:
                 row = row.model_copy(
                     update={"run_state": "running" if running else "queued"}
                 )
-                row = self._delivery.show_status(row, detail, target)
+                kind_words = self._kinds.get(row.kind)
+                words = (
+                    kind_words.working_text(row, turn, detail) if kind_words else None
+                )
+                row = self._delivery.show_status(row, detail, target, words)
                 self._release(row, target.now)
             elif kind == "receipt":
-                self._delivery.finish_status(row, target)
+                self._delivery.finish_status(row, target, self._receipt(row, turn))
                 SLACK_REPLY.inc(kind="receipt", outcome="closed")
             else:
                 self._deliver(row, turn, kind, target)
@@ -278,7 +289,12 @@ class SlackReplyTick:
             )
             return
         delivered = self._delivery.send_reply(row, reply, target)
-        self._delivery.finish_status(delivered, target)
+        self._delivery.finish_status(delivered, target, self._receipt(delivered, turn))
+
+    def _receipt(self, row: SlackThread, turn: TaskTurn) -> str | None:
+        """The kind's own receipt text (``None``: the default "Done in 41s")."""
+        words = self._kinds.get(row.kind)
+        return words.receipt_text(row, turn) if words else None
 
     def _release(self, row: SlackThread, now: datetime) -> None:
         """Drop the lease after a status step so the next change is not delayed."""
@@ -293,6 +309,9 @@ class SlackReplyTick:
     def _reply(
         self, row: SlackThread, turn: TaskTurn, now: datetime
     ) -> compose.Reply | None:
+        words = self._kinds.get(row.kind)
+        if words is not None:
+            return words.reply(row, turn, now)
         verdict = turn.origin.verdict if turn.origin else None
         if turn.status is TaskTurnStatus.FAILED:
             return compose.failure(turn)

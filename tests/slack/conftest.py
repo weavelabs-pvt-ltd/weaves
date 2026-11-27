@@ -8,6 +8,7 @@ from tests.slack.support import World, running_world
 from tests.support import slack_pipeline_world as pipeline
 from tests.support.slack_ask_world import AskWorld, build_ask_world
 from tests.support.slack_pipeline_world import World as PipelineWorld
+from tests.support.slack_review_world import ReviewWorld, build_review_world
 
 
 @pytest.fixture
@@ -39,3 +40,15 @@ def aworld(monkeypatch: pytest.MonkeyPatch) -> Iterator[AskWorld]:
         yield built
     finally:
         built.world.close()
+
+
+@pytest.fixture
+def rworld(monkeypatch: pytest.MonkeyPatch) -> Iterator[ReviewWorld]:
+    """A Slack review world: the Ask world plus a GitHub connection over a fake."""
+    monkeypatch.setenv("WEAVES_SLACK_ENABLED", "true")
+    monkeypatch.setenv("WEAVES_SLACK_SIGNING_SECRET", "fixture-signing-secret")
+    built = build_review_world()
+    try:
+        yield built
+    finally:
+        built.aworld.world.close()

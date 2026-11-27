@@ -129,6 +129,11 @@ class SlackRetention:
 
     def _delete_conversation(self, row: SlackThread) -> None:
         org, workspace = row.org_id, row.workspace_id
+        if row.kind != "ask":
+            # A review is the member's own task (it is listed and has a page): only
+            # the thread map expires, never the task or its result.
+            _remove(self._threads, row.id)
+            return
         with self._uow():
             turns = self._turns.list_by_field("task_id", row.task_id)
             for turn in turns:

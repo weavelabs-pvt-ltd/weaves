@@ -88,6 +88,7 @@ class TurnOrigin(ProductContract):
         "ask", "ask_private", "create_task", "pr_review", "run_workflow"
     ] = "ask"
     repo: str | None = Field(default=None, max_length=200)
+    pr_number: int | None = Field(default=None, ge=1, le=9_999_999)
     workflow_id: OpaqueId | None = None
     capability_ids: tuple[OpaqueId, ...] | None = Field(default=None, max_length=20)
     verdict: TurnVerdict | None = None

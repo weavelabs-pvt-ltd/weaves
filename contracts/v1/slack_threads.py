@@ -18,7 +18,7 @@ from pydantic import AwareDatetime, Field
 
 from contracts.v1.base import MutableOrgScopedContract, OpaqueId
 
-ThreadKind = Literal["ask"]
+ThreadKind = Literal["ask", "review"]
 RunState = Literal["queued", "running", "cancel_requested", "done", "failed", "stopped"]
 ReplyState = Literal["pending", "posted", "undeliverable"]
 
@@ -42,7 +42,7 @@ class SlackThread(MutableOrgScopedContract):
     thread_ts: str = Field(min_length=1, max_length=32)
     kind: ThreadKind = "ask"
     task_id: OpaqueId
-    tier: Literal["ask"] = "ask"
+    tier: Literal["ask", "execute"] = "ask"
     requester_slack_user_id: OpaqueId
     requester_principal_id: OpaqueId
     # The latest request in the thread.
