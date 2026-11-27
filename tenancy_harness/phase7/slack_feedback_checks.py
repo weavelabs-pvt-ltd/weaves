@@ -15,6 +15,10 @@ unscoped role, and neither the row nor the audit trail holds the question text
 or the raw Slack user id.
 """
 
+import os
+
+import psycopg
+
 from tenancy_harness.client import request
 from tenancy_harness.phase6.controls_checks import until
 from tenancy_harness.phase7.slack_support import (
@@ -58,6 +62,21 @@ def reaction_event(event_id, ts, *, reaction="+1", user=ASKER):
             "event_ts": next(TS),
         },
     }
+
+
+def without_connectors(org_id):
+    """Disable the organization's connectors (the Ask control leaves one).
+
+    With a connector offered the fake model cannot plan, which is the Ask
+    control's own case; this control needs a model-only answer, posted publicly.
+    """
+    with psycopg.connect(os.environ["DATABASE_URL"]) as connection:
+        connection.execute(
+            "UPDATE product_records SET payload = jsonb_set(payload, '{status}', "
+            "'\"disabled\"') WHERE collection = 'plugin_installations' "
+            "AND org_id = %s",
+            (org_id,),
+        )
 
 
 def thread_for(org_id, event_id):
@@ -289,8 +308,9 @@ def main():
     if install(a).get("slack_install") != "ok":
         raise AssertionError("the setup for the feedback control did not complete")
     org = a["org_id"]
+    without_connectors(org)
     user_ts, thread = ask(org, f"explain idempotency {MARKER}")
-    if thread is None or not thread.get("answer_ts"):
+    if thread is None or thread.get("answer_ts") in (None, "", "private"):
         shown = {
             k: (thread or {}).get(k)
             for k in ("run_state", "reply_state", "reply_error")
