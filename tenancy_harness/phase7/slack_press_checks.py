@@ -21,6 +21,11 @@ once with no text and no reference; the press rows lose their reference once
 settled.
 """
 
+import os
+import time
+
+import psycopg
+
 from tenancy_harness.client import call, request
 from tenancy_harness.phase6.controls_checks import until
 from tenancy_harness.phase7.slack_ask_checks import FIELDS, PATH, flip
@@ -44,12 +49,12 @@ from tenancy_harness.phase7.slack_press_support import (
     whispers,
 )
 from tenancy_harness.phase7.slack_support import (
+    TEAM,
     fake,
     install,
     record,
     reset_fake,
     rows,
-    status,
 )
 from tenancy_harness.resources import tenant
 from tenancy_harness.seed import require_disposable_database
@@ -329,16 +334,31 @@ def record_results(a):
 
 
 def free_workspace():
-    """Let the earlier controls' organizations give the fake workspace back."""
-    for label in ("p7a", "p7r"):
-        old = tenant(label)
-        for item in status(old).get("installations", []):
-            if item["status"] in ("active", "suspended"):
-                request(
-                    "DELETE",
-                    "/organization/slack/" + item["installation_id"],
-                    old["admin"]["headers"],
-                )
+    """Let the earlier controls' organization give the fake workspace back.
+
+    Straight on the disposable database (the earlier organizations are not
+    touched again: creating organizations through the API is rate limited, and
+    every ``tenant()`` call counts).
+    """
+    with psycopg.connect(os.environ["DATABASE_URL"]) as connection:
+        connection.execute(
+            "UPDATE slack_installations SET status = 'uninstalled', "
+            "revoked_at = now() WHERE team_id = %s AND status IN "
+            "('active', 'suspended')",
+            (TEAM,),
+        )
+
+
+def patient_tenant(label):
+    """``tenant()``, waiting out the organization-creation rate limit."""
+    for _ in range(12):
+        try:
+            return tenant(label)
+        except AssertionError as error:
+            if "429" not in str(error):
+                raise
+            time.sleep(15)
+    return tenant(label)
 
 
 def setup(a):
@@ -395,7 +415,7 @@ def main():
     require_disposable_database()
     reset_fake()
     free_workspace()
-    a = tenant("p7e")  # no connector; creating a new org would hit the rate limit
+    a = patient_tenant("p7e")  # an organization with no connector
     setup(a)
     results = stop_results(a)
     results.update(requester_results(a))

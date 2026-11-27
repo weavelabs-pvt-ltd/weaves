@@ -24,7 +24,7 @@ from tenancy_harness.budget import MAX_OUTPUT_TOKENS
 from tenancy_harness.client import call
 from tenancy_harness.phase6.controls_checks import until
 from tenancy_harness.phase7.slack_ask_checks import flip
-from tenancy_harness.phase7.slack_press_checks import stopped_message
+from tenancy_harness.phase7.slack_press_checks import patient_tenant, stopped_message
 from tenancy_harness.phase7.slack_press_support import (
     ASKER,
     answers,
@@ -40,7 +40,6 @@ from tenancy_harness.phase7.slack_press_support import (
     wait_button,
 )
 from tenancy_harness.phase7.slack_support import install, reset_fake
-from tenancy_harness.resources import tenant
 from tenancy_harness.seed import require_disposable_database
 
 CONTROL_ID = "T7-L01"
@@ -135,7 +134,7 @@ def main():
         raise ValueError("Live Slack control needs the bounded relay configuration")
     new_series("7L", 1700009)  # T7-I08 used Ev7B... in this database
     reset_fake()
-    a = tenant("p7e")  # the organization T7-I08 left installed
+    a = patient_tenant("p7e")  # the organization T7-I08 left installed
     if install(a).get("slack_install") != "ok":  # a fresh token after the reset
         raise AssertionError("the Slack install for the live control failed")
     model = connect_real_model(a, config)
