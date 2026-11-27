@@ -11,30 +11,30 @@ Scope is derived from the contract fields (`org_id`, `workspace_id`) that become
 | Collection | Contract | Id field | Scope from contract | Has updated_at | Tenant-keyed id | Export | Purge | Indexes |
 |---|---|---|---|---|---|---|---|---|
 | `organizations` | `Organization` | `id` | global/account | yes | no | no | keep | - |
-| `organization_settings` | `OrganizationSettings` | `id` | organization | yes | no | no | 38 | `organization_slug_uq`, `organization_email_domain_uq` |
+| `organization_settings` | `OrganizationSettings` | `id` | organization | yes | no | no | 41 | `organization_slug_uq`, `organization_email_domain_uq` |
 | `organization_lifecycle` | `OrganizationLifecycle` | `id` | organization | yes | no | no | keep | `organization_lifecycle_state_idx` |
 | `accounts` | `Account` | `id` | global/account | yes | no | no | keep | - |
 | `account_identities` | `AccountIdentity` | `id` | global/account | yes | no | no | keep | `account_identity_verified_uq`, `account_identity_owner_uq`, `account_identity_account_idx`, `account_identity_subject_idx` |
-| `memberships` | `OrganizationMembership` | `id` | organization | yes | no | yes | 34 | `membership_account_org_uq`, `membership_user_uq`, `membership_account_idx`, `membership_user_idx` |
+| `memberships` | `OrganizationMembership` | `id` | organization | yes | no | yes | 37 | `membership_account_org_uq`, `membership_user_uq`, `membership_account_idx`, `membership_user_idx` |
 | `account_oauth_states` | `AccountOAuthState` | `id` | global/account | yes | no | no | keep | `account_oauth_state_uq`, `account_oauth_state_expiry_idx` |
 | `account_sessions` | `AccountSession` | `id` | global/account | yes | no | no | keep | `account_session_token_uq`, `account_session_account_idx`, `account_session_expiry_idx`, `account_session_revoked_idx` |
 | `account_organization_requests` | `AccountOrganizationRequest` | `id` | global/account | no | no | no | keep | `account_org_request_key_uq` |
-| `workspaces` | `Workspace` | `id` | organization | yes | no | yes | 37 | - |
-| `users` | `User` | `id` | organization | yes | no | yes | 36 | `product_records_active_user_email_uq`, `user_email_lower_idx` |
-| `principals` | `Principal` | `id` | organization | yes | no | no | 35 | - |
-| `api_credentials` | `ApiCredential` | `id` | organization | yes | no | no | 31 | `product_records_api_token_digest_uq` |
-| `roles` | `Role` | `id` | organization | no | no | yes | 33 | `product_records_system_role_key_uq` |
-| `role_bindings` | `RoleBinding` | `id` | workspace | no | no | yes | 32 | `product_records_role_binding_scope_uq` |
+| `workspaces` | `Workspace` | `id` | organization | yes | no | yes | 40 | - |
+| `users` | `User` | `id` | organization | yes | no | yes | 39 | `product_records_active_user_email_uq`, `user_email_lower_idx` |
+| `principals` | `Principal` | `id` | organization | yes | no | no | 38 | - |
+| `api_credentials` | `ApiCredential` | `id` | organization | yes | no | no | 34 | `product_records_api_token_digest_uq` |
+| `roles` | `Role` | `id` | organization | no | no | yes | 36 | `product_records_system_role_key_uq` |
+| `role_bindings` | `RoleBinding` | `id` | workspace | no | no | yes | 35 | `product_records_role_binding_scope_uq` |
 | `skill_definitions` | `SkillDefinition` | `skill_id` | organization | yes | no | yes | 23 | `skills_org_slug_unique_idx`, `skills_personal_slug_unique_idx` |
 | `skill_versions` | `SkillVersion` | `skill_version_id` | organization | no (frozen) | no | yes | 22 | `skills_version_number_unique_idx` |
 | `skill_publications` | `SkillPublication` | `publication_id` | organization | no (frozen) | no | yes | 21 | `skills_publication_version_unique_idx` |
 | `skill_revocations` | `SkillRevocation` | `revocation_id` | organization | no (frozen) | no | yes | 20 | `skills_revocation_version_unique_idx` |
-| `model_providers` | `ModelProvider` | `id` | organization | no | no | yes | 28 | - |
-| `model_profiles` | `ModelProfile` | `id` | organization | yes | no | yes | 27 | - |
-| `model_configurations` | `OrganizationModelConfiguration` | `org_id` | organization | yes | no | yes | 29 | - |
+| `model_providers` | `ModelProvider` | `id` | organization | no | no | yes | 31 | - |
+| `model_profiles` | `ModelProfile` | `id` | organization | yes | no | yes | 30 | - |
+| `model_configurations` | `OrganizationModelConfiguration` | `org_id` | organization | yes | no | yes | 32 | - |
 | `plugins` | `PluginDescriptor` | `plugin_id` | global/account | no (frozen) | no | no | 25 | - |
 | `plugin_installations` | `PluginInstallation` | `plugin_installation_id` | workspace | yes | no | yes | 24 | - |
-| `oauth_authorization_states` | `OAuthAuthorizationState` | `oauth_state_id` | workspace | no (frozen) | no | no | 26 | - |
+| `oauth_authorization_states` | `OAuthAuthorizationState` | `oauth_state_id` | workspace | no (frozen) | no | no | 29 | - |
 | `agents` | `AgentDefinition` | `id` | workspace | yes | no | yes | 19 | - |
 | `agent_versions` | `AgentVersion` | `agent_version_id` | workspace | no (frozen) | no | yes | 18 | - |
 | `workflows` | `WorkflowDefinition` | `workflow_id` | workspace | yes | no | yes | 17 | - |
@@ -51,12 +51,15 @@ Scope is derived from the contract fields (`org_id`, `workspace_id`) that become
 | `conversation_threads` | `ConversationThread` | `thread_id` | workspace | yes | no | yes | 5 | - |
 | `execution_jobs` | `ExecutionJob` | `job_id` | workspace | yes | no | no | 1 | `product_records_execution_job_idempotency_uq`, `product_records_execution_job_claim_idx`, `limits_job_queued_org_idx`, `product_records_execution_job_org_queued_idx`, `product_records_execution_job_org_running_idx`, `execution_jobs_leased_idx` |
 | `canvas_runs` | `CanvasRun` | `run_id` | workspace | yes | no | no | 10 | `canvas_runs_active_idx`, `canvas_runs_workflow_page_idx` |
-| `canvas_settings` | `CanvasSettings` | `workflow_id` | workspace | yes | no | no | 30 | `canvas_settings_due_idx` |
+| `canvas_settings` | `CanvasSettings` | `workflow_id` | workspace | yes | no | no | 33 | `canvas_settings_due_idx` |
 | `tasks` | `Task` | `task_id` | workspace | yes | no | yes | 4 | `product_records_task_idempotency_uq`, `product_records_task_page_idx`, `tasks_status_idx` |
 | `task_messages` | `TaskMessage` | `message_id` | workspace | no (frozen) | no | yes | 3 | `product_records_task_messages_page_idx` |
 | `task_turns` | `TaskTurn` | `turn_id` | workspace | yes | no | yes | 2 | `product_records_task_turn_idempotency_uq`, `product_records_task_turn_claim_idx`, `product_records_task_turn_stale_idx`, `limits_turn_queued_org_idx`, `product_records_task_turn_org_queued_idx`, `product_records_task_turn_org_running_idx`, `task_turns_task_idx`, `task_turns_active_idx`, `task_turns_recent_idx` |
 | `audit_events` | `AuditEvent` | `audit_event_id` | workspace | no (frozen) | no | yes | keep | `product_records_audit_event_org_page_idx`, `product_records_audit_event_workspace_page_idx`, `audit_events_action_target_idx` |
 | `organization_limits` | `OrganizationLimitOverride` | `org_id` | organization | yes | no | no | none | - |
+| `slack_access_settings` | `SlackAccessSettings` | `org_id` | organization | yes | no | yes | 28 | - |
+| `slack_allowed_users` | `SlackAllowedUser` | `id` | organization | yes | no | yes | 26 | `slack_allowed_users_org_user_uq` |
+| `slack_allowed_channels` | `SlackAllowedChannel` | `id` | organization | yes | no | yes | 27 | `slack_allowed_channels_org_channel_uq` |
 | `waitlist_entries` | `WaitlistEntry` | `id` | global/account | yes | no | no | keep | `waitlist_entry_email_uq` |
 | `waitlist_submissions` | `WaitlistSubmission` | `id` | global/account | yes | no | no | keep | `waitlist_submission_token_uq`, `waitlist_submission_entry_idx`, `waitlist_submission_created_idx` |
 
@@ -309,7 +312,7 @@ Contract `contracts.v1.identity.Role`; `record_id` = `id`.
 | `id` | str | min_length=1, max_length=128 | required |
 | `org_id` | str | min_length=1, max_length=128 | required |
 | `name` | str | min_length=1, max_length=160 | required |
-| `permissions` | list[enum Permission(organizations.admin/workspaces.admin/users.manage/roles.manage/models.manage/models.view/agents.manage/agents.run/agents.view/workflows.manage/workflows.run/workflows.view/tasks.view/tasks.create/tasks.manage/plugins.manage/plugins.view/skills.view/skills.use/skills.personal.manage/skills.org.publish/skills.org.manage/skills.revoke/artifacts.read/actions.approve/audit.read)] | - | default factory |
+| `permissions` | list[enum Permission(organizations.admin/workspaces.admin/users.manage/roles.manage/models.manage/models.view/agents.manage/agents.run/agents.view/workflows.manage/workflows.run/workflows.view/tasks.view/tasks.create/tasks.manage/plugins.manage/plugins.view/skills.view/skills.use/skills.personal.manage/skills.org.publish/skills.org.manage/skills.revoke/artifacts.read/actions.approve/audit.read/slack.manage)] | - | default factory |
 | `system_role_key` | SystemRoleKey? | - | default None |
 
 Reference-like fields: none
@@ -1087,6 +1090,67 @@ Contract `contracts.v1.limits.OrganizationLimitOverride`; `record_id` = `org_id`
 
 Reference-like fields: none
 
+### `slack_access_settings`
+
+Contract `contracts.v1.slack_access.SlackAccessSettings`; `record_id` = `org_id`.
+
+| Field | Type | Constraints | Presence |
+|---|---|---|---|
+| `schema_version` | literal(1) | - | default 1 |
+| `created_at` | AwareDatetime | - | required |
+| `updated_at` | AwareDatetime | - | required |
+| `org_id` | str | min_length=1, max_length=128 | required |
+| `settings_version` | int | ge=1 | required |
+| `ask_enabled` | bool | - | default True |
+| `connector_audience` | dict[str, literal('everyone', 'allowed_people', 'not_in_slack')] | - | default factory |
+| `partial_answers` | bool | - | default False |
+| `planner_profile_id` | str? | - | default None |
+| `ask_limits` | AskLimits | - | default factory |
+| `rules` | ExecuteRules | - | default factory |
+| `workflow_ids` | list[str] | - | default factory |
+| `pr_review_repos` | list[str] | - | default factory |
+| `qa_principal_id` | str? | - | default None |
+| `qa_agent_version_id` | str? | - | default None |
+| `paused` | bool | - | default False |
+| `updated_by` | str | max_length=320 | default '' |
+
+Reference-like fields: `planner_profile_id`, `workflow_ids`, `qa_principal_id`, `qa_agent_version_id`
+
+### `slack_allowed_users`
+
+Contract `contracts.v1.slack_access.SlackAllowedUser`; `record_id` = `id`.
+
+| Field | Type | Constraints | Presence |
+|---|---|---|---|
+| `schema_version` | literal(1) | - | default 1 |
+| `created_at` | AwareDatetime | - | required |
+| `updated_at` | AwareDatetime | - | required |
+| `org_id` | str | min_length=1, max_length=128 | required |
+| `id` | str | min_length=1, max_length=128 | required |
+| `slack_user_id` | str | pattern=^[UW][A-Z0-9]{2,31}$ | required |
+| `principal_id` | str? | - | default None |
+| `note` | str | max_length=200 | default '' |
+| `added_by` | str | min_length=1, max_length=128 | required |
+
+Reference-like fields: `slack_user_id`, `principal_id`
+
+### `slack_allowed_channels`
+
+Contract `contracts.v1.slack_access.SlackAllowedChannel`; `record_id` = `id`.
+
+| Field | Type | Constraints | Presence |
+|---|---|---|---|
+| `schema_version` | literal(1) | - | default 1 |
+| `created_at` | AwareDatetime | - | required |
+| `updated_at` | AwareDatetime | - | required |
+| `org_id` | str | min_length=1, max_length=128 | required |
+| `id` | str | min_length=1, max_length=128 | required |
+| `channel_id` | str | pattern=^[CG][A-Z0-9]{2,31}$ | required |
+| `name_cached` | str | max_length=120 | default '' |
+| `added_by` | str | min_length=1, max_length=128 | required |
+
+Reference-like fields: `channel_id`
+
 ### `waitlist_entries`
 
 Contract `contracts.v1.waitlist.WaitlistEntry`; `record_id` = `id`.
@@ -1204,6 +1268,10 @@ Parsed from the migration and repeatable statements. `collection` is the partial
 | `slack_event_inbox_message_uq` | migration 32 | `slack_event_inbox` | yes | `team_id, channel_id, message_ts` | `event_type = 'app_mention'` |
 | `slack_event_inbox_pending_idx` | migration 32 | `slack_event_inbox` | no | `received_at` | `state = 'pending'` |
 | `slack_event_inbox_received_idx` | migration 32 | `slack_event_inbox` | no | `received_at` | `-` |
+| `slack_allowed_users_org_user_uq` | migration 33 | `product_records` | yes | `org_id, (payload->>'slack_user_id')` | `collection = 'slack_allowed_users'` |
+| `slack_allowed_channels_org_channel_uq` | migration 33 | `product_records` | yes | `org_id, (payload->>'channel_id')` | `collection = 'slack_allowed_channels'` |
+| `slack_threads_key_uq` | migration 33 | `product_records` | yes | `org_id, (payload->>'team_id'), (payload->>'channel_id'), (payload->>'thread_ts'), (payload->>'kind')` | `collection = 'slack_threads'` |
+| `slack_feedback_turn_asker_uq` | migration 33 | `product_records` | yes | `org_id, (payload->>'turn_id'), (payload->>'asker_ref')` | `collection = 'slack_feedback'` |
 | `account_identity_verified_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities' AND payload->>'verified_at' IS NOT NULL` |
 | `account_identity_owner_uq` | repeatable (account schema) | `product_records` | yes | `(payload->>'account_id'), (payload->>'kind'), (COALESCE(payload->>'issuer', '')), (payload->>'subject')` | `collection = 'account_identities'` |
 | `membership_account_org_uq` | repeatable (account schema) | `product_records` | yes | `org_id, (payload->>'account_id')` | `collection = 'memberships'` |
@@ -1248,4 +1316,5 @@ Collections handled by the account branch of `weaves_rls_allows` (visible only u
 
 Collection names referenced by purge order or indexes that no repository serves in this release.
 
-- none
+- `slack_feedback`
+- `slack_threads`

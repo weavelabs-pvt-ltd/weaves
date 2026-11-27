@@ -32,6 +32,7 @@ from modules.models.runtime import ModelService
 from modules.overview.service import OverviewService
 from modules.platform_controls.controls import PlatformControls
 from modules.skills.service import SkillsService
+from modules.slack.access.service import SlackAccessService
 from modules.tasks.service import TaskService
 from modules.usage.queries import UsageQueries
 from modules.waitlist.service import WaitlistService
@@ -75,6 +76,7 @@ class ApiRouteServices:
     limit_policy: LimitPolicy
     usage: UsageQueries
     platform_controls: PlatformControls
+    slack_access: SlackAccessService
     slack: SlackRouteServices
 
 
@@ -137,5 +139,6 @@ def build_api_route_services(runtime: LocalPlatformRuntime) -> ApiRouteServices:
         limit_policy=runtime.admission.policy,
         usage=runtime.usage_queries,
         platform_controls=runtime.platform_controls,
+        slack_access=runtime.slack_access_service,
         slack=build_slack_route_services(runtime),
     )

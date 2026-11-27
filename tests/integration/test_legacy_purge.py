@@ -191,6 +191,10 @@ def test_row_policies_still_isolate_tenants_after_the_purge(
 # A new index must be added here with its reason; a removed one must leave.
 INDEX_JUSTIFICATIONS = {
     "product_records_pkey": "record identity",
+    "slack_allowed_users_org_user_uq": "one allowlist row per Slack user per org",
+    "slack_allowed_channels_org_channel_uq": "one allowlist row per channel per org",
+    "slack_threads_key_uq": "one Slack thread row per thread and kind",
+    "slack_feedback_turn_asker_uq": "one feedback row per turn and asker",
     "platform_controls_pkey": "the single switches row",
     "operator_actions_pkey": "append-only audit identity",
     "operator_actions_at_idx": "newest operator actions first",

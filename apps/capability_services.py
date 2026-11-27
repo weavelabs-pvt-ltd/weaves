@@ -28,6 +28,7 @@ from modules.models.catalog import ModelCatalogService
 from modules.models.runtime import ModelService
 from modules.overview.service import OverviewService
 from modules.skills.service import SkillsService
+from modules.slack.access.service import SlackAccessService
 from modules.tasks.service import TaskService
 from modules.tasks.worker_service import TaskWorkerService
 from modules.usage.queries import UsageQueries
@@ -77,6 +78,7 @@ class CapabilityServiceSet:
     task_worker_service: TaskWorkerService
     workspace_access_service: WorkspaceAccessService
     skills_service: SkillsService
+    slack_access_service: SlackAccessService
     usage_service: UsageService
     usage_queries: UsageQueries
     usage_reconciler: UsageReconciler

@@ -475,7 +475,8 @@ def test_database_at_previous_head_applies_only_the_newest_step():
     ]
     assert versions == [SCHEMA_HEAD_VERSION]
     sql = "\n".join(statement for statement, _ in connection.statements)
-    assert "CREATE TABLE IF NOT EXISTS slack_installations" in sql
+    assert "slack_allowed_users_org_user_uq" in sql
+    assert "slack.manage" in sql
     assert "DELETE FROM product_records WHERE collection IN" not in sql
     assert "CREATE TABLE IF NOT EXISTS platform_controls" not in sql
     assert "workflow_runs_running_idx" not in sql
@@ -491,4 +492,4 @@ def test_migration_list_is_contiguous_append_only_history():
     full = [*range(1, 20), *range(21, SCHEMA_HEAD_VERSION + 1)]
     assert sorted(set(LISTED_VERSIONS)) == LISTED_VERSIONS
     assert set(full) - set(LISTED_VERSIONS) <= {27, 29}
-    assert SCHEMA_HEAD_VERSION == 32
+    assert SCHEMA_HEAD_VERSION == 33

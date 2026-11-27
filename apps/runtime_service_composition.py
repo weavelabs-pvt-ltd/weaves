@@ -25,6 +25,7 @@ from apps.runtime_services_execution import (
 from apps.runtime_services_governance import _configure_governance_service
 from apps.runtime_services_integrations import _configure_integration_services
 from apps.runtime_services_org_admin import configure_organization_administration
+from apps.runtime_services_slack import configure_slack_access_service
 from apps.runtime_services_tasks import _configure_task_services
 from apps.runtime_services_workflows import (
     _configure_agent_service,
@@ -44,6 +45,7 @@ def configure_capability_services(
     _configure_authentication_service(dependencies, services)
     _configure_account_sign_in_service(dependencies, services)
     configure_organization_administration(dependencies, services)
+    configure_slack_access_service(dependencies, services)
     _configure_user_administration_service(dependencies, services)
     _configure_workspace_access_service(dependencies, services)
     _configure_organization_service(dependencies, services)

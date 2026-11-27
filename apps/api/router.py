@@ -25,6 +25,7 @@ from modules.limits.http.routes import register_limits_routes
 from modules.models.http.routes import register_model_routes
 from modules.overview.http.routes import register_overview_routes
 from modules.skills.http.routes import register_skill_routes
+from modules.slack.http.access_routes import register_slack_access_routes
 from modules.tasks.http.routes import register_task_routes
 from modules.usage.http.routes import register_usage_routes
 from modules.waitlist.http.routes import register_waitlist_routes
@@ -97,4 +98,5 @@ def register_v0_routes(app: FastAPI, services: ApiRouteServices) -> None:
     register_audit_routes(app, services.governance, dump)
     register_usage_routes(app, services.usage)
     register_waitlist_routes(app, services.waitlist)
+    register_slack_access_routes(app, services.slack_access)
     register_slack_routes(app, services.slack)

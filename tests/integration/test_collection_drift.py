@@ -13,6 +13,7 @@ from apps.runtime_wiring import compose_platform_runtime
 from infrastructure.database.approvals_removal import REMOVED_COLLECTIONS
 from infrastructure.database.legacy_purge import PURGED_COLLECTIONS
 from infrastructure.database.pool import open_postgres_pool
+from infrastructure.database.slack_access_schema import RESERVED_COLLECTIONS
 from infrastructure.database.store import ProductPostgresStore
 from infrastructure.persistence.product_repositories import REPOSITORY_SPECS
 from modules.auth.organization_retention import KEEP_COLLECTIONS, PURGE_ORDER
@@ -55,5 +56,12 @@ def test_sql_and_retention_lists_name_only_registered_collections():
             named |= set(re.findall(r"collection\s*=\s*'([a-z_]+)'", text))
     # Migrations 6, 15, 19 and 22 name purged collections as history; the rest
     # of the code must not.
-    unknown = named - REGISTRY - set(PURGED_COLLECTIONS) - set(REMOVED_COLLECTIONS)
+    # Migration 33 indexes collections the Ask slices register later.
+    unknown = (
+        named
+        - REGISTRY
+        - set(PURGED_COLLECTIONS)
+        - set(REMOVED_COLLECTIONS)
+        - set(RESERVED_COLLECTIONS)
+    )
     assert not unknown, f"SQL names unknown collections: {unknown}"

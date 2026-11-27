@@ -56,6 +56,11 @@ from contracts.v1 import (
 from contracts.v1 import ModelProvider as ModelProviderContract
 from contracts.v1.base import ProductContract
 from contracts.v1.limits import OrganizationLimitOverride
+from contracts.v1.slack_access import (
+    SlackAccessSettings,
+    SlackAllowedChannel,
+    SlackAllowedUser,
+)
 
 TProduct = TypeVar("TProduct", bound=ProductContract)
 
@@ -111,6 +116,9 @@ class RuntimeRepositoryBindingMixin:
     waitlist_entries: Repository[WaitlistEntry]
     waitlist_submissions: Repository[WaitlistSubmission]
     organization_limits: Repository[OrganizationLimitOverride]
+    slack_access_settings: Repository[SlackAccessSettings]
+    slack_allowed_users: Repository[SlackAllowedUser]
+    slack_allowed_channels: Repository[SlackAllowedChannel]
 
     def _bind_repositories(self) -> None:
         """Attach one repository for each product collection."""
@@ -198,6 +206,15 @@ class RuntimeRepositoryBindingMixin:
         )
         self.organization_limits = self._repository(
             "organization_limits", OrganizationLimitOverride
+        )
+        self.slack_access_settings = self._repository(
+            "slack_access_settings", SlackAccessSettings
+        )
+        self.slack_allowed_users = self._repository(
+            "slack_allowed_users", SlackAllowedUser
+        )
+        self.slack_allowed_channels = self._repository(
+            "slack_allowed_channels", SlackAllowedChannel
         )
 
     def _repository(

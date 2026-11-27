@@ -231,6 +231,7 @@ workspace.
 - `artifacts.read`
 - `actions.approve`
 - `audit.read`
+- `slack.manage` (Slack access settings, allowlists and pause; Owner and Admin)
 
 Permissions are stable machine values. UI labels are not stored in the enum.
 
