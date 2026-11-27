@@ -35,6 +35,7 @@ ORGANIZATION_DELETED = "organization_deleted"
 CREDENTIAL_REVOKED = "credential_revoked"
 SECRET_DELETED = "secret_deleted"
 SECRET_REPLACED = "secret_replaced"
+SLACK_INSTALLATION_ENDED = "slack_installation_ended"
 KINDS = frozenset(
     {
         ORGANIZATION_PURGE_STARTED,
@@ -42,6 +43,7 @@ KINDS = frozenset(
         CREDENTIAL_REVOKED,
         SECRET_DELETED,
         SECRET_REPLACED,
+        SLACK_INSTALLATION_ENDED,
     }
 )
 _FIELDS = {

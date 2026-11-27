@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from typing import Any
 
 from application.ports.organization_data import OrganizationData
@@ -52,6 +53,8 @@ class OrganizationExportService:
         self.data = data
         self.usage = usage
         self.max_bytes = max_bytes
+        # Set after composition: the Slack installations (never their tokens).
+        self.slack_installations: Callable[[], list[dict[str, Any]]] | None = None
 
     def export(self) -> bytes:
         """Return the JSON document; raises ``PermissionError`` unless owner."""
@@ -115,6 +118,10 @@ class OrganizationExportService:
             "data": collections,
             # Daily tokens and estimated cost per agent and model (no content).
             "usage_daily": self.usage.daily_rows(org_id),
+            # Connected workspaces and their state; no token, no secret reference.
+            "slack_installations": (
+                self.slack_installations() if self.slack_installations else []
+            ),
         }
 
     def _pages(self, collection: str, org_id: str) -> Any:

@@ -7,9 +7,13 @@ Quarantine is an operator action (never reachable over HTTP) that combines:
   cancel its running and claimed jobs at the next boundary and makes schedule
   and webhook dispatch skip it;
 * **disabling** its active schedules and webhook triggers, recording their ids;
-* optionally (``revoke_credentials``) **revoking** its API credentials. That is
-  irreversible: each revocation writes a 6.2 tombstone, and release never
-  revives a credential.
+* **suspending** its Slack bot installations (``active`` to ``suspended``): the
+  workspaces stay bound, events are acked and dropped, nothing is answered, and
+  release puts back exactly the ones quarantine suspended;
+* optionally (``revoke_credentials``) **revoking** its API credentials and
+  ending its Slack installations (the bot token is revoked at Slack and
+  deleted). That is irreversible: each revocation writes a 6.2 tombstone, and
+  release never revives a credential or a Slack token (the admin reinstalls).
 
 Account sessions belong to people who may also belong to other organizations,
 so they are not revoked; the organization simply stops being selectable.
@@ -32,6 +36,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from application.ports.repository import Repository
+from application.ports.slack import HELD_STATUSES
 from contracts.v1 import (
     ApiCredential,
     ApiCredentialStatus,
@@ -54,6 +59,7 @@ from modules.recovery.tombstones import (
     TombstoneSink,
     digest_of,
 )
+from modules.slack.lifecycle import SlackLifecycle
 from shared.clock import utc_now
 from shared.request_context import reset_request_principal, set_request_identity
 
@@ -75,6 +81,7 @@ class QuarantineService:
         triggers: Repository[WorkflowTrigger],
         credentials: Repository[ApiCredential],
         tombstones: TombstoneSink,
+        slack: SlackLifecycle | None = None,
         unit_of_work: Callable[[], AbstractContextManager[None]],
         now: Callable[[], datetime] = utc_now,
     ) -> None:
@@ -86,6 +93,7 @@ class QuarantineService:
         self._triggers = triggers
         self._credentials = credentials
         self._tombstones = tombstones
+        self._slack = slack
         self._unit_of_work = unit_of_work
         self._now = now
 
@@ -120,6 +128,8 @@ class QuarantineService:
             "schedules": list(previous.get("schedules", [])),
             "triggers": list(previous.get("triggers", [])),
             "credentials_revoked": list(previous.get("credentials_revoked", [])),
+            "slack_suspended": list(previous.get("slack_suspended", [])),
+            "slack_revoked": list(previous.get("slack_revoked", [])),
         }
         scope = set_request_identity(f"operator:{who}"[:128], org_id, "lifecycle")
         try:
@@ -225,6 +235,16 @@ class QuarantineService:
             for credential in self._credentials.list_scoped(org_id):
                 if credential.status is ApiCredentialStatus.ACTIVE:
                     _add(changes["credentials_revoked"], credential.id)
+        self._plan_slack(changes, revoke_credentials)
+
+    def _plan_slack(self, changes: dict[str, Any], revoke_credentials: bool) -> None:
+        if self._slack is None:
+            return
+        for installation in self._slack.store.list_for_org():
+            if installation.status == "active":
+                _add(changes["slack_suspended"], installation.installation_id)
+            if revoke_credentials and installation.status in HELD_STATUSES:
+                _add(changes["slack_revoked"], installation.installation_id)
 
     def _apply(self, org_id: str, changes: dict[str, Any]) -> None:
         now = self._now()
@@ -250,6 +270,15 @@ class QuarantineService:
                 credential.status is ApiCredentialStatus.ACTIVE
             ):
                 self._revoke(credential, now)
+        self._apply_slack(org_id, changes)
+
+    def _apply_slack(self, org_id: str, changes: dict[str, Any]) -> None:
+        """Suspend the planned installations, then end the ones to be revoked."""
+        if self._slack is None:
+            return
+        actor = f"quarantine:{org_id}"
+        self._slack.suspend_installations(changes["slack_suspended"], actor)
+        self._slack.end_installations(changes["slack_revoked"], actor)
 
     def _revoke(self, credential: ApiCredential, now: datetime) -> None:
         """Tombstone first (fail closed), then revoke."""
@@ -276,7 +305,11 @@ class QuarantineService:
         now = self._now()
         schedules = set(changes.get("schedules", []))
         triggers = set(changes.get("triggers", []))
-        restored = {"schedules": 0, "triggers": 0}
+        restored = {"schedules": 0, "triggers": 0, "slack_installations": 0}
+        if self._slack is not None:
+            restored["slack_installations"] = self._slack.restore_installations(
+                changes.get("slack_suspended", []), f"quarantine:{org_id}"
+            )
         for schedule in self._schedules.list_scoped(org_id):
             if schedule.schedule_id in schedules and (
                 schedule.status is WorkflowScheduleStatus.DISABLED
@@ -319,6 +352,8 @@ class QuarantineService:
                 "schedules_disabled": len(changes.get("schedules", [])),
                 "triggers_disabled": len(changes.get("triggers", [])),
                 "credentials_revoked": len(changes.get("credentials_revoked", [])),
+                "slack_suspended": len(changes.get("slack_suspended", [])),
+                "slack_revoked": len(changes.get("slack_revoked", [])),
                 "released_at": record.released_at.isoformat()
                 if record.released_at
                 else None,
@@ -343,5 +378,7 @@ def _counts(changes: dict[str, Any], revoke: bool) -> dict[str, Any]:
         "schedules": len(changes["schedules"]),
         "triggers": len(changes["triggers"]),
         "credentials_revoked": len(changes["credentials_revoked"]),
+        "slack_suspended": len(changes["slack_suspended"]),
+        "slack_revoked": len(changes["slack_revoked"]),
         "revoke_credentials_requested": revoke,
     }

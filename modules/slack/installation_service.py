@@ -2,22 +2,22 @@
 
 A signed-in organization admin starts the install, so the organization is chosen
 by Weaves and never inferred from Slack. The bot token is stored only in the
-encrypted secret store (purpose ``slack_bot_token``); deleting it writes the
-6.2 tombstone through the store decorator. Nothing here logs a token or a code.
+encrypted secret store (purpose ``slack_bot_token``). Ending an installation
+(Disconnect, uninstall, revocation) is one shared path in
+``modules.slack.lifecycle``. Nothing here logs a token or a code.
 """
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlencode
 
 from application.ports.secrets import SecretStore
-from application.ports.slack import HELD_STATUSES, SlackInstallation, SlackStore
+from application.ports.slack import SlackInstallation, SlackStore
 from clients.slack.client import SlackApiClient
-from contracts.v1 import AuditEvent, AuditTargetScope, Permission
+from contracts.v1 import Permission
 from modules.auth.credential_service import CredentialService
 from modules.integrations.oauth_state_service import OAuthStateService
 from modules.slack.install_settings import (
@@ -25,10 +25,9 @@ from modules.slack.install_settings import (
     BOT_SCOPES,
     SlackInstallSettings,
 )
-from shared.clock import new_id
+from modules.slack.lifecycle import EndStatus, SlackLifecycle
 from shared.request_context import effective_principal_id
 
-logger = logging.getLogger("product.slack")
 SECRET_PURPOSE = "slack_bot_token"
 
 
@@ -51,6 +50,7 @@ class SlackInstallationService:
         state_service: OAuthStateService,
         credentials: CredentialService,
         api: SlackApiClient,
+        lifecycle: SlackLifecycle,
         settings: SlackInstallSettings,
         display_name: Callable[[str], str | None],
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
@@ -61,6 +61,7 @@ class SlackInstallationService:
         self.state_service = state_service
         self.credentials = credentials
         self.api = api
+        self.lifecycle = lifecycle
         self.settings = settings
         self.display_name = display_name
         self.clock = clock
@@ -86,26 +87,7 @@ class SlackInstallationService:
         extra: dict[str, Any] | None = None,
     ) -> None:
         """Write one organization audit event; ids and counts only, no secrets."""
-        metadata: dict[str, Any] = {
-            "team_id": installation.team_id,
-            "status": installation.status,
-            **(extra or {}),
-        }
-        self.credentials.audit_events.create(
-            AuditEvent(
-                audit_event_id=new_id(),
-                org_id=org_id,
-                target_scope=AuditTargetScope.ORGANIZATION,
-                actor_principal_id=actor,
-                action=action,
-                target_type="slack_installation",
-                target_id=installation.installation_id,
-                summary=f"Slack bot {action.rsplit('.', 1)[-1]}",
-                request_id=new_id(),
-                metadata=metadata,
-                created_at=self.clock(),
-            )
-        )
+        self.lifecycle.audit(installation, actor, action, extra)
 
     # -- start ---------------------------------------------------------------
 
@@ -154,71 +136,28 @@ class SlackInstallationService:
     # -- disconnect ------------------------------------------------------------
 
     def disconnect(self, installation_id: str) -> dict[str, Any]:
-        """Stop the bot for one workspace: mark it, then revoke and delete the token.
-
-        The row is changed first so dispatch stops at once; the Slack revoke is
-        best effort and the secret deletion writes the tombstone.
-        """
+        """Stop the bot for one workspace (shared path: tombstone, flip, revoke)."""
         actor = self.require_admin()
         row = self.store.get_for_org(installation_id)
         if row is None:
             raise InstallationNotFound(installation_id)
-        if row.status == "uninstalled":
-            return self._view(row)
-        updated = self.store.set_status(
-            row.installation_id, "uninstalled", self.clock(), clear_secret=True
+        ended = self.lifecycle.end(
+            row,
+            "uninstalled",
+            revoke=True,
+            actor=actor,
+            action="slack.installation.disconnected",
         )
-        assert updated is not None
-        self.retire_token(row, revoke=True)
-        self.audit(row.org_id, actor, "slack.installation.disconnected", updated)
-        return self._view(updated)
+        return self._view(ended or row)
 
     def retire_token(self, row: SlackInstallation, *, revoke: bool) -> None:
-        """Revoke (best effort) and delete the stored bot token of ``row``."""
-        ref = row.bot_secret_ref
-        if ref is None:
-            return
-        if revoke:
-            try:
-                self.api.auth_revoke(self.secrets.get(ref))
-            except Exception as error:
-                logger.warning(
-                    "slack_revoke_failed team=%s kind=%s",
-                    row.team_id,
-                    type(error).__name__,
-                )
-        try:
-            self.secrets.delete(ref)
-        except Exception as error:
-            # The tombstone is written first; a refusal leaves a tenant-owned
-            # secret that the organization purge removes.
-            logger.error(
-                "slack_secret_delete_failed team=%s kind=%s",
-                row.team_id,
-                type(error).__name__,
-            )
+        """Delete the previous token of a reinstall (best effort revoke first)."""
+        self.lifecycle.retire_token(row, revoke=revoke)
 
     # -- loss (Slack told us the token is gone) ------------------------------
 
     def mark_lost(
-        self, row: SlackInstallation, status: str, *, actor: str = "slack"
+        self, row: SlackInstallation, status: EndStatus, *, actor: str = "slack"
     ) -> SlackInstallation | None:
-        """Mark ``row`` revoked or uninstalled and delete the dead token.
-
-        Run under the installation's organization scope. Events can repeat, so a
-        row that is already out of use is left alone.
-        """
-        if row.status not in HELD_STATUSES:
-            return None
-        assert status in {"revoked", "uninstalled"}
-        updated = self.store.set_status(
-            row.installation_id,
-            "revoked" if status == "revoked" else "uninstalled",
-            self.clock(),
-            clear_secret=True,
-        )
-        if updated is None:
-            return None
-        self.retire_token(row, revoke=False)
-        self.audit(row.org_id, actor, f"slack.installation.{status}", updated)
-        return updated
+        """Slack told us the bot is gone: end ``row`` without calling Slack."""
+        return self.lifecycle.end(row, status, revoke=False, actor=actor)

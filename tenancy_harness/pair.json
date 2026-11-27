@@ -44,7 +44,8 @@
     "T5-I04",
     "T6-I03",
     "T7-I01",
-    "T7-I02"
+    "T7-I02",
+    "T7-I03"
   ],
   "planned_controls": {},
   "planned_controls_policy": "Declared by Phase 5 slice 5.0. Not required and not run until the owning slice moves the id into required_controls.",

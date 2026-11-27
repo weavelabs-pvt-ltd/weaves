@@ -12,6 +12,12 @@ What is replayed:
   forced to DELETING (if the restored database still has it) and the existing
   purge service runs until it reaches DELETED.
 * ``credential_revoked``: the API credential is marked revoked.
+* ``slack_installation_ended``: a Slack workspace that was uninstalled, revoked
+  or disconnected after the backup is ended again (token reference cleared,
+  pending events dropped, workspace freed), but only for the same install
+  generation, so a newer reinstall that the backup already holds is left alone.
+  Its bot token comes back only if the backup holds it, and the matching
+  ``secret_deleted`` tombstone deletes it again.
 * ``secret_deleted``: the secret (connector credential or provider key) is
   deleted again.
 * ``secret_replaced``: the secret is deleted, because the rotated value is not in
@@ -38,10 +44,12 @@ from modules.recovery.tombstones import (
     ORGANIZATION_PURGE_STARTED,
     SECRET_DELETED,
     SECRET_REPLACED,
+    SLACK_INSTALLATION_ENDED,
     FileTombstoneLog,
     Tombstone,
     TombstoneLogCorrupt,
 )
+from modules.slack.lifecycle import generation
 from shared.clock import utc_now
 from shared.request_context import (
     reset_request_principal,
@@ -65,6 +73,8 @@ class Plan:
     organizations: list[str] = field(default_factory=list)
     credentials: list[tuple[str, str]] = field(default_factory=list)
     secrets: list[tuple[str, str]] = field(default_factory=list)
+    # (org_id, how it ended, installation generation); purges are covered above.
+    slack_installations: list[tuple[str, str, str]] = field(default_factory=list)
     skipped_replacements: list[str] = field(default_factory=list)
 
 
@@ -92,6 +102,11 @@ def build_plan(entries: list[Tombstone], head_seq: int | None) -> Plan:
             plan.credentials.append((entry.org_id, entry.subject_id))
         elif entry.kind == SECRET_DELETED:
             plan.secrets.append((entry.org_id, entry.subject_id))
+        elif entry.kind == SLACK_INSTALLATION_ENDED:
+            if entry.subject_kind in {"uninstalled", "revoked"}:
+                plan.slack_installations.append(
+                    (entry.org_id, entry.subject_kind, entry.subject_id)
+                )
         elif entry.kind == SECRET_REPLACED:
             if head_seq is not None and entry.seq > head_seq:
                 plan.secrets.append((entry.org_id, entry.subject_id))
@@ -156,6 +171,26 @@ def _delete_secret(runtime: Any, org_id: str, secret_ref: str) -> str:
         reset_request_principal(token)
 
 
+def _end_slack_installation(
+    runtime: Any, org_id: str, how: str, generation_id: str
+) -> str:
+    """End a restored installation of the recorded generation (no Slack call)."""
+    installation_id = generation_id.partition("@")[0]
+    token = set_request_identity(SYSTEM, org_id, "lifecycle")
+    try:
+        row = runtime.slack_store.get_for_org(installation_id)
+        if row is None:
+            return "absent"
+        if generation(row) != generation_id:
+            return "superseded"
+        ended = runtime.slack_lifecycle.end(
+            row, how, revoke=False, actor="restore_reconcile"
+        )
+        return "ended" if ended is not None else "already_ended"
+    finally:
+        reset_request_principal(token)
+
+
 def _revoke_sessions(runtime: Any) -> int:
     now = utc_now()
     count = 0
@@ -190,12 +225,16 @@ def reconcile(
         "organizations": {},
         "credentials": {},
         "secrets": {},
+        "slack_installations": {},
         "sessions_revoked": 0,
     }
     if dry_run:
         report["organizations"] = {org: "planned" for org in plan.organizations}
         report["credentials"] = {c: "planned" for _, c in plan.credentials}
         report["secrets"] = {s: "planned" for _, s in plan.secrets}
+        report["slack_installations"] = {
+            g: "planned" for _, _, g in plan.slack_installations
+        }
         return report
     for org_id in plan.organizations:
         report["organizations"][org_id] = _purge_organization(runtime, org_id)
@@ -204,6 +243,11 @@ def reconcile(
         if org_id not in purged:
             report["credentials"][credential_id] = _revoke_credential(
                 runtime, org_id, credential_id
+            )
+    for org_id, how, generation_id in plan.slack_installations:
+        if org_id not in purged:
+            report["slack_installations"][generation_id] = _end_slack_installation(
+                runtime, org_id, how, generation_id
             )
     for org_id, secret_ref in plan.secrets:
         if org_id not in purged:

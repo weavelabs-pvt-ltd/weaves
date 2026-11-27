@@ -471,3 +471,22 @@ test('T7-I02 the signed Slack events endpoint dedupes, acks within three seconds
     expect(control[key], key).toBe(true);
   }
 });
+
+test('T7-I03 the Slack bot lifecycle ends, suspends and purges cleanly on the real stack', async () => {
+  const control = fixture.slack_lifecycle;
+  for (const key of ['app_uninstalled_ends_it_and_deletes_the_token',
+    'pending_events_of_the_workspace_are_dropped_without_text',
+    'the_other_tenants_installation_and_inbox_are_untouched',
+    'events_for_an_ended_workspace_are_acked_and_unknown', 'a_repeated_uninstall_changes_nothing',
+    'another_organization_installs_the_freed_workspace', 'the_new_owner_can_release_it_again',
+    'a_clean_reinstall_follows_an_uninstall', 'revoking_only_user_tokens_leaves_the_bot_alone',
+    'bot_token_revocation_ends_it_and_deletes_the_token', 'a_revoked_workspace_reinstalls_in_place',
+    'quarantine_suspends_the_installation', 'a_quarantined_organizations_events_are_dropped_without_text',
+    'quarantine_leaves_the_other_tenant_working', 'release_restores_the_suspended_installation',
+    'quarantine_with_revocation_ends_the_token_for_good', 'the_admin_can_reinstall_after_a_quarantine',
+    'organization_deletion_removes_the_slack_data', 'organization_deletion_revokes_the_bot_token_at_slack',
+    'organization_deletion_leaves_the_other_tenant_as_it_was',
+    'no_token_in_any_table_audit_or_ciphertext']) {
+    expect(control[key], key).toBe(true);
+  }
+});

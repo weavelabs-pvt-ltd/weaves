@@ -31,6 +31,8 @@ class WorkerServices:
     queue_health: QueueHealthService | None = None
     reconcile_usage: Callable[[], int] | None = None
     purge_usage: Callable[[], int] | None = None
+    # Slack lifecycle: finish half-retired tokens and expire the event inbox.
+    slack_lifecycle: Callable[[], int] | None = None
     # Slack bot (S4a): refresh connector health snapshots across organizations.
     refresh_slack_health: Callable[[], int] | None = None
     # True while an operator has paused claiming (``platform_control.py``).
