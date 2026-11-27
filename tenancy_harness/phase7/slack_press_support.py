@@ -24,9 +24,9 @@ ASKER = "U0HUMAN01"
 BOT = "<@U0FAKEBOT> "
 ACK_LIMIT = 3.0
 ANSWER = "From general knowledge"
-TS = iter(f"1700003{n:03d}.000100" for n in range(1, 999))
+TS = iter(f"1700007{n:03d}.000100" for n in range(1, 999))
 EVENTS = iter(f"Ev7B{n:03d}" for n in range(1, 999))
-ACTION_TS = iter(f"1700004{n:03d}.000100" for n in range(1, 999))
+ACTION_TS = iter(f"1700008{n:03d}.000100" for n in range(1, 999))
 
 
 def new_series(tag, base):
