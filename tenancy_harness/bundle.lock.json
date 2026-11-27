@@ -60,7 +60,7 @@
     "phase7/slack_install_checks.py": "79b3df0820b82f280976e1b3f0c01e30e2912c8e9bc074fbed86a3403abacc93",
     "phase7/slack_lifecycle_checks.py": "0e474d52e190fb663c0b48d1d798ec159f76e91f0101b5c45a9d08eeaa42d848",
     "phase7/slack_live_checks.py": "ee223a47a0461c5123f04ac079ab799beb8688cdf1d3354ebc7a8a9c77749e3e",
-    "phase7/slack_press_checks.py": "4a0d7c36fda85ecc753b92c3ed12803f875fabaa8593334c17fd6fd4a7788b93",
+    "phase7/slack_press_checks.py": "d8802247987e84ad832e4e9f84d8b3d5ccbb68ebbcd1d1a9146ee28e0808e147",
     "phase7/slack_press_support.py": "927d0225b514b978509867d36c84dfc4e0aa04a164ea8cd504421072424c022c",
     "phase7/slack_selftest.py": "b575baea51f179a8ceccc7ea64b91001403020d84aadb1b6c8621d684b444d84",
     "phase7/slack_support.py": "07ebf12c69214415cf790f17162ca69cf800a0de910bdfc47c59cd75517136e9",

@@ -236,9 +236,8 @@ def failure_results(a):
     old_ref = press(ASKER, "retry", ref, msg_ts, ts)
     old_texts = whispered(ts, 3)
     keys = rows(
-        "SELECT payload->>'idempotency_key' FROM product_records WHERE "
-        "collection = 'task_turns' AND org_id = %s AND payload->>'idempotency_key' "
-        "LIKE %s",
+        "SELECT idempotency_key FROM product_records WHERE "
+        "collection = 'task_turns' AND org_id = %s AND idempotency_key LIKE %s",
         org,
         "slack:%:retry:%",
     )
