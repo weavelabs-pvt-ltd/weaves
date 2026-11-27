@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from modules.slack.retention import DEFAULT_QA_DAYS, SlackRetention, qa_retention_days
+from modules.slack.qa_retention import (
+    DEFAULT_QA_DAYS,
+    SlackRetention,
+    qa_retention_days,
+)
 from tests.support.slack_ask_world import AskWorld
 
 
@@ -89,20 +93,6 @@ def test_a_request_still_being_answered_is_not_deleted_before_its_time(
     _retention(aworld, datetime.now(UTC) + timedelta(days=2)).run()
 
     assert _counts(aworld)["threads"] == 1
-
-
-def test_processed_inbox_rows_go_after_seven_days_and_pending_ones_stay(
-    aworld: AskWorld,
-) -> None:
-    aworld.mention("hello there")
-    aworld.dispatch()
-    aworld.mention("pending one")  # never dispatched
-    assert len(aworld.inbox()) == 2
-
-    _retention(aworld, datetime.now(UTC) + timedelta(days=8)).run()
-
-    remaining = aworld.inbox()
-    assert [e.state for e in remaining] == ["pending"]
 
 
 def test_the_retention_window_is_configurable_within_bounds() -> None:

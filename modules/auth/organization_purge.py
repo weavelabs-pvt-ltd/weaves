@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from typing import Protocol
 
 from application.ports.organization_data import OrganizationData
 from application.ports.repository import Repository
@@ -49,7 +50,26 @@ State = OrganizationLifecycleState
 BATCH = 200
 CLEAN_PASSES = 2
 # What a completed purge erased (categories only; see ``organization_retention``).
-PURGE_ERASED = ("tenant_records", "secrets", "api_credentials", "usage", "memberships")
+PURGE_ERASED = (
+    "tenant_records",
+    "secrets",
+    "api_credentials",
+    "usage",
+    "slack",
+    "memberships",
+)
+
+
+class SlackDataPurge(Protocol):
+    """The Slack step: installations, bot tokens and inbox rows of one organization."""
+
+    def purge_organization(self, limit: int) -> int:
+        """Delete up to ``limit`` rows of the bound organization."""
+        ...
+
+    def remaining_rows(self) -> int:
+        """Rows the bound organization still owns."""
+        ...
 
 
 class OrganizationPurgeService:
@@ -66,6 +86,7 @@ class OrganizationPurgeService:
         usage: UsageLedger,
         hook: Callable[[str], None] | None = None,
         tombstones: TombstoneSink | None = None,
+        slack: SlackDataPurge | None = None,
     ) -> None:
         """Bind the lifecycle state machine and the bulk data/secret ports."""
         self.lifecycle = lifecycle
@@ -76,6 +97,8 @@ class OrganizationPurgeService:
         self.usage = usage
         self.hook = hook
         self.tombstones: TombstoneSink = tombstones or NullTombstones()
+        # Set after composition (the Slack store is built outside the capability set).
+        self.slack = slack
 
     def _step(self, name: str) -> None:
         """Failure-injection seam: tests raise here to simulate a crash."""
@@ -134,9 +157,14 @@ class OrganizationPurgeService:
         self.data.cancel_work(org_id, now=self.lifecycle.now(), limit=BATCH)
         self._step("revoke_credentials")
         self._revoke_credentials(org_id)
+        # Before the secret purge: the bot token must still exist to be revoked.
+        self._step("slack")
+        deleted = self.slack.purge_organization(BATCH) if self.slack else 0
+        self._checkpoint(org_id, "slack", deleted)
         self._step("secrets")
-        deleted = self.secrets.purge_organization(BATCH)
-        self._checkpoint(org_id, "secrets", deleted)
+        secrets = self.secrets.purge_organization(BATCH)
+        deleted += secrets
+        self._checkpoint(org_id, "secrets", secrets)
         # Usage dies with the organization: ledger and rollup rows do not
         # outlive it (retention days apply to live organizations only).
         self._step("usage")
@@ -210,6 +238,8 @@ class OrganizationPurgeService:
                 return False
             if self.usage.remaining_rows():
                 return False
+            if self.slack is not None and self.slack.remaining_rows():
+                return False
             self.tombstones.record(ORGANIZATION_DELETED, org_id, erased=PURGE_ERASED)
             self.lifecycle.finish_deletion(org_id)
         return True
@@ -226,6 +256,7 @@ class OrganizationPurgeService:
             return (
                 self.data.count_remaining(org_id, keep_collections=KEEP_COLLECTIONS)
                 + self.usage.remaining_rows()
+                + (self.slack.remaining_rows() if self.slack else 0)
             )
         finally:
             reset_request_principal(token)

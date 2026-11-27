@@ -144,6 +144,36 @@ class SlackStore(Protocol):
         """
         ...
 
-    def purge_events(self, before: datetime) -> int:
-        """Delete non-pending inbox rows received before ``before``."""
+    def purge_events(
+        self,
+        before: datetime,
+        *,
+        limit: int | None = None,
+        include_pending: bool = False,
+    ) -> int:
+        """Delete up to ``limit`` inbox rows received before ``before``.
+
+        Pending rows are kept unless ``include_pending`` is set (retention of
+        rows nobody will ever process).
+        """
+        ...
+
+    def drop_pending_for_team(self, team_id: str, reason: str, now: datetime) -> int:
+        """Mark the team's pending rows dropped (text erased); returns the count."""
+        ...
+
+    def list_unfinished(self, limit: int = 100) -> list[SlackInstallation]:
+        """Ended installations that still hold a token reference (a crash left it)."""
+        ...
+
+    def delete_installation(self, installation_id: str) -> bool:
+        """Delete one installation row of the current organization (purge)."""
+        ...
+
+    def delete_org_events(self, org_id: str, limit: int) -> int:
+        """Delete up to ``limit`` inbox rows of one organization (purge)."""
+        ...
+
+    def count_for_org(self, org_id: str) -> int:
+        """Installation and inbox rows an organization still owns (purge check)."""
         ...

@@ -1,4 +1,4 @@
-"""Control T7-I03: the Slack Ask flow on the real stack (slice S4).
+"""Control T7-I04: the Slack Ask flow on the real stack (slice S4).
 
 Slack is the fake server and the model is the fake provider (it echoes its prompt
 and can be slowed down). Everything else is real: the signed event goes through the
@@ -40,7 +40,7 @@ from tenancy_harness.phase7.slack_support import (
 from tenancy_harness.resources import tenant
 from tenancy_harness.seed import require_disposable_database
 
-CONTROL_ID = "T7-I03"
+CONTROL_ID = "T7-I04"
 SLICE = "S4"
 FIXTURE = "slack_ask"
 CHANNEL = "C0FAKE001"

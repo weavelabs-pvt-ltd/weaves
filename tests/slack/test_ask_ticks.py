@@ -26,7 +26,7 @@ def test_the_ticks_run_every_second_and_retention_every_fifteen_minutes() -> Non
     by_name = {t.name: t for t in registry.ticks}
     assert by_name["slack_dispatch"].interval_seconds == 1
     assert by_name["slack_reply"].interval_seconds == 1
-    assert by_name["slack_retention"].interval_seconds == 900
+    assert by_name["slack_qa_retention"].interval_seconds == 900
 
 
 def test_a_slack_failure_never_disturbs_the_worker_loop(

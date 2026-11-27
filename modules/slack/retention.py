@@ -1,169 +1,54 @@
-"""The ``slack_retention`` worker tick: hidden Q&A tasks and inbox rows expire.
+"""Inbox retention and the unfinished-token sweep, run by one worker tick.
 
-A hidden Q&A task exists only because the worker needs a task to run a turn; it is
-not a record anyone browses. Thirty days after a thread's last request (ASSUMPTION,
-``WEAVES_SLACK_QA_RETENTION_DAYS``) the whole conversation is deleted: the task,
-its thread, messages and turns, and every run output that holds text (agent runs,
-workflow runs, tool invocations, artifacts), then the ``slack_threads`` row. The
-inbox keeps nothing of a mention once it was handled, and processed rows go after
-seven days. A request that is still being answered is never deleted.
+The inbox is a queue and a dedupe table, not an archive (design 3.2): a row is
+deleted ``PROCESSED_DAYS`` after it was received once it is done or dropped, and
+a row nobody processed (a dead dispatcher) goes after ``PENDING_DAYS`` so a
+mention's text never lingers. Text and row go together: the design keeps ids and
+the capped mention text for the same period, and nothing earlier needs the text
+once the row is processed because the dispatcher copies what it needs into the
+task. Deletes run in bounded batches (``BATCH`` rows, at most ``MAX_BATCHES`` per
+tick), so a backlog drains over several ticks without long transactions.
 """
 
 from __future__ import annotations
 
 import logging
-import os
-import time
-from collections.abc import Callable
-from contextlib import AbstractContextManager
-from datetime import datetime, timedelta
-from typing import Any
+from datetime import timedelta
 
-from application.ports.repository import Repository
 from application.ports.slack import SlackStore
-from contracts.v1 import (
-    AgentRun,
-    Artifact,
-    ConversationThread,
-    Task,
-    TaskMessage,
-    TaskTurn,
-    ToolInvocation,
-    WorkflowRun,
-)
-from contracts.v1.slack_threads import SlackThread
-from modules.slack.events import tenant_of
-from shared.clock import utc_now
-from shared.metrics import SLACK_RETENTION
+from modules.slack.lifecycle import SlackLifecycle
 
 logger = logging.getLogger("product.slack")
-DEFAULT_QA_DAYS = 30
-INBOX_DAYS = 7
-BATCH_PER_ORG = 50
-TICK_BUDGET_SECONDS = 20.0
+PROCESSED_DAYS = 7
+PENDING_DAYS = 14  # ASSUMPTION: a mention older than two weeks is never answered
+BATCH = 500
+MAX_BATCHES = 10
 
 
-def qa_retention_days(env: dict[str, str] | None = None) -> int:
-    """``WEAVES_SLACK_QA_RETENTION_DAYS`` (1 to 365), default 30."""
-    raw = (env if env is not None else os.environ).get("WEAVES_SLACK_QA_RETENTION_DAYS")
-    try:
-        days = int(raw) if raw else DEFAULT_QA_DAYS
-    except ValueError:
-        return DEFAULT_QA_DAYS
-    return days if 1 <= days <= 365 else DEFAULT_QA_DAYS
-
-
-def _remove(repository: Repository[Any], record_id: str) -> None:
-    """Delete one record; one that is already gone is not an error."""
-    try:
-        repository.delete(record_id)
-    except KeyError:
-        return
-
-
-class SlackRetention:
-    """Delete expired hidden conversations and processed inbox rows."""
-
-    def __init__(
-        self,
-        *,
-        store: SlackStore,
-        threads: Repository[SlackThread],
-        tasks: Repository[Task],
-        conversation_threads: Repository[ConversationThread],
-        messages: Repository[TaskMessage],
-        turns: Repository[TaskTurn],
-        agent_runs: Repository[AgentRun],
-        runs: Repository[WorkflowRun],
-        invocations: Repository[ToolInvocation],
-        artifacts: Repository[Artifact],
-        unit_of_work: Callable[[], AbstractContextManager[None]],
-        enabled: Callable[[], bool],
-        qa_days: int = DEFAULT_QA_DAYS,
-        clock: Callable[[], datetime] = utc_now,
-    ) -> None:
-        """Bind every collection a conversation touches."""
-        self._store = store
-        self._threads = threads
-        self._tasks = tasks
-        self._conversations = conversation_threads
-        self._messages = messages
-        self._turns = turns
-        self._agent_runs = agent_runs
-        self._runs = runs
-        self._invocations = invocations
-        self._artifacts = artifacts
-        self._uow = unit_of_work
-        self._enabled = enabled
-        self._qa_days = qa_days
-        self._clock = clock
-
-    def run(self) -> int:
-        """Purge a bounded batch; returns the number of rows removed."""
-        now = self._clock()
-        started = time.monotonic()
-        removed = self._store.purge_events(now - timedelta(days=INBOX_DAYS))
-        if removed:
-            SLACK_RETENTION.inc(removed, kind="inbox")
-        if not self._enabled():
-            return removed
-        cutoff = now - timedelta(days=self._qa_days)
-        for held in self._store.list_held():
-            if time.monotonic() - started > TICK_BUDGET_SECONDS:
-                break
-            with tenant_of(held):
-                removed += self._purge_org(held.org_id, held.team_id, cutoff)
-        return removed
-
-    def _purge_org(self, org_id: str, team_id: str, cutoff: datetime) -> int:
-        expired = self._threads.list_before("updated_at", cutoff, limit=BATCH_PER_ORG)
-        count = 0
-        for row in expired:
-            if row.org_id != org_id or row.team_id != team_id:
-                continue
-            try:
-                self._delete_conversation(row)
-            except Exception as error:
-                logger.error("slack_retention_failed kind=%s", type(error).__name__)
-                continue
-            count += 1
-            SLACK_RETENTION.inc(kind="qa_task")
-        return count
-
-    def _delete_conversation(self, row: SlackThread) -> None:
-        org, workspace = row.org_id, row.workspace_id
-        with self._uow():
-            turns = self._turns.list_by_field("task_id", row.task_id)
-            for turn in turns:
-                self._delete_run_outputs(turn)
-                _remove(self._turns, turn.turn_id)
-            for message in self._messages.list_by_field("task_id", row.task_id):
-                _remove(self._messages, message.message_id)
-            try:
-                task = self._tasks.get_scoped(row.task_id, org, workspace)
-            except KeyError:
-                task = None
-            if task is not None:
-                _remove(self._tasks, task.task_id)
-                _remove(self._conversations, task.thread_id)
-            _remove(self._threads, row.id)
-
-    def _delete_run_outputs(self, turn: TaskTurn) -> None:
-        if turn.agent_run_id is None:
-            return
-        try:
-            agent_run = self._agent_runs.get_scoped(
-                turn.agent_run_id, turn.org_id, turn.workspace_id
+def purge_inbox(lifecycle: SlackLifecycle) -> int:
+    """Delete expired inbox rows in bounded batches; returns the rows removed."""
+    store: SlackStore = lifecycle.store
+    now = lifecycle.clock()
+    cutoffs = (
+        (now - timedelta(days=PROCESSED_DAYS), False),
+        (now - timedelta(days=PENDING_DAYS), True),
+    )
+    removed = 0
+    for cutoff, include_pending in cutoffs:
+        for _ in range(MAX_BATCHES):
+            count = store.purge_events(
+                cutoff, limit=BATCH, include_pending=include_pending
             )
-        except KeyError:
-            return
-        for item in self._invocations.list_by_field(
-            "agent_run_id", agent_run.agent_run_id
-        ):
-            _remove(self._invocations, item.invocation_id)
-        for artifact in self._artifacts.list_by_field(
-            "agent_run_id", agent_run.agent_run_id
-        ):
-            _remove(self._artifacts, artifact.artifact_id)
-        _remove(self._agent_runs, agent_run.agent_run_id)
-        _remove(self._runs, agent_run.run_id)
+            removed += count
+            if count < BATCH:
+                break
+    return removed
+
+
+def run_tick(lifecycle: SlackLifecycle) -> int:
+    """One worker tick: finish crashed token retirements, then expire the inbox."""
+    swept = lifecycle.sweep()
+    removed = purge_inbox(lifecycle)
+    if swept or removed:
+        logger.info("slack lifecycle swept=%d inbox_removed=%d", swept, removed)
+    return swept + removed

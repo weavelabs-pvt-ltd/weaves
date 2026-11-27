@@ -22,6 +22,7 @@ from typing import Any
 
 from application.ports.slack import InboxEvent, SlackInstallation, SlackStore
 from modules.slack.installation_service import SlackInstallationService
+from modules.slack.lifecycle import EndStatus
 from shared.request_context import reset_request_principal, set_request_identity
 
 logger = logging.getLogger("product.slack")
@@ -121,7 +122,9 @@ class SlackEventIngest:
             bot = tokens.get("bot") if isinstance(tokens, dict) else None
             if not bot:  # only user tokens went: the bot is unaffected
                 return Ingested("ignored", event_type)
-        status = "uninstalled" if event_type == "app_uninstalled" else "revoked"
+        status: EndStatus = (
+            "uninstalled" if event_type == "app_uninstalled" else "revoked"
+        )
         self._installs.mark_lost(
             installation, status, actor=f"slack:{installation.team_id}"
         )

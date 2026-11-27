@@ -1,4 +1,4 @@
-"""T7-I01 (install), T7-I02 (events) and T7-I03 (Ask) are required controls, wired."""
+"""T7-I01 to T7-I04 (install, events, lifecycle, Ask) are required controls, wired."""
 
 import importlib
 import json
@@ -12,7 +12,8 @@ PAIR = json.loads((HARNESS / "pair.json").read_text())
 CONTROLS = (
     ("T7-I01", "S1", "slack_install_checks", "slack_install"),
     ("T7-I02", "S2", "slack_event_checks", "slack_events"),
-    ("T7-I03", "S4", "slack_ask_checks", "slack_ask"),
+    ("T7-I03", "S7", "slack_lifecycle_checks", "slack_lifecycle"),
+    ("T7-I04", "S4", "slack_ask_checks", "slack_ask"),
 )
 
 

@@ -24,12 +24,12 @@ from modules.slack.dispatch.threads import ThreadBook
 from modules.slack.pipeline.discovery import ToolDiscovery
 from modules.slack.pipeline.health import HealthSnapshots
 from modules.slack.pipeline.targets import ExecuteTargets
+from modules.slack.qa_retention import SlackRetention, qa_retention_days
 from modules.slack.reply.deliver import Delivery
 from modules.slack.reply.loss import InstallationLoss
 from modules.slack.reply.poster import SlackPoster
 from modules.slack.reply.steps import RunSteps
 from modules.slack.reply.tick import SlackReplyTick
-from modules.slack.retention import SlackRetention, qa_retention_days
 from shared.slack_config import (
     native_status_from_environment,
     reply_deadline_seconds_from_environment,

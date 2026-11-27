@@ -33,6 +33,7 @@ STEPS = [
     "begin",
     "cancel_work",
     "revoke_credentials",
+    "slack",
     "secrets",
     *PURGE_ORDER,
     "audit_events",

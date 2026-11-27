@@ -397,8 +397,27 @@ never in this table, a response or a log), `scopes`, `installed_by_principal_id`
 only, capped at 4,000 characters, never set on a dropped row, never logged) and `reaction`, `received_at`.
 `slack_event_inbox_message_uq` (unique `team_id, channel_id, message_ts` for `app_mention`) stops one
 message becoming two rows under different event ids. Only the system purpose `slack` can read or write it;
-no tenant can. Nothing deletes rows yet: the retention tick (7 days after processing) arrives with the
-dispatcher (S4); `purge_events` implements it.
+no tenant can.
+
+Lifecycle (S7, no new migration; `modules/slack/lifecycle.py`, `purge.py`, `retention.py`). Every way a
+workspace stops being served (Disconnect, `app_uninstalled`, a bot `tokens_revoked`, a dead-token reply,
+quarantine with credential revocation, restore reconcile) runs `SlackLifecycle.end`: the 6.2 tombstone
+`slack_installation_ended` (`subject_kind` = `uninstalled` or `revoked`, `subject_id` =
+`{installation_id}@{installed_at}`, one per install generation) is written first and a failed write stops
+everything; then the status flips (freeing `team_id`), the team's pending inbox rows become `dropped` with
+the text erased (`drop_reason` `installation_ended`), the token is revoked at Slack (only when Weaves
+ends it) and deleted (its own `secret_deleted` tombstone first), and `bot_secret_ref` is cleared. A crash
+in between leaves an ended row that still names its token; the `slack_lifecycle` worker tick sweeps it.
+Quarantine marks active installations `suspended` (reversible; release restores exactly those) and, with
+`--revoke-credentials`, ends them for good. Organization purge has a `slack` step before the secret
+purge (tombstone, `auth.revoke`, secret delete, then the row; bounded, idempotent, crash-resumable) and
+removes the organization's inbox rows; the access settings and allowlists are in `PURGE_ORDER`, and the
+thread and feedback collections (S4) are removed by the generic sweep. Restore reconcile re-ends
+installations whose tombstone generation matches the restored row, so an old dump cannot bring back an
+uninstalled workspace or a revoked token. The owner export lists installations (status, workspace,
+installer, scopes; never a token or secret reference) under `slack_installations`. Inbox retention: rows
+are deleted 7 days after receipt once done or dropped, and unprocessed rows after 14 days (ASSUMPTION), in
+batches of 500 (at most 10 batches per 10-minute tick).
 
 ### Removed: approval policies and approval requests (migration 31)
 
