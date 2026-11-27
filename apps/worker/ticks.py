@@ -27,6 +27,7 @@ QUEUE_HEALTH_SECONDS = 30
 CLAIM_STATE_PRUNE_SECONDS = 3600
 USAGE_RECONCILE_SECONDS = 30
 USAGE_RETENTION_SECONDS = 3600
+SLACK_LIFECYCLE_SECONDS = 600
 
 
 @dataclass(frozen=True)
@@ -152,6 +153,19 @@ def _purge_usage(services: WorkerServices) -> None:
         logger.info("usage retention removed rows count=%d", removed)
 
 
+def _slack_lifecycle(services: WorkerServices) -> None:
+    """Retire half-ended Slack tokens and expire the inbox; never disturb the loop."""
+    if services.slack_lifecycle is None:
+        return
+    try:
+        changed = services.slack_lifecycle()
+    except Exception:
+        logger.exception("slack lifecycle tick failed")
+        return
+    if changed:
+        logger.info("slack lifecycle changed count=%d", changed)
+
+
 def _dispatch_schedules(services: WorkerServices) -> None:
     scheduled_jobs = services.workflow_automation.dispatch_due_workflow_schedules()
     if scheduled_jobs:
@@ -223,5 +237,10 @@ def build_tick_registry(
 
     # 5.5 metrics: periodic gauges (queue depth, oldest queued age).
     registry.register(Tick("metrics_gauges", METRICS_GAUGE_SECONDS, _metrics_gauges))
+
+    # S7 Slack lifecycle: unfinished token retirement sweep and inbox retention.
+    registry.register(
+        Tick("slack_lifecycle", SLACK_LIFECYCLE_SECONDS, _slack_lifecycle)
+    )
 
     return registry

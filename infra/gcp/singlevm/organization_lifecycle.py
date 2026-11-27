@@ -85,6 +85,7 @@ def _quarantine(runtime: Any) -> QuarantineService:
         triggers=runtime.workflow_triggers,
         credentials=runtime.api_credentials,
         tombstones=tombstones_from_env(),
+        slack=runtime.slack_lifecycle,
         unit_of_work=runtime._unit_of_work,
     )
 

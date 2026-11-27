@@ -187,13 +187,78 @@ class PostgresSlackStore:
             ).fetchall()
         return [_event(row) for row in rows]
 
-    def purge_events(self, before: datetime) -> int:
-        """Delete processed or dropped rows received before ``before``."""
+    def purge_events(
+        self,
+        before: datetime,
+        *,
+        limit: int | None = None,
+        include_pending: bool = False,
+    ) -> int:
+        """Delete up to ``limit`` rows received before ``before`` (bounded)."""
         with system_scope("slack"), self._store.connection() as connection:
             return int(
                 connection.execute(
-                    "DELETE FROM slack_event_inbox WHERE received_at < %s "
-                    "AND state <> 'pending'",
-                    (before,),
+                    "DELETE FROM slack_event_inbox WHERE event_id IN ("
+                    "SELECT event_id FROM slack_event_inbox WHERE received_at < %s "
+                    "AND (%s OR state <> 'pending') ORDER BY received_at LIMIT %s)",
+                    (before, include_pending, limit if limit is not None else 2**31),
                 ).rowcount
             )
+
+    def drop_pending_for_team(self, team_id: str, reason: str, now: datetime) -> int:
+        """Drop the team's pending rows and erase their text."""
+        with system_scope("slack"), self._store.connection() as connection:
+            return int(
+                connection.execute(
+                    "UPDATE slack_event_inbox SET state = 'dropped', "
+                    "drop_reason = %s, text = NULL WHERE team_id = %s "
+                    "AND state = 'pending'",
+                    (reason, team_id),
+                ).rowcount
+            )
+
+    # -- lifecycle (sweep and purge) ----------------------------------------
+
+    def list_unfinished(self, limit: int = 100) -> list[SlackInstallation]:
+        """Ended installations whose token reference was not cleared."""
+        with system_scope("slack"), self._store.connection() as connection:
+            rows = connection.execute(
+                f"SELECT {_INSTALLATION_COLUMNS} FROM slack_installations "
+                "WHERE status <> ALL(%s) AND bot_secret_ref IS NOT NULL "
+                "ORDER BY updated_at LIMIT %s",
+                (list(HELD_STATUSES), limit),
+            ).fetchall()
+        return [_installation(row) for row in rows]
+
+    def delete_installation(self, installation_id: str) -> bool:
+        """Delete one row of the current organization."""
+        with self._store.connection() as connection:
+            removed = connection.execute(
+                "DELETE FROM slack_installations "
+                "WHERE installation_id = %s AND org_id = %s",
+                (installation_id, effective_org_id()),
+            ).rowcount
+        return bool(removed)
+
+    def delete_org_events(self, org_id: str, limit: int) -> int:
+        """Delete up to ``limit`` inbox rows of ``org_id``."""
+        with system_scope("slack"), self._store.connection() as connection:
+            return int(
+                connection.execute(
+                    "DELETE FROM slack_event_inbox WHERE event_id IN ("
+                    "SELECT event_id FROM slack_event_inbox WHERE org_id = %s "
+                    "LIMIT %s)",
+                    (org_id, limit),
+                ).rowcount
+            )
+
+    def count_for_org(self, org_id: str) -> int:
+        """Rows ``org_id`` still owns in both Slack tables."""
+        with system_scope("slack"), self._store.connection() as connection:
+            row = connection.execute(
+                "SELECT (SELECT count(*) FROM slack_installations "
+                "WHERE org_id = %s) + (SELECT count(*) FROM slack_event_inbox "
+                "WHERE org_id = %s)",
+                (org_id, org_id),
+            ).fetchone()
+        return int(row[0])

@@ -4,6 +4,7 @@ import importlib
 import io
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -11,6 +12,7 @@ import psycopg
 import pytest
 from cryptography.fernet import Fernet
 
+from application.ports.slack import InboxEvent, SlackInstallation
 from apps.runtime_wiring import compose_platform_runtime
 from contracts.v1 import ApiCredentialStatus
 from infrastructure.database.pool import open_postgres_pool
@@ -273,3 +275,144 @@ def test_unwritable_log_fails_purge_closed_without_erasing(world, monkeypatch):
     assert purge.tick() == 0  # failure is logged per organization, not raised
     assert rows(world["operator"], a) == before
     assert status_of(world, a) == "deleting"
+
+
+# -- Slack: a restored backup never resurrects a revoked token or workspace ----
+
+
+def seed_slack(world, org, team, token_text):
+    """Bind ``team`` to organization ``org`` with a bot token in the secret store."""
+    org_id, workspace_id = world[org][0].id, world[org][1].id
+    principal = world[org][3].id
+    scope = set_request_identity(principal, org_id, workspace_id)
+    try:
+        ref = world["worker"].secret_store.put(
+            token_text, purpose="slack_bot_token", owner_ref=team
+        )
+        now = datetime.now(UTC)
+        claimed = world["worker"].slack_store.claim(
+            SlackInstallation(
+                installation_id=f"inst-{org}",
+                team_id=team,
+                org_id=org_id,
+                workspace_id=workspace_id,
+                bot_user_id="U0BOT",
+                installed_by_principal_id=principal,
+                installed_at=now,
+                updated_at=now,
+                bot_secret_ref=ref,
+            )
+        )
+        world["worker"].slack_store.record_event(
+            InboxEvent(
+                event_id=f"Ev-{org}",
+                team_id=team,
+                event_type="app_mention",
+                received_at=now,
+                org_id=org_id,
+                channel_id="C1",
+                message_ts="1.1",
+                user_id="U1",
+                text="a question",
+            )
+        )
+        return claimed.installation, ref
+    finally:
+        reset_request_principal(scope)
+
+
+def end_slack(world, org, row, status):
+    org_id, workspace_id = world[org][0].id, world[org][1].id
+    scope = set_request_identity(world[org][3].id, org_id, workspace_id)
+    try:
+        return world["worker"].slack_lifecycle.end(
+            row, status, revoke=False, actor="slack:test"
+        )
+    finally:
+        reset_request_principal(scope)
+
+
+def slack_state(world, team):
+    with psycopg.connect(world["url"]) as connection:
+        return connection.execute(
+            "SELECT status, bot_secret_ref IS NOT NULL FROM slack_installations "
+            "WHERE team_id = %s",
+            (team,),
+        ).fetchall()
+
+
+def secret_count(world, ref):
+    with psycopg.connect(world["url"]) as connection:
+        return connection.execute(
+            "SELECT count(*) FROM product_secrets WHERE secret_ref = %s", (ref,)
+        ).fetchone()[0]
+
+
+def mark_restore(world, capsys, head):
+    head_file = world["dir"] / "head.json"
+    head_file.write_text(json.dumps(head))
+    restore_reconcile.run(["--dir", str(world["dir"]), "mark-restore", "--backup", "x"])
+    capsys.readouterr()
+    return head_file
+
+
+def test_restore_old_dump_does_not_resurrect_an_uninstalled_or_revoked_workspace(
+    world, capsys
+):
+    row_a, ref_a = seed_slack(world, "a", "T0RESTA01", "xoxb-restore-token-a")
+    row_b, ref_b = seed_slack(world, "b", "T0RESTB01", "xoxb-restore-token-b")
+    head = world["log"].head()
+    snapshot = dump(world)
+
+    # After the backup: A uninstalls the app, Slack revokes B's bot token.
+    assert end_slack(world, "a", row_a, "uninstalled")
+    assert end_slack(world, "b", row_b, "revoked")
+    assert slack_state(world, "T0RESTA01") == [("uninstalled", False)]
+    assert secret_count(world, ref_a) == secret_count(world, ref_b) == 0
+
+    restore(world, snapshot)  # the old dump brings both back to life
+    assert slack_state(world, "T0RESTA01") == [("active", True)]
+    assert secret_count(world, ref_a) == secret_count(world, ref_b) == 1
+    head_file = mark_restore(world, capsys, head)
+
+    code, dry = apply(world, capsys, "--head-file", str(head_file), "--dry-run")
+    assert code == 0 and slack_state(world, "T0RESTA01") == [("active", True)]
+    assert len(dry["slack_installations"]) == 2
+
+    code, report = apply(world, capsys, "--head-file", str(head_file))
+    assert code == 0
+    assert set(report["slack_installations"].values()) == {"ended"}
+    assert set(report["secrets"].values()) == {"deleted"}
+    assert slack_state(world, "T0RESTA01") == [("uninstalled", False)]
+    assert slack_state(world, "T0RESTB01") == [("revoked", False)]
+    assert secret_count(world, ref_a) == secret_count(world, ref_b) == 0
+    for team in ("T0RESTA01", "T0RESTB01"):
+        assert world["worker"].slack_store.find_by_team(team) is None  # freed
+    pending = world["worker"].slack_store.list_events()
+    assert {(e.state, e.text) for e in pending} == {("dropped", None)}
+
+    again_code, again = apply(
+        world, capsys, "--head-file", str(head_file), "--restore-id", report_id(world)
+    )
+    assert again_code == 0
+    assert set(again["slack_installations"].values()) == {"already_ended"}
+    assert "xoxb-restore-token" not in world["log"].path.read_text()
+
+
+def test_reconcile_leaves_a_reinstall_the_backup_already_holds_alone(world, capsys):
+    row, _ = seed_slack(world, "a", "T0RESTA01", "xoxb-first-token")
+    assert end_slack(world, "a", row, "uninstalled")
+    # The same organization installs again (a new generation of the same row).
+    again, ref = seed_slack(world, "a", "T0RESTA01", "xoxb-second-token")
+    assert again.installation_id == row.installation_id and again.installed_at > (
+        row.installed_at
+    )
+    head = world["log"].head()
+    snapshot = dump(world)  # a backup taken after the reinstall
+    restore(world, snapshot)
+    head_file = mark_restore(world, capsys, head)
+    code, report = apply(world, capsys, "--head-file", str(head_file))
+    assert code == 0
+    assert set(report["slack_installations"].values()) == {"superseded"}
+    assert slack_state(world, "T0RESTA01") == [("active", True)]
+    assert secret_count(world, ref) == 1

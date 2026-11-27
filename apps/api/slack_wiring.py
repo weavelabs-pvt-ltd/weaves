@@ -56,6 +56,7 @@ def build_slack_route_services(runtime: LocalPlatformRuntime) -> SlackRouteServi
         ),
         credentials=runtime.credential_service,
         api=api,
+        lifecycle=runtime.slack_lifecycle,
         settings=settings,
         display_name=lambda pid: _display_name(runtime, pid),
     )

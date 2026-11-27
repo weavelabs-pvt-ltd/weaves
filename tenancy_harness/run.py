@@ -247,6 +247,13 @@ def usage_control(compose):
     seed_module(compose, "phase5.usage_checks", "finish")
 
 
+def slack_controls(compose):
+    """T7-I01 install, T7-I02 events, T7-I03 lifecycle (fake Slack, real stack)."""
+    seed_module(compose, "phase7.slack_install_checks")
+    seed_module(compose, "phase7.slack_event_checks")
+    seed_module(compose, "phase7.slack_lifecycle_checks")
+
+
 def run(args, harness):
     """Build, seed, execute, report, and always remove this run's containers."""
     partial = args.api_only or bool(args.only_control)
@@ -291,8 +298,7 @@ def run(args, harness):
         fair_claim_control(compose)
         usage_control(compose)
         seed_module(compose, "phase6.controls_checks")
-        seed_module(compose, "phase7.slack_install_checks")
-        seed_module(compose, "phase7.slack_event_checks")
+        slack_controls(compose)
         seed_module(compose, "phase5.correlation_checks")
         record_correlation_logs(compose, private)
         seed_module(compose, "phase5.bounded_queries_checks")

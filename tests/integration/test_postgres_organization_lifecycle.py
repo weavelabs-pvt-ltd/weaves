@@ -287,7 +287,15 @@ def test_full_deletion_purges_everything_but_the_retained_set(world):
 
 @pytest.mark.parametrize(
     "step",
-    ["begin", "cancel_work", "revoke_credentials", "secrets", "usage", "execution_jobs"]
+    [
+        "begin",
+        "cancel_work",
+        "revoke_credentials",
+        "slack",
+        "secrets",
+        "usage",
+        "execution_jobs",
+    ]
     + [PURGE_ORDER[i] for i in (3, 9, 24, 35, 36)]
     + ["audit_events", "sweep", "finalize"],
 )

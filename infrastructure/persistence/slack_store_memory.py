@@ -115,14 +115,72 @@ class InMemorySlackStore:
             rows = [e for e in self._events.values() if state in (None, e.state)]
         return sorted(rows, key=lambda e: (e.received_at, e.event_id))[:limit]
 
-    def purge_events(self, before: datetime) -> int:
-        """Delete processed or dropped rows received before ``before``."""
+    def purge_events(
+        self,
+        before: datetime,
+        *,
+        limit: int | None = None,
+        include_pending: bool = False,
+    ) -> int:
+        """Delete up to ``limit`` rows received before ``before``."""
         with self._lock:
-            stale = [
+            stale = sorted(
+                (
+                    e
+                    for e in self._events.values()
+                    if e.received_at < before
+                    and (include_pending or e.state != "pending")
+                ),
+                key=lambda e: e.received_at,
+            )[:limit]
+            for event in stale:
+                del self._events[event.event_id]
+        return len(stale)
+
+    def drop_pending_for_team(self, team_id: str, reason: str, now: datetime) -> int:
+        """Drop the team's pending rows and erase their text."""
+        with self._lock:
+            keys = [
                 key
                 for key, e in self._events.items()
-                if e.received_at < before and e.state != "pending"
+                if e.team_id == team_id and e.state == "pending"
             ]
-            for key in stale:
+            for key in keys:
+                self._events[key] = replace(
+                    self._events[key], state="dropped", drop_reason=reason, text=None
+                )
+        return len(keys)
+
+    def list_unfinished(self, limit: int = 100) -> list[SlackInstallation]:
+        """Ended installations whose token reference was not cleared."""
+        with self._lock:
+            rows = [
+                r
+                for r in self._installations.values()
+                if r.status not in HELD_STATUSES and r.bot_secret_ref is not None
+            ]
+        return sorted(rows, key=lambda r: r.updated_at)[:limit]
+
+    def delete_installation(self, installation_id: str) -> bool:
+        """Delete one row of the current organization."""
+        with self._lock:
+            row = self._installations.get(installation_id)
+            if row is None or row.org_id != effective_org_id():
+                return False
+            del self._installations[installation_id]
+        return True
+
+    def delete_org_events(self, org_id: str, limit: int) -> int:
+        """Delete up to ``limit`` inbox rows of ``org_id``."""
+        with self._lock:
+            keys = [k for k, e in self._events.items() if e.org_id == org_id][:limit]
+            for key in keys:
                 del self._events[key]
-        return len(stale)
+        return len(keys)
+
+    def count_for_org(self, org_id: str) -> int:
+        """Rows ``org_id`` still owns in both Slack structures."""
+        with self._lock:
+            return sum(r.org_id == org_id for r in self._installations.values()) + sum(
+                e.org_id == org_id for e in self._events.values()
+            )

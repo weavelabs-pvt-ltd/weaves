@@ -25,6 +25,7 @@ from apps.runtime_adapters import (
     build_usage_ledger,
 )
 from apps.runtime_service_composition import configure_capability_services
+from apps.slack_lifecycle_wiring import wire_slack_lifecycle
 from contracts.v1.base import ProductContract
 from infrastructure.config.settings import PoolSettings, load_pool_settings
 from infrastructure.database.pool import open_postgres_pool
@@ -190,6 +191,7 @@ def _compose_with_model_client(
     runtime.platform_controls = cast(PlatformControls, runtime.admission.controls)
     capability_services = configure_capability_services(runtime)
     runtime.attach_capability_services(capability_services)
+    wire_slack_lifecycle(runtime)
     return runtime
 
 

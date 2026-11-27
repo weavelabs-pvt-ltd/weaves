@@ -4,6 +4,7 @@ from apps.platform_runtime import LocalPlatformRuntime
 from apps.runtime_wiring import open_process_runtime
 from apps.worker.services import WorkerServices
 from modules.executions.queue_health import QueueHealthService
+from modules.slack.retention import run_tick as run_slack_lifecycle
 from shared.limits_config import LimitsConfig
 
 
@@ -36,5 +37,6 @@ def build_worker_services(
         ),
         reconcile_usage=runtime.usage_reconciler.reconcile,
         purge_usage=runtime.usage_reconciler.purge_expired,
+        slack_lifecycle=lambda: run_slack_lifecycle(runtime.slack_lifecycle),
         worker_paused=runtime.platform_controls.worker_paused,
     )
