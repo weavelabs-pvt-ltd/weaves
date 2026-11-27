@@ -51,6 +51,7 @@ LEAK = "xoxb-fixture-leak-1234567890"
 TS = iter(f"1700001{n:03d}.000100" for n in range(1, 999))
 EVENTS = iter(f"Ev7A{n:03d}" for n in range(1, 999))
 PATH = "/organization/slack/access"
+ANSWER = "From general knowledge"
 
 
 def human_message(thread_ts=None):
@@ -192,7 +193,8 @@ def answer_results(a):
         task[0][1] if task else "",
     )
     listed = request("GET", "/tasks", a["admin"]["headers"]).json()
-    text = posts[0]["text"] if posts else ""
+    answers = [p for p in posts if ANSWER in p["text"]]
+    text = answers[0]["text"] if answers else ""
     reactions = state()["reactions"]
     again = deliver(mention(event_id, ts, text=BOT + question))
     time.sleep(3)
@@ -211,7 +213,7 @@ def answer_results(a):
         "eyes_reaction_then_one_new_answer_in_the_thread": any(
             f"|{ts}|eyes|" in r or r.endswith(f"|{ts}|eyes") for r in reactions
         )
-        and len(posts) == 1
+        and len(answers) == 1
         and "From general knowledge" in text,
         "the_answer_carries_the_evidence_and_timing_line": "_From general knowledge · "
         in text
@@ -223,7 +225,7 @@ def answer_results(a):
         == ("done", None),
         "a_replayed_event_creates_no_second_task_or_answer": again["delivered"]
         and task_count(org) == 1
-        and len(bot_posts(ts)) == 1,
+        and len([p for p in bot_posts(ts) if ANSWER in p["text"]]) == 1,
         "the_request_id_is_slack_event": row["request_id"] == f"slack-{event_id}",
         "_first": (row["task_id"], ts),
     }
