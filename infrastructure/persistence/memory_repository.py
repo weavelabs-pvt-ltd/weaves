@@ -10,6 +10,7 @@ from application.ports.repository import TContract
 from contracts.v1.base import OpaqueId
 from infrastructure.persistence.memory_fair_claim import InMemoryFairClaimMixin
 from infrastructure.persistence.memory_field_queries import InMemoryFieldQueries
+from infrastructure.persistence.task_filters import origin_matches
 from shared.errors import OwnershipConflict
 
 
@@ -221,6 +222,7 @@ class InMemoryRepository(
         cursor_created_at: datetime | None,
         cursor_task_id: str | None,
         limit: int,
+        origin_kind: str | None = None,
     ) -> tuple[TContract, ...]:
         """Return a bounded newest-first page from the task collection."""
         if self._id_field != "task_id":
@@ -236,6 +238,7 @@ class InMemoryRepository(
             and getattr(record, "workspace_id", None) == workspace_id
             and (status is None or _record_value(record, "status").value == status)
             and (agent_id is None or getattr(record, "agent_id", None) == agent_id)
+            and origin_matches(record, origin_kind)
             and (
                 getattr(record, "audience", "workspace") != "private"
                 or getattr(record, "audience_owner_principal_id", None)
@@ -248,10 +251,7 @@ class InMemoryRepository(
             )
             and (
                 cursor_created_at is None
-                or (
-                    _record_value(record, "created_at"),
-                    self._record_id(record),
-                )
+                or (_record_value(record, "created_at"), self._record_id(record))
                 < (cursor_created_at, cursor_task_id or "")
             )
         ]

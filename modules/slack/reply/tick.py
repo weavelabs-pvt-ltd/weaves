@@ -38,6 +38,7 @@ from modules.slack.reply.poster import PostError
 from modules.slack.reply.status_text import DEFAULT_DEADLINE, desired_key
 from modules.slack.reply.steps import RunSteps
 from modules.slack.reply.throttle import NoticeThrottle
+from modules.slack.tasks.reply import TaskReply
 from shared.clock import utc_now
 from shared.correlation import extend_context
 from shared.metrics import SLACK_REPLY
@@ -88,6 +89,7 @@ class SlackReplyTick:
         book: ThreadBook,
         steps: RunSteps,
         delivery: Delivery,
+        task_reply: TaskReply,
         loss: InstallationLoss,
         enabled: Callable[[], bool],
         org_active: Callable[[str], bool],
@@ -107,6 +109,7 @@ class SlackReplyTick:
         self._book = book
         self._steps = steps
         self._delivery = delivery
+        self._task_reply = task_reply
         self._loss = loss
         self._enabled = enabled
         self._org_active = org_active
@@ -186,6 +189,8 @@ class SlackReplyTick:
             turn = self._turns.get_scoped(row.turn_id, row.org_id, row.workspace_id)
         except KeyError:
             return self._give_up(row, target, "turn_missing")
+        if row.kind == "task":
+            return self._task_row(held, row, turn, target)
         action = self._plan(row, turn, now)
         if action is None:
             return 0
@@ -193,6 +198,21 @@ class SlackReplyTick:
         if claimed is None:
             return 0
         return self._execute(held, claimed, turn, action, target)
+
+    def _task_row(
+        self, held: SlackInstallation, row: SlackThread, turn: TaskTurn, target: Target
+    ) -> int:
+        """A Slack-created task: its created message, result and receipt."""
+        if not self._task_reply.needs_work(row, turn):
+            return 0
+        claimed = self._claim(row, target.now)
+        if claimed is None:
+            return 0
+        try:
+            self._task_reply.step(held, claimed, turn, target.now)
+        except PostError as error:
+            self._failed(held, self._latest(claimed), error, target)
+        return 1
 
     def _plan(
         self, row: SlackThread, turn: TaskTurn, now: datetime

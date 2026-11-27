@@ -133,9 +133,9 @@ def main():
     config = json.loads((path.parent / "live-config.json").read_text())
     if config["max_model_calls"] != 3 or MAX_OUTPUT_TOKENS < 1000:
         raise ValueError("Live Slack control needs the bounded relay configuration")
-    new_series("7L", 1700006)  # T7-I06 used Ev7B... in this database
+    new_series("7L", 1700006)  # T7-I07 used Ev7B... in this database
     reset_fake()
-    a = tenant("p7i")  # the organization T7-I06 left installed
+    a = tenant("p7i")  # the organization T7-I07 left installed
     if install(a).get("slack_install") != "ok":  # a fresh token after the reset
         raise AssertionError("the Slack install for the live control failed")
     model = connect_real_model(a, config)

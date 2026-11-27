@@ -44,7 +44,7 @@ def retry_button(run_ref: str, retries: int) -> Button | None:
     return Button(RETRY_ACTION, RETRY_LABEL, run_ref)
 
 
-def message_blocks(text: str, button: Button | None) -> list[dict[str, Any]]:
+def action_blocks(text: str, button: Button | None) -> list[dict[str, Any]]:
     """The blocks of a message: its text and, if given, one button.
 
     ``[]`` (no button) is what clears the buttons of an edited message.

@@ -23,9 +23,11 @@ class ThreadBook:
         self._threads = threads
 
     @staticmethod
-    def key(org_id: str, team_id: str, channel_id: str, thread_ts: str) -> str:
-        """The record id of an Ask thread."""
-        return thread_record_id(org_id, team_id, channel_id, thread_ts, "ask")
+    def key(
+        org_id: str, team_id: str, channel_id: str, thread_ts: str, kind: str = "ask"
+    ) -> str:
+        """The record id of a thread (``ask`` by default, or ``task``)."""
+        return thread_record_id(org_id, team_id, channel_id, thread_ts, kind)
 
     @staticmethod
     def new_ref() -> str:
@@ -33,12 +35,17 @@ class ThreadBook:
         return secrets.token_urlsafe(16)
 
     def find(
-        self, org_id: str, team_id: str, channel_id: str, thread_ts: str
+        self,
+        org_id: str,
+        team_id: str,
+        channel_id: str,
+        thread_ts: str,
+        kind: str = "ask",
     ) -> SlackThread | None:
-        """The thread row, or ``None`` when no Ask ran in this thread yet."""
+        """The thread row, or ``None`` when no such request ran in this thread yet."""
         try:
             return self._threads.get_scoped(
-                self.key(org_id, team_id, channel_id, thread_ts), org_id
+                self.key(org_id, team_id, channel_id, thread_ts, kind), org_id
             )
         except KeyError:
             return None

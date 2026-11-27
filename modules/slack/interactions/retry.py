@@ -209,7 +209,7 @@ class RetryFlow:
                 row.channel_id,
                 ts,
                 text_for("retrying"),
-                button=stop_button(row.run_ref),
+                action=stop_button(row.run_ref),
             )
         except PostError as error:
             logger.warning("slack_retry_edit_failed code=%s", error.code)

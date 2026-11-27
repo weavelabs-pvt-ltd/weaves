@@ -150,6 +150,8 @@ def complete_checks(args, compose, frontend, harness, private, port, report, liv
                 {"stage": "provenance", "browser_cases": browser_outcomes(raw)}
             )
             report["live_ai"] = verify_flow(compose, private, raw)
+            if args.live_slack_task:
+                report["live_ai"] = with_slack_task(compose, private, report["live_ai"])
             report["live_ai"]["usage_ledger"] = relay_matches_ledger(
                 report["live_ai"], private, Path.home() / ".config/weaves-testing"
             )
@@ -164,6 +166,23 @@ def complete_checks(args, compose, frontend, harness, private, port, report, liv
         raise RuntimeError(
             "Required tenancy inventory failed; inspect private browser output"
         )
+
+
+def with_slack_task(compose, private, evidence):
+    """Opt-in: one real ``task:`` run (one more model call), then compare all calls."""
+    seed_module(compose, "phase7.slack_task_live")
+    extra = json.loads((private / "live-slack-task.json").read_text())
+    if not extra.get("passed") or len(extra["calls"]) != 1:
+        raise RuntimeError("The live Slack task control failed; inspect private files")
+    calls = evidence["verified_model_calls"] + [
+        {
+            **item,
+            "input_tokens": item["ledger_input_tokens"],
+            "output_tokens": item["ledger_output_tokens"],
+        }
+        for item in extra["calls"]
+    ]
+    return {**evidence, "verified_model_calls": calls, "slack_task": extra["checks"]}
 
 
 def api_only_outcome(raw):
@@ -283,11 +302,12 @@ def usage_control(compose):
 
 
 def slack_controls(compose):
-    """T7-I01 install, I02 events, I03 lifecycle, I04 Ask, I05 feedback, I06 Stop."""
+    """T7-I01 to I04, I05 feedback, I06 task, I07 Stop and Try again (fake Slack)."""
     seed_module(compose, "phase7.slack_install_checks")
     seed_module(compose, "phase7.slack_event_checks")
     seed_module(compose, "phase7.slack_lifecycle_checks")
     seed_module(compose, "phase7.slack_ask_checks")
+    seed_module(compose, "phase7.slack_task_checks")
     seed_module(compose, "phase7.slack_feedback_checks")
     seed_module(compose, "phase7.slack_press_checks")
 
@@ -401,6 +421,11 @@ def main():
         help="Which paid control follows the foundation when --live-anthropic-env is "
         "set: the agent/workflow flow (default, 3 calls) or the Slack T7-L01 "
         "control (2 calls: a real Ask and a real Stop).",
+    )
+    parser.add_argument(
+        "--live-slack-task",
+        action="store_true",
+        help="with --live-anthropic-env: one more model call, a real task: run",
     )
     parser.add_argument("--canvas-probe", action="store_true")
     parser.add_argument("--output", type=Path, default=Path(".local/tenancy"))

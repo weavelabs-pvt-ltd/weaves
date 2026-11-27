@@ -13,12 +13,14 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
+from urllib.parse import urlsplit
 
 from application.ports.secrets import SecretStore
 from application.ports.slack import SlackInstallation
 from clients.slack.client import SlackApiClient
 from clients.slack.errors import SlackApiError, SlackRateLimited, SlackTokenError
-from modules.slack.reply.blocks import Button, message_blocks
+from modules.slack.reply.blocks import Button, action_blocks
 from modules.slack.text.mrkdwn import has_unsafe_angle
 from modules.slack.text.scrub import Scrubbed, ScrubberUnavailable, scrub
 from shared.metrics import SLACK_API_429, SLACK_POSTS, SLACK_SCRUB
@@ -67,6 +69,42 @@ class FinalText:
 
     text: str
     redactions: int = 0
+
+
+@dataclass(frozen=True)
+class LinkButton:
+    """A URL button (``View in Weaves``): fixed label, our own app URL."""
+
+    label: str
+    url: str
+
+
+def message_blocks(text: str, button: LinkButton | None) -> list[dict[str, Any]]:
+    """Blocks for a message that may carry a link button.
+
+    Editing a message with ``text`` alone keeps its old blocks, so a message that
+    ever had a button is always sent (and edited) with explicit blocks.
+    """
+    blocks: list[dict[str, Any]] = [
+        {"type": "section", "text": {"type": "mrkdwn", "text": text}}
+    ]
+    if button is not None:
+        parts = urlsplit(button.url)
+        if parts.scheme not in ("http", "https") or parts.username or not parts.netloc:
+            raise PostError("permanent", "bad_button_url")
+        blocks.append(
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": button.label[:75]},
+                        "url": button.url[:2000],
+                    }
+                ],
+            }
+        )
+    return blocks
 
 
 def finalize(text: str, scrubber: Callable[[str], Scrubbed] = scrub) -> FinalText:
@@ -142,16 +180,26 @@ class SlackPoster:
         text: str,
         *,
         thread_ts: str,
-        button: Button | None = None,
+        rich: bool = False,
+        button: LinkButton | None = None,
+        action: Button | None = None,
     ) -> str:
-        """Post a new message in the thread (maybe with a button); returns ``ts``."""
+        """Post a new message in the thread; returns its ``ts``.
+
+        ``rich`` sends the text as a block (with the optional link button);
+        ``action`` is a Stop or Try again button of the Ask flow.
+        """
         final = finalize(text, self._scrubber)
         token = self._token(installation)
-        blocks = message_blocks(final.text, button) or None
+        blocks = (
+            message_blocks(final.text, button)
+            if rich
+            else action_blocks(final.text, action) or None
+        )
         ref = self._call(
             "chat.postMessage",
             lambda: self._api.post_message(
-                token, channel, text=final.text, blocks=blocks, thread_ts=thread_ts
+                token, channel, text=final.text, thread_ts=thread_ts, blocks=blocks
             ),
         )
         return ref.ts
@@ -163,16 +211,23 @@ class SlackPoster:
         ts: str,
         text: str,
         *,
-        button: Button | None = None,
+        rich: bool = False,
+        button: LinkButton | None = None,
+        action: Button | None = None,
     ) -> None:
-        """Edit one of our messages in place.
+        """Edit one of our messages in place (``rich`` replaces its blocks too).
 
-        The blocks are always sent: the button the message should have now, or
-        none, which is what removes a Stop or Try again button that is obsolete.
+        Blocks are always sent: the link button (``rich``), the Stop or Try again
+        button the message should have now (``action``), or none, which removes an
+        obsolete button.
         """
         final = finalize(text, self._scrubber)
         token = self._token(installation)
-        blocks = message_blocks(final.text, button)
+        blocks = (
+            message_blocks(final.text, button)
+            if rich
+            else action_blocks(final.text, action)
+        )
         self._call(
             "chat.update",
             lambda: self._api.update_message(

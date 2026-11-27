@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -109,6 +109,7 @@ def _register_task_collection_routes(
         status: TaskStatus | None = None,
         agent_id: str | None = None,
         created_by_principal_id: str | None = None,
+        origin: Literal["slack"] | None = None,
         include_execution: bool = False,
         limit: int = Query(default=50, ge=1, le=100),
         cursor: str | None = None,
@@ -119,6 +120,7 @@ def _register_task_collection_routes(
                 status=status,
                 agent_id=agent_id,
                 created_by_principal_id=created_by_principal_id,
+                origin_kind=origin,
                 limit=limit + 1,
                 cursor_created_at=cursor_time,
                 cursor_task_id=cursor_id,

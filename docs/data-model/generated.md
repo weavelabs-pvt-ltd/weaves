@@ -990,6 +990,7 @@ Contract `contracts.v1.tasks.Task`; `record_id` = `task_id`.
 | `latest_response_summary` | str? | max_length=2000 | default None |
 | `latest_turn_error` | ErrorSummary? | - | default None |
 | `idempotency_key` | str? | - | default None |
+| `origin` | TaskOrigin? | - | default None |
 | `completed_at` | AwareDatetime? | - | default None |
 | `archived_at` | AwareDatetime? | - | default None |
 
@@ -1111,15 +1112,18 @@ Contract `contracts.v1.slack_access.SlackAccessSettings`; `record_id` = `org_id`
 | `planner_profile_id` | str? | - | default None |
 | `ask_limits` | AskLimits | - | default factory |
 | `rules` | ExecuteRules | - | default factory |
+| `default_task_agent_id` | str? | - | default None |
+| `execute_limits` | ExecuteLimits | - | default factory |
 | `workflow_ids` | list[str] | - | default factory |
 | `pr_review_repos` | list[str] | - | default factory |
+| `workspace_urls` | dict[str, str] | max_length=20 | default factory |
 | `qa_principal_id` | str? | - | default None |
 | `qa_agent_version_id` | str? | - | default None |
 | `feedback_pepper_ref` | str? | max_length=200 | default None |
 | `paused` | bool | - | default False |
 | `updated_by` | str | max_length=320 | default '' |
 
-Reference-like fields: `planner_profile_id`, `workflow_ids`, `qa_principal_id`, `qa_agent_version_id`, `feedback_pepper_ref`
+Reference-like fields: `planner_profile_id`, `default_task_agent_id`, `workflow_ids`, `qa_principal_id`, `qa_agent_version_id`, `feedback_pepper_ref`
 
 ### `slack_allowed_users`
 
@@ -1189,9 +1193,9 @@ Contract `contracts.v1.slack_threads.SlackThread`; `record_id` = `id`.
 | `team_id` | str | min_length=1, max_length=128 | required |
 | `channel_id` | str | min_length=1, max_length=128 | required |
 | `thread_ts` | str | min_length=1, max_length=32 | required |
-| `kind` | literal('ask') | - | default 'ask' |
+| `kind` | literal('ask', 'task') | - | default 'ask' |
 | `task_id` | str | min_length=1, max_length=128 | required |
-| `tier` | literal('ask') | - | default 'ask' |
+| `tier` | literal('ask', 'execute') | - | default 'ask' |
 | `requester_slack_user_id` | str | min_length=1, max_length=128 | required |
 | `requester_principal_id` | str | min_length=1, max_length=128 | required |
 | `turn_id` | str | min_length=1, max_length=128 | required |

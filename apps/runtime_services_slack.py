@@ -32,4 +32,5 @@ def configure_slack_access_service(
         installations=dependencies.installations,
         model_profiles=dependencies.model_profiles,
         audit_events=dependencies.audit_events,
+        agents=dependencies.agents,
     )

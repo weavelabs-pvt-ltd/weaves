@@ -77,7 +77,7 @@ class Delivery:
                 row.channel_id,
                 row.status_ts,
                 text,
-                button=stop_button(row.run_ref),
+                action=stop_button(row.run_ref),
             )
             return self._book.save(
                 row.model_copy(update={"status_text_key": key}), target.now
@@ -89,7 +89,7 @@ class Delivery:
             row.channel_id,
             text,
             thread_ts=row.thread_ts,
-            button=stop_button(row.run_ref),
+            action=stop_button(row.run_ref),
         )
         SLACK_REPLY.inc(kind="status", outcome="posted")
         return self._book.save(
@@ -116,7 +116,7 @@ class Delivery:
                 row.channel_id,
                 row.status_ts,
                 reply.text,
-                button=again,
+                action=again,
             )
             SLACK_REPLY.inc(kind="failure", outcome="edited")
             return self._delivered(row, row.status_ts, reply, target, posts=0)
@@ -127,7 +127,7 @@ class Delivery:
             row.channel_id,
             reply.text,
             thread_ts=row.thread_ts,
-            button=again,
+            action=again,
         )
         SLACK_REPLY.inc(kind=reply.kind, outcome="posted")
         return self._delivered(row, ts, reply, target, posts=1)
