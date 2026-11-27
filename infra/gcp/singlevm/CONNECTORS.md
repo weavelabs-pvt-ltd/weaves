@@ -89,6 +89,26 @@ Slack app settings for the bot install and events (design section 5.1):
 | Event Subscriptions, bot events | `app_mention`, `reaction_added`, `app_uninstalled`, `tokens_revoked` |
 | Interactivity, slash commands, token rotation | leave off |
 
+Answer feedback (design 3.13, slice S4c) needs two of those settings and nothing
+new in the app: the bot event `reaction_added` and the bot scope `reactions:read`
+(Slack only delivers `reaction_added` for a subscribed event when the app holds
+the matching read scope). The `reactions:write` scope is separate: it lets the bot
+add the `:eyes:` acknowledgement to a mention and has nothing to do with feedback.
+The bot never reacts to its own answers. Only the thumbs of the person who asked,
+on one of Weaves's own answer messages, count (`+1`/`thumbsup` and `-1`/`thumbsdown`,
+with or without a skin tone); `reaction_removed` is not subscribed, so taking a
+reaction back changes nothing and a later opposite reaction replaces the rating.
+The install already requests both bot scopes (`reactions:read` and `reactions:write`), so a
+workspace needs no reinstall: the owner only has to make sure `reaction_added` is in the Slack app's
+bot events. Until the event is subscribed, thumbs are simply not delivered and nothing else changes.
+
+The worker's `slack_feedback` tick (every 2 seconds) turns thumbs into ratings and
+`slack_feedback_retention` (every 15 minutes) deletes ratings older than
+`WEAVES_USAGE_RETENTION_DAYS` (default 400). An operator `worker_paused` switch holds
+the feedback tick like the dispatcher. Operators read the numbers with
+`slack_feedback_report.py` (see the single-VM README); it is streamed into the API
+container like `usage_report.py` and is not part of the release bundle.
+
 An organization admin then opens Connections in the Weaves app and chooses Add to
 Slack. Enterprise Grid org-wide installs are refused; one Slack workspace can be
 bound to one Weaves organization at a time, and Disconnect (or an

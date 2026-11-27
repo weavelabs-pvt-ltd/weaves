@@ -253,6 +253,7 @@ def slack_controls(compose):
     seed_module(compose, "phase7.slack_event_checks")
     seed_module(compose, "phase7.slack_lifecycle_checks")
     seed_module(compose, "phase7.slack_ask_checks")
+    seed_module(compose, "phase7.slack_feedback_checks")
 
 
 def run(args, harness):

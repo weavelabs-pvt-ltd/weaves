@@ -50,5 +50,11 @@ def build_worker_services(
             reply_tick.run if (reply_tick := runtime.slack_reply_tick) else None
         ),
         purge_slack=(retention.run if (retention := runtime.slack_retention) else None),
+        feedback_slack=(
+            feedback.run if (feedback := runtime.slack_feedback_tick) else None
+        ),
+        purge_slack_feedback=(
+            expiry.run if (expiry := runtime.slack_feedback_retention) else None
+        ),
         worker_paused=runtime.platform_controls.worker_paused,
     )

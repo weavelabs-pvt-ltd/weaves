@@ -21,11 +21,13 @@ from apps.runtime_adapters import (
     build_login_rate_limiter,
     build_runtime_adapters,
     build_secret_store,
+    build_slack_feedback_admin,
     build_slack_store,
     build_usage_ledger,
 )
 from apps.runtime_service_composition import configure_capability_services
 from apps.runtime_services_slack_dispatch import attach_slack_dispatch
+from apps.runtime_services_slack_feedback import attach_slack_feedback
 from apps.runtime_services_slack_pipeline import attach_slack_pipeline
 from apps.slack_lifecycle_wiring import wire_slack_lifecycle
 from contracts.v1.base import ProductContract
@@ -183,6 +185,7 @@ def _compose_with_model_client(
     )
     runtime.controls_store = controls_store
     runtime.slack_store = build_slack_store(store)
+    runtime.slack_feedback_admin = build_slack_feedback_admin(store, repositories)
     runtime.operator_audit = OperatorAudit(controls_store)
     runtime.admission = build_admission_service(
         store=store,
@@ -196,6 +199,7 @@ def _compose_with_model_client(
     wire_slack_lifecycle(runtime)
     attach_slack_pipeline(runtime)
     attach_slack_dispatch(runtime)
+    attach_slack_feedback(runtime)
     return runtime
 
 

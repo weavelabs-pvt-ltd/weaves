@@ -403,6 +403,30 @@ mid-call). Only counts and amounts are read, never prompts or outputs. Usage is 
 with its organization; for live organizations it is kept `WEAVES_USAGE_RETENTION_DAYS` days
 (default 400). Organization Owners and Admins see their own numbers at `GET /api/v0/usage`.
 
+## Slack answer feedback (operator)
+
+When someone who asked the Slack bot a question reacts to its answer with a thumbs up or down, the
+worker stores one rating per answer and asker (design 3.13; the Slack app needs the `reaction_added`
+event and the `reactions:read` scope, see `CONNECTORS.md`). `slack_feedback_report.py` is the
+operator read path for Analytics metric 8 (answer feedback) and, through the request-id lookup,
+metric 10 (follow a complaint to its run). Like `usage_report.py` it opens the database owner's
+connection, refuses local demo seeding, is never reachable over HTTP and is streamed into the running
+API container (it is not in `TOOL_FILES` or the release bundle):
+
+```
+docker compose exec -T product-api python - --by day < slack_feedback_report.py
+docker compose exec -T product-api python - --by month --org ORG_ID --csv < slack_feedback_report.py > feedback.csv
+docker compose exec -T product-api python - --request-id slack-Ev0123ABC < slack_feedback_report.py
+```
+
+Counts (default): one row per UTC `--by day|month`, organization, agent, model and connector set with
+`up`, `down` and `total` (`--from`/`--to` dates inclusive, default this month so far, `--org`, `--csv`).
+`--request-id` returns the rating of one request (the request id of a Slack answer is
+`slack-{event_id}`, shown in the logs of that request) with its organization, task, turn, agent run,
+value and time. Neither mode returns an asker (a member id or a keyed hash), a Slack user id, message
+text or a reason: none is stored. Ratings are kept `WEAVES_USAGE_RETENTION_DAYS` days (default 400),
+deleted with the organization and included in the owner export.
+
 ## Waitlist sign-ups (operator)
 
 The website's waitlist is public and only collects data (an email, consent and

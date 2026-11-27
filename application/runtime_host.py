@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from application.ports.repository import Repository
 from application.ports.slack import SlackStore
+from application.ports.slack_feedback import FeedbackAdmin
 from clients.integrations.mcp import McpHttpPlugin
 from clients.model_providers.gateway import ModelGateway
 from contracts.v1 import (
@@ -58,6 +59,8 @@ if TYPE_CHECKING:
     from modules.platform_controls.controls import PlatformControls
     from modules.platform_controls.store import ControlsStore
     from modules.slack.dispatch.dispatcher import SlackDispatcher
+    from modules.slack.feedback.processor import SlackFeedbackTick
+    from modules.slack.feedback.retention import FeedbackRetention
     from modules.slack.pipeline.health import SlackHealthRefresher
     from modules.slack.qa_retention import SlackRetention
     from modules.slack.reply.tick import SlackReplyTick
@@ -104,6 +107,9 @@ class RuntimeCapabilityHost:
     slack_dispatcher: SlackDispatcher | None
     slack_reply_tick: SlackReplyTick | None
     slack_retention: SlackRetention | None
+    slack_feedback_admin: FeedbackAdmin
+    slack_feedback_tick: SlackFeedbackTick | None
+    slack_feedback_retention: FeedbackRetention | None
     platform_controls: PlatformControls
     operator_audit: OperatorAudit
     _advisory_transaction_lock: Callable[[str], None] | None
