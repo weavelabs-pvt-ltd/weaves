@@ -351,20 +351,22 @@ def setup(a):
     # database is unknown to it: a reinstall (in place) issues a fresh one.
     if install(a).get("slack_install") != "ok":
         raise AssertionError("the Slack install for the interactions control failed")
-    if not call("GET", "/model-profiles", a["admin"]):
-        call(
-            "POST",
-            "/model-providers",
-            a["admin"],
-            {
-                "provider_type": "openai_compatible",
-                "display_name": a["marker"],
-                "api_key": "fixture-model-p7a",
-                "base_url": "https://models.tenancy.test/v1",
-                "initial_model": "tenancy-fixture-model",
-            },
-        )
-    flip(a["org_id"], "active")
+    # Every new organization has a local assistant profile: turn all profiles off
+    # first, so the fixture provider created next is the only model the Q&A agent can
+    # use (a request then really waits on the fake model, which can be slowed).
+    flip(a["org_id"], "disabled")
+    call(
+        "POST",
+        "/model-providers",
+        a["admin"],
+        {
+            "provider_type": "openai_compatible",
+            "display_name": a["marker"],
+            "api_key": "fixture-model-p7i",
+            "base_url": "https://models.tenancy.test/v1",
+            "initial_model": "tenancy-fixture-model",
+        },
+    )
     call(
         "POST",
         PATH + "/people",
