@@ -252,6 +252,11 @@ def main():
     """Run the control and record it in the private fixture file."""
     require_disposable_database()
     reset_fake()
+    fake(
+        "POST",
+        "/_control/configure",
+        {"channels": [{"id": CHANNEL, "name": "feedback"}]},
+    )
     a = tenant("p7a")
     if not rows(
         "SELECT 1 FROM product_records WHERE collection = 'model_providers' "
@@ -275,7 +280,11 @@ def main():
     org = a["org_id"]
     user_ts, thread = ask(org, f"explain idempotency {MARKER}")
     if thread is None or not thread.get("answer_ts"):
-        raise AssertionError("the question was not answered")
+        shown = {
+            k: (thread or {}).get(k)
+            for k in ("run_state", "reply_state", "reply_error")
+        }
+        raise AssertionError(f"the question was not answered: {shown}")
     results = rating_results(org, thread["answer_ts"], thread)
     results.update(ignored_results(org, thread["answer_ts"], user_ts))
     results.update(final_results(org, thread["answer_ts"]))
