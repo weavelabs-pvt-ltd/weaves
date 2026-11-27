@@ -57,7 +57,7 @@
     "phase7/__init__.py": "8521313fa2b2b6753b15bcebda4a23a02200c628ec9eca8bf6a9519e36b5c97d",
     "phase7/slack_event_checks.py": "e918bac3134b68497e57b63dec606d316900ee9ff140b1642f4d52fcd112c45b",
     "phase7/slack_install_checks.py": "79b3df0820b82f280976e1b3f0c01e30e2912c8e9bc074fbed86a3403abacc93",
-    "phase7/slack_lifecycle_checks.py": "1e6be87d78fcc73baab4db82f48d7a73582bddc6639fc29faf7da3761a636c69",
+    "phase7/slack_lifecycle_checks.py": "fcbdb6cc9f174b1b2ea2461b95e17bec2aafa302666d524401edfda5e8b97e98",
     "phase7/slack_selftest.py": "b575baea51f179a8ceccc7ea64b91001403020d84aadb1b6c8621d684b444d84",
     "phase7/slack_support.py": "3fdd3a507456132106b63f5f413d4b60137864631260f9e6ec281b227b1cdabc",
     "playwright.config.cjs": "f63674a00981aba24c031fafb92b3892ae848292d3ad6aef48663d014aa04c0f",
