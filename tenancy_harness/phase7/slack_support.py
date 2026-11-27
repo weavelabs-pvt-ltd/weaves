@@ -102,19 +102,30 @@ def status(t):
     return request("GET", "/organization/slack", t["admin"]["headers"]).json()
 
 
-def mention(event_id, ts, *, team=TEAM, text="<@U0FAKEBOT> what is open?"):
-    """An ``app_mention`` event_callback body."""
+def mention(
+    event_id,
+    ts,
+    *,
+    team=TEAM,
+    text="<@U0FAKEBOT> what is open?",
+    thread_ts=None,
+    user="U0HUMAN01",
+):
+    """An ``app_mention`` event_callback body (``thread_ts`` for a thread reply)."""
+    event = {
+        "type": "app_mention",
+        "user": user,
+        "text": text,
+        "ts": ts,
+        "channel": "C0FAKE001",
+    }
+    if thread_ts:
+        event["thread_ts"] = thread_ts
     return {
         "type": "event_callback",
         "team_id": team,
         "event_id": event_id,
-        "event": {
-            "type": "app_mention",
-            "user": "U0HUMAN01",
-            "text": text,
-            "ts": ts,
-            "channel": "C0FAKE001",
-        },
+        "event": event,
     }
 
 

@@ -57,7 +57,10 @@ if TYPE_CHECKING:
     from modules.platform_controls.audit import OperatorAudit
     from modules.platform_controls.controls import PlatformControls
     from modules.platform_controls.store import ControlsStore
+    from modules.slack.dispatch.dispatcher import SlackDispatcher
     from modules.slack.pipeline.health import SlackHealthRefresher
+    from modules.slack.reply.tick import SlackReplyTick
+    from modules.slack.retention import SlackRetention
     from modules.tasks.service import TaskService
     from modules.usage.service import UsageService
     from modules.workflows.automation_service import WorkflowAutomationService
@@ -98,6 +101,9 @@ class RuntimeCapabilityHost:
     controls_store: ControlsStore
     slack_store: SlackStore
     slack_health_refresher: SlackHealthRefresher | None
+    slack_dispatcher: SlackDispatcher | None
+    slack_reply_tick: SlackReplyTick | None
+    slack_retention: SlackRetention | None
     platform_controls: PlatformControls
     operator_audit: OperatorAudit
     _advisory_transaction_lock: Callable[[str], None] | None

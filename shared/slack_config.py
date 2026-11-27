@@ -47,6 +47,36 @@ def slack_enabled_from_environment(env: Mapping[str, str] | None = None) -> bool
     return _enabled(source.get("WEAVES_SLACK_ENABLED"))
 
 
+def slack_api_base_url_from_environment(env: Mapping[str, str] | None = None) -> str:
+    """The Web API origin for processes that never see the signing secret."""
+    source = os.environ if env is None else env
+    return _api_base_url(source.get("WEAVES_SLACK_API_BASE_URL"))
+
+
+def native_status_from_environment(env: Mapping[str, str] | None = None) -> bool:
+    """``WEAVES_SLACK_NATIVE_STATUS=on`` uses Slack's own status (default off).
+
+    Unverified for plain channel threads (design 2.3): it stays off until the
+    owner's dev-workspace test passes.
+    """
+    source = os.environ if env is None else env
+    value = (source.get("WEAVES_SLACK_NATIVE_STATUS") or "").strip().lower()
+    return value in {"on", "1", "true", "yes"}
+
+
+def reply_deadline_seconds_from_environment(
+    env: Mapping[str, str] | None = None,
+) -> int:
+    """``WEAVES_SLACK_REPLY_DEADLINE`` in seconds (60 to 3600), default 900 (15 min)."""
+    source = os.environ if env is None else env
+    raw = (source.get("WEAVES_SLACK_REPLY_DEADLINE") or "").strip()
+    try:
+        value = int(raw) if raw else 900
+    except ValueError:
+        return 900
+    return value if 60 <= value <= 3600 else 900
+
+
 @dataclass(frozen=True)
 class SlackConfig:
     """Signing secret, kill switch and API origin; the secret never prints."""

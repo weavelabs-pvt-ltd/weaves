@@ -124,9 +124,24 @@ class SlackStore(Protocol):
         ...
 
     def list_events(
-        self, *, state: str | None = None, limit: int = 100
+        self,
+        *,
+        state: str | None = None,
+        limit: int = 100,
+        event_type: str | None = None,
     ) -> list[InboxEvent]:
         """Inbox rows oldest first (the dispatcher's claim, and tests)."""
+        ...
+
+    def settle_event(
+        self, event_id: str, state: InboxState, *, reason: str | None = None
+    ) -> bool:
+        """Move a still pending row to ``state`` (compare-and-set).
+
+        ``True`` only for the caller that won: a second dispatcher (or a replay)
+        sees ``False`` and must not act on the row again. Settling also drops the
+        question text, which is not needed once the row left ``pending``.
+        """
         ...
 
     def purge_events(self, before: datetime) -> int:

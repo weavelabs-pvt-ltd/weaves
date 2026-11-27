@@ -10,6 +10,7 @@ from application.ports.slack import (
     HELD_STATUSES,
     ClaimResult,
     InboxEvent,
+    InboxState,
     InstallationStatus,
     SlackInstallation,
 )
@@ -185,17 +186,35 @@ class PostgresSlackStore:
             return connection.execute(_INSERT_EVENT, values).fetchone() is not None
 
     def list_events(
-        self, *, state: str | None = None, limit: int = 100
+        self,
+        *,
+        state: str | None = None,
+        limit: int = 100,
+        event_type: str | None = None,
     ) -> list[InboxEvent]:
         """Inbox rows oldest first."""
         with system_scope("slack"), self._store.connection() as connection:
             rows = connection.execute(
                 f"SELECT {_INBOX_COLUMNS} FROM slack_event_inbox "
                 "WHERE (%s::text IS NULL OR state = %s) "
+                "AND (%s::text IS NULL OR event_type = %s) "
                 "ORDER BY received_at, event_id LIMIT %s",
-                (state, state, limit),
+                (state, state, event_type, event_type, limit),
             ).fetchall()
         return [_event(row) for row in rows]
+
+    def settle_event(
+        self, event_id: str, state: InboxState, *, reason: str | None = None
+    ) -> bool:
+        """Move a pending row to ``state`` once (the update is the compare-and-set)."""
+        with system_scope("slack"), self._store.connection() as connection:
+            row = connection.execute(
+                "UPDATE slack_event_inbox SET state = %s, drop_reason = %s, "
+                "text = NULL WHERE event_id = %s AND state = 'pending' "
+                "RETURNING 1",
+                (state, reason, event_id),
+            ).fetchone()
+        return row is not None
 
     def purge_events(self, before: datetime) -> int:
         """Delete processed or dropped rows received before ``before``."""

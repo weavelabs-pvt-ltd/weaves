@@ -74,6 +74,7 @@ from contracts.v1.slack_access import (
     SlackAllowedUser,
     SlackConnectorHealth,
 )
+from contracts.v1.slack_threads import SlackThread
 from contracts.v1.workflow_studio import CanvasRun, CanvasSettings
 from modules.auth.runtime_organizations import MockModelIdentifier
 from modules.limits.service import AdmissionService
@@ -115,6 +116,7 @@ class RuntimeCompositionInputs(Protocol):
     slack_allowed_users: Repository[SlackAllowedUser]
     slack_allowed_channels: Repository[SlackAllowedChannel]
     slack_connector_health: Repository[SlackConnectorHealth]
+    slack_threads: Repository[SlackThread]
     evaluation_executions: Repository[EvaluationExecution]
     evaluation_reports: Repository[EvaluationReportRecord]
     evaluation_suites: Repository[EvaluationSuiteRecord]

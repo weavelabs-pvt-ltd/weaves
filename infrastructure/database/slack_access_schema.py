@@ -24,7 +24,7 @@ from __future__ import annotations
 
 # Collections whose rows appear later (the Ask slices register them). The
 # collection-drift test accepts SQL that names them until they are registered.
-RESERVED_COLLECTIONS: tuple[str, ...] = ("slack_threads", "slack_feedback")
+RESERVED_COLLECTIONS: tuple[str, ...] = ("slack_feedback",)
 
 SLACK_ACCESS_MIGRATION: tuple[int, tuple[str, ...]] = (
     33,

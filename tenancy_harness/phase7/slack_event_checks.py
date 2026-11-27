@@ -245,6 +245,8 @@ def organization_state_results(a):
         return seen[event_id] is not None and seen[event_id][0] == "pending"
 
     # The switch has a short cache: later controls must not start before it is off.
+    # ``clear`` also lifts the worker pause that keeps the dispatcher off these rows.
+    control("set", *OP, "--worker-paused", "true")
     cleared = until(accepted_again)
     return {
         "the_platform_pause_clears_without_a_restart": cleared is not None,
@@ -329,6 +331,11 @@ def main():
     a = tenant("p7e")
     if install(a).get("slack_install") != "ok":
         raise AssertionError("the install for the events control did not complete")
+    # The S4 dispatcher would settle these rows; this control checks the inbox as
+    # the endpoint left it, so the dispatcher is held off (operator worker pause,
+    # which has a short cache) until the control is done.
+    control("set", *OP, "--worker-paused", "true")
+    time.sleep(7)
     try:
         results = signature_results()
         results.update(mention_results(a))

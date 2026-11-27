@@ -59,6 +59,14 @@ changes until the operator sets them in `runtime.env` on the VM.
 | `WEAVES_SLACK_SIGNING_SECRET` | yes | no | Verifies `X-Slack-Signature` on events and interactions. Optional; unset means `POST /api/v0/slack/events` answers 503 and does nothing |
 | `WEAVES_SLACK_ENABLED` | yes | not yet | Kill switch, default off. `true` without the signing secret stops the process at start. While off, events are acked and dropped, and the install cannot start |
 | `WEAVES_SLACK_API_BASE_URL` | not forwarded | not forwarded | Slack API origin, default `https://slack.com/api`. Used only by the test harness to point at the fake Slack server |
+| `WEAVES_SLACK_NATIVE_STATUS` | no | yes | `on` shows Slack's own "is working" status instead of one edited working message. Default off: unverified for channel threads (design 2.3, owner's dev-workspace test); an unsupported answer falls back to the message |
+| `WEAVES_SLACK_REPLY_DEADLINE` | no | yes | Seconds (60 to 3600, default 900) before an unanswered request fails with a short reference |
+| `WEAVES_SLACK_QA_RETENTION_DAYS` | no | yes | Days (1 to 365, default 30) before a thread's hidden Q&A conversation is deleted |
+
+With the worker running, `WEAVES_SLACK_ENABLED='true'` also starts the three Slack
+ticks (dispatch and reply every second, retention every 15 minutes). An operator
+`worker_paused` switch holds the dispatcher (the inbox keeps its rows); replies
+for work that already ran still go out.
 
 The install also needs `WEAVES_SLACK_OAUTH_CLIENT_ID`, `WEAVES_SLACK_OAUTH_CLIENT_SECRET`
 (the same Slack app as the read connector) and `WEAVES_PUBLIC_API_BASE_URL`.

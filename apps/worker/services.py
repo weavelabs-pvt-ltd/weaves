@@ -33,5 +33,10 @@ class WorkerServices:
     purge_usage: Callable[[], int] | None = None
     # Slack bot (S4a): refresh connector health snapshots across organizations.
     refresh_slack_health: Callable[[], int] | None = None
+    # Slack bot (S4): turn mentions into hidden Q&A turns, post their replies and
+    # expire the hidden conversations.
+    dispatch_slack: Callable[[], int] | None = None
+    reply_slack: Callable[[], int] | None = None
+    purge_slack: Callable[[], int] | None = None
     # True while an operator has paused claiming (``platform_control.py``).
     worker_paused: Callable[[], bool] | None = None

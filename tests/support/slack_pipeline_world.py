@@ -56,6 +56,7 @@ class FakeConnectors:
         """Start with both servers healthy."""
         self.seen: Counter[tuple[str, str]] = Counter()
         self.fail_probe: set[str] = set()
+        self.issues: list[dict[str, Any]] = []
 
     def count(self, connector: str, kind: str | None = None) -> int:
         """Requests seen by one connector (``probe``, ``data`` or both)."""
@@ -75,7 +76,7 @@ class FakeConnectors:
                 return httpx.Response(500, json={})
             return httpx.Response(200, json={"key": "WEAVES"})
         self.seen[("jira", "data")] += 1
-        return httpx.Response(200, json={"issues": []})
+        return httpx.Response(200, json={"issues": self.issues})
 
     def slack(self, request: httpx.Request) -> httpx.Response:
         """The fake Slack Web API server of the search connector."""

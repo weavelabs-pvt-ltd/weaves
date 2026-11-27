@@ -79,6 +79,13 @@ def browser(
     )
 
 
+def slack_controls(compose):
+    """The Slack bot controls, in order (events before Ask: see T7-I02's pause)."""
+    seed_module(compose, "phase7.slack_install_checks")
+    seed_module(compose, "phase7.slack_event_checks")
+    seed_module(compose, "phase7.slack_ask_checks")
+
+
 def complete_checks(args, compose, frontend, harness, private, port, report, live):
     """Run optional paid checks only through the persistent lifetime-budget relay."""
     if args.canvas_probe:
@@ -291,8 +298,7 @@ def run(args, harness):
         fair_claim_control(compose)
         usage_control(compose)
         seed_module(compose, "phase6.controls_checks")
-        seed_module(compose, "phase7.slack_install_checks")
-        seed_module(compose, "phase7.slack_event_checks")
+        slack_controls(compose)
         seed_module(compose, "phase5.correlation_checks")
         record_correlation_logs(compose, private)
         seed_module(compose, "phase5.bounded_queries_checks")

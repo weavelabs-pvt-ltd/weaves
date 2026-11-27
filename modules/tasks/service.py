@@ -21,10 +21,10 @@ from contracts.v1 import (
     Task,
     TaskAudience,
     TaskMessage,
-    TaskMessageRole,
     TaskStatus,
     TaskTurn,
     TaskTurnStatus,
+    TurnOrigin,
 )
 from modules.limits.errors import LimitExceeded
 from modules.limits.service import AdmissionService, NullAdmission
@@ -36,8 +36,8 @@ from modules.tasks.private_skill_resolver import (
     validate_combined_skill_context,
 )
 from modules.tasks.query_service import TaskQueryService
+from modules.tasks.turn_records import queued_turn, user_message
 from shared.clock import new_id, utc_now
-from shared.correlation import current_request_id
 from shared.errors import IdempotencyConflict, IdempotencyKeyAlreadyExists
 from shared.request_context import (
     effective_org_id,
@@ -121,8 +121,12 @@ class TaskService(TaskLifecycleMixin):
         condition_only: bool = False,
         audience: TaskAudience = TaskAudience.WORKSPACE,
         skill_version_ids: tuple[str, ...] = (),
+        origin: TurnOrigin | None = None,
     ) -> Task:
-        """Create a task, thread, first user message, and queued agent turn."""
+        """Create a task, thread, first user message, and queued agent turn.
+
+        ``origin`` marks a turn that came from Slack; the worker guard reads it.
+        """
         self._ensure_ready()
         principal = effective_principal_id("local-developer")
         self._authorize_task_creation(principal, workflow_id, initial_message)
@@ -157,6 +161,7 @@ class TaskService(TaskLifecycleMixin):
             snapshots,
             audience,
             idempotency_key,
+            origin,
         )
 
     def _authorize_task_creation(
@@ -262,6 +267,7 @@ class TaskService(TaskLifecycleMixin):
         snapshots: tuple[AgentSkillSnapshot, ...],
         audience: TaskAudience,
         idempotency_key: str | None,
+        origin: TurnOrigin | None = None,
     ) -> Task:
         """Persist the task aggregate and its first queued conversation turn."""
         now = utc_now()
@@ -301,8 +307,8 @@ class TaskService(TaskLifecycleMixin):
             created_at=now,
             updated_at=now,
         )
-        message = self._user_message(task, turn_id, message_id, initial_message, now)
-        turn = self._queued_turn(task, turn_id, message_id, principal, now)
+        message = user_message(task, turn_id, message_id, initial_message, now)
+        turn = queued_turn(task, turn_id, message_id, principal, now, origin=origin)
         return self.creation.persist(
             task,
             thread,
@@ -357,7 +363,12 @@ class TaskService(TaskLifecycleMixin):
         )
 
     def add_message(
-        self, task_id: str, content: str, *, idempotency_key: str | None = None
+        self,
+        task_id: str,
+        content: str,
+        *,
+        idempotency_key: str | None = None,
+        origin: TurnOrigin | None = None,
     ) -> TaskTurn:
         """Append one user message and atomically enqueue its agent response."""
         self._ensure_ready()
@@ -365,7 +376,7 @@ class TaskService(TaskLifecycleMixin):
         principal = effective_principal_id("local-developer")
         self._authorize(principal, Permission.TASKS_CREATE)
         self._authorize(principal, Permission.AGENTS_RUN)
-        task = self.get_task(task_id)
+        task = self._task_to_extend(task_id, principal, internal=origin is not None)
         if idempotency_key:
             existing = self.turns.find_by_idempotency_key(
                 idempotency_key, principal, task.org_id, task.workspace_id
@@ -384,9 +395,9 @@ class TaskService(TaskLifecycleMixin):
         if task.active_turn_id:
             raise ValueError("this task already has a turn in progress")
         now, turn_id, message_id = utc_now(), new_id(), new_id()
-        message = self._user_message(task, turn_id, message_id, content, now)
-        turn = self._queued_turn(
-            task, turn_id, message_id, principal, now, idempotency_key
+        message = user_message(task, turn_id, message_id, content, now)
+        turn = queued_turn(
+            task, turn_id, message_id, principal, now, idempotency_key, origin
         )
         updated = Task.model_validate(
             task.model_copy(
@@ -430,6 +441,25 @@ class TaskService(TaskLifecycleMixin):
             raise
         return turn
 
+    def _task_to_extend(self, task_id: str, principal: str, *, internal: bool) -> Task:
+        """The task a message is appended to.
+
+        A server-built ``origin`` (Slack) marks an internal caller whose service
+        principal may add messages to its own private tasks without the view
+        permission that browsing needs; every other caller needs ``tasks.view``.
+        """
+        if not internal:
+            return self.get_task(task_id)
+        task = self.tasks.get_scoped(
+            task_id, effective_org_id(), effective_workspace_id()
+        )
+        if (
+            task.audience is TaskAudience.PRIVATE
+            and task.audience_owner_principal_id != principal
+        ):
+            raise PermissionError("private tasks belong to their owner")
+        return task
+
     def execution_summaries(
         self, tasks: tuple[Task, ...]
     ) -> dict[str, dict[str, object]]:
@@ -453,44 +483,3 @@ class TaskService(TaskLifecycleMixin):
         """Reject blank and oversized user messages before persistence."""
         if not content.strip() or len(content) > 12_000:
             raise ValueError("message must contain 1 to 12000 characters")
-
-    @staticmethod
-    def _user_message(
-        task: Task, turn_id: str, message_id: str, content: str, now: datetime
-    ) -> TaskMessage:
-        """Build the immutable user-authored transcript record."""
-        return TaskMessage(
-            message_id=message_id,
-            task_id=task.task_id,
-            turn_id=turn_id,
-            org_id=task.org_id,
-            workspace_id=task.workspace_id,
-            role=TaskMessageRole.USER,
-            content=content.strip(),
-            created_by_principal_id=task.requested_by_principal_id,
-            created_at=now,
-        )
-
-    @staticmethod
-    def _queued_turn(
-        task: Task,
-        turn_id: str,
-        message_id: str,
-        principal: str,
-        now: datetime,
-        idempotency_key: str | None = None,
-    ) -> TaskTurn:
-        """Build an unclaimed durable task turn."""
-        return TaskTurn(
-            turn_id=turn_id,
-            task_id=task.task_id,
-            user_message_id=message_id,
-            requested_by_principal_id=principal,
-            idempotency_key=idempotency_key,
-            request_id=current_request_id(),
-            status=TaskTurnStatus.QUEUED,
-            org_id=task.org_id,
-            workspace_id=task.workspace_id,
-            created_at=now,
-            updated_at=now,
-        )
