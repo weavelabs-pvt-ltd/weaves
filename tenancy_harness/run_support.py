@@ -87,7 +87,15 @@ def setup_private(root, harness, project, backend):
         stderr=subprocess.DEVNULL,
     )
     (tls / "key.pem").chmod(0o600)
+    github_key = private / "github-app.pem"  # a throwaway RSA key for the fake GitHub
+    execute(
+        ["openssl", "genrsa", "-out", str(github_key), "2048"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    github_key.chmod(0o600)
     values = {
+        "TEST_GITHUB_APP_KEY": github_key.read_text(),
         "TEST_DB_PASSWORD": secrets.token_hex(24),
         "TEST_ENCRYPTION_KEY": base64.urlsafe_b64encode(
             secrets.token_bytes(32)

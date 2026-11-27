@@ -18,7 +18,7 @@ from pydantic import AwareDatetime, Field
 
 from contracts.v1.base import MutableOrgScopedContract, OpaqueId
 
-ThreadKind = Literal["ask", "task"]
+ThreadKind = Literal["ask", "review", "task"]
 RunState = Literal["queued", "running", "cancel_requested", "done", "failed", "stopped"]
 ReplyState = Literal["pending", "posted", "undeliverable"]
 

@@ -66,6 +66,11 @@ services:
       WEAVES_SLACK_API_BASE_URL: http://provider:8081/slack/api
       WEAVES_SLACK_OAUTH_CLIENT_ID: fixture-slack-client-id
       WEAVES_SLACK_OAUTH_CLIENT_SECRET: fixture-slack-client-secret
+      # PR review control (T7-I05): the fake GitHub, with a throwaway App key made
+      # for this run (never a real GitHub App).
+      WEAVES_GITHUB_API_BASE_URL: http://provider:8081/github
+      WEAVES_GITHUB_APP_ID: "424242"
+      WEAVES_GITHUB_APP_PRIVATE_KEY: ${TEST_GITHUB_APP_KEY:?}
       CORS_ORIGINS: ${TEST_APP_ORIGIN:?}
       PYTHONPATH: /app:/suite
       SSL_CERT_FILE: /trust/ca.pem

@@ -1,4 +1,4 @@
-"""Control T7-I07: Stop and Try again on the real stack (slice S4b).
+"""Control T7-I08: Stop and Try again on the real stack (slice S4b).
 
 Slack is the fake server and the model is the fake provider (slow on request, or
 failing on request). Everything else is real: the signed interaction goes through
@@ -54,7 +54,7 @@ from tenancy_harness.phase7.slack_support import (
 from tenancy_harness.resources import tenant
 from tenancy_harness.seed import require_disposable_database
 
-CONTROL_ID = "T7-I07"
+CONTROL_ID = "T7-I08"
 SLICE = "S4b"
 FIXTURE = "slack_interactions"
 OTHER = "U0OTHER01"

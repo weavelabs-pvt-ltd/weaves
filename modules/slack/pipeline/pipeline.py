@@ -121,8 +121,11 @@ class SlackPipeline:
         action = request.access.action
         if action.is_execute:
             return _execute_needs(request, tools), _SKIPPED, False
-        presented = tuple(t for t in tools if t.presentable)[:MAX_PRESENTED_TOOLS]
-        hints = hinted_tool_ids(request.question, tools)
+        # The pull request reader belongs to ``review`` alone: an Ask never
+        # offers it to the planner and a pull request link never hints at it.
+        askable = tuple(t for t in tools if t.tool_id != PR_REVIEW_CAPABILITY)
+        presented = tuple(t for t in askable if t.presentable)[:MAX_PRESENTED_TOOLS]
+        hints = hinted_tool_ids(request.question, askable)
         if not presented:
             return hints, _SKIPPED, False
         outcome = self._planner.plan(

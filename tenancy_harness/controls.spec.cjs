@@ -546,7 +546,25 @@ test('T7-I05 the asker thumbs on a Slack answer become one rating, the latest wi
   }
 });
 
-test('T7-I07 Stop and Try again: signed presses, who may press, cancellation, no late answer, gates and audit', async () => {
+test('T7-I07 a Slack PR review posts the review once, with the receipt, a partial and an unreadable PR, and no injection or GitHub write', async () => {
+  const control = fixture.slack_review;
+  for (const key of ['the_review_is_one_message_in_the_scene_d_format',
+    'a_working_message_becomes_the_receipt_when_one_was_posted', 'never_more_than_two_bot_posts_per_request',
+    'a_fooled_model_cannot_mention_or_link_out', 'the_task_is_private_and_owned_by_the_mapped_member',
+    'the_task_text_is_built_from_the_validated_link', 'github_is_only_read_inside_the_pull_request',
+    'a_replayed_event_posts_nothing_more', 'the_reader_was_enabled_on_the_connection_and_audited',
+    'a_slow_review_shows_the_pull_request_while_it_runs', 'the_slow_review_ends_as_receipt_then_review',
+    'a_big_pull_request_is_a_partial_review', 'an_unreadable_pull_request_says_so_in_one_message',
+    'a_rate_limited_github_says_try_again_later', 'a_model_answer_that_breaks_the_contract_fails_closed',
+    'a_repository_that_is_not_allowlisted_is_refused_privately', 'a_refused_review_makes_no_github_call',
+    'a_missing_or_bad_link_asks_for_the_pr_link_with_an_example',
+    'no_pull_request_text_in_audit_or_thread_rows', 'every_review_decision_is_audited_without_text',
+    'review_rows_are_invisible_to_other_tenants']) {
+    expect(control[key], key).toBe(true);
+  }
+});
+
+test('T7-I08 Stop and Try again: signed presses, who may press, cancellation, no late answer, gates and audit', async () => {
   const control = fixture.slack_interactions;
   for (const key of ['a_signed_press_is_acked_within_three_seconds',
     'the_working_message_carries_a_stop_button_with_an_opaque_reference',

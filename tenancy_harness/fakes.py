@@ -12,6 +12,8 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from tenancy_harness import fake_review_model
+from tenancy_harness.fake_github import router as github_router
 from tenancy_harness.fake_google import router as google_router
 from tenancy_harness.fake_slack import router as slack_router
 
@@ -53,6 +55,7 @@ async def lifespan(app):
 app = FastAPI(lifespan=lifespan)
 app.include_router(google_router)
 app.include_router(slack_router)
+app.include_router(github_router)
 
 
 @app.api_route("/v1/messages", methods=["POST"])
@@ -138,7 +141,7 @@ def egress():
 
 @app.post("/model-fault")
 async def model_fault(request: Request):
-    """Make model calls fail with one HTTP status (0 clears it); T7-I07 uses it."""
+    """Make model calls fail with one HTTP status (0 clears it); T7-I08 uses it."""
     body = await request.json()
     MODEL_FAULT["status"] = int(body.get("status", 0))
     return {"status": MODEL_FAULT["status"]}
@@ -167,6 +170,8 @@ async def completion(request: Request):
     prompt = body["messages"][-1]["content"]
     if HOLD_MARKER in prompt:  # T5-I03 holds one call open so a worker can be killed
         await asyncio.sleep(HOLD_SECONDS)
+    if fake_review_model.is_review(body["messages"]):  # T7-I05: a PR review prompt
+        prompt = fake_review_model.answer(body["messages"])
     return {
         "id": "fixture-completion",
         "model": "tenancy-fixture-model",

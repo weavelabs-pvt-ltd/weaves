@@ -55,9 +55,15 @@ class Delivery:
 
     # -- working state -------------------------------------------------------
 
-    def show_status(self, row: SlackThread, key: str, target: Target) -> SlackThread:
-        """Show ``key`` as the working status: native if on, else one edited message."""
-        text = text_for(key)
+    def show_status(
+        self, row: SlackThread, key: str, target: Target, text: str | None = None
+    ) -> SlackThread:
+        """Show ``key`` as the working status: native if on, else one edited message.
+
+        ``text`` overrides the key's default words (a request kind that names more
+        than a connector, such as the pull request a review is reading).
+        """
+        text = text if text is not None else text_for(key)
         if row.status_ts == NATIVE or (target.native_status and row.status_ts is None):
             ok = self._poster.native_status(
                 target.installation, row.channel_id, row.thread_ts, _plain(text)
@@ -280,8 +286,14 @@ class Delivery:
 
     # -- the receipt ---------------------------------------------------------
 
-    def finish_status(self, row: SlackThread, target: Target) -> SlackThread:
-        """Turn the working message into the receipt, then close the request."""
+    def finish_status(
+        self, row: SlackThread, target: Target, receipt: str | None = None
+    ) -> SlackThread:
+        """Turn the working message into the receipt, then close the request.
+
+        ``receipt`` replaces the default "Done in 41s" text (a review names what
+        it reviewed).
+        """
         answered_in_thread = (
             row.run_state == "done"
             and row.answer_ts not in (None, PRIVATE)
@@ -289,7 +301,7 @@ class Delivery:
         )
         if answered_in_thread and row.status_ts and row.status_ts != NATIVE:
             end = row.finished_at or target.now
-            text = copy.RECEIPT.format(
+            text = receipt or copy.RECEIPT.format(
                 elapsed=copy.duration((end - row.requested_at).total_seconds())
             )
             self._poster.edit(target.installation, row.channel_id, row.status_ts, text)

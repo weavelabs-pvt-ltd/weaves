@@ -17,6 +17,7 @@ from contracts.v1 import (
 )
 from modules.agents.runtime_lifecycle import AgentService
 from modules.integrations.admin_service import IntegrationAdminService
+from shared.run_origin import SLACK_EXECUTE_ONLY
 
 
 class AgentCreateRequest(BaseModel):
@@ -138,6 +139,7 @@ def _register_agent_routes_group_1(
             if descriptor.status == PluginDescriptorStatus.ACTIVE
             for capability in descriptor.capability_manifest
             if capability.capability_id in enabled_capability_ids
+            and capability.capability_id not in SLACK_EXECUTE_ONLY
         ]
 
     def list_plugin_descriptors() -> list[dict[str, Any]]:
