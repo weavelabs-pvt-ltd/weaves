@@ -115,7 +115,7 @@ def main():
                     "/organization/slack/" + item["installation_id"],
                     old["admin"]["headers"],
                 )
-    checks.EVENTS = iter(f"Ev7L{n:03d}" for n in range(1, 99))
+    checks.EVENTS = iter(f"Ev7Z{n:03d}" for n in range(1, 99))
     t = tenant("p7l")
     model = provider_profile(t, config)
     if install(t).get("slack_install") != "ok":
