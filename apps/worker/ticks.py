@@ -27,6 +27,7 @@ QUEUE_HEALTH_SECONDS = 30
 CLAIM_STATE_PRUNE_SECONDS = 3600
 USAGE_RECONCILE_SECONDS = 30
 USAGE_RETENTION_SECONDS = 3600
+SLACK_HEALTH_SECONDS = 600
 
 
 @dataclass(frozen=True)
@@ -152,6 +153,19 @@ def _purge_usage(services: WorkerServices) -> None:
         logger.info("usage retention removed rows count=%d", removed)
 
 
+def _refresh_slack_health(services: WorkerServices) -> None:
+    """Refresh connector health snapshots; failures are logged, never raised."""
+    if services.refresh_slack_health is None:
+        return
+    try:
+        written = services.refresh_slack_health()
+    except Exception:
+        logger.exception("slack health tick failed")
+        return
+    if written:
+        logger.info("slack connector health refreshed count=%d", written)
+
+
 def _dispatch_schedules(services: WorkerServices) -> None:
     scheduled_jobs = services.workflow_automation.dispatch_due_workflow_schedules()
     if scheduled_jobs:
@@ -223,5 +237,9 @@ def build_tick_registry(
 
     # 5.5 metrics: periodic gauges (queue depth, oldest queued age).
     registry.register(Tick("metrics_gauges", METRICS_GAUGE_SECONDS, _metrics_gauges))
+
+    # Phase 7 Slack bot: connector health snapshots the request pipeline reads
+    # (S4a, every ten minutes; the first refresh runs at start).
+    registry.register(Tick("slack_health", SLACK_HEALTH_SECONDS, _refresh_slack_health))
 
     return registry

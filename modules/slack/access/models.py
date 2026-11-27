@@ -86,6 +86,7 @@ class Outcome(StrEnum):
     REFUSED_UNAVAILABLE = "refused_unavailable"
     BLOCKED_RULE = "blocked_rule"
     BLOCKED_STATE = "blocked_state"
+    PLANNER_FAILED = "planner_failed"
     RATE_LIMITED = "rate_limited"
     DROPPED = "dropped"
 
@@ -126,6 +127,7 @@ class Reason(StrEnum):
     TOOL_DISABLED = "tool_disabled"
     TOOL_TOKEN_EXPIRED = "tool_token_expired"
     TOOL_QUARANTINED = "tool_quarantined"
+    PLANNER_FAILED = "planner_failed"
 
 
 ACCESS_REASONS = frozenset({Reason.AUDIENCE_NOT_IN_SLACK, Reason.AUDIENCE_NOT_ALLOWED})

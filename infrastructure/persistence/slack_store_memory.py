@@ -37,6 +37,14 @@ class InMemorySlackStore:
                 None,
             )
 
+    def list_held(self, limit: int = 500) -> list[SlackInstallation]:
+        """Held installations of every organization (the health tick)."""
+        with self._lock:
+            rows = [
+                r for r in self._installations.values() if r.status in HELD_STATUSES
+            ]
+        return sorted(rows, key=lambda r: r.installation_id)[:limit]
+
     def list_for_org(self) -> list[SlackInstallation]:
         """The current organization's installations, newest first."""
         org_id = effective_org_id()

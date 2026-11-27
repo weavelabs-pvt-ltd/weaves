@@ -116,6 +116,8 @@ from contracts.v1.tasks import (
     TaskStatus,
     TaskTurn,
     TaskTurnStatus,
+    TurnOrigin,
+    TurnVerdict,
 )
 from contracts.v1.threads import (
     ConversationThread,
@@ -234,6 +236,8 @@ __all__ = [
     "TaskTurn",
     "TaskTurnStatus",
     "ToolInvocation",
+    "TurnOrigin",
+    "TurnVerdict",
     "UsageEvent",
     "UsageGroup",
     "UsageGroupBy",

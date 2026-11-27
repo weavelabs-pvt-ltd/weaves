@@ -593,6 +593,17 @@
         "org_id"
       ],
       "current_gap": null
+    },
+    "slack_connector_health": {
+      "contract": "SlackConnectorHealth",
+      "scope": "organization",
+      "privacy": "readable only inside its own organization (row policy); holds a status and a reason code per connector installation, never a token or connector data",
+      "system_access": "none: the slack_health worker tick binds each organization's own tenant context before it writes",
+      "lifecycle": "removed with the organization by the generic purge sweep; a cache the tick rewrites every ten minutes",
+      "scope_keys": [
+        "org_id"
+      ],
+      "current_gap": null
     }
   },
   "auxiliary_tables": {

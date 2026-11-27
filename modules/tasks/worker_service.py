@@ -6,40 +6,48 @@ import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from contextvars import copy_context
-from datetime import datetime, timedelta
 from threading import Event, Thread
 
 from application.ports.fair_claim import log_over_cap
 from application.ports.limits import LimitPolicy
 from application.ports.repository import Repository
-from application.runtime_constants import STALE_TASK_TURN_AFTER_SECONDS
+from application.ports.turn_guard import TurnGuard
 from application.task_run_keys import task_run_key
 from contracts.v1 import (
     AgentRun,
-    ErrorSummary,
     Task,
     TaskMessage,
     TaskMessageRole,
     TaskStatus,
     TaskTurn,
     TaskTurnStatus,
+    TurnOrigin,
     WorkflowRun,
 )
 from modules.agents.execution_service import AgentExecutionService
+from modules.tasks.guarded_turns import GuardedTurnWriter
 from modules.tasks.turn_failures import is_expected_failure, turn_failure_summary
+from modules.tasks.turn_recovery import TurnRecoveryMixin
 from shared.clock import new_id, utc_now
 from shared.correlation import bind_context, note, principal_digest
 from shared.request_context import (
     reset_request_principal,
     set_request_identity,
     system_scope,
-    system_scoped,
 )
+from shared.run_origin import RunOrigin, bound_run_origin
 
 _log = logging.getLogger(__name__)
 
 
-class TaskWorkerService:
+def _run_origin(origin: TurnOrigin | None) -> RunOrigin | None:
+    """The capability-narrowing view of a turn's origin (``None``: unrestricted)."""
+    if origin is None:
+        return None
+    return RunOrigin(origin.kind, origin.capability_ids)
+
+
+class TaskWorkerService(TurnRecoveryMixin):
     """Run one durable conversation turn per worker poll iteration."""
 
     def __init__(
@@ -53,6 +61,7 @@ class TaskWorkerService:
         agent_execution: AgentExecutionService,
         unit_of_work: Callable[[], AbstractContextManager[None]],
         heartbeat_interval_seconds: float = 15,
+        turn_guard: TurnGuard | None = None,
     ) -> None:
         """Bind task storage, model execution, and transaction boundary."""
         self.tasks = tasks
@@ -63,6 +72,11 @@ class TaskWorkerService:
         self.agent_execution = agent_execution
         self._open_unit_of_work = unit_of_work
         self.heartbeat_interval_seconds = heartbeat_interval_seconds
+        # Set at composition (Slack): re-checks a turn's policy at pickup.
+        self.turn_guard = turn_guard
+        self._guarded = GuardedTurnWriter(
+            tasks=tasks, messages=messages, turns=turns, unit_of_work=unit_of_work
+        )
 
     def process_next_turn(
         self, worker_id: str, limits: LimitPolicy | None = None
@@ -153,6 +167,17 @@ class TaskWorkerService:
         user_message = self.messages.get_scoped(
             claimed.user_message_id, claimed.org_id, claimed.workspace_id
         )
+        if claimed.origin is not None:
+            # Before the heartbeat starts: it rewrites the turn, and the guard's
+            # verdict and approved capabilities must not be overwritten by it.
+            try:
+                finished, claimed = self._pre_run_guard(
+                    claimed, task, user_message.content, run_key
+                )
+            except Exception as exc:
+                return self._finish_failure(claimed, task, run_key, exc)
+            if finished is not None:
+                return finished
         heartbeat_stop = Event()
         lease_lost = Event()
         # The lease renewal must run as this tenant: a bare thread starts with an
@@ -174,6 +199,32 @@ class TaskWorkerService:
             heartbeat_stop.set()
             heartbeat.join(timeout=self.heartbeat_interval_seconds + 1)
 
+    def _pre_run_guard(
+        self, turn: TaskTurn, task: Task, question: str, run_key: str
+    ) -> tuple[TaskTurn | None, TaskTurn]:
+        """Re-check a Slack turn's policy at pickup (design 3.5.2).
+
+        Returns ``(finished turn, turn)`` when the turn ended here (cancelled
+        ``slack_access_revoked`` or answered with a fixed message), else
+        ``(None, turn with the approved capabilities and the verdict)``. A guarded
+        turn with no guard configured keeps no approved list and runs no connector.
+        """
+        decision = (
+            self.turn_guard.check(turn, task, question, run_key)
+            if self.turn_guard is not None
+            else None
+        )
+        if decision is None:
+            return None, turn
+        if decision.proceed:
+            return None, self._guarded.record_origin(turn, decision.origin)
+        if decision.cancel_reason is not None:
+            return self._guarded.cancel(turn, task, decision.origin), turn
+        done = self._guarded.short_circuit(
+            turn, task, decision.origin, decision.message or ""
+        )
+        return done, turn
+
     def _execute_turn(
         self,
         turn: TaskTurn,
@@ -183,19 +234,20 @@ class TaskWorkerService:
         lease_lost: Event,
     ) -> TaskTurn:
         """Run the agent with private snapshots and finish a successful turn."""
-        result = self.agent_execution.run_agent(
-            message,
-            requested_by_principal_id=turn.requested_by_principal_id,
-            agent_id=task.agent_id,
-            thread_id=task.thread_id,
-            idempotency_key=run_key,
-            agent_version_id=task.agent_version_id,
-            _runtime_skill_snapshots=task.private_skill_snapshots,
-            _cancellation_event=lease_lost,
-            _cancellation_check=lambda: self._cancellation_requested(
-                turn, task, lease_lost
-            ),
-        )
+        with bound_run_origin(_run_origin(turn.origin)):
+            result = self.agent_execution.run_agent(
+                message,
+                requested_by_principal_id=turn.requested_by_principal_id,
+                agent_id=task.agent_id,
+                thread_id=task.thread_id,
+                idempotency_key=run_key,
+                agent_version_id=task.agent_version_id,
+                _runtime_skill_snapshots=task.private_skill_snapshots,
+                _cancellation_event=lease_lost,
+                _cancellation_check=lambda: self._cancellation_requested(
+                    turn, task, lease_lost
+                ),
+            )
         response = result.agent_run.output_summary or {}
         content = str(response.get("response", "")).strip()
         if not content:
@@ -224,110 +276,6 @@ class TaskWorkerService:
             ):
                 lease_lost.set()
                 return
-
-    @system_scoped("recovery")
-    def recover_stale_turns(
-        self, *, stale_after_seconds: int = STALE_TASK_TURN_AFTER_SECONDS
-    ) -> tuple[str, ...]:
-        """Requeue expired worker leases or fail after three attempts."""
-        now = utc_now()
-        stale = self.turns.list_status_updated_before(
-            TaskTurnStatus.RUNNING.value,
-            now - timedelta(seconds=stale_after_seconds),
-            limit=100,
-        )
-        recovered: list[str] = []
-        for turn in stale:
-            if turn.attempts >= 3:
-                replacement = turn.model_copy(
-                    update={
-                        "status": TaskTurnStatus.FAILED,
-                        "worker_id": None,
-                        "finished_at": now,
-                        # Automatic attempts are used up, but the failure was the
-                        # worker's, not the turn's: a person may retry it.
-                        "error": ErrorSummary(
-                            code="task.worker_lease_expired",
-                            summary=(
-                                "The task worker stopped before completing this turn."
-                            ),
-                            retryable=True,
-                        ),
-                        "updated_at": now,
-                    }
-                )
-                task = self.tasks.get_scoped(
-                    turn.task_id, turn.org_id, turn.workspace_id
-                )
-                if task.active_turn_id != turn.turn_id:
-                    continue
-                task_update = task.model_copy(
-                    update={
-                        "active_turn_id": None,
-                        "active_turn_status": None,
-                        "latest_turn_status": TaskTurnStatus.FAILED,
-                        "latest_turn_error": replacement.error,
-                        "latest_response_summary": (
-                            "Task turn failed after worker recovery."
-                        ),
-                        "updated_at": now,
-                    }
-                )
-            else:
-                replacement = turn.model_copy(
-                    update={
-                        "status": TaskTurnStatus.QUEUED,
-                        "worker_id": None,
-                        "started_at": None,
-                        "finished_at": None,
-                        "error": None,
-                        "updated_at": now,
-                    }
-                )
-                task = self.tasks.get_scoped(
-                    turn.task_id, turn.org_id, turn.workspace_id
-                )
-                if task.active_turn_id != turn.turn_id:
-                    continue
-                task_update = task.model_copy(
-                    update={
-                        "active_turn_status": TaskTurnStatus.QUEUED,
-                        "latest_turn_status": TaskTurnStatus.QUEUED,
-                        "latest_turn_error": None,
-                        "updated_at": now,
-                    }
-                )
-            if self._persist_turn_recovery(
-                turn, replacement, task_update, now, stale_after_seconds
-            ):
-                recovered.append(turn.turn_id)
-        return tuple(recovered)
-
-    def _persist_turn_recovery(
-        self,
-        turn: TaskTurn,
-        replacement: TaskTurn,
-        task_update: Task,
-        now: datetime,
-        stale_after_seconds: int,
-    ) -> bool:
-        """Atomically update a stale turn lease and its owning task state."""
-        with self._open_unit_of_work():
-            changed = self.turns.put_if_status_and_stale(
-                replacement,
-                expected_status=TaskTurnStatus.RUNNING.value,
-                updated_before=now - timedelta(seconds=stale_after_seconds),
-            )
-            if not changed:
-                return False
-            task_changed = self.tasks.put_if_task_state(
-                Task.model_validate(task_update.model_dump()),
-                expected_status=TaskStatus.OPEN.value,
-                expected_active_turn_id=turn.turn_id,
-            )
-            if not task_changed:
-                raise RuntimeError("task changed during turn recovery")
-            return True
 
     def _finish_success(
         self, turn: TaskTurn, task: Task, agent_run: AgentRun, content: str
