@@ -29,6 +29,14 @@ EVENTS = iter(f"Ev7B{n:03d}" for n in range(1, 999))
 ACTION_TS = iter(f"1700004{n:03d}.000100" for n in range(1, 999))
 
 
+def new_series(tag, base):
+    """Start fresh message, event and action ids (another control, same database)."""
+    global TS, EVENTS, ACTION_TS
+    TS = iter(f"{base}{n:03d}.000100" for n in range(1, 999))
+    EVENTS = iter(f"Ev{tag}{n:03d}" for n in range(1, 999))
+    ACTION_TS = iter(f"{base + 1}{n:03d}.000100" for n in range(1, 999))
+
+
 def human_message(thread_ts=None):
     """A human message that exists in the fake channel; returns its ts."""
     ts = next(TS)
