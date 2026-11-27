@@ -505,7 +505,7 @@ test('T7-I04 a Slack mention becomes one hidden task and one answer, with the wo
     'cheap_exits_create_no_task_and_count_nothing',
     'a_failed_plan_says_try_again_privately_and_posts_nothing_public',
     'the_ask_limit_is_told_privately_with_the_wait', 'a_paused_bot_says_it_is_unavailable',
-    'no_model_provider_is_told_privately', 'thread_rows_are_invisible_to_other_tenants_and_unscoped_roles',
+    'no_model_is_told_in_the_thread_for_everyone', 'thread_rows_are_invisible_to_other_tenants_and_unscoped_roles',
     'no_question_text_in_thread_rows_or_audit']) {
     expect(control[key], key).toBe(true);
   }

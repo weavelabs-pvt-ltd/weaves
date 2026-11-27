@@ -102,9 +102,12 @@ class SlackPipeline:
         considered = tuple(tool.tool_id for tool in tools)
         ids, planner, failed = self._plan(request, tools)
         if failed:
-            return self._respond(
-                request, _planner_failed(base, gate), considered, (), planner
+            decision = (
+                _no_model(base, gate)
+                if planner.status.no_model
+                else _planner_failed(base, gate)
             )
+            return self._respond(request, decision, considered, (), planner)
         needed = self._check_inputs(base, ids, tools)
         decision = evaluate(replace(base, tools=needed))
         return self._respond(request, decision, considered, ids, planner)
@@ -252,6 +255,20 @@ def _planner_failed(base: AccessRequest, gate: Decision) -> Decision:
         settings_version=base.settings.version,
         reason=Reason.PLANNER_FAILED,
         message=messages.PLANNER_FAILED,
+        checks=(*gate.checks, "planner"),
+    )
+
+
+def _no_model(base: AccessRequest, gate: Decision) -> Decision:
+    """Fail closed: the model is not connected or not reachable; say exactly that."""
+    return Decision(
+        allowed=False,
+        outcome=Outcome.REFUSED_UNAVAILABLE,
+        action=base.action,
+        mode=gate.mode,
+        settings_version=base.settings.version,
+        reason=Reason.NO_MODEL,
+        message=messages.NO_MODEL,
         checks=(*gate.checks, "planner"),
     )
 

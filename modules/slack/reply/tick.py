@@ -29,6 +29,7 @@ from contracts.v1 import AgentRun, TaskMessage, TaskTurn, TaskTurnStatus
 from contracts.v1.slack_threads import SlackThread
 from modules.slack import copy
 from modules.slack.access import messages
+from modules.slack.access.models import Reason
 from modules.slack.dispatch.threads import ThreadBook
 from modules.slack.events import tenant_of
 from modules.slack.reply import compose
@@ -37,7 +38,7 @@ from modules.slack.reply.loss import InstallationLoss
 from modules.slack.reply.poster import PostError
 from modules.slack.reply.status_text import DEFAULT_DEADLINE, desired_key
 from modules.slack.reply.steps import RunSteps
-from modules.slack.reply.throttle import NoticeThrottle
+from modules.slack.reply.throttle import NO_MODEL_WINDOW, NoticeThrottle
 from modules.slack.tasks.reply import TaskReply
 from shared.clock import utc_now
 from shared.correlation import extend_context
@@ -82,8 +83,13 @@ class SlackReplyTick:
         deadline: timedelta = DEFAULT_DEADLINE,
         clock: Callable[[], datetime] = utc_now,
         budget_seconds: float = TICK_BUDGET_SECONDS,
+        no_model_throttle: NoticeThrottle | None = None,
     ) -> None:
-        """Bind the records, the delivery steps and the state readers."""
+        """Bind the records, the delivery steps and the state readers.
+
+        ``no_model_throttle`` is shared with the dispatcher so that one thread is
+        told "no model is connected" once per window, whichever stage noticed.
+        """
         self._store = store
         self._threads = threads
         self._turns = turns
@@ -103,6 +109,7 @@ class SlackReplyTick:
         self._clock = clock
         self._budget = budget_seconds
         self._throttle = NoticeThrottle()
+        self._no_model_throttle = no_model_throttle or NoticeThrottle(NO_MODEL_WINDOW)
         self._failures: dict[str, int] = {}
 
     # -- the tick -------------------------------------------------------------
@@ -297,6 +304,12 @@ class SlackReplyTick:
                 target.now,
             )
             return
+        if reply.kind == "no_model" and not self._no_model_throttle.allow(
+            row.team_id, row.channel_id, target.now, row.thread_ts
+        ):
+            self._delivery.withhold(row, target)  # told in this thread a moment ago
+            SLACK_REPLY.inc(kind="no_model", outcome="withheld")
+            return
         delivered = self._delivery.send_reply(row, reply, target)
         self._delivery.finish_status(delivered, target)
 
@@ -316,6 +329,8 @@ class SlackReplyTick:
         verdict = turn.origin.verdict if turn.origin else None
         if turn.status is TaskTurnStatus.FAILED:
             return compose.failure(turn)
+        if verdict is not None and verdict.reason == Reason.NO_MODEL.value:
+            return compose.no_model()
         if turn.status is TaskTurnStatus.CANCELLED:
             if verdict is None:
                 return None

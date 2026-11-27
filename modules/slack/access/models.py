@@ -129,6 +129,7 @@ class Reason(StrEnum):
     TOOL_TOKEN_EXPIRED = "tool_token_expired"
     TOOL_QUARANTINED = "tool_quarantined"
     PLANNER_FAILED = "planner_failed"
+    NO_MODEL = "no_model"
 
 
 ACCESS_REASONS = frozenset({Reason.AUDIENCE_NOT_IN_SLACK, Reason.AUDIENCE_NOT_ALLOWED})

@@ -35,7 +35,13 @@ class PlannerStatus(StrEnum):
     UNPRESENTED = "unpresented"
     TIMEOUT = "timeout"
     ERROR = "error"
+    NO_MODEL = "no_model"  # no connected model, or it was unreachable
     SKIPPED = "skipped"
+
+    @property
+    def no_model(self) -> bool:
+        """The planner could not reach a connected model (no model, or it timed out)."""
+        return self in (PlannerStatus.NO_MODEL, PlannerStatus.TIMEOUT)
 
     @property
     def failed(self) -> bool:

@@ -43,6 +43,7 @@ from modules.slack.access.models import (
     OrgState,
     Outcome,
     PlatformState,
+    Reason,
 )
 from modules.slack.access.ratelimit import AuditAskUsageReader
 from modules.slack.access.service import SlackAccessService
@@ -234,7 +235,8 @@ def _decide(origin: TurnOrigin, result: PipelineResult, now: datetime) -> GuardD
         reason=decision.reason.value if decision.reason else None,
         message=result.message if refused else None,
         skipped_note=result.skipped_note,
-        answer_ephemeral=result.answer_ephemeral or refused,
+        answer_ephemeral=result.answer_ephemeral
+        or (refused and decision.reason is not Reason.NO_MODEL),
         tools_needed=result.tools_needed[:20],
         tools_green=result.capability_ids[:20],
         planner_status=result.planner.status.value,

@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from modules.slack.access import messages
+
 # Scene H: small exits (no task, no model).
 HELP = (
     "Tag me with a question and I'll look it up in your connected sources. "
@@ -85,7 +87,7 @@ def already_tracked(title: str) -> str:
 
 
 # Scene I: system states.
-NO_MODEL = "No AI model is connected. Ask a Weaves admin."
+NO_MODEL = messages.NO_MODEL
 BUSY = (
     "I'm still working on your last question in this thread. "
     "Ask again when I've replied."

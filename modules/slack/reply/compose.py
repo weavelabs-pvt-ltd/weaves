@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 from contracts.v1 import TaskTurn
 from modules.slack import copy
+from modules.slack.model_status import is_connectivity_failure
 from modules.slack.text.mrkdwn import MAX_MESSAGE_CHARS, fit, to_mrkdwn
 
 _TITLE_NOISE = re.compile(r"[_*~`<>|\[\]\n\r\t]+")
@@ -25,7 +26,7 @@ _TITLE_NOISE = re.compile(r"[_*~`<>|\[\]\n\r\t]+")
 class Reply:
     """What to send: the text, who may see it and what kind of reply it is."""
 
-    kind: str  # answer | refusal | failure | cancelled
+    kind: str  # answer | refusal | failure | no_model | cancelled
     text: str
     ephemeral: bool = False
     sources: int = 0
@@ -79,9 +80,23 @@ def refusal(message: str | None, outcome: str) -> Reply:
     return Reply("refusal", copy.refusal(text, outcome), ephemeral=True)
 
 
+def no_model() -> Reply:
+    """No AI model is connected: a normal threaded reply, visible to everyone.
+
+    It reveals nothing sensitive, and private messages are unreliable in a thread
+    the asker is not looking at, so it is never ephemeral.
+    """
+    return Reply("no_model", copy.NO_MODEL)
+
+
 def failure(turn: TaskTurn) -> Reply:
-    """A failed turn: no model text, no error text, only a reference."""
+    """A failed turn: no model text, no error text, only a reference.
+
+    A connectivity failure (refused key, unreachable provider, adapter not
+    configured) is told as "no model is connected"; any other failure keeps the
+    generic line with its reference.
+    """
     error = turn.error
-    if error is not None and error.code.startswith("model.") and not error.retryable:
-        return Reply("failure", copy.NO_MODEL, ephemeral=True)
+    if error is not None and is_connectivity_failure(error.code, None, error.summary):
+        return no_model()
     return Reply("failure", copy.failure(short_ref(turn.turn_id)))
