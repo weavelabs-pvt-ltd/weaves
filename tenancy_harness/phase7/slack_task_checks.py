@@ -23,11 +23,9 @@ import time
 
 from tenancy_harness.client import call, request
 from tenancy_harness.phase7.slack_ask_checks import (
-    CHANNEL,
     FIELDS,
     PATH,
     bot_posts,
-    human_message,
     inbox_state,
     settled,
     settled_inbox,
@@ -36,6 +34,7 @@ from tenancy_harness.phase7.slack_ask_checks import (
 )
 from tenancy_harness.phase7.slack_support import (
     deliver,
+    fake,
     install,
     mention,
     record,
@@ -54,12 +53,24 @@ BOT = "<@U0FAKEBOT> "
 MARKER = "ZEBRATASK7731"
 LEAK = "xoxb-fixture-leak-1234567890"
 EVENTS = iter(f"Ev7T{n:03d}" for n in range(1, 999))
+# Message timestamps of this control: the inbox keeps one mention per (team, channel,
+# ts) from the earlier controls' runs, so every control uses its own range.
+TS = iter(f"1700003{n:03d}.000100" for n in range(1, 999))
+CHANNEL = "C0FAKE001"
 CREATED = "Task created: "
 NOT_SET_UP = ":lock: I'm not set up to create tasks here. Ask a Weaves admin."
 NO_AGENT = "No agent is set up for Slack tasks. Ask a Weaves admin."
 MISSING_TEXT = (
     "Tell me what the task is, for example @Weaves task: prepare the weekly KPI summary"
 )
+
+
+def human_message(thread_ts=None, counter=TS):
+    """A human message that exists in the fake channel; returns its ts."""
+    ts = next(counter)
+    message = {"channel": CHANNEL, "ts": ts, "text": "fixture", "thread_ts": thread_ts}
+    fake("POST", "/_control/configure", {"messages": [message]})
+    return ts
 
 
 def task_mention(text, thread_ts=None, event_id=None):
@@ -150,7 +161,15 @@ def creation_results(a, agent):
     text = f"prepare the weekly KPI summary {MARKER} {LEAK} <!channel>"
     event_id, ts, _ = task_mention(f"task: {text}")
     ok = settled(org, event_id, limit=120)
-    (made,) = [t for t in tasks(org) if t["idempotency_key"].endswith(event_id)]
+    found = [t for t in tasks(org) if t["idempotency_key"].endswith(event_id)]
+    if len(found) != 1:  # name what happened instead of an unpack error
+        raise AssertionError(
+            f"the task was not created: found={len(found)} ok={ok} "
+            f"inbox={inbox_state(event_id)} "
+            f"whispers={[w['text'] for w in whispers(ts)]} "
+            f"posts={[p['text'][:60] for p in bot_posts(ts)]}"
+        )
+    (made,) = found
     listed = request("GET", "/tasks?origin=slack", a["admin"]["headers"]).json()
     everything = request("GET", "/tasks", a["admin"]["headers"]).json()
     detail = request("GET", f"/tasks/{made['task_id']}", a["admin"]["headers"]).json()

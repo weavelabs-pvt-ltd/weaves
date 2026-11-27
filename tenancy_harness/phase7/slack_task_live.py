@@ -35,6 +35,7 @@ from tenancy_harness.seed import require_disposable_database
 MAX_CALLS = 1
 LIVE_MARKER = "LIVE_SLACK_TASK"
 WAIT_SECONDS = 240
+TS = iter(f"1700004{n:03d}.000100" for n in range(1, 99))
 
 
 def provider_and_agent(a, config):
@@ -131,7 +132,7 @@ def main():
     ):
         raise AssertionError("the live task control could not set up the rule")
     event_id = "Ev7LIVE001"
-    ts = human_message()
+    ts = human_message(counter=TS)
     text = f"<@U0FAKEBOT> task: Reply with {LIVE_MARKER} and one short sentence."
     deliver(mention(event_id, ts, text=text, user=USER))
     done = settled(a["org_id"], event_id, limit=WAIT_SECONDS)
