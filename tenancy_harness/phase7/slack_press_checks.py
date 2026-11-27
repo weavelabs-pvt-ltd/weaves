@@ -49,6 +49,7 @@ from tenancy_harness.phase7.slack_support import (
     record,
     reset_fake,
     rows,
+    status,
 )
 from tenancy_harness.resources import tenant
 from tenancy_harness.seed import require_disposable_database
@@ -157,6 +158,7 @@ def requester_results(a):
     rows_before = len(press_rows())
     pressed = press(ASKER, "stop", ref, msg_ts, ts, action_ts="1700004900.000100")
     replay = press(ASKER, "stop", ref, msg_ts, ts, action_ts="1700004900.000100")
+    rows_after = len(press_rows())
     stopped = until(lambda: stopped_message(ts), limit=30) is not None
     request("POST", PATH + "/pause", a["admin"]["headers"], {"paused": False})
     again = press(ASKER, "stop", ref, msg_ts, ts)
@@ -166,7 +168,7 @@ def requester_results(a):
         "a_forged_reference_or_message_finds_nothing": forged_ok,
         "stop_works_while_the_bot_is_paused": ack_ok(pressed) and stopped,
         "a_replayed_press_is_one_press": ack_ok(replay)
-        and len(press_rows()) == rows_before + 1,
+        and rows_after == rows_before + 1,
         "a_double_press_says_already_stopped": ack_ok(again)
         and texts_now[-1] == "Already stopped."
         and len(stopped_message(ts)) == 1,
@@ -326,8 +328,25 @@ def record_results(a):
     }
 
 
+def free_workspace():
+    """Let the earlier controls' organization give the fake workspace back."""
+    old = tenant("p7a")
+    for item in status(old).get("installations", []):
+        if item["status"] in ("active", "suspended"):
+            request(
+                "DELETE",
+                "/organization/slack/" + item["installation_id"],
+                old["admin"]["headers"],
+            )
+
+
 def setup(a):
-    """The bot installed, a model connected, the admin mapped, limits relaxed."""
+    """The bot installed, a model connected, the admin mapped, limits relaxed.
+
+    A fresh organization with no connector: nothing it asks needs the planner, so
+    the only model call of a request is the answer (and the fault of the failure
+    case hits that call, which fails the turn).
+    """
     # The fake was just reset, so the bot token an earlier control left in the
     # database is unknown to it: a reinstall (in place) issues a fresh one.
     if install(a).get("slack_install") != "ok":
@@ -372,7 +391,8 @@ def main():
     """Run the control and record it in the private fixture file."""
     require_disposable_database()
     reset_fake()
-    a = tenant("p7a")
+    free_workspace()
+    a = tenant("p7i")
     setup(a)
     results = stop_results(a)
     results.update(requester_results(a))
