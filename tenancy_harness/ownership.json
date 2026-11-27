@@ -615,6 +615,17 @@
         "org_id"
       ],
       "current_gap": null
+    },
+    "slack_feedback": {
+      "contract": "SlackFeedback",
+      "scope": "organization",
+      "privacy": "readable only inside its own organization (row policy); the asker's latest thumbs up or down on one Slack answer: ids, a value and a time, the asker only as a member principal id or a per-organization HMAC, never message text, a reason or a raw Slack user id",
+      "system_access": "named purpose feedback (this collection only): the slack_feedback_retention tick deletes expired rows, and the operator report reads counts and looks a rating up by request id; the slack_feedback tick binds each organization's own tenant context before it writes",
+      "lifecycle": "kept WEAVES_USAGE_RETENTION_DAYS (400) days by the slack_feedback_retention tick; removed with the organization by PURGE_ORDER; exported",
+      "scope_keys": [
+        "org_id"
+      ],
+      "current_gap": null
     }
   },
   "auxiliary_tables": {

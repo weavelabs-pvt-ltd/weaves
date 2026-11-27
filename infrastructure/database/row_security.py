@@ -71,6 +71,7 @@ _POLICY_TEMPLATES: tuple[str, ...] = (
              WHEN 'usage' THEN coll = ANY (ARRAY[
                'workflow_runs', 'agent_runs', 'execution_jobs',
                'organization_lifecycle', 'organizations', 'workspaces'])
+             WHEN 'feedback' THEN coll = 'slack_feedback'
              WHEN 'waitlist' THEN coll = ANY (%(waitlist)s)
              ELSE false
            END

@@ -22,9 +22,10 @@ when re-run by hand. Version 32 belongs to the Slack installation tables.
 
 from __future__ import annotations
 
-# Collections whose rows appear later (the Ask slices register them). The
-# collection-drift test accepts SQL that names them until they are registered.
-RESERVED_COLLECTIONS: tuple[str, ...] = ("slack_feedback",)
+# Collections whose rows appear later (a slice registers them). The
+# collection-drift test accepts SQL that names them until they are registered;
+# ``slack_threads`` (S4) and ``slack_feedback`` (S4c) are, so none remain.
+RESERVED_COLLECTIONS: tuple[str, ...] = ()
 
 SLACK_ACCESS_MIGRATION: tuple[int, tuple[str, ...]] = (
     33,

@@ -363,9 +363,21 @@ the 7 and 14 day retention of the S7 tick applies unchanged. Every press writes 
 Slack user is mapped, `channel_id` and `run`, a 12 character digest of the run reference; never
 text and never the reference).
 
+Reaction feedback (S4c, `modules/slack/feedback/`) registers `slack_feedback` (unique index of
+migration 33, no new migration):
+
+| Collection | Scope and key | Fields | Access |
+|---|---|---|---|
+| `slack_feedback` (`SlackFeedback`, `id` = `{org_id}:{turn_id}:{asker_ref}`) | organization; one row per answered turn and asker (`slack_feedback_turn_asker_uq`), the latest reaction wins | mutable. `answer_ref` (`{channel}:{answer ts}`), `turn_id`, `task_id`, `agent_run_id`, `request_id` (`slack-{event_id}`), `asker_ref` (the mapped member's principal id, else `hmac:` plus 32 hex characters of HMAC-SHA256 of the Slack user id keyed with a per-organization pepper), `asker_kind` (`member`/`hashed`), `value` (`1`/`-1`), `source` (`slack`; `web` is reserved), `at` (when the reaction event was received), and a snapshot of the run: `agent_id`, `model_id`, `connector_set` (sorted capability ids; empty is general knowledge). Never message text, a reason, a raw Slack user id or a token. Kept `WEAVES_USAGE_RETENTION_DAYS` (400) days by the `slack_feedback_retention` tick; removed by the organization purge (`PURGE_ORDER`, before `slack_threads`); exported | the `slack_feedback` worker tick (binds the organization's tenant context); the named system purpose `feedback` (this collection only) for the retention delete and the operator report |
+
+The pepper is a random secret in the secret store (purpose `slack_feedback_pepper`); its reference is
+`slack_access_settings.feedback_pepper_ref`, set without bumping `settings_version` and never returned
+by the settings API. A mapped member and an unmapped person never share a row: when a Slack user is
+mapped later, their next reaction replaces the hashed row with a member row.
+
 `slack_event_inbox` rows leave `pending` through `settle_event` (a compare-and-set to `done` or
 `dropped`, which also clears the stored question text); `list_events` can filter by `event_type`
-so the Ask dispatcher claims only `app_mention` rows and the reaction rows stay for S4c.
+so the Ask dispatcher claims only `app_mention` rows and the S4c feedback tick claims only `reaction_added` rows.
 
 `task_turns` gains an optional `origin` (`TurnOrigin`: `kind` `slack`/`slack_qa`, team, channel,
 thread, asker and event ids, `action`, optional `repo`/`workflow_id`, the approved

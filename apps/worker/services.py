@@ -42,5 +42,8 @@ class WorkerServices:
     # Slack bot (S4b): carry out the Stop and Try again presses the API stored.
     interact_slack: Callable[[], int] | None = None
     purge_slack: Callable[[], int] | None = None
+    # Slack bot (S4c): thumbs reactions to ratings, and their 400 day retention.
+    feedback_slack: Callable[[], int] | None = None
+    purge_slack_feedback: Callable[[], int] | None = None
     # True while an operator has paused claiming (``platform_control.py``).
     worker_paused: Callable[[], bool] | None = None

@@ -1,4 +1,4 @@
-"""Helpers for the Stop and Try again controls (T7-I05 and the opt-in T7-L01).
+"""Helpers for the Stop and Try again controls (T7-I06 and the opt-in T7-L01).
 
 Real stack: the signed interaction is delivered by the fake Slack server's
 ``deliver_interaction`` (form-encoded ``payload=``, signed with the fixture

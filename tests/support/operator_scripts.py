@@ -19,6 +19,7 @@ organization_limits = importlib.import_module("organization_limits")
 backfill_schedule_timezones = importlib.import_module("backfill_schedule_timezones")
 waitlist = importlib.import_module("waitlist")
 usage_report = importlib.import_module("usage_report")
+slack_feedback_report = importlib.import_module("slack_feedback_report")
 platform_control = importlib.import_module("platform_control")
 
 

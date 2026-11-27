@@ -138,7 +138,7 @@ def egress():
 
 @app.post("/model-fault")
 async def model_fault(request: Request):
-    """Make model calls fail with one HTTP status (0 clears it); T7-I05 uses it."""
+    """Make model calls fail with one HTTP status (0 clears it); T7-I06 uses it."""
     body = await request.json()
     MODEL_FAULT["status"] = int(body.get("status", 0))
     return {"status": MODEL_FAULT["status"]}
