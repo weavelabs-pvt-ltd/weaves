@@ -38,7 +38,7 @@ from tenancy_harness.phase7.slack_press_support import (
     turn_status,
     wait_button,
 )
-from tenancy_harness.phase7.slack_support import install, reset_fake, status
+from tenancy_harness.phase7.slack_support import install, reset_fake
 from tenancy_harness.resources import tenant
 from tenancy_harness.seed import require_disposable_database
 
@@ -134,7 +134,7 @@ def main():
         raise ValueError("Live Slack control needs the bounded relay configuration")
     reset_fake()
     a = tenant("p7a")
-    if not status(a).get("installations") and install(a).get("slack_install") != "ok":
+    if install(a).get("slack_install") != "ok":  # a fresh token after the reset
         raise AssertionError("the Slack install for the live control failed")
     model = connect_real_model(a, config)
     results = real_ask(a)

@@ -49,7 +49,6 @@ from tenancy_harness.phase7.slack_support import (
     record,
     reset_fake,
     rows,
-    status,
 )
 from tenancy_harness.resources import tenant
 from tenancy_harness.seed import require_disposable_database
@@ -329,8 +328,12 @@ def record_results(a):
 
 def setup(a):
     """The bot installed, a model connected, the admin mapped, limits relaxed."""
-    if not status(a).get("installations"):
-        provider = call(
+    # The fake was just reset, so the bot token an earlier control left in the
+    # database is unknown to it: a reinstall (in place) issues a fresh one.
+    if install(a).get("slack_install") != "ok":
+        raise AssertionError("the Slack install for the interactions control failed")
+    if not call("GET", "/model-profiles", a["admin"]):
+        call(
             "POST",
             "/model-providers",
             a["admin"],
@@ -342,8 +345,6 @@ def setup(a):
                 "initial_model": "tenancy-fixture-model",
             },
         )
-        if not provider or install(a).get("slack_install") != "ok":
-            raise AssertionError("the setup for the interactions control failed")
     flip(a["org_id"], "active")
     call(
         "POST",
