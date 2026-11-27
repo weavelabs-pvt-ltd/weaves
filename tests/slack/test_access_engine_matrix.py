@@ -167,7 +167,10 @@ def tools_oracle(case, private_ok: bool):
         }[health]
     if jira_reason is None:
         return Outcome.ALLOWED, None, ("jira.search", "notion.search")
-    partial = case["mode"] == "partial" and action is Action.ASK
+    # A created task runs with whichever of its agent's connectors are green (S5).
+    partial = (case["mode"] == "partial" and action is Action.ASK) or (
+        action is Action.CREATE_TASK
+    )
     if partial:
         return Outcome.ALLOWED_PARTIAL, None, ("notion.search",)
     access = jira_reason in (Reason.AUDIENCE_NOT_IN_SLACK, Reason.AUDIENCE_NOT_ALLOWED)
@@ -197,7 +200,8 @@ def test_decision_matches_the_design_oracle(case):
         assert decision.message is None
         assert decision.mode is (
             Mode.PARTIAL
-            if case["mode"] == "partial" and case["action"] is Action.ASK
+            if (case["mode"] == "partial" and case["action"] is Action.ASK)
+            or case["action"] is Action.CREATE_TASK
             else Mode.STRICT
         )
     # No red tool ever shows up as green, and strict refusals carry no data.

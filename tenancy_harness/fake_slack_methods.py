@@ -89,7 +89,7 @@ def oauth_v2_access(params, _token):
 def auth_test(_params, token):
     """Call ``auth.test``: who the token belongs to."""
     return {
-        "url": "https://fixture.example/",
+        "url": "https://fixture-team.slack.com/",
         "team_id": token["team"],
         "user_id": "U0FAKEBOT",
     }

@@ -134,10 +134,15 @@ def task_count(org_id):
 
 
 def decisions(org_id):
-    """Counted decision records (what the Ask limits are derived from)."""
+    """Counted decision records (what the Ask limits are derived from).
+
+    Only allowed Ask requests are counted; the decision record of a blocked
+    Execute attempt (a ``task:`` whose rule is off) is audit, never a quota.
+    """
     return rows(
         "SELECT count(*) FROM product_records WHERE collection = 'audit_events' "
-        "AND org_id = %s AND payload->>'action' = 'slack.decision'",
+        "AND org_id = %s AND payload->>'action' = 'slack.decision' "
+        "AND payload->>'target_type' = 'slack_ask_allowed'",
         org_id,
     )[0][0]
 

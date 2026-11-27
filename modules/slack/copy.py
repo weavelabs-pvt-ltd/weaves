@@ -25,7 +25,6 @@ THANKS = "You're welcome."
 
 # Text commands that arrive in later slices: recognized, never executed.
 COMING_SOON = {
-    "task": "Creating tasks from Slack is coming soon.",
     "review": "Pull request reviews from Slack are coming soon.",
     "run": "Running workflows from Slack is coming soon.",
     "stop": "Stopping a request from Slack is coming soon.",
@@ -47,6 +46,43 @@ NOT_SET_UP = {
     "review": "I'm not set up to review pull requests here. Ask a Weaves admin.",
     "run": "I'm not set up to run workflows here. Ask a Weaves admin.",
 }
+
+# Scene C: creating a task (design F2); the link buttons carry the labels below.
+TASK_DEFAULT_TITLE = "Slack task"
+TASK_NO_TEXT = "The task finished without a written result."
+TASK_FULL_RESULT = "Full result and sources in Weaves."
+MISSING_TASK_TEXT = (
+    "Tell me what the task is, for example @Weaves task: prepare the weekly KPI summary"
+)
+NO_TASK_AGENT = "No agent is set up for Slack tasks. Ask a Weaves admin."
+VIEW_IN_WEAVES = "View in Weaves"
+VIEW_TASK = "View task"
+OPEN_RESULT = "Open result"
+TASK_STOPPED = ":octagonal_sign: Stopped."
+
+
+def task_created(title: str, agent: str) -> str:
+    """The first message, edited later into the receipt."""
+    return (
+        f":white_check_mark: Task created: {title} · Agent: {agent} · Running · "
+        "I'll post the result here"
+    )
+
+
+def task_done(title: str, agent: str, elapsed: str) -> str:
+    """The receipt the first message becomes when the task finished."""
+    return f":white_check_mark: Task done: {title} · {agent} · {elapsed}"
+
+
+def task_failed(title: str, ref: str) -> str:
+    """The first message when the task could not finish (no error text)."""
+    return f":warning: I couldn't finish this task: {title} (ref {ref})."
+
+
+def already_tracked(title: str) -> str:
+    """A repeat ``task:`` in a thread that already has its task."""
+    return f"Already tracked in this thread: {title}"
+
 
 # Scene I: system states.
 NO_MODEL = "No AI model is connected. Ask a Weaves admin."

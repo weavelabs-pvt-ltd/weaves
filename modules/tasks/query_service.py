@@ -38,6 +38,7 @@ class TaskQueryService:
         limit: int = 50,
         cursor_created_at: datetime | None = None,
         cursor_task_id: str | None = None,
+        origin_kind: str | None = None,
     ) -> tuple[Task, ...]:
         """Return newest tasks visible in the active workspace."""
         self._authorize_view()
@@ -52,6 +53,7 @@ class TaskQueryService:
             cursor_created_at=cursor_created_at,
             cursor_task_id=cursor_task_id,
             limit=limit,
+            origin_kind=origin_kind,
         )
 
     def get_task(self, task_id: str) -> Task:

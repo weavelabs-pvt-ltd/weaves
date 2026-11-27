@@ -51,6 +51,7 @@ def attach_slack_pipeline(runtime: LocalPlatformRuntime) -> None:
         execute_targets=ExecuteTargets(
             installations=runtime.installations, workflows=runtime.workflows
         ),
+        agent_versions=runtime.agent_versions,
         slack_enabled=slack_enabled_from_environment,
         admissions_paused=lambda: controls.snapshot().admissions_paused,
         read_only=lambda: controls.snapshot().read_only,

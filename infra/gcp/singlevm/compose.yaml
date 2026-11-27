@@ -117,6 +117,8 @@ services:
       WEAVES_SLACK_NATIVE_STATUS: ${WEAVES_SLACK_NATIVE_STATUS:-}
       WEAVES_SLACK_REPLY_DEADLINE: ${WEAVES_SLACK_REPLY_DEADLINE:-}
       WEAVES_SLACK_QA_RETENTION_DAYS: ${WEAVES_SLACK_QA_RETENTION_DAYS:-}
+      # The "View task" links in Slack point at the Weaves app.
+      WEAVES_PUBLIC_FRONTEND_URL: https://app.weave-studio.in
     depends_on:
       product-api:
         condition: service_healthy

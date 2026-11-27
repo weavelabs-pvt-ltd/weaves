@@ -21,6 +21,7 @@ from contracts.v1 import (
     Task,
     TaskAudience,
     TaskMessage,
+    TaskOrigin,
     TaskStatus,
     TaskTurn,
     TaskTurnStatus,
@@ -122,10 +123,12 @@ class TaskService(TaskLifecycleMixin):
         audience: TaskAudience = TaskAudience.WORKSPACE,
         skill_version_ids: tuple[str, ...] = (),
         origin: TurnOrigin | None = None,
+        task_origin: TaskOrigin | None = None,
     ) -> Task:
         """Create a task, thread, first user message, and queued agent turn.
 
         ``origin`` marks a turn that came from Slack; the worker guard reads it.
+        ``task_origin`` is the public summary shown on the task itself.
         """
         self._ensure_ready()
         principal = effective_principal_id("local-developer")
@@ -162,6 +165,7 @@ class TaskService(TaskLifecycleMixin):
             audience,
             idempotency_key,
             origin,
+            task_origin,
         )
 
     def _authorize_task_creation(
@@ -268,6 +272,7 @@ class TaskService(TaskLifecycleMixin):
         audience: TaskAudience,
         idempotency_key: str | None,
         origin: TurnOrigin | None = None,
+        task_origin: TaskOrigin | None = None,
     ) -> Task:
         """Persist the task aggregate and its first queued conversation turn."""
         now = utc_now()
@@ -295,6 +300,7 @@ class TaskService(TaskLifecycleMixin):
             latest_turn_id=turn_id,
             latest_turn_status=TaskTurnStatus.QUEUED,
             idempotency_key=idempotency_key,
+            origin=task_origin,
             created_at=now,
             updated_at=now,
         )
@@ -331,9 +337,11 @@ class TaskService(TaskLifecycleMixin):
         limit: int = 50,
         cursor_created_at: datetime | None = None,
         cursor_task_id: str | None = None,
+        origin_kind: str | None = None,
     ) -> tuple[Task, ...]:
         """Return the newest visible tasks in the current workspace."""
         return self.queries.list_tasks(
+            origin_kind=origin_kind,
             status=status,
             agent_id=agent_id,
             created_by_principal_id=created_by_principal_id,

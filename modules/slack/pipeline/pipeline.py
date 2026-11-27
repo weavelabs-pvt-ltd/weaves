@@ -117,7 +117,7 @@ class SlackPipeline:
         """The needed tool ids, the planner outcome and whether to fail closed."""
         action = request.access.action
         if action.is_execute:
-            return _execute_needs(request), _SKIPPED, False
+            return _execute_needs(request, tools), _SKIPPED, False
         presented = tuple(t for t in tools if t.presentable)[:MAX_PRESENTED_TOOLS]
         hints = hinted_tool_ids(request.question, tools)
         if not presented:
@@ -221,9 +221,20 @@ def _needed(
     )
 
 
-def _execute_needs(request: PipelineRequest) -> tuple[str, ...]:
-    """Execute plans come from a fixed grammar, with no model call."""
+def _execute_needs(
+    request: PipelineRequest, tools: tuple[DiscoveredTool, ...]
+) -> tuple[str, ...]:
+    """Execute plans come from a fixed grammar, with no model call.
+
+    A created task needs the read tools its agent lists (write capabilities are
+    never run by the worker and are not discovered, so they drop out here).
+    """
     action = request.access.action
+    if action is Action.CREATE_TASK:
+        known = {tool.tool_id for tool in tools}
+        return tuple(
+            i for i in dict.fromkeys(request.agent_capability_ids) if i in known
+        )
     if action is Action.PR_REVIEW:
         return (PR_REVIEW_CAPABILITY,)
     if action is Action.RUN_WORKFLOW:
