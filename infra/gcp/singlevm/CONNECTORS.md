@@ -87,7 +87,17 @@ Slack app settings for the bot install and events (design section 5.1):
 | OAuth & Permissions, Bot Token Scopes | `app_mentions:read`, `chat:write`, `channels:history`, `groups:history`, `channels:read`, `groups:read`, `reactions:read`, `reactions:write` |
 | Event Subscriptions, Request URL | `https://api.weave-studio.in/api/v0/slack/events` (turn on only after S2 is deployed and the secret is set) |
 | Event Subscriptions, bot events | `app_mention`, `reaction_added`, `app_uninstalled`, `tokens_revoked` |
-| Interactivity, slash commands, token rotation | leave off |
+| Interactivity & Shortcuts, Interactivity | **On**, Request URL `https://api.weave-studio.in/api/v0/slack/interactions`. Switch it on only after the S4b backend is deployed and `WEAVES_SLACK_SIGNING_SECRET` is set (Slack verifies the URL when you save it); until then it stays off, and no workspace should be allowed to ask (the Stop and Try again buttons would show Slack's "not configured for interactivity" error) |
+| Slash commands, shortcuts, token rotation | leave off |
+
+The interactions endpoint (`POST /api/v0/slack/interactions`) uses the same signing secret
+and the same five-minute replay window as events and answers 503 while the secret is unset.
+It only stores the press (one lookup and one insert, acked in well under Slack's three
+seconds); the worker's `slack_interactions` tick carries out Stop and Try again, so the
+worker needs no new setting. Who may press: the person who asked, or an admin whose Slack
+user is on the Slack access page's people list mapped to a Weaves member with
+`slack.manage`; everyone else is told privately. `@Weaves stop` and `@Weaves retry` in the
+thread work without Interactivity and follow the same rules.
 
 An organization admin then opens Connections in the Weaves app and chooses Add to
 Slack. Enterprise Grid org-wide installs are refused; one Slack workspace can be

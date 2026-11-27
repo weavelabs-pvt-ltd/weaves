@@ -350,7 +350,18 @@ The Ask flow (S4, `modules/slack/dispatch/` and `modules/slack/reply/`) register
 
 | Collection | Scope and key | Fields | Access |
 |---|---|---|---|
-| `slack_threads` (`SlackThread`, `id` = `{org_id}:{team_id}:{channel_id}:{thread_ts}:ask`) | organization; one row per Slack thread and kind (`slack_threads_key_uq`) | mutable. Thread level: `task_id` (the hidden Q&A task), `requester_*`. Latest request: `turn_id`, `event_id`, `request_id`, `message_ts`, `requested_at`, `request_count`, `run_state` (`queued`/`running`/`cancel_requested`/`done`/`failed`/`stopped`), `status_ts` (working message, or `native`), `status_text_key`, `answer_ts` (or `private`), `reply_state` (`pending`/`posted`/`undeliverable`), `reply_attempts`, `next_attempt_at` (backoff and the 45 s posting lease), `reply_error` (a code), `posts`, `private_sent`, `finished_at`. Ids, timestamps and state codes only: never message text, an answer, a token or connector data. Deleted with its hidden task 30 days after the thread's last activity (`slack_retention` tick); removed by the organization purge sweep and exported | the three Slack worker ticks only (each binds the organization's tenant context first) |
+| `slack_threads` (`SlackThread`, `id` = `{org_id}:{team_id}:{channel_id}:{thread_ts}:ask`) | organization; one row per Slack thread and kind (`slack_threads_key_uq`) | mutable. Thread level: `task_id` (the hidden Q&A task), `requester_*`. Latest request: `turn_id`, `event_id`, `request_id`, `message_ts`, `requested_at`, `request_count`, `run_state` (`queued`/`running`/`cancel_requested`/`done`/`failed`/`stopped`), `status_ts` (working message, or `native`), `status_text_key`, `answer_ts` (or `private`), `reply_state` (`pending`/`posted`/`undeliverable`), `reply_attempts`, `next_attempt_at` (backoff and the 45 s posting lease), `reply_error` (a code), `posts`, `private_sent`, `finished_at`, and (S4b) `run_ref` (the random reference the Stop and Try again buttons of the latest request carry, new for every request and every retry) and `retries` (Try again presses used, at most 3). Ids, timestamps and state codes only: never message text, an answer, a token or connector data. Deleted with its hidden task 30 days after the thread's last activity (`slack_retention` tick); removed by the organization purge sweep and exported | the three Slack worker ticks only (each binds the organization's tenant context first) |
+
+Button presses (S4b, `modules/slack/interactions/`) are `slack_event_inbox` rows with
+`event_type='interaction'` and `event_id = ia:{team}:{user}:{action}:{message_ts}:{action_ts}` (a
+two-second bucket stands in for a missing `action_ts`), so the inbox's primary key is the dedupe
+record and no table is added. The button's opaque reference is held in `text` and the action id in
+`reaction` until the worker's `slack_interactions` tick settles the row (which clears `text`);
+the 7 and 14 day retention of the S7 tick applies unchanged. Every press writes one audit event
+`slack.interaction` (`target_type` `slack_interaction`; metadata: `action`, `source` `button` or
+`text`, `outcome` `allowed` or `blocked`, `reason` code, `slack_user_id`, `principal_id` when the
+Slack user is mapped, `channel_id` and `run`, a 12 character digest of the run reference; never
+text and never the reference).
 
 `slack_event_inbox` rows leave `pending` through `settle_event` (a compare-and-set to `done` or
 `dropped`, which also clears the stored question text); `list_events` can filter by `event_type`

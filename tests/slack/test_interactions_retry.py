@@ -232,3 +232,40 @@ def test_text_retry_runs_the_failed_request_again(
         TaskTurnStatus.QUEUED
     )
     assert _audit(aworld)[0].metadata["source"] == "text"
+
+
+def test_try_again_is_refused_for_a_quarantined_organization(
+    aworld: AskWorld, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from contracts.v1 import OrganizationLifecycleState
+
+    _failed(aworld, monkeypatch)
+    lifecycle = aworld.runtime.organization_lifecycle_service
+    monkeypatch.setattr(
+        lifecycle, "state_of", lambda org_id: OrganizationLifecycleState.SUSPENDED
+    )
+
+    aworld.press("retry")
+    aworld.interact()
+
+    assert _whispers(aworld) == [messages.UNAVAILABLE]
+    assert aworld.latest().retries == 0 and len(aworld.runtime.task_turns.list()) == 1
+    assert _audit(aworld)[0].metadata["outcome"] == "blocked"
+
+
+def test_a_failure_told_privately_can_still_be_retried_by_text(
+    aworld: AskWorld, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = aworld.runtime.agent_execution_service.run_agent
+    _failed(aworld, monkeypatch)
+    row = aworld.latest()
+    aworld.runtime.slack_threads.put(row.model_copy(update={"answer_ts": "private"}))
+    _answering(aworld, monkeypatch, original)
+
+    aworld.mention("retry", thread_ts=row.thread_ts)
+    aworld.dispatch()
+
+    assert aworld.latest().retries == 1 and _whispers(aworld) == []
+    assert aworld.runtime.task_turns.get(aworld.latest().turn_id).status is (
+        TaskTurnStatus.QUEUED
+    )

@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import secrets
+import sqlite3
 import subprocess
 from contextlib import suppress
 from pathlib import Path
@@ -79,6 +80,38 @@ def browser(
     )
 
 
+def live_slack(compose, private, report):
+    """T7-L01 (opt-in): one real Ask and one real Stop, only through the relay."""
+    directory = Path.home() / ".config/weaves-testing"
+    before = Ledger(directory).snapshot()
+    report["live_slack"] = {"passed": False, "stage": "running"}
+    try:
+        seed_module(compose, "phase7.slack_live_checks")
+        evidence = json.loads((private / "live-slack-evidence.json").read_text())
+        evidence["relay"] = relay_calls(private, directory)
+        report["live_slack"] = evidence
+    finally:
+        report["testing_budget_before"] = before
+        report["testing_budget"] = Ledger(directory).snapshot()
+
+
+def relay_calls(private, directory):
+    """The relay's calls of this run (counts and cost, never content)."""
+    run_id = json.loads((private / "live-config.json").read_text())["run_id"]
+    ledger = Ledger(directory)
+    with sqlite3.connect(f"file:{ledger.path}?mode=ro", uri=True) as db:
+        found = db.execute(
+            "SELECT model, status, actual_nanos FROM requests WHERE run_id = ?",
+            (run_id,),
+        ).fetchall()
+    return {
+        "calls": len(found),
+        "settled": sum(1 for _, status, _ in found if status == "settled"),
+        "models": sorted({model for model, _, _ in found}),
+        "actual_usd": sum(n or 0 for _, _, n in found) / 1e9,
+    }
+
+
 def complete_checks(args, compose, frontend, harness, private, port, report, live):
     """Run optional paid checks only through the persistent lifetime-budget relay."""
     if args.canvas_probe:
@@ -105,7 +138,9 @@ def complete_checks(args, compose, frontend, harness, private, port, report, liv
             "verify",
         )
         report["fake_canvas_provenance"] = True
-    if live and report["foundation_passed"]:
+    if live and report["foundation_passed"] and args.live_suite == "slack":
+        live_slack(compose, private, report)
+    elif live and report["foundation_passed"]:
         report["live_ai"] = {"passed": False, "stage": "preparing"}
         try:
             prepare_flow(compose)
@@ -248,11 +283,12 @@ def usage_control(compose):
 
 
 def slack_controls(compose):
-    """T7-I01 install, I02 events, I03 lifecycle, I04 Ask (fake Slack, real stack)."""
+    """T7-I01 install, I02 events, I03 lifecycle, I04 Ask, I05 Stop and Try again."""
     seed_module(compose, "phase7.slack_install_checks")
     seed_module(compose, "phase7.slack_event_checks")
     seed_module(compose, "phase7.slack_lifecycle_checks")
     seed_module(compose, "phase7.slack_ask_checks")
+    seed_module(compose, "phase7.slack_press_checks")
 
 
 def run(args, harness):
@@ -357,6 +393,14 @@ def main():
     )
     parser.add_argument("--repeat-each", type=int, default=1)
     parser.add_argument("--live-anthropic-env", type=Path)
+    parser.add_argument(
+        "--live-suite",
+        choices=("agent", "slack"),
+        default="agent",
+        help="Which paid control follows the foundation when --live-anthropic-env is "
+        "set: the agent/workflow flow (default, 3 calls) or the Slack T7-L01 "
+        "control (2 calls: a real Ask and a real Stop).",
+    )
     parser.add_argument("--canvas-probe", action="store_true")
     parser.add_argument("--output", type=Path, default=Path(".local/tenancy"))
     run(parser.parse_args(), Path(__file__).resolve().parent)

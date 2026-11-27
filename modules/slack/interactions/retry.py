@@ -111,12 +111,7 @@ class RetryFlow:
         gone = (
             copy.NOTHING_TO_RETRY if ctx.source == "text" else copy.NO_LONGER_AVAILABLE
         )
-        failed = (
-            row.run_state == "failed"
-            and row.reply_state == "posted"
-            and row.answer_ts not in (None, PRIVATE)
-        )
-        if not failed:
+        if not (row.run_state == "failed" and row.reply_state == "posted"):
             return Outcome(False, "not_failed", gone)
         since = row.finished_at or row.updated_at
         if ctx.now - since > RETRY_WINDOW:

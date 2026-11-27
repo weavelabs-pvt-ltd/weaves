@@ -72,6 +72,13 @@ class FakeSlackWeb:
             return httpx.Response(200, json={"ok": False, "error": fault})
         return httpx.Response(200, json=self._ok(method, params))
 
+    def _edit(self, params: dict[str, str]) -> None:
+        for message in self.messages:
+            if message["ts"] == params["ts"]:
+                message["text"] = params["text"]
+                if "blocks" in params:  # like Slack: omitted blocks are kept
+                    message["blocks"] = params["blocks"]
+
     def _ok(self, method: str, params: dict[str, str]) -> dict[str, Any]:
         self.sequence += 1
         ts = f"1700000{self.sequence:03d}.000100"
@@ -79,10 +86,7 @@ class FakeSlackWeb:
             self.messages.append({**params, "ts": ts})
             return {"ok": True, "channel": params["channel"], "ts": ts}
         if method == "chat.update":
-            for message in self.messages:
-                if message["ts"] == params["ts"]:
-                    message["text"] = params["text"]
-                    message["blocks"] = params.get("blocks")  # [] clears the buttons
+            self._edit(params)
             return {"ok": True, "channel": params["channel"], "ts": params["ts"]}
         if method == "chat.delete":
             for message in self.messages:

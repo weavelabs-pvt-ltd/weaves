@@ -1210,8 +1210,10 @@ Contract `contracts.v1.slack_threads.SlackThread`; `record_id` = `id`.
 | `posts` | int | ge=0, le=10 | default 0 |
 | `private_sent` | bool | - | default False |
 | `finished_at` | AwareDatetime? | - | default None |
+| `run_ref` | str | max_length=64 | default '' |
+| `retries` | int | ge=0, le=100 | default 0 |
 
-Reference-like fields: `team_id`, `channel_id`, `task_id`, `requester_slack_user_id`, `requester_principal_id`, `turn_id`, `event_id`, `request_id`
+Reference-like fields: `team_id`, `channel_id`, `task_id`, `requester_slack_user_id`, `requester_principal_id`, `turn_id`, `event_id`, `request_id`, `run_ref`
 
 ### `waitlist_entries`
 
