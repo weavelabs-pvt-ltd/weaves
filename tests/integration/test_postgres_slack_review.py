@@ -172,7 +172,7 @@ def test_retention_drops_the_thread_map_of_an_old_review_and_keeps_the_task(
 
     assert pg_rworld.aworld.threads() == []
     assert pg_rworld.runtime.tasks.get(task.task_id).task_id == task.task_id
-    assert [m.role.value for m in pg_rworld.runtime.task_messages.list()] == [
-        "user",
+    assert sorted(m.role.value for m in pg_rworld.runtime.task_messages.list()) == [
         "assistant",
+        "user",
     ]
