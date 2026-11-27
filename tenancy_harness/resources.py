@@ -38,6 +38,26 @@ def member(tenant, role, email=None):
     return person
 
 
+def workspaces_of(admin, marker):
+    """The organization's first workspace and its "second" one, created once.
+
+    Replaying the organization creation names an arbitrary workspace of the
+    organization (the order is by id), and every call used to add another
+    "second" workspace, so a label used by several controls drifted between
+    workspaces. The first workspace is the oldest one that is not "second".
+    """
+    name = marker + " second"
+    listed = call("GET", "/workspaces", admin)
+    listed = listed["items"] if isinstance(listed, dict) else listed
+    second = next((w for w in listed if w["name"] == name), None)
+    if second is None:
+        second = call("POST", "/workspaces", admin, {"name": name})
+        listed = [*listed, second]
+    first = [w for w in listed if w["name"] != name and w.get("created_at")]
+    home = min(first, key=lambda w: w["created_at"]) if first else second
+    return home, second
+
+
 def tenant(label, timezone=None):
     """Create a real org through an owner account, with no local defaults seeded."""
     marker = "TENANCY_" + label.upper() + "_SENTINEL"
@@ -58,11 +78,17 @@ def tenant(label, timezone=None):
         {"name": marker, "display_name": marker, "slug": f"harness-org-{label}"}
         | ({"timezone": timezone} if timezone else {}),
     )
-    org_id, workspace_id = created["organization"]["id"], created["workspace"]["id"]
+    org_id = created["organization"]["id"]
     admin = actor(
-        session, org_id, workspace_id, created["membership"]["principal_id"], email
+        session,
+        org_id,
+        created["workspace"]["id"],
+        created["membership"]["principal_id"],
+        email,
     )
-    second = call("POST", "/workspaces", admin, {"name": marker + " second"})
+    home, second = workspaces_of(admin, marker)
+    workspace_id = home["id"]
+    admin = actor(session, org_id, workspace_id, admin["principal_id"], email)
     return {
         "label": label,
         "marker": marker,
