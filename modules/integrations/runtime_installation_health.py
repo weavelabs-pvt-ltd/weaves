@@ -33,8 +33,56 @@ class _HealthcheckPlugin(Protocol):
         ...
 
 
+_TOKEN_CODES = frozenset(
+    {
+        "plugin.credential_missing",
+        "plugin.credential_unavailable",
+        "plugin.oauth_token_error",
+        "plugin.oauth_unavailable",
+    }
+)
+
+
 class IntegrationInstallationHealthMixin(RuntimeCapabilityHost):
     """Own integration installationhealth operations."""
+
+    def probe_plugin_installation(self, installation_id: str) -> tuple[str, str]:
+        """Check one connector for the Slack pipeline: ``(status, reason code)``.
+
+        For system callers (the Slack health tick and the live re-probe), which
+        run as a service identity without ``plugins.manage``. Unlike
+        ``healthcheck_plugin_installation`` it records nothing on the installation
+        and writes no audit event: the Slack health snapshot is its own cache.
+        Status is ``healthy``, ``token_expired`` or ``error``; it never raises.
+        """
+        try:
+            installation = self.installations.get_scoped(
+                installation_id, effective_org_id(), effective_workspace_id()
+            )
+            descriptor = scoped_descriptor(
+                self.plugins,
+                self.installations,
+                installation.plugin_id,
+                installation.org_id,
+            )
+            plugin = self._healthcheck_plugins().get(descriptor.plugin_type)
+            if plugin is None:
+                return "error", "unsupported"
+            plugin.healthcheck(installation)
+        except PluginGatewayError as exc:
+            return ("token_expired" if exc.code in _TOKEN_CODES else "error"), exc.code
+        except Exception:  # a probe never raises into a request or a tick
+            return "error", "probe_failed"
+        return "healthy", ""
+
+    def _healthcheck_plugins(self) -> dict[str, _HealthcheckPlugin]:
+        return {
+            "github": self.github_plugin,
+            "slack": self.slack_plugin,
+            "jira_cloud": self.jira_plugin,
+            "jira": self.jira_plugin,
+            "mcp": self.mcp_plugin,
+        }
 
     def healthcheck_plugin_installation(
         self,
@@ -49,13 +97,7 @@ class IntegrationInstallationHealthMixin(RuntimeCapabilityHost):
         installation = self.installations.get_scoped(
             installation_id, effective_org_id(), effective_workspace_id()
         )
-        plugins: dict[str, _HealthcheckPlugin] = {
-            "github": self.github_plugin,
-            "slack": self.slack_plugin,
-            "jira_cloud": self.jira_plugin,
-            "jira": self.jira_plugin,
-            "mcp": self.mcp_plugin,
-        }
+        plugins = self._healthcheck_plugins()
         descriptor = scoped_descriptor(
             self.plugins,
             self.installations,

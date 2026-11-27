@@ -88,6 +88,14 @@ class SlackStore(Protocol):
         """The current organization's installations, newest first."""
         ...
 
+    def list_held(self, limit: int = 500) -> list[SlackInstallation]:
+        """Active and suspended installations of every organization (purpose slack).
+
+        For the worker's connector health tick only; it binds each organization's
+        own tenant context before reading anything of theirs.
+        """
+        ...
+
     def get_for_org(self, installation_id: str) -> SlackInstallation | None:
         """One installation of the current organization."""
         ...

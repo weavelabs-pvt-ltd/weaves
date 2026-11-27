@@ -275,6 +275,51 @@ SLACK_ACK_SECONDS = REGISTRY.add(
         "Time from receiving a Slack event request to answering it.",
     )
 )
+SLACK_ASK = REGISTRY.add(
+    Counter(
+        "slack_ask_total",
+        "Slack Ask requests by pipeline outcome (no org label).",
+        ("outcome",),
+    )
+)
+SLACK_EXECUTE = REGISTRY.add(
+    Counter(
+        "slack_execute_total",
+        "Slack Execute requests by action and pipeline outcome (no org label).",
+        ("action", "outcome"),
+    )
+)
+SLACK_PLANNER = REGISTRY.add(
+    Counter(
+        "slack_planner_total",
+        "Slack Ask planner calls by status (no org label).",
+        ("status",),
+    )
+)
+SLACK_PLANNER_SECONDS = REGISTRY.add(
+    Histogram("slack_planner_seconds", "Slack Ask planner call duration.")
+)
+SLACK_TOOL_CHECKS = REGISTRY.add(
+    Counter(
+        "slack_tool_checks_total",
+        "Per-tool pipeline checks by result and reason code (no org label).",
+        ("result", "reason"),
+    )
+)
+SLACK_HEALTH_REFRESH = REGISTRY.add(
+    Counter(
+        "slack_health_refresh_total",
+        "Connector health snapshots written by status (no org label).",
+        ("status",),
+    )
+)
+SLACK_TURN_GUARD = REGISTRY.add(
+    Counter(
+        "slack_turn_guard_total",
+        "Slack turns checked at worker pickup by outcome (no org label).",
+        ("outcome",),
+    )
+)
 DB_POOL_IN_USE = REGISTRY.add(
     Gauge("db_pool_in_use", "Database connections currently checked out.")
 )

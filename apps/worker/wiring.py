@@ -38,5 +38,10 @@ def build_worker_services(
         reconcile_usage=runtime.usage_reconciler.reconcile,
         purge_usage=runtime.usage_reconciler.purge_expired,
         slack_lifecycle=lambda: run_slack_lifecycle(runtime.slack_lifecycle),
+        refresh_slack_health=(
+            refresher.refresh_all
+            if (refresher := runtime.slack_health_refresher) is not None
+            else None
+        ),
         worker_paused=runtime.platform_controls.worker_paused,
     )

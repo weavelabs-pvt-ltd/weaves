@@ -110,6 +110,9 @@ services:
       WEAVES_LIMITS_MODE: ${WEAVES_LIMITS_MODE:-observe}
       WEAVES_DB_POOL_MAX_SIZE: ${WEAVES_WORKER_DB_POOL_MAX_SIZE:-8}
       WEAVES_WAITLIST_RETENTION_DAYS: ${WEAVES_WAITLIST_RETENTION_DAYS:-365}
+      # Slack bot: the worker's health tick and pre-run guard read only this kill
+      # switch (the signing secret stays API-only).
+      WEAVES_SLACK_ENABLED: ${WEAVES_SLACK_ENABLED:-}
     depends_on:
       product-api:
         condition: service_healthy

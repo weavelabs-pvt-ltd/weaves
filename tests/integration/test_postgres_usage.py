@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from threading import Barrier
 
@@ -16,6 +17,7 @@ from application.ports.usage import (
     UsageReservationRequest,
     UsageSettlement,
 )
+from application.task_run_keys import planner_usage_key
 from apps.runtime_wiring import compose_platform_runtime
 from contracts.v1 import UsageGroupBy, UsageState
 from infrastructure.database import store as store_module
@@ -252,6 +254,32 @@ def test_replayed_reserve_and_settle_never_double_count(store, ledger):
         reset_request_principal(token)
     assert (totals.calls, totals.input_tokens, totals.output_tokens) == (1, 10, 5)
     assert totals.estimated_cost_nano_usd == 1_000 and len(groups) == 1
+
+
+def test_planner_rows_beside_run_rows_are_idempotent_and_fit_the_key_column(
+    store, ledger
+):
+    """The Slack planner's ``{run key}:plan`` row (up to 128 characters)."""
+    token = as_tenant("org-a")
+    long_plan = planner_usage_key("t" * 200)  # shortened with a digest, never cut
+    try:
+        for key in ("run-1", "run-1:plan", long_plan):
+            request = replace(reserve_request(key), run_id=key[:128])
+            assert ledger.reserve(request, admission(10**6)).created
+            assert not ledger.reserve(request, None).created
+        assert len(long_plan) == 128
+        assert ledger.settle(settle_request("run-1:plan", tokens=(480, 40))) is True
+        assert ledger.settle(settle_request("run-1:plan", tokens=(9, 9))) is False
+        long_settle = replace(
+            settle_request(long_plan, tokens=(300, 30)), run_id=long_plan
+        )
+        assert ledger.settle(long_settle) is True
+        assert ledger.get("org-a", "run-1").state is UsageState.RESERVED
+        assert ledger.settle(settle_request("run-1", tokens=(1000, 200))) is True
+        totals, _, _, _ = ledger.summary("org-a", TODAY, TODAY, UsageGroupBy.AGENT)
+    finally:
+        reset_request_principal(token)
+    assert (totals.calls, totals.input_tokens, totals.output_tokens) == (3, 1780, 270)
 
 
 def test_concurrent_settles_of_one_call_count_once(store, ledger):

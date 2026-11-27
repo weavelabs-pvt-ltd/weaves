@@ -23,6 +23,7 @@ from shared.clock import new_id as _id
 from shared.clock import utc_now as _now
 from shared.errors import PluginGatewayError
 from shared.request_context import effective_org_id, effective_workspace_id
+from shared.run_origin import allowed_capabilities
 
 
 class AgentRunCapabilitiesMixin(RuntimeCapabilityHost):
@@ -45,7 +46,9 @@ class AgentRunCapabilitiesMixin(RuntimeCapabilityHost):
         task: Any,
     ) -> tuple[Any, ...]:
         """Invoke approved context capabilities for one agent run."""
-        for capability_id in agent_version.allowed_capability_ids:
+        # Slack turns run only the capabilities their pipeline approved (and none
+        # when it set no list); every other run keeps the agent version's list.
+        for capability_id in allowed_capabilities(agent_version.allowed_capability_ids):
             cancel_if_requested()
             try:
                 installation, capability = (

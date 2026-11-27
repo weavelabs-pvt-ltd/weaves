@@ -184,6 +184,11 @@ class SlackAccessService:
         """The engine's view of the current settings."""
         return PolicySettings.from_record(self._ctx.current())
 
+    def planner_profile_id(self) -> str | None:
+        """The model profile the administrator chose for the Ask planner, if any."""
+        record = self._ctx.current()
+        return record.planner_profile_id if record is not None else None
+
     def asker_standing(
         self, slack_user_id: str, channel_id: str
     ) -> tuple[bool, bool, MemberStanding | None]:

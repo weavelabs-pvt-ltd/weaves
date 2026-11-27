@@ -81,6 +81,16 @@ class PostgresSlackStore:
             ).fetchone()
         return _installation(row) if row else None
 
+    def list_held(self, limit: int = 500) -> list[SlackInstallation]:
+        """Held installations of every organization (the health tick, purpose slack)."""
+        with system_scope("slack"), self._store.connection() as connection:
+            rows = connection.execute(
+                f"SELECT {_INSTALLATION_COLUMNS} FROM slack_installations "
+                "WHERE status = ANY(%s) ORDER BY installation_id LIMIT %s",
+                (list(HELD_STATUSES), limit),
+            ).fetchall()
+        return [_installation(row) for row in rows]
+
     def list_for_org(self) -> list[SlackInstallation]:
         """The current organization's installations, newest first."""
         with self._store.connection() as connection:

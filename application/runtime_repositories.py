@@ -60,6 +60,7 @@ from contracts.v1.slack_access import (
     SlackAccessSettings,
     SlackAllowedChannel,
     SlackAllowedUser,
+    SlackConnectorHealth,
 )
 
 TProduct = TypeVar("TProduct", bound=ProductContract)
@@ -119,6 +120,7 @@ class RuntimeRepositoryBindingMixin:
     slack_access_settings: Repository[SlackAccessSettings]
     slack_allowed_users: Repository[SlackAllowedUser]
     slack_allowed_channels: Repository[SlackAllowedChannel]
+    slack_connector_health: Repository[SlackConnectorHealth]
 
     def _bind_repositories(self) -> None:
         """Attach one repository for each product collection."""
@@ -215,6 +217,9 @@ class RuntimeRepositoryBindingMixin:
         )
         self.slack_allowed_channels = self._repository(
             "slack_allowed_channels", SlackAllowedChannel
+        )
+        self.slack_connector_health = self._repository(
+            "slack_connector_health", SlackConnectorHealth
         )
 
     def _repository(

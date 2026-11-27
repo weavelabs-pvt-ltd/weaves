@@ -86,6 +86,7 @@ PURGE_ORDER: tuple[str, ...] = (
     "plugins",
     "slack_allowed_users",
     "slack_allowed_channels",
+    "slack_connector_health",
     "slack_access_settings",
     "oauth_authorization_states",
     "model_profiles",

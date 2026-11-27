@@ -1,5 +1,7 @@
 """Durable agent task, transcript, and turn contracts."""
 
+from typing import Literal
+
 from pydantic import AwareDatetime, Field, model_validator
 
 from contracts.v1.agents import AgentSkillSnapshot
@@ -8,6 +10,7 @@ from contracts.v1.base import (
     ImmutableWorkspaceVersionContract,
     MutableWorkspaceScopedContract,
     OpaqueId,
+    ProductContract,
     StrEnum,
 )
 from contracts.v1.executions import ErrorSummary
@@ -43,6 +46,51 @@ class TaskAudience(StrEnum):
 
     WORKSPACE = "workspace"
     PRIVATE = "private"
+
+
+class TurnVerdict(ProductContract):
+    """What the Slack pre-run guard decided for one turn (codes, never text).
+
+    ``message`` is a fixed, list-free sentence the reply step may show; it is
+    never built from the question or from any connector data.
+    """
+
+    outcome: str = Field(min_length=1, max_length=40)
+    reason: str | None = Field(default=None, max_length=64)
+    message: str | None = Field(default=None, max_length=600)
+    skipped_note: str | None = Field(default=None, max_length=600)
+    answer_ephemeral: bool = False
+    # Set when the worker cancelled the turn at pickup (``slack_access_revoked``).
+    cancel_reason: str | None = Field(default=None, max_length=64)
+    tools_needed: tuple[str, ...] = Field(default_factory=tuple, max_length=20)
+    tools_green: tuple[str, ...] = Field(default_factory=tuple, max_length=20)
+    planner_status: str = Field(default="skipped", max_length=24)
+    settings_version: int = Field(default=0, ge=0)
+    decided_at: AwareDatetime | None = None
+
+
+class TurnOrigin(ProductContract):
+    """Where a turn came from; Slack turns carry the thread and the verdict.
+
+    ``capability_ids`` is the only set of read capabilities a Slack turn may run
+    (needed AND green); ``None`` means the guard has not set it, and the
+    capability loop then runs nothing.
+    """
+
+    kind: Literal["slack", "slack_qa"]
+    team_id: OpaqueId
+    channel_id: OpaqueId
+    thread_ts: str = Field(min_length=1, max_length=32)
+    slack_user_id: OpaqueId
+    event_id: OpaqueId
+    settings_version: int = Field(default=0, ge=0)
+    action: Literal[
+        "ask", "ask_private", "create_task", "pr_review", "run_workflow"
+    ] = "ask"
+    repo: str | None = Field(default=None, max_length=200)
+    workflow_id: OpaqueId | None = None
+    capability_ids: tuple[OpaqueId, ...] | None = Field(default=None, max_length=20)
+    verdict: TurnVerdict | None = None
 
 
 class Task(MutableWorkspaceScopedContract):
@@ -135,6 +183,7 @@ class TaskTurn(MutableWorkspaceScopedContract):
     idempotency_key: OpaqueId | None = None
     run_idempotency_key: OpaqueId | None = None
     request_id: OpaqueId | None = None
+    origin: TurnOrigin | None = None
     status: TaskTurnStatus
     attempts: int = Field(default=0, ge=0, le=100)
     worker_id: OpaqueId | None = None
@@ -212,4 +261,6 @@ __all__ = [
     "TaskStatus",
     "TaskTurn",
     "TaskTurnStatus",
+    "TurnOrigin",
+    "TurnVerdict",
 ]

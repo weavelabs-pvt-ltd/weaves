@@ -338,6 +338,19 @@ organization-scoped collections in `product_records`, so they inherit row-level 
 | `slack_allowed_users` (`SlackAllowedUser`, `id` = `{org_id}:{slack_user_id}`) | organization | mutable. `slack_user_id`, `principal_id` (administrator-asserted member mapping; null = listed by Slack id only), `note`, `added_by`. Unique per org by `slack_user_id` (`slack_allowed_users_org_user_uq`) | `slack.manage` |
 | `slack_allowed_channels` (`SlackAllowedChannel`, `id` = `{org_id}:{channel_id}`) | organization | mutable. `channel_id`, `name_cached`, `added_by`. Unique per org by `channel_id` (`slack_allowed_channels_org_channel_uq`) | `slack.manage` |
 
+The Slack request pipeline (S4a, `modules/slack/pipeline/`) adds one more organization-scoped
+collection, no migration:
+
+| Collection | Scope and key | Fields | Access |
+|---|---|---|---|
+| `slack_connector_health` (`SlackConnectorHealth`, `id` = the plugin installation id) | organization; one row per connector installation, a cache | mutable. `installation_id`, `status` (`healthy`/`error`/`token_expired`/`rate_limited`/`disabled`), `reason_code`, `checked_at`. Rewritten every ten minutes by the worker's `slack_health` tick and by a live re-probe (3 s) of a needed tool whose snapshot is stale; never a token or connector data. Removed by the generic purge sweep and exported | system job only (the tick binds each organization's own tenant context) |
+
+`task_turns` gains an optional `origin` (`TurnOrigin`: `kind` `slack`/`slack_qa`, team, channel,
+thread, asker and event ids, `action`, optional `repo`/`workflow_id`, the approved
+`capability_ids` and the guard's `verdict`; never message text). It is part of the turn's JSON
+payload, so there is no migration; turns without it behave exactly as before. The planner's usage
+ledger row uses reservation key `{run idempotency key}:plan` (at most 128 characters).
+
 Migration 33 (`infrastructure/database/slack_access_schema.py`) also creates the partial unique
 indexes the Ask slices will use (`slack_threads_key_uq`, `slack_feedback_turn_asker_uq`; those
 collections are registered later) and idempotently adds the permission `slack.manage` to stored
@@ -435,7 +448,10 @@ organizations: the stop itself is the existing lifecycle suspension.
 
 `usage_ledger` has one row per model call, primary key `(org_id, reservation_key)`; the key is the
 `agent_run_id` (each agent run makes at most one provider request, already deduplicated by the run
-idempotency index). Columns: `workspace_id`, `agent_run_id`, `run_id`, `agent_id`, `provider_id`,
+idempotency index). The one exception is the Slack Ask planner (S4a): its tool-less call runs
+before the agent run exists and has its own row keyed `{run idempotency key}:plan` (at most 128
+characters, `agent_run_id` and `run_id` hold the same key; the reconciler decides these rows by age
+alone). Columns: `workspace_id`, `agent_run_id`, `run_id`, `agent_id`, `provider_id`,
 `model_id`, `state` (`reserved`, `settled`, `released`, `unknown`), `reserved_input_tokens`,
 `reserved_output_tokens`, `reserved_cost_nano_usd`, `input_tokens`, `output_tokens`,
 `estimated_cost_nano_usd`, `outcome`, `reserved_at`, `settled_at`, `updated_at`. Money is integer
