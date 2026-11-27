@@ -73,10 +73,15 @@ def task_mention(text, thread_ts=None, event_id=None):
 
 
 def tasks(org_id):
-    """Tasks created from Slack in the organization (payloads, oldest first)."""
+    """Tasks created by ``task:`` in the organization (payloads, oldest first).
+
+    The hidden Q&A tasks of the Ask control share the key prefix but have no
+    public origin and a private audience.
+    """
     found = rows(
         "SELECT payload FROM product_records WHERE collection = 'tasks' "
-        "AND org_id = %s AND idempotency_key LIKE 'slack:%%' ORDER BY created_at",
+        "AND org_id = %s AND idempotency_key LIKE 'slack:%%' "
+        "AND payload->'origin'->>'kind' = 'slack' ORDER BY created_at",
         org_id,
     )
     return [row[0] for row in found]
@@ -307,20 +312,28 @@ def main():
     """Run the control and record it in the private fixture file."""
     require_disposable_database()
     reset_fake()
-    a = tenant("p7t")
-    provider = call(
-        "POST",
-        "/model-providers",
-        a["admin"],
-        {
-            "provider_type": "openai_compatible",
-            "display_name": a["marker"],
-            "api_key": "fixture-model-p7t",
-            "base_url": "https://models.tenancy.test/v1",
-            "initial_model": "tenancy-fixture-model",
-        },
-    )
-    if not provider or install(a).get("slack_install") != "ok":
+    # The workspace is bound to the organization of the Ask control (the fake's
+    # install code always answers the same team): reuse it, as the feedback control
+    # does. The Ask control normally leaves the model provider.
+    a = tenant("p7a")
+    if not rows(
+        "SELECT 1 FROM product_records WHERE collection = 'model_providers' "
+        "AND org_id = %s",
+        a["org_id"],
+    ):
+        call(
+            "POST",
+            "/model-providers",
+            a["admin"],
+            {
+                "provider_type": "openai_compatible",
+                "display_name": a["marker"],
+                "api_key": "fixture-model-p7a",
+                "base_url": "https://models.tenancy.test/v1",
+                "initial_model": "tenancy-fixture-model",
+            },
+        )
+    if install(a).get("slack_install") != "ok":
         raise AssertionError("the setup for the task control did not complete")
     agent, ready = set_up(a)
     if not ready:

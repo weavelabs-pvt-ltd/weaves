@@ -86,15 +86,19 @@ def provider_and_agent(a, config):
     return model, agent
 
 
-def ledger_rows(org_id):
-    """The organization's usage ledger rows (state, tokens, cost, model)."""
+def ledger_rows(org_id, model):
+    """The real model's usage ledger rows (state, tokens, cost, model).
+
+    The organization also holds the fake model's rows of the earlier controls; the
+    real model id tells them apart.
+    """
     import psycopg
 
     with psycopg.connect(os.environ["DATABASE_URL"]) as connection:
         return connection.execute(
             "SELECT state, input_tokens, output_tokens, estimated_cost_nano_usd, "
-            "model_id FROM usage_ledger WHERE org_id = %s",
-            (org_id,),
+            "model_id FROM usage_ledger WHERE org_id = %s AND model_id = %s",
+            (org_id, model),
         ).fetchall()
 
 
@@ -104,7 +108,8 @@ def main():
     private = Path(os.environ["TENANCY_FIXTURE_FILE"]).parent
     config = json.loads((private / "live-config.json").read_text())
     reset_fake()
-    a = tenant("p7live")
+    # The workspace is bound to the organization of the Ask control: reuse it.
+    a = tenant("p7a")
     if install(a).get("slack_install") != "ok":
         raise AssertionError("the live task control could not install the bot")
     model, agent = provider_and_agent(a, config)
@@ -131,9 +136,9 @@ def main():
     deliver(mention(event_id, ts, text=text, user=USER))
     done = settled(a["org_id"], event_id, limit=WAIT_SECONDS)
     posts = bot_posts(ts)
-    (made,) = tasks(a["org_id"])
-    (row,) = threads(a["org_id"])
-    rows = ledger_rows(a["org_id"])
+    (made,) = [t for t in tasks(a["org_id"]) if t["idempotency_key"].endswith(event_id)]
+    (row,) = [t for t in threads(a["org_id"]) if t["event_id"] == event_id]
+    rows = ledger_rows(a["org_id"], model)
     result = posts[1]["text"] if len(posts) == 2 else ""
     checks = {
         "the_task_was_created_as_the_mapped_member": made["created_by_principal_id"]
