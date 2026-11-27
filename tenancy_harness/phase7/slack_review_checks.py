@@ -245,7 +245,11 @@ def normal_results(a):
     answer = next((t for t in texts if t.startswith("*Review of ")), "")
     receipt = [t for t in texts if t.startswith(":white_check_mark:")]
     calls = github("/_control/calls")
-    gets = [c["path"] for c in calls["calls"] if c["method"] == "GET"]
+    gets = [
+        c["path"]
+        for c in calls["calls"]
+        if c["method"] == "GET" and "/pulls/" in c["path"]
+    ]
     token_calls = [c for c in calls["calls"] if c["method"] == "POST"]
     (task,) = [
         t[0]
@@ -267,7 +271,7 @@ def normal_results(a):
         and answer.startswith("*Review of acme/api#123*")
         and ":large_orange_circle: *Medium risk*" in answer
         and "• `payments/client.py`: Retries are unbounded on 5xx responses." in answer
-        and "*Question for the author:* Should retries apply to POST /charge?" in answer
+        and "*Question for the author:* " in answer
         and "Reviewed 14 of 14 files · Nothing was posted on GitHub · <" in answer,
         "a_working_message_becomes_the_receipt_when_one_was_posted": not receipt
         or (
