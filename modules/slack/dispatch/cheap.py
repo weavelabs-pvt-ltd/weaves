@@ -1,8 +1,9 @@
 """Cheap exits (scene H, E and F): no task, no model, no Ask quota.
 
 Empty mention: help. Greeting: a greeting. ``status``: a private state line. The
-Execute and stop/retry commands are recognized and answered politely but never
-run in this slice; a command whose Execute rule is not satisfied gets the scene E
+Execute commands are recognized and answered politely but never run in this
+slice (``stop`` and ``retry`` are real: the dispatcher hands them to
+``RunControls``); a command whose Execute rule is not satisfied gets the scene E
 or system text instead of "coming soon", so a user is never told a feature exists
 for them when an admin has not enabled it.
 
@@ -69,8 +70,8 @@ class CheapExits:
             return (copy.THANKS if intent.thanks else copy.GREETING), False
         if kind is IntentKind.STATUS:
             return self._status(installation, event, now), True
-        if kind in (IntentKind.STOP, IntentKind.RETRY):
-            return copy.COMING_SOON[kind.value], True
+        if kind in (IntentKind.STOP, IntentKind.RETRY):  # the dispatcher runs these
+            return copy.NO_LONGER_AVAILABLE, True
         return self._execute(installation, event, intent, now)
 
     def _execute(

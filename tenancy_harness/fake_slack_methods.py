@@ -132,7 +132,9 @@ def update_message(params, _token):
     if not message["bot"]:
         raise Fail("cant_update_message")
     text, blocks = _content(params)
-    message["text"], message["blocks"] = text, blocks
+    message["text"] = text
+    if "blocks" in params:  # like Slack: omitted blocks are kept, [] removes them
+        message["blocks"] = blocks
     return {"channel": channel, "ts": message["ts"], "text": text}
 
 

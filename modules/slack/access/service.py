@@ -325,3 +325,19 @@ class SlackAccessService:
         active = members.is_active(principal_id)
         granted = members.permissions(principal_id) if active else frozenset()
         return MemberStanding(principal_id, active, granted & _CHECKED_PERMISSIONS)
+
+    def presser_standing(self, slack_user_id: str) -> tuple[str | None, bool]:
+        """``(mapped principal id, may manage Slack)`` of someone who pressed a button.
+
+        Only an administrator-asserted mapping counts (the allowlist row's
+        ``principal_id``), the member must be active, and ``slack.manage`` comes from
+        the member's own role bindings. An unmapped Slack user is ``(None, False)``.
+        """
+        user = self.allowlists.get_user(slack_user_id)
+        if user is None or user.principal_id is None:
+            return None, False
+        members = self.allowlists.members
+        if not members.is_active(user.principal_id):
+            return user.principal_id, False
+        granted = members.permissions(user.principal_id)
+        return user.principal_id, Permission.SLACK_MANAGE.value in granted

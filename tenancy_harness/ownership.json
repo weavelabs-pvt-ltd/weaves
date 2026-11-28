@@ -1738,6 +1738,13 @@
       "lifecycle": "public; global token bucket; unknown teams acked and dropped; inbox rows retained briefly and deleted with the organization"
     },
     {
+      "method": "POST",
+      "path": "/api/v0/slack/interactions",
+      "scope": "signed_slack_context",
+      "rule": "no sign-in, cookie or CSRF; the Slack v0 HMAC signature over the raw form body with a five-minute window is the only credential; the organization comes from the stored installation of the payload's team, never from the payload; a press is carried out only for the person who asked or a mapped slack.manage member, against a run reference stored on the thread row",
+      "lifecycle": "public; global token bucket; unknown or ended workspaces acked and dropped; Stop honoured while the bot or platform is paused or the organization quarantined; the press row is retained briefly and deleted with the organization"
+    },
+    {
       "method": "GET",
       "path": "/api/v0/organization/slack/access",
       "scope": "organization",

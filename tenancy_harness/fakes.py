@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from tenancy_harness import fake_review_model
 from tenancy_harness.fake_github import router as github_router
@@ -20,6 +21,7 @@ HOLD_MARKER = "HOLD-FOR-USAGE-CRASH"
 HOLD_SECONDS = 100
 EGRESS: list[str] = []
 MODEL_EVENTS: list[dict[str, str]] = []
+MODEL_FAULT = {"status": 0}  # a non-zero HTTP status makes every model call fail
 
 
 class PlainServer(uvicorn.Server):
@@ -137,10 +139,22 @@ def egress():
     return {"paths": EGRESS}
 
 
+@app.post("/model-fault")
+async def model_fault(request: Request):
+    """Make model calls fail with one HTTP status (0 clears it); T7-I08 uses it."""
+    body = await request.json()
+    MODEL_FAULT["status"] = int(body.get("status", 0))
+    return {"status": MODEL_FAULT["status"]}
+
+
 @app.post("/v1/chat/completions")
 async def completion(request: Request):
     """Return recognizable tenant content through the actual model adapter."""
     body = await request.json()
+    if MODEL_FAULT["status"]:
+        return JSONResponse(
+            {"error": {"code": "fixture_fault"}}, status_code=MODEL_FAULT["status"]
+        )
     MODEL_EVENTS.append(
         {
             "path": request.url.path,

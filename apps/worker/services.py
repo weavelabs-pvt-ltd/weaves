@@ -39,6 +39,8 @@ class WorkerServices:
     # expire the hidden conversations.
     dispatch_slack: Callable[[], int] | None = None
     reply_slack: Callable[[], int] | None = None
+    # Slack bot (S4b): carry out the Stop and Try again presses the API stored.
+    interact_slack: Callable[[], int] | None = None
     purge_slack: Callable[[], int] | None = None
     # Slack bot (S4c): thumbs reactions to ratings, and their 400 day retention.
     feedback_slack: Callable[[], int] | None = None

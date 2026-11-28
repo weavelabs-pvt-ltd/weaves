@@ -39,6 +39,8 @@ def text_for(key: str) -> str:
         return copy.TAKING_LONGER
     if key == "writing":
         return copy.WRITING
+    if key == "retrying":
+        return copy.RETRYING
     if key.startswith("check:"):
         return copy.checking(safe_label(key[6:]))
     if key.startswith("still:") and key[6:].isdigit():

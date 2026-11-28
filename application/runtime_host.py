@@ -61,6 +61,7 @@ if TYPE_CHECKING:
     from modules.slack.dispatch.dispatcher import SlackDispatcher
     from modules.slack.feedback.processor import SlackFeedbackTick
     from modules.slack.feedback.retention import FeedbackRetention
+    from modules.slack.interactions.tick import SlackInteractionTick
     from modules.slack.pipeline.health import SlackHealthRefresher
     from modules.slack.qa_retention import SlackRetention
     from modules.slack.reply.tick import SlackReplyTick
@@ -106,6 +107,7 @@ class RuntimeCapabilityHost:
     slack_health_refresher: SlackHealthRefresher | None
     slack_dispatcher: SlackDispatcher | None
     slack_reply_tick: SlackReplyTick | None
+    slack_interactions: SlackInteractionTick | None
     slack_retention: SlackRetention | None
     slack_feedback_admin: FeedbackAdmin
     slack_feedback_tick: SlackFeedbackTick | None

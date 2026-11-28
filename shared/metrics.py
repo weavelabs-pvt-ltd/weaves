@@ -384,6 +384,14 @@ SLACK_RETENTION = REGISTRY.add(
         ("kind",),
     )
 )
+SLACK_INTERACTIONS = REGISTRY.add(
+    Counter(
+        "slack_interactions_total",
+        "Slack Stop and Try again presses by action, outcome and reason code "
+        "(no org label, no text).",
+        ("action", "outcome", "reason"),
+    )
+)
 SLACK_FEEDBACK = REGISTRY.add(
     Counter(
         "slack_feedback_total",

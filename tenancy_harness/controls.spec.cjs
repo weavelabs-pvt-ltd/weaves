@@ -563,3 +563,23 @@ test('T7-I07 a Slack PR review posts the review once, with the receipt, a partia
     expect(control[key], key).toBe(true);
   }
 });
+
+test('T7-I08 Stop and Try again: signed presses, who may press, cancellation, no late answer, gates and audit', async () => {
+  const control = fixture.slack_interactions;
+  for (const key of ['a_signed_press_is_acked_within_three_seconds',
+    'the_working_message_carries_a_stop_button_with_an_opaque_reference',
+    'another_person_is_told_privately_and_nothing_changes', 'an_admin_holding_slack_manage_can_stop_it',
+    'stop_turns_the_working_message_into_stopped_without_buttons',
+    'the_turn_is_cancelled_and_no_late_answer_is_posted', 'a_forged_reference_or_message_finds_nothing',
+    'stop_works_while_the_bot_is_paused', 'a_replayed_press_is_one_press', 'a_double_press_says_already_stopped',
+    'no_late_answer_after_a_stopped_request', 'a_forged_or_stale_signature_is_refused_and_stores_nothing',
+    'a_press_for_an_unknown_workspace_is_acked_and_dropped', 'a_failed_request_offers_try_again',
+    'try_again_is_refused_by_the_gates_while_the_bot_is_paused', 'try_again_by_someone_else_is_refused_privately',
+    'try_again_runs_the_stored_request_as_a_new_turn_and_answers_once',
+    'the_failure_message_became_the_working_message_and_lost_its_button',
+    'try_again_counts_against_the_ask_limits', 'the_old_try_again_reference_is_dead_after_the_retry',
+    'every_press_is_audited_once_with_its_reason_and_no_text', 'the_press_rows_lose_their_reference_once_settled',
+    'no_token_in_any_table_audit_or_ciphertext']) {
+    expect(control[key], key).toBe(true);
+  }
+});

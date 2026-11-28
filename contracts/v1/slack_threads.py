@@ -66,6 +66,11 @@ class SlackThread(MutableOrgScopedContract):
     posts: int = Field(default=0, ge=0, le=10)
     private_sent: bool = False
     finished_at: AwareDatetime | None = None
+    # The opaque reference the Stop and Try again buttons of the latest request
+    # carry (random, never an id of ours); a stale or forged value never matches.
+    run_ref: str = Field(default="", max_length=64)
+    # Try again presses already used for this request (design 3.12: at most 3).
+    retries: int = Field(default=0, ge=0, le=100)
 
 
 __all__ = [

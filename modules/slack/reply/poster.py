@@ -20,6 +20,7 @@ from application.ports.secrets import SecretStore
 from application.ports.slack import SlackInstallation
 from clients.slack.client import SlackApiClient
 from clients.slack.errors import SlackApiError, SlackRateLimited, SlackTokenError
+from modules.slack.reply.blocks import Button, action_blocks
 from modules.slack.text.mrkdwn import has_unsafe_angle
 from modules.slack.text.scrub import Scrubbed, ScrubberUnavailable, scrub
 from shared.metrics import SLACK_API_429, SLACK_POSTS, SLACK_SCRUB
@@ -181,14 +182,20 @@ class SlackPoster:
         thread_ts: str,
         rich: bool = False,
         button: LinkButton | None = None,
+        action: Button | None = None,
     ) -> str:
         """Post a new message in the thread; returns its ``ts``.
 
-        ``rich`` sends the text as a block (with the optional link button).
+        ``rich`` sends the text as a block (with the optional link button);
+        ``action`` is a Stop or Try again button of the Ask flow.
         """
         final = finalize(text, self._scrubber)
-        blocks = message_blocks(final.text, button) if rich else None
         token = self._token(installation)
+        blocks = (
+            message_blocks(final.text, button)
+            if rich
+            else action_blocks(final.text, action) or None
+        )
         ref = self._call(
             "chat.postMessage",
             lambda: self._api.post_message(
@@ -206,11 +213,21 @@ class SlackPoster:
         *,
         rich: bool = False,
         button: LinkButton | None = None,
+        action: Button | None = None,
     ) -> None:
-        """Edit one of our messages in place (``rich`` replaces its blocks too)."""
+        """Edit one of our messages in place (``rich`` replaces its blocks too).
+
+        Blocks are always sent: the link button (``rich``), the Stop or Try again
+        button the message should have now (``action``), or none, which removes an
+        obsolete button.
+        """
         final = finalize(text, self._scrubber)
-        blocks = message_blocks(final.text, button) if rich else None
         token = self._token(installation)
+        blocks = (
+            message_blocks(final.text, button)
+            if rich
+            else action_blocks(final.text, action)
+        )
         self._call(
             "chat.update",
             lambda: self._api.update_message(

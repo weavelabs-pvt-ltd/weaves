@@ -49,6 +49,9 @@ def build_worker_services(
         reply_slack=(
             reply_tick.run if (reply_tick := runtime.slack_reply_tick) else None
         ),
+        interact_slack=(
+            interactions.run if (interactions := runtime.slack_interactions) else None
+        ),
         purge_slack=(retention.run if (retention := runtime.slack_retention) else None),
         feedback_slack=(
             feedback.run if (feedback := runtime.slack_feedback_tick) else None

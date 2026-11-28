@@ -13,8 +13,13 @@ from modules.integrations.oauth_state_service import OAuthStateService
 from modules.slack.events import SlackEventIngest
 from modules.slack.http.events_route import SlackEventsEndpoint, register_events_route
 from modules.slack.http.install_routes import register_install_routes
+from modules.slack.http.interactions_route import (
+    SlackInteractionsEndpoint,
+    register_interactions_route,
+)
 from modules.slack.install_settings import SlackInstallSettings
 from modules.slack.installation_service import SlackInstallationService
+from modules.slack.interactions.ingest import SlackInteractionIngest
 from modules.slack.reactions import AckReaction
 from shared.request_context import effective_org_id
 
@@ -26,6 +31,7 @@ class SlackRouteServices:
     settings: SlackInstallSettings
     installs: SlackInstallationService
     ingest: SlackEventIngest
+    interactions: SlackInteractionIngest
     react: AckReaction
 
 
@@ -69,10 +75,21 @@ def build_slack_route_services(runtime: LocalPlatformRuntime) -> SlackRouteServi
             lifecycle.state_of(org_id) is OrganizationLifecycleState.ACTIVE
         ),
     )
+    interactions = SlackInteractionIngest(
+        store=runtime.slack_store,
+        enabled=settings.config.enabled,
+        # Stop keeps working while the platform or the bot is paused and while the
+        # organization is quarantined; only an organization being deleted is out.
+        org_present=lambda org_id: (
+            lifecycle.state_of(org_id)
+            in (OrganizationLifecycleState.ACTIVE, OrganizationLifecycleState.SUSPENDED)
+        ),
+    )
     return SlackRouteServices(
         settings=settings,
         installs=installs,
         ingest=ingest,
+        interactions=interactions,
         react=AckReaction(api, runtime.secret_store, installs),
     )
 
@@ -86,6 +103,13 @@ def register_slack_routes(app: FastAPI, services: SlackRouteServices) -> None:
             signing_secret=services.settings.config.signing_secret,
             ingest=services.ingest,
             react=services.react,
+        ),
+    )
+    register_interactions_route(
+        app,
+        SlackInteractionsEndpoint(
+            signing_secret=services.settings.config.signing_secret,
+            ingest=services.interactions,
         ),
     )
 

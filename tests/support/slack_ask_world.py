@@ -21,6 +21,8 @@ from application.ports.slack import InboxEvent
 from apps.runtime_services_slack_dispatch import attach_slack_dispatch
 from clients.slack.client import SlackApiClient
 from contracts.v1 import TaskTurnStatus
+from modules.slack.interactions.ingest import SlackInteractionIngest
+from modules.slack.interactions.payload import Press
 from tests.support import slack_pipeline_world as base
 from tests.support.slack_pipeline_world import CHANNEL, TEAM, USER, World
 
@@ -74,6 +76,13 @@ class FakeSlackWeb:
             return httpx.Response(200, json=body)
         return httpx.Response(200, json=self._ok(method, params))
 
+    def _edit(self, params: dict[str, str]) -> None:
+        for message in self.messages:
+            if message["ts"] == params["ts"]:
+                message["text"] = params["text"]
+                if "blocks" in params:  # like Slack: omitted blocks are kept
+                    message["blocks"] = params["blocks"]
+
     def _ok(self, method: str, params: dict[str, str]) -> dict[str, Any]:
         self.sequence += 1
         ts = f"1700000{self.sequence:03d}.000100"
@@ -81,10 +90,7 @@ class FakeSlackWeb:
             self.messages.append({**params, "ts": ts})
             return {"ok": True, "channel": params["channel"], "ts": ts}
         if method == "chat.update":
-            for message in self.messages:
-                if message["ts"] == params["ts"]:
-                    message["text"] = params["text"]
-                    message["blocks"] = params.get("blocks")
+            self._edit(params)
             return {"ok": True, "channel": params["channel"], "ts": params["ts"]}
         if method == "chat.delete":
             for message in self.messages:
@@ -193,6 +199,52 @@ class AskWorld:
                 }
             )
         )
+
+    # -- buttons --------------------------------------------------------------------
+
+    @staticmethod
+    def buttons(message: dict[str, Any]) -> list[tuple[str, str]]:
+        """``(action_id, value)`` of the buttons a message currently carries."""
+        blocks = json.loads(message.get("blocks") or "[]")
+        return [
+            (e["action_id"], e["value"])
+            for block in blocks
+            if block["type"] == "actions"
+            for e in block["elements"]
+        ]
+
+    def press(
+        self,
+        action: str,
+        *,
+        user: str = USER,
+        ref: str | None = None,
+        message_ts: str | None = None,
+        thread_ts: str | None = None,
+        action_ts: str | None = None,
+        enabled: bool = True,
+    ) -> str:
+        """Store a button press as the endpoint does; returns the ingest outcome."""
+        self.serial += 1
+        row = self.latest()
+        press = Press(
+            team_id=TEAM,
+            user_id=user,
+            action_id=f"weaves.{action}",
+            value=row.run_ref if ref is None else ref,
+            channel_id=row.channel_id,
+            message_ts=message_ts or row.status_ts or row.answer_ts or "1.1",
+            thread_ts=thread_ts or row.thread_ts,
+            action_ts=action_ts or f"1700100{self.serial:03d}.000100",
+        )
+        ingest = SlackInteractionIngest(
+            store=self.runtime.slack_store, enabled=enabled, org_present=lambda _: True
+        )
+        return ingest.handle(press)
+
+    def interact(self) -> int:
+        """Run the interactions tick."""
+        return int(self.runtime.slack_interactions.run())
 
     def threads(self) -> list[Any]:
         """Every thread row of the organization."""

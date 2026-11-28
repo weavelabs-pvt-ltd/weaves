@@ -232,6 +232,7 @@ class AskFlow:
             request_id=request_id_of(event),
             message_ts=event.message_ts or thread_ts,
             requested_at=now,
+            run_ref=self._book.new_ref(),
             created_at=utc_now(),
             updated_at=utc_now(),
         )
